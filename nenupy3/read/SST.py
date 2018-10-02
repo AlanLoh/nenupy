@@ -10,6 +10,9 @@ import sys
 import glob
 import numpy as np
 
+import matplotlib as mpl
+from matplotlib import pyplot as plt
+
 from astropy.io import fits
 from astropy.time import Time
 
@@ -219,6 +222,52 @@ class SST():
         self.f = self._freqs[ mask_fre ]
         return
 
+    def plotData(self, **kwargs):
+        """ Plot the data
+        """
+        self.getData(**kwargs)
+
+        if self.f.size == 1:
+            # ------ Light curve ------ #
+            xtime = (self.t - self.t[0]).sec / 60
+            plt.plot(xtime, self.d)
+            plt.xlabel('Time (min since {})'.format(self.t[0].iso))
+            plt.ylabel('Amplitude')
+            plt.title('MA={}, f={:3.2f} MHz, pol={}'.format(self.ma, self.freq, self.polar))
+            plt.show()
+            plt.close('all')
+
+        elif self.t.size == 1:
+            # ------ Spectrum ------ #
+            plt.plot(self.f, self.d)
+            plt.xlabel('Frequency (MHz)')
+            plt.ylabel('Amplitude')
+            plt.title('MA={}, t={} MHz, pol={}'.format(self.ma, self.t.iso, self.polar))
+            plt.show()
+            plt.close('all')
+
+        elif (self.f.size > 1) & (self.t.size > 1):
+            # ------ Dynamic spectrum ------ #
+            xtime = (self.t - self.t[0]).sec / 60
+            vmin, vmax = np.percentile(self.d, [5, 99]) 
+            fig = plt.figure()
+            ax  = fig.add_subplot(111)
+            normcb = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
+            spec = ax.pcolormesh(xtime, self.f, self.d.T, cmap='bone', norm=normcb)
+            ax.axis([xtime.min(), xtime.max(), self.f.min(), self.f.max()])
+            if self.type == 'SST':
+                plt.title("Dynamic spectrum | polar: {}, MA: {}".format(self.polar, self.ma))
+            else:                
+                plt.title("Dynamic spectrum | polar: {}, abeam: {}, dbeam: {}".format(self.polar, self.abeam, self.dbeam))
+            plt.xlabel('Time (min since {})'.format(self.times[0].iso))
+            plt.ylabel('Frequency (MHz)')
+            plt.title('MA={}, pol={}'.format(self.ma, self.polar))
+            plt.show()
+            plt.close('all')
+
+        else:
+            raise ValueError("\n\t=== ERROR: Plot nature not understood ===")
+        return
 
     # ================================================================= #
     # =========================== Internal ============================ #
@@ -263,8 +312,9 @@ class SST():
     def evalkwargs(self, kwargs):
         for key, value in kwargs.items():
             if   key == 'polar': self.polar = value
-            elif key == 'freq': self.freq = value
-            elif key == 'time': self.time = value
+            elif key == 'freq':  self.freq  = value
+            elif key == 'time':  self.time  = value
+            elif key == 'ma':    self.ma    = value
             else:
                 pass
         return
