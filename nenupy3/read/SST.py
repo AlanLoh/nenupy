@@ -35,6 +35,15 @@ class SST():
         self.freq    = 50
         self.polar   = 'nw' 
 
+    def __str__(self):
+        toprint  = '\t=== Class SST of nenupy ===\n'
+        toprint += '\tList of all current attributes:\n'
+        for att in dir(self):
+            avoid = ['t', 'd', 'f']
+            if (not att.startswith('_')) & (not any(x.isupper() for x in att)) & (att not in avoid):
+                toprint += "%s: %s\n"%(att, getattr(self, att))
+        return toprint
+
     # ================================================================= #
     # ======================== Getter / Setter ======================== #
     @property
@@ -185,7 +194,7 @@ class SST():
         """ Make the data selection
             Fill the attributes self.d (data), self.t (time), self.f (frequency)
         """
-        self.evalkwargs(kwargs)
+        self._evalkwargs(kwargs)
 
         # ------ load data only once ------ #
         if not hasattr(self, '_data'):
@@ -242,7 +251,7 @@ class SST():
             plt.plot(self.f, self.d)
             plt.xlabel('Frequency (MHz)')
             plt.ylabel('Amplitude')
-            plt.title('MA={}, t={} MHz, pol={}'.format(self.ma, self.t.iso, self.polar))
+            plt.title('MA={}, t={}, pol={}'.format(self.ma, self.time.iso, self.polar))
             plt.show()
             plt.close('all')
 
@@ -253,13 +262,9 @@ class SST():
             fig = plt.figure()
             ax  = fig.add_subplot(111)
             normcb = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
-            spec = ax.pcolormesh(xtime, self.f, self.d.T, cmap='bone', norm=normcb)
-            ax.axis([xtime.min(), xtime.max(), self.f.min(), self.f.max()])
-            if self.type == 'SST':
-                plt.title("Dynamic spectrum | polar: {}, MA: {}".format(self.polar, self.ma))
-            else:                
-                plt.title("Dynamic spectrum | polar: {}, abeam: {}, dbeam: {}".format(self.polar, self.abeam, self.dbeam))
-            plt.xlabel('Time (min since {})'.format(self.times[0].iso))
+            spec   = ax.pcolormesh(xtime, self.f, self.d.T, cmap='bone', norm=normcb)
+            ax.axis( [xtime.min(), xtime.max(), self.f.min(), self.f.max()] )
+            plt.xlabel('Time (min since {})'.format(self.t[0].iso))
             plt.ylabel('Frequency (MHz)')
             plt.title('MA={}, pol={}'.format(self.ma, self.polar))
             plt.show()
@@ -297,6 +302,8 @@ class SST():
 
         setup_ins = fits.getdata(self.obsfile[0], ext=1, ignore_missing_end=True, memmap=True)
         self._freqs     = np.squeeze( setup_ins['frq'] )
+        self.freqmin    = self._freqs.min()
+        self.freqmax    = self._freqs.max()
         self.miniarrays = np.squeeze( setup_ins['noMROn'] )
         self._marot     = np.squeeze( setup_ins['rotation'] )
         self._mapos     = np.squeeze( setup_ins['noPosition'] )
@@ -309,7 +316,7 @@ class SST():
         """
         return
 
-    def evalkwargs(self, kwargs):
+    def _evalkwargs(self, kwargs):
         for key, value in kwargs.items():
             if   key == 'polar': self.polar = value
             elif key == 'freq':  self.freq  = value
