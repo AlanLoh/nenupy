@@ -29,7 +29,8 @@ class SST():
     def __init__(self, obsfile=None):
         self.obsfile = obsfile
         self.ma      = 0
-        self.freq    = 50 
+        self.freq    = 50
+        self.polar   = 'nw' 
 
     # ================================================================= #
     # ======================== Getter / Setter ======================== #
@@ -115,11 +116,51 @@ class SST():
     def freq(self, f):
         if isinstance(f, list):
             self._freq    = [0, 0]
-            self._freq[0] = min(self.freqs, key=lambda x: np.abs(x-f[0]))
-            self._freq[1] = min(self.freqs, key=lambda x: np.abs(x-f[1]))
+            self._freq[0] = min(self._freqs, key=lambda x: np.abs(x-f[0]))
+            self._freq[1] = min(self._freqs, key=lambda x: np.abs(x-f[1]))
         else:
-            self._freq    = min(self.freqs, key=lambda x: np.abs(x-f))  
+            self._freq    = min(self._freqs, key=lambda x: np.abs(x-f))  
         return        
+
+    @property
+    def polar(self):
+        """ Polarization selection ('NW' or 'NE')
+        """
+        return self._polar
+    @polar.setter
+    def polar(self, p):
+        if not isinstance(p, str):
+            self._polar = 'NW'
+        elif p.upper() not in self._pols:
+            print("\n\t=== WARNING: Polarization selection {} not recognized ===".format(p))
+            self._polar = 'NW'
+        else:
+            self._polar = p.upper()
+
+    @property
+    def time(self):
+        """ Time selection
+        """
+        return self._time
+    @time.setter
+    def time(self, t):
+        if isinstance(t, list):
+            try:
+                if not isinstance(t[0], Time):
+                    t[0] = Time(t[0])
+                if not isinstance(t[1], Time):
+                    t[1] = Time(t[1])
+                self._time = t
+            except:
+                print("\n\t=== WARNING: Time syntax incorrect ===")
+        else:
+            if not isinstance(t, Time):
+                try:
+                    t = Time(t)
+                    self._time = t
+                except:
+                    print("\n\t=== WARNING: Time syntax incorrect ===")
+            return
 
     # ------ Specific getters ------ #
     @property
@@ -138,9 +179,46 @@ class SST():
     # ================================================================= #
     # =========================== Methods ============================= #
     def getData(self, **kwargs):
-        """ 
+        """ Make the data selection
+            Fill the attributes self.d (data), self.t (time), self.f (frequency)
         """
+        self.evalkwargs(kwargs)
+
+        # ------ load data only once ------ #
+        if not hasattr(self, '_data'):
+            self._timeall = []
+            self._dataall = []
+            for ssfile in sorted(self.obsfile):
+                with fits.open(ssfile, mode='readonly', ignore_missing_end=True, memmap=True) as fitsfile:
+                   self._timeall.append( fitsfile[7].data['jd']   ) 
+                   self._dataall.append( fitsfile[7].data['data'] )
+            self._timeall = Time( np.hstack(self._timeall), format='jd' )
+            self._dataall  = np.vstack( self._dataall )
+
+        # ------ polarization ------ #
+        mask_pol = (self._pols == self.polar)
+
+        # ------ frequency ------ #
+        if isinstance(self.freq, list):
+            mask_fre = (self._freqs > 0.) & (self._freqs >= self.freq[0]) & (self._freqs <= self.freq[-1])
+        else:
+            mask_fre = (self._freqs == min(self._freqs, key=lambda x: np.abs(x-self.freq)))
+
+        # ------ time ------ #
+        if isinstance(self.time, list):
+            mask_tim = (self._timeall >= self.time[0]) & (self._timeall <= self.time[1])
+        else:
+            mask_tim = (self._timeall.mjd == min(self._timeall.mjd, key=lambda x: np.abs(x-self.time.mjd)) )
+        
+        # ------ mini-array ------ #
+        mask_ma = (self.miniarrays == self.ma)
+       
+        # ------ selected data ------ #
+        self.d = np.squeeze( self._dataall[ np.ix_(mask_tim, mask_ma, mask_pol, mask_fre) ] )
+        self.t = self._timeall[ mask_tim ]
+        self.f = self._freqs[ mask_fre ]
         return
+
 
     # ================================================================= #
     # =========================== Internal ============================ #
@@ -156,11 +234,6 @@ class SST():
                     pass
         return isSST
 
-    def _createFakeObs(self):
-        """
-        """
-        return
-
     def _readSST(self):
         """ Read SST fits files and fill the class attributes
         """
@@ -170,15 +243,29 @@ class SST():
         headf = fits.getheader(self.obsfile[-1], ext=0, ignore_missing_end=True, memmap=True)
         self.obstart  = Time( headi['DATE-OBS'] + 'T' + headi['TIME-OBS'] )
         self.obstop   = Time( headf['DATE-END'] + 'T' + headf['TIME-END'] )
+        self.time     = [self.obstart.copy(), self.obstop.copy()]
         self.exposure = self.obstop - self.obstart
 
         setup_ins = fits.getdata(self.obsfile[0], ext=1, ignore_missing_end=True, memmap=True)
-        self.freqs      = np.squeeze( setup_ins['frq'] )
+        self._freqs     = np.squeeze( setup_ins['frq'] )
         self.miniarrays = np.squeeze( setup_ins['noMROn'] )
         self._marot     = np.squeeze( setup_ins['rotation'] )
         self._mapos     = np.squeeze( setup_ins['noPosition'] )
         self._mapos     = self._mapos.reshape( int(self._mapos.size/3), 3 )
+        self._pols      = np.squeeze( setup_ins['spol'] )
         return
 
+    def _createFakeObs(self):
+        """
+        """
+        return
 
+    def evalkwargs(self, kwargs):
+        for key, value in kwargs.items():
+            if   key == 'polar': self.polar = value
+            elif key == 'freq': self.freq = value
+            elif key == 'time': self.time = value
+            else:
+                pass
+        return
 
