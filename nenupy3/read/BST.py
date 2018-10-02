@@ -10,6 +10,9 @@ import os
 import sys
 import numpy as np
 
+import matplotlib as mpl
+from matplotlib import pyplot as plt
+
 from astropy.io import fits
 from astropy.time import Time
 
@@ -36,7 +39,7 @@ class BST():
         toprint  = '\t=== Class SST of nenupy ===\n'
         toprint += '\tList of all current attributes:\n'
         for att in dir(self):
-            avoid = ['t', 'd', 'f', 'elana', 'azana', 'azdig', 'eldig']
+            avoid = ['t', 'd', 'f', 'elana', 'azana', 'azdig', 'eldig', 'maposition', 'marotation']
             if (not att.startswith('_')) & (not any(x.isupper() for x in att)) & (att not in avoid):
                 toprint += "%s: %s\n"%(att, getattr(self, att))
         return toprint
@@ -114,7 +117,9 @@ class BST():
             self._dbeam = 0
         else:
             self._dbeam = b
-        self._abeam = self._digi2ana[b] # change anabeam automatically
+        self.freqmin = self._freqs[self._dbeam].min()
+        self.freqmax = self._freqs[self._dbeam].max()
+        self._abeam  = self._digi2ana[self._dbeam] # change anabeam automatically
         return
 
     @property
@@ -251,6 +256,49 @@ class BST():
         self.f = self._freqs[self.dbeam][ mask_fre ]
         return
 
+    def plotData(self, **kwargs):
+        """ Plot the data
+        """
+        self.getData(**kwargs)
+
+        if self.f.size == 1:
+            # ------ Light curve ------ #
+            xtime = (self.t - self.t[0]).sec / 60
+            plt.plot(xtime, self.d)
+            plt.xlabel('Time (min since {})'.format(self.t[0].iso))
+            plt.ylabel('Amplitude')
+            plt.title('f={:3.2f} MHz, pol={}, abeam={}, dbeam={}'.format(self.freq, self.polar, self.abeam, self.dbeam))
+            plt.show()
+            plt.close('all')
+
+        elif self.t.size == 1:
+            # ------ Spectrum ------ #
+            plt.plot(self.f, self.d)
+            plt.xlabel('Frequency (MHz)')
+            plt.ylabel('Amplitude')
+            plt.title('t={}, pol={}, abeam={}, dbeam={}'.format(self.time.iso, self.polar, self.abeam, self.dbeam))
+            plt.show()
+            plt.close('all')
+
+        elif (self.f.size > 1) & (self.t.size > 1):
+            # ------ Dynamic spectrum ------ #
+            xtime = (self.t - self.t[0]).sec / 60
+            vmin, vmax = np.percentile(self.d, [5, 99]) 
+            fig = plt.figure()
+            ax  = fig.add_subplot(111)
+            normcb = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
+            spec   = ax.pcolormesh(xtime, self.f, self.d.T, cmap='bone', norm=normcb)
+            ax.axis( [xtime.min(), xtime.max(), self.f.min(), self.f.max()] )
+            plt.xlabel('Time (min since {})'.format(self.t[0].iso))
+            plt.ylabel('Frequency (MHz)')
+            plt.title('pol={}, abeam={}, dbeam={}'.format(self.polar, self.abeam, self.dbeam))
+            plt.show()
+            plt.close('all')
+
+        else:
+            raise ValueError("\n\t=== ERROR: Plot nature not understood ===")
+        return
+
     # ================================================================= #
     # =========================== Internal ============================ #
     def _isBST(self):
@@ -316,6 +364,8 @@ class BST():
             if   key == 'polar': self.polar = value
             elif key == 'freq':  self.freq  = value
             elif key == 'time':  self.time  = value
+            elif key == 'abeam': self.abeam = value
+            elif key == 'dbeam': self.dbeam = value
             else:
                 pass
         return
