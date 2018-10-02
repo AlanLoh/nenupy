@@ -17,7 +17,7 @@ python3 -m pip install --index-url https://test.pypi.org/simple/ nenupy
 Loading the environment, within python3:
 ```python
 from nenupy3.read import SST, BST
-``
+```
 `SST` and `BST` are two separate modules to read **Sub-band Statistics** and **Beamlet Statistics** data respectively.
 
 Once a reading module is loaded, a *NenuFAR* observation can be read:
