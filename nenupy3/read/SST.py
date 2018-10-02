@@ -3,6 +3,10 @@
 
 """
 Class to read NenuFAR SST data
+        by A. Loh
+
+TO DO:
+    - read the parset if present
 """
 
 import os
@@ -184,6 +188,8 @@ class SST():
 
     @property
     def maposition(self):
+        """ Lambert93 (x, y, z) Mini-Array position
+        """
         self._maposition = self._mapos[ self.ma ]
         return self._maposition
     

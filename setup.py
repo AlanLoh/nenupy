@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-setup(name       = 'alpygraph',
+setup(name       = 'nenupy',
     packages     = find_packages(),
     version      = '0.1',
     description  = 'NenuFAR Python package',

@@ -3,6 +3,7 @@
 
 """
 Class to read XST NenuFAR data
+        by A. Loh
 """
 
 import os
