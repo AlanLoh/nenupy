@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Class to read SST NenuFAR data
+Class to read NenuFAR SST data
 """
 
 import os
@@ -11,6 +11,7 @@ import glob
 import numpy as np
 
 from astropy.io import fits
+from astropy.time import Time
 
 
 __author__ = 'Alan Loh'
@@ -27,6 +28,8 @@ __all__ = ['SST']
 class SST():
     def __init__(self, obsfile=None):
         self.obsfile = obsfile
+        self.ma      = 0
+        self.freq    = 50 
 
     # ================================================================= #
     # ======================== Getter / Setter ======================== #
@@ -69,7 +72,7 @@ class SST():
             else:
                 # The file has been correctly found
                 o = [ os.path.abspath(o) ]
-        self._obsfile = o
+        self._obsfile = sorted(o)
 
         if not self._isSST():
             raise ValueError("\t=== Files might not all be SST observaitons ===")
@@ -77,6 +80,60 @@ class SST():
             self._readSST()
 
         return
+
+    @property
+    def ma(self):
+        """ Selected Mini-Array
+        """
+        return self._ma
+    @ma.setter
+    def ma(self, m):
+        if m is None:
+            m = 0
+        if not isinstance(m, int):
+            try:
+                m = int(m)
+            except:
+                print("\n\t=== WARNING: Mini-Array index {} not recognized ===".format(m))
+                m = 0
+        if m in self.miniarrays:
+                self._ma = m
+        else:
+            print("\n\t=== WARNING: available Mini-Arrays are {} ===".format(self.miniarrays))
+            self._ma = 0
+        return
+
+    @property
+    def freq(self):
+        """ Frequency selection in MHz
+            Example:
+            self.freq = 50
+            self.freq = [20, 30]
+        """
+        return self._freq
+    @freq.setter
+    def freq(self, f):
+        if isinstance(f, list):
+            self._freq    = [0, 0]
+            self._freq[0] = min(self.freqs, key=lambda x: np.abs(x-f[0]))
+            self._freq[1] = min(self.freqs, key=lambda x: np.abs(x-f[1]))
+        else:
+            self._freq    = min(self.freqs, key=lambda x: np.abs(x-f))  
+        return        
+
+    # ------ Specific getters ------ #
+    @property
+    def marotation(self):
+        """ Mini-array rotation in degrees
+        """
+        self._marotation = self._marot[ self.ma ]
+        return self._marotation
+
+    @property
+    def maposition(self):
+        self._maposition = self._mapos[ self.ma ]
+        return self._maposition
+    
 
     # ================================================================= #
     # =========================== Methods ============================= #
@@ -107,6 +164,20 @@ class SST():
     def _readSST(self):
         """ Read SST fits files and fill the class attributes
         """
+        self.obsname = os.path.basename( self.obsfile[0] )[:-9]
+        
+        headi = fits.getheader(self.obsfile[0], ext=0, ignore_missing_end=True, memmap=True)
+        headf = fits.getheader(self.obsfile[-1], ext=0, ignore_missing_end=True, memmap=True)
+        self.obstart  = Time( headi['DATE-OBS'] + 'T' + headi['TIME-OBS'] )
+        self.obstop   = Time( headf['DATE-END'] + 'T' + headf['TIME-END'] )
+        self.exposure = self.obstop - self.obstart
+
+        setup_ins = fits.getdata(self.obsfile[0], ext=1, ignore_missing_end=True, memmap=True)
+        self.freqs      = np.squeeze( setup_ins['frq'] )
+        self.miniarrays = np.squeeze( setup_ins['noMROn'] )
+        self._marot     = np.squeeze( setup_ins['rotation'] )
+        self._mapos     = np.squeeze( setup_ins['noPosition'] )
+        self._mapos     = self._mapos.reshape( int(self._mapos.size/3), 3 )
         return
 
 
