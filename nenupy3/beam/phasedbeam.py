@@ -1,0 +1,150 @@
+#! /usr/bin/python3.5
+# -*- coding: utf-8 -*-
+
+"""
+Class to compute a phased-array beam
+        by A. Loh
+"""
+
+import os
+import sys
+import numpy as np
+
+from astropy import constants as const
+
+from .antenna import AntennaModel
+
+__author__ = 'Alan Loh'
+__copyright__ = 'Copyright 2018, nenupy'
+__credits__ = ['Alan Loh']
+__license__ = 'MIT'
+__version__ = '0.0.1'
+__maintainer__ = 'Alan Loh'
+__email__ = 'alan.loh@obspm.fr'
+__status__ = 'WIP'
+__all__ = ['PhasedArrayBeam']
+
+class PhasedArrayBeam():
+    """ Class PhasedArrayBeam
+        Parameters:
+        position (ndarray): antenna positions ([[x1, y1, z1], [x2, y2, z2], ..])
+        model (ndarray): antenna model
+        azimuth (float): azimuth of the target location
+        elevation (float): elevation of the target location
+    """
+    def __init__(self, position=None, model=None, azimuth=180, elevation=45):
+        self.pos   = position
+        self.model = model
+        self.azim  = azimuth
+        self.elev  = elevation
+        self.resol = 0.2 
+
+    # ================================================================= #
+    # ======================== Getter / Setter ======================== #
+    @property
+    def azim(self):
+        """ Azimuth in degrees
+        """
+        return self._azim
+    @azim.setter
+    def azim(self, a):
+        if not isinstance(a, (float, int)):
+            raise TypeError("\n\t=== Azimuth must be a number ===")
+        elif (a < 0.) or (a > 360.):
+            a %= 360.
+        else:
+            pass
+        self._azim = a
+        return
+
+    @property
+    def elev(self):
+        """ Elevation in degrees
+        """
+        return self._elev
+    @elev.setter
+    def elev(self, e):
+        if not isinstance(e, (float, int)):
+            raise TypeError("\n\t=== Elevation must be a number ===")
+        elif (e < 0.) or (e > 90.):
+            raise ValueError("\n\t=== Elevation should be between 0 and 90 ===")
+        else:
+            pass
+        self._elev = e
+        return
+
+    @property
+    def pos(self):
+        """ Antenna position array
+        """
+        return self._pos
+    @pos.setter
+    def pos(self, p):
+        if p is None:
+            return
+        if not isinstance(p, (np.ndarray)):
+            raise TypeError("\n\t=== Antenna position should be an array ===")
+        elif len(p.shape) != 2:
+            raise ValueError("\n\t=== Antenna position should be a 2D array ===")
+        elif p.shape[1] != 3:
+            raise ValueError("\n\t=== Antenna position array should be a (x, 3) shaped array ===")
+        else:
+            self._pos = p
+        return
+
+    @property
+    def model(self):
+        """ Antenna model
+        """
+        return self._model
+    @model.setter
+    def model(self, m):
+        if m is None:
+            return
+        if not isinstance(m, AntennaModel):
+            raise ValueError("\n\t=== model should be a AntennaModel object ===")
+        else:
+            self._model = m
+            return
+
+    # ================================================================= #
+    # =========================== Methods ============================= #
+    def getBeam(self):
+        """ Compute the beam of the phased array
+        """
+        wavevec = 2 * np.pi * self.model.antenna_freq * 1.e6 / const.c.value
+
+        # ------ Sky grid ------ #
+        thetagrid, phigrid = np.radians(np.meshgrid(np.arange(0, 90, self.resol),
+            np.arange(0, 360, self.resol) ))
+        thetagrid = np.fliplr(thetagrid)
+        _xp = np.cos(thetagrid) * np.cos(phigrid)
+        _yp = np.cos(thetagrid) * np.sin(phigrid)
+        _zp = np.sin(thetagrid)
+
+        # ------ Phase delay between antennae ------ #
+        theta = np.repeat( np.radians( 90. - self.elev ), self.pos.shape[0])
+        phi   = np.repeat( np.radians( self.azim ), self.pos.shape[0])
+        ux = np.cos(phi) * np.cos(theta)
+        uy = np.sin(phi) * np.cos(theta)
+        uz = np.sin(theta)
+        dphix = wavevec * self.pos[:, 0] * ux
+        dphiy = wavevec * self.pos[:, 1] * uy
+        dphi  = dphix + dphiy
+
+        # ------ Phase reference ------ #
+        phi0  = wavevec * ( self.pos[:, 0] * _xp[:, :, np.newaxis] 
+            + self.pos[:, 1] * _yp[:, :, np.newaxis] 
+            + self.pos[:, 2] * _zp[:, :, np.newaxis] ).astype(np.float32)
+        phase = phi0[:, :, :] - dphi[np.newaxis, np.newaxis, :]
+
+        # ------ e^(i Phi) ------ #
+        eiphi   = np.sum( np.exp(1j * phase), axis=2 )
+        antgain = self.model.antenna_gain(np.linspace(0, 360, eiphi.shape[1]),
+            np.linspace(0, 90, eiphi.shape[0]))
+        beam    = eiphi * eiphi.conjugate() * antgain
+        
+        return np.abs(beam) / np.abs(beam).max()
+
+
+

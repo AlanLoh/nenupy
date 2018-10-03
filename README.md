@@ -13,7 +13,7 @@ python3 -m pip install --index-url https://test.pypi.org/simple/ nenupy
 * [*astropy*](http://www.astropy.org)
 * ...
 
-## Example
+## Access and plot Statistics data
 Loading the environment, within python3:
 ```python
 from nenupy3.read import SST, BST
@@ -35,4 +35,12 @@ Once the function `getData()` has been called, the data are stored in the `d` at
 from matplotlib import pyplot as plt
 plt.plot( bst_obs.t.mjd, bst_obs.d )
 plt.show()
+```
+
+## Compute a Mini-Array beam
+```python
+from nenupy3.beam import SSTbeam
+sst = SSTbeam()
+sst.getBeam()
+sst.sstbeam # normalized beam
 ```

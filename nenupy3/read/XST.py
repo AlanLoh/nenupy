@@ -26,4 +26,11 @@ class XST():
     def __init__(self, obsfile):
         self.obsfile = obsfile
 
+    # ================================================================= #
+    # =========================== Methods ============================= #
+    def convertMS(self):
+        """ Convert the XST data into a Measurement Set
+        """
+        return
+
     
