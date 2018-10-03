@@ -74,8 +74,9 @@ class AntennaModel():
             gain = gain_inf * (f2-self.kwargs['freq']) / 10. + gain_sup * (self.kwargs['freq']-f1) / 10.
         else:
             gain = gain_inf
+        gain = np.flipud(gain).T
         gaininterp = interp2d( np.linspace(0., 360., gain.shape[1]), 
-            np.linspace(0., 90., gain.shape[0]), np.flipud(gain), kind='linear' )
+             np.linspace(0., 90., gain.shape[0]), gain, kind='linear' )
         
         self.antenna_gain = gaininterp
         self.antenna_freq = self.kwargs['freq']

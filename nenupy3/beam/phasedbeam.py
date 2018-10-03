@@ -123,7 +123,8 @@ class PhasedArrayBeam():
         _zp = np.sin(thetagrid)
 
         # ------ Phase delay between antennae ------ #
-        theta = np.repeat( np.radians( 90. - self.elev ), self.pos.shape[0])
+        theta = np.repeat( np.radians( self.elev ), self.pos.shape[0])
+        # theta = np.repeat( np.radians( 90. - self.elev ), self.pos.shape[0])
         phi   = np.repeat( np.radians( self.azim ), self.pos.shape[0])
         ux = np.cos(phi) * np.cos(theta)
         uy = np.sin(phi) * np.cos(theta)
@@ -143,8 +144,9 @@ class PhasedArrayBeam():
         antgain = self.model.antenna_gain(np.linspace(0, 360, eiphi.shape[1]),
             np.linspace(0, 90, eiphi.shape[0]))
         beam    = eiphi * eiphi.conjugate() * antgain
-        
-        return np.abs(beam) / np.abs(beam).max()
+        #beam    =  antgain
+
+        return np.real(beam) / np.real(beam).max() 
 
 
 

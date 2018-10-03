@@ -12,6 +12,7 @@ import numpy as np
 
 import matplotlib as mpl
 from matplotlib import pyplot as plt
+import matplotlib.ticker as mtick
 from astropy.io import fits
 from astropy.time import Time
 
@@ -44,12 +45,31 @@ class SSTbeam():
 
     # ================================================================= #
     # =========================== Methods ============================= #
-    def getBeam(self):
+    def getBeam(self, **kwargs):
         """ Get the SST beam
         """
         model = AntennaModel(design='nenufar', freq=self.freq, polar=self.polar)
-        beam  = PhasedArrayBeam(position=self._antPos(), model=model, azimuth=self.az, elevation=self.el)
+        beam  = PhasedArrayBeam(position=self._antPos(rot=25), model=model, azimuth=self.az, elevation=self.el)
         self.sstbeam = beam.getBeam()
+        return
+    def plotBeam(self, **kwargs):
+        """ Plot the SST Beam
+        """
+        self.getBeam(**kwargs)
+
+        theta = np.linspace(0., 90., self.sstbeam.shape[1])
+        phi   = np.radians( np.linspace(0., 360., self.sstbeam.shape[0]) )
+        # ------ Plot ------ #
+        fig = plt.figure()
+        ax  = fig.add_subplot(111, projection='polar')
+        normcb = mpl.colors.LogNorm(vmin=self.sstbeam.max() * 1.e-4, vmax=self.sstbeam.max())
+        p = ax.pcolormesh(phi, theta, self.sstbeam.T, norm=normcb, **kwargs)
+        ax.grid(linestyle='-', linewidth=0.5, color='white', alpha=0.4)
+        plt.setp(ax.get_yticklabels(), rotation='horizontal', color='white')
+        g = lambda x,y: r'%d'%(90-x)
+        ax.yaxis.set_major_formatter(mtick.FuncFormatter( g ))
+        plt.show()
+        plt.close('all')
         return
 
     # ================================================================= #

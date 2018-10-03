@@ -30,7 +30,7 @@ Data can be retrieved, using keywords (such as `freq`, `polar` and `time`):
 bst_obs.getData( freq=[20, 60], time='2018-09-01 10:00:00.0', polar='nw' )
 ```
 
-Once the function `getData()` has been called, the data are stored in the `d` attribute, (`t`, `f` for time and frequency as well). You can then plot the data:
+Once the function `getData()` has been called, the data are stored in the `d` attribute (`t`, `f` for time and frequency as well). You can then plot the data:
 ```python
 from matplotlib import pyplot as plt
 plt.plot( bst_obs.t.mjd, bst_obs.d )
@@ -40,7 +40,8 @@ plt.show()
 ## Compute a Mini-Array beam
 ```python
 from nenupy3.beam import SSTbeam
-sst = SSTbeam()
+sst = SSTbeam(freq=40, polar='NW', az=180, el=90)
 sst.getBeam()
 sst.sstbeam # normalized beam
+sst.plotBeam()
 ```
