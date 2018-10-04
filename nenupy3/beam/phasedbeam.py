@@ -101,20 +101,23 @@ class PhasedArrayBeam():
     def model(self, m):
         if m is None:
             return
-        if not isinstance(m, AntennaModel):
-            raise ValueError("\n\t=== model should be a AntennaModel object ===")
+        if not isinstance(m, (AntennaModel, list)):
+             raise ValueError("\n\t=== model should be a AntennaModel object / list ===")
         else:
             self._model = m
             return
 
     # ================================================================= #
     # =========================== Methods ============================= #
-    def getBeam(self, power=True):
+    def getBeam(self):
         """ Compute the beam of the phased array
             Parameter:
             power (bool): return the power (False: return eiphi)
         """
-        wavevec = 2 * np.pi * self.model.antenna_freq * 1.e6 / const.c.value
+        if isinstance(self.model, list):
+            wavevec = 2 * np.pi * self.model[0].antenna_freq * 1.e6 / const.c.value
+        else:
+            wavevec = 2 * np.pi * self.model.antenna_freq * 1.e6 / const.c.value
 
         # ------ Sky grid ------ #
         thetagrid, phigrid = np.radians(np.meshgrid(np.arange(0, 90, self.resol),
@@ -143,15 +146,18 @@ class PhasedArrayBeam():
 
         # ------ e^(i Phi) ------ #
         eiphi   = np.sum( np.exp(1j * phase), axis=2 )
-        antgain = self.model.antenna_gain(np.linspace(0, 360, eiphi.shape[1]),
-            np.linspace(0, 90, eiphi.shape[0]))
-        
-        if power:
-            beam = eiphi * eiphi.conjugate() * antgain
-            beam = np.real(beam) / np.real(beam).max()
+        if isinstance(self.model, list):
+            antgain = np.zeros( (eiphi.shape) )
+            for i in range(len(self.model)):
+                antgain += self.model[i].antenna_gain(np.linspace(0, 360, eiphi.shape[1]),
+                    np.linspace(0, 90, eiphi.shape[0]))
+            #antgain /= antgain.max()
         else:
-            beam = eiphi * antgain
+            antgain = self.model.antenna_gain(np.linspace(0, 360, eiphi.shape[1]),
+                np.linspace(0, 90, eiphi.shape[0]))
         
+        beam = eiphi * eiphi.conjugate() * antgain
+        beam = np.real(beam) / np.real(beam).max()
         return beam
 
 

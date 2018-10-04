@@ -10,6 +10,8 @@ import os
 import sys
 import numpy as np
 
+from scipy.interpolate import interp2d
+
 __author__ = 'Alan Loh'
 __copyright__ = 'Copyright 2018, nenupy'
 __credits__ = ['Alan Loh']
@@ -41,7 +43,9 @@ class AntennaModel():
         return self._design
     @design.setter
     def design(self, d):
-        if d.lower() == 'nenufar':
+        if isinstance(d, np.ndarray):
+            self._makeCustom(model=d)
+        elif d.lower() == 'nenufar':
             self._design = 'nenufar'
             self._getNenuFAR()
         else:
@@ -50,6 +54,14 @@ class AntennaModel():
 
     # ================================================================= #
     # =========================== Methods ============================= #
+    def _makeCustom(self, model):
+        gaininterp = interp2d( np.linspace(0., 360., model.shape[1]), 
+             np.linspace(0., 90., model.shape[0]), model, kind='linear' )
+        self.antenna_gain = gaininterp
+        # self.antenna_gain = model
+        self.antenna_freq = self.kwargs['freq']
+        return
+    
     def _getNenuFAR(self):
         """
         """

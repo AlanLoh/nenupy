@@ -12,11 +12,11 @@ import numpy as np
 
 import matplotlib as mpl
 from matplotlib import pyplot as plt
-from astropy.io import fits
-from astropy.time import Time
+import matplotlib.ticker as mtick
 
 from . import SSTbeam
 from . import PhasedArrayBeam
+from .antenna import AntennaModel
 from .antenna import miniarrays
 from ..read import BST
 
@@ -179,11 +179,35 @@ class BSTbeam():
     def getBeam(self, **kwargs):
         """ Get the BST beam
         """
-        for i in range(miniarrays.ma.shape[0]):
-            mabeam = SSTbeam(f=self.freq, p=self.polar, a=self.azana, e=self.elana, r=miniarrays.ma[i, 1])
-            mabeam.getBeam( power=False )
-        # beam = PhasedArrayBeam(p=miniarrays.ma[:, 2:5], m=model, a=self.azdig, e=self.eldig)
+        ma_beams = []
+        for i in range(self.miniarrays.size):
+            mabeam = SSTbeam(f=self.freq, p=self.polar, a=self.azana, e=self.elana, r=self.rotations[i])
+            mabeam.getBeam()
+            ma_model = AntennaModel( design=mabeam.sstbeam, freq=self.freq)
+            ma_beams.append( ma_model )
+        
+        beam = PhasedArrayBeam(p=self.positions, m=ma_beams, a=self.azdig, e=self.eldig)
+        self.bstbeam = beam.getBeam()
 
+    def plotBeam(self, **kwargs):
+        """ Plot the BST Beam
+        """
+        self.getBeam(**kwargs)
+
+        theta = np.linspace(0., 90., self.bstbeam.shape[1])
+        phi   = np.radians( np.linspace(0., 360., self.bstbeam.shape[0]) )
+        # ------ Plot ------ #
+        fig = plt.figure()
+        ax  = fig.add_subplot(111, projection='polar')
+        normcb = mpl.colors.LogNorm(vmin=self.bstbeam.max() * 1.e-4, vmax=self.bstbeam.max())
+        p = ax.pcolormesh(phi, theta, self.bstbeam.T, norm=normcb, **kwargs)
+        ax.grid(linestyle='-', linewidth=0.5, color='white', alpha=0.4)
+        plt.setp(ax.get_yticklabels(), rotation='horizontal', color='white')
+        g = lambda x,y: r'%d'%(90-x)
+        ax.yaxis.set_major_formatter(mtick.FuncFormatter( g ))
+        plt.show()
+        plt.close('all')
+        return
 
     # ================================================================= #
     # =========================== Internal ============================ #

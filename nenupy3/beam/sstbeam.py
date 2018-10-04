@@ -13,8 +13,6 @@ import numpy as np
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 import matplotlib.ticker as mtick
-from astropy.io import fits
-from astropy.time import Time
 
 from . import PhasedArrayBeam
 from .antenna import AntennaModel
@@ -52,8 +50,9 @@ class SSTbeam():
         """
         model = AntennaModel(design='nenufar', freq=self.freq, polar=self.polar)
         beam  = PhasedArrayBeam(p=self._antPos(), m=model, a=self.az, e=self.el)
-        self.sstbeam = beam.getBeam(power=True)
+        self.sstbeam = beam.getBeam()
         return
+
     def plotBeam(self, **kwargs):
         """ Plot the SST Beam
         """
