@@ -24,8 +24,8 @@ class AntennaModel():
     """ This class returns antenna models
         The outputs are response functions: antenna_gain(azim, elev)
         Parameters:
-        design (str): design of the antenna
-        kwargs: keywords used for specific antenna models
+        - design (str): design of the antenna
+        - kwargs: keywords used for specific antenna models
     """
     def __init__(self, design='nenufar', **kwargs):
         self.kwargs = kwargs

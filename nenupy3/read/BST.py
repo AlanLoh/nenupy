@@ -80,7 +80,7 @@ class BST():
         self._obsfile = o
 
         if not self._isBST():
-            raise ValueError("\t=== Files might not all be SST observaitons ===")
+            raise ValueError("\t=== Files might not be a BST observaiton ===")
         else:
             self._readBST()
 
@@ -199,25 +199,37 @@ class BST():
     def azana(self):
         """ Azimuth during the analogic pointing self.abeam
         """
-        return self._azlistana[ self._pointana==self.abeam ]
+        az = self._azlistana[ self._pointana==self.abeam ]
+        if az.size == 1:
+            az = az[0]
+        return az 
 
     @property
     def elana(self):
         """ Elevation during the analogic pointing self.abeam
         """
-        return self._ellistana[ self._pointana==self.abeam ]
+        el = self._ellistana[ self._pointana==self.abeam ]
+        if el.size == 1:
+            el = el[0]
+        return el
 
     @property
     def azdig(self):
         """ Azimuth during the numeric pointing self.dbeam
         """
-        return self._azlistdig[ self._pointdig==self.dbeam ]
+        az = self._azlistdig[ self._pointdig==self.dbeam ]
+        if az.size == 1:
+            az = az[0]
+        return az
 
     @property
     def eldig(self):
         """ Elevation during the numeric pointing self.dbeam
         """
-        return self._ellistdig[ self._pointdig==self.dbeam ]
+        el = self._ellistdig[ self._pointdig==self.dbeam ]
+        if el.size == 1:
+            el = el[0]
+        return el
 
 
     # ================================================================= #
@@ -336,6 +348,10 @@ class BST():
         self._mapos     = np.squeeze( setup_ins['noPosition'] )
         self._mapos     = self._mapos.reshape( int(self._mapos.size/3), 3 )
         self._pols      = np.squeeze( setup_ins['spol'] )
+        try:
+            self._delays = np.squeeze(setup_ins['delay'])[::2][ self.miniarrays ]
+        except:
+            self._delays = np.zeros( self.miniarrays.size )
 
         self.abeams     = setup_ana['NoAnaBeam']
         self._antlist   = np.array( [ np.array(eval(i)) - 1 for i in setup_ana['Antlist'] ])

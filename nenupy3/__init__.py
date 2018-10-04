@@ -7,4 +7,4 @@
 # from .skymodel import *
 
 
-__all__ = ['read']
+__all__ = ['read', 'beam']

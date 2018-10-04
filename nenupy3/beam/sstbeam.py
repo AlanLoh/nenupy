@@ -32,16 +32,18 @@ __all__ = ['SSTbeam']
 class SSTbeam():
     """ Class to handle SST beams
         Parameters:
-        freq (float)
-        polar (string)
-        az (float)
-        el (float)
+        - f (float): frequency in MHz
+        - p (string): 'NE' or 'NW'
+        - a (float): pointed azimuth in degrees
+        - e (float): pointed elevation in degrees
+        - r (float): mini-array rotation in degrees
     """
-    def __init__(self, obs=None, freq=50, polar='NW', az=180., el=90.):
-        self.freq  = freq
-        self.polar = polar
-        self.az    = az
-        self.el    = el
+    def __init__(self, f=50, p='NW', a=180., e=90., r=None):
+        self.freq  = f
+        self.polar = p
+        self.az    = a
+        self.el    = e
+        self.rot   = r
 
     # ================================================================= #
     # =========================== Methods ============================= #
@@ -49,8 +51,8 @@ class SSTbeam():
         """ Get the SST beam
         """
         model = AntennaModel(design='nenufar', freq=self.freq, polar=self.polar)
-        beam  = PhasedArrayBeam(position=self._antPos(rot=25), model=model, azimuth=self.az, elevation=self.el)
-        self.sstbeam = beam.getBeam()
+        beam  = PhasedArrayBeam(p=self._antPos(), m=model, a=self.az, e=self.el)
+        self.sstbeam = beam.getBeam(power=True)
         return
     def plotBeam(self, **kwargs):
         """ Plot the SST Beam
@@ -74,7 +76,7 @@ class SSTbeam():
 
     # ================================================================= #
     # =========================== Internal ============================ #
-    def _antPos(self, rot=None):
+    def _antPos(self):
         """ Return the antenna position within a mini-array
         """
         antpos = np.array([
@@ -99,11 +101,11 @@ class SSTbeam():
              5.50000000e+00,  9.52628040e+00,  0.00000000e+00
             ]).reshape(19, 3)
 
-        if rot is not None:
-            rot = np.radians( rot )
-            rotation = np.array([[np.cos(rot), -np.sin(rot), 0],
-                                 [np.sin(rot),  np.cos(rot), 0],
-                                 [0,            0,           1]])
+        if self.rot is not None:
+            rot = np.radians( self.rot )
+            rotation = np.array([[ np.cos(rot),  np.sin(rot), 0],
+                                 [-np.sin(rot),  np.cos(rot), 0],
+                                 [ 0,            0,           1]])
             antpos = np.dot( antpos, rotation )
         return antpos
 

@@ -27,16 +27,16 @@ __all__ = ['PhasedArrayBeam']
 class PhasedArrayBeam():
     """ Class PhasedArrayBeam
         Parameters:
-        position (ndarray): antenna positions ([[x1, y1, z1], [x2, y2, z2], ..])
-        model (ndarray): antenna model
-        azimuth (float): azimuth of the target location
-        elevation (float): elevation of the target location
+        - p (ndarray): antenna positions ([[x1, y1, z1], [x2, y2, z2], ..])
+        - m (ndarray): antenna model
+        - a (float): azimuth of the target location
+        - e (float): elevation of the target location
     """
-    def __init__(self, position=None, model=None, azimuth=180, elevation=45):
-        self.pos   = position
-        self.model = model
-        self.azim  = azimuth
-        self.elev  = elevation
+    def __init__(self, p=None, m=None, a=180, e=45):
+        self.pos   = p
+        self.model = m
+        self.azim  = a
+        self.elev  = e
         self.resol = 0.2 
 
     # ================================================================= #
@@ -109,8 +109,10 @@ class PhasedArrayBeam():
 
     # ================================================================= #
     # =========================== Methods ============================= #
-    def getBeam(self):
+    def getBeam(self, power=True):
         """ Compute the beam of the phased array
+            Parameter:
+            power (bool): return the power (False: return eiphi)
         """
         wavevec = 2 * np.pi * self.model.antenna_freq * 1.e6 / const.c.value
 
@@ -143,10 +145,14 @@ class PhasedArrayBeam():
         eiphi   = np.sum( np.exp(1j * phase), axis=2 )
         antgain = self.model.antenna_gain(np.linspace(0, 360, eiphi.shape[1]),
             np.linspace(0, 90, eiphi.shape[0]))
-        beam    = eiphi * eiphi.conjugate() * antgain
-        #beam    =  antgain
-
-        return np.real(beam) / np.real(beam).max() 
+        
+        if power:
+            beam = eiphi * eiphi.conjugate() * antgain
+            beam = np.real(beam) / np.real(beam).max()
+        else:
+            beam = eiphi * antgain
+        
+        return beam
 
 
 

@@ -40,7 +40,7 @@ plt.show()
 ## Compute a Mini-Array beam
 ```python
 from nenupy3.beam import SSTbeam
-sst = SSTbeam(freq=40, polar='NW', az=180, el=90)
+sst = SSTbeam(freq=40, polar='NW', az=180, el=90, rot=0)
 sst.getBeam()
 sst.sstbeam # normalized beam
 sst.plotBeam()
