@@ -48,7 +48,7 @@ class PhasedArrayBeam():
         return self._azim
     @azim.setter
     def azim(self, a):
-        if not isinstance(a, (float, int)):
+        if not isinstance(a, (float, int, np.float32, np.float64)):
             raise TypeError("\n\t=== Azimuth must be a number ===")
         elif (a < 0.) or (a > 360.):
             a %= 360.
@@ -64,7 +64,7 @@ class PhasedArrayBeam():
         return self._elev
     @elev.setter
     def elev(self, e):
-        if not isinstance(e, (float, int)):
+        if not isinstance(e, (float, int, np.float32, np.float64)):
             raise TypeError("\n\t=== Elevation must be a number ===")
         elif (e < 0.) or (e > 90.):
             raise ValueError("\n\t=== Elevation should be between 0 and 90 ===")

@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(name       = 'nenupy',
     packages     = find_packages(),
     include_package_data=True,
-    version      = '0.1',
+    version      = '0.2',
     description  = 'NenuFAR Python package',
     url          = 'https://github.com/AlanLoh/nenupy.git',
     author       = 'Alan Loh',
