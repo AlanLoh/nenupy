@@ -16,32 +16,44 @@ python3 -m pip install --index-url https://test.pypi.org/simple/ nenupy
 ## Access and plot Statistics data
 Loading the environment, within python3:
 ```python
-from nenupy3.read import SST, BST
+from nenupy3.read import SST, BST, XST
 ```
-`SST` and `BST` are two separate modules to read **Sub-band Statistics** and **Beamlet Statistics** data respectively.
+`SST`, `BST` and `XST` are three separate modules to read **Sub-band Statistics**, **Beamlet Statistics** and **Cross-correlation Statistics** data respectively.
 
-Once a reading module is loaded, a *NenuFAR* observation can be read:
+Once a reading module is loaded, a *NenuFAR* observation can be read, here is an example of a **BST** observation:
 ```python
 bst_obs = BST('some_observation_BST.fits')
 ```
+`bst_obs` is now an *instance* of the `BST` class. It means it contains attributes that have been filled with the observation properties as well as some methods/functions to access and plot the data.
 
-Data can be retrieved, using keywords (such as `freq`, `polar` and `time`):
+Data selection is granted by the `getData()` method, which accepts keywords such as `freq`, `polar` and `time`:
 ```python
 bst_obs.getData( freq=[20, 60], time='2018-09-01 10:00:00.0', polar='nw' )
 ```
 
-Once the function `getData()` has been called, the data are stored in the `d` attribute (`t`, `f` for time and frequency as well). You can then plot the data:
+Once the function `getData()` has been called, the data are stored in the `d` attribute (`t`, `f` for time and frequency as well). The user can then use these variable to do some specific analysis or to plot the data using the generic `matplotlib` module:
 ```python
 from matplotlib import pyplot as plt
 plt.plot( bst_obs.t.mjd, bst_obs.d )
 plt.show()
 ```
+Otherwise, the `plotData()` method could also be used:
+```python
+bst_obs.plotData()
+```
 
-## Compute a Mini-Array beam
+## Beam simulation
+
+### SST beam / Mini-Array gain
+**SST** beams are computed through a separate module called `SSTbeam`.
 ```python
 from nenupy3.beam import SSTbeam
-sst = SSTbeam(freq=40, polar='NW', az=180, el=90, rot=0)
-sst.getBeam()
-sst.sstbeam # normalized beam
-sst.plotBeam()
+sst = SSTbeam()
+```
+The object `sst` would then correspond to default Mini-Array number 0.
+A query could be more specific, for example:
+```python
+from nenupy3.beam import SSTbeam
+sst = SSTbeam(ma=21, freq=46, polar='NE', azana=175., elana=72.)
+sst.plotBeam() # will show the simulated beam
 ```

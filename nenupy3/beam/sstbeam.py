@@ -108,7 +108,7 @@ class SSTbeam():
         if m is None:
             print("\n\t==== WARNING: ma is set by default ===")
             m = marecorded[0]
-        if not isinstance(m, (int, np.int64) ):
+        if not isinstance(m, (int, np.int32, np.int64) ):
             raise TypeError("\n\t=== Attribute 'ma' should be an integer ===")
         elif not m in marecorded:
             raise ValueError("\n\t=== Attribute 'ma' contains miniarray index not matching existing MAs (up to {}) ===".format(marecorded.max()))
@@ -128,7 +128,7 @@ class SSTbeam():
             r = miniarrays.ma[:, 1][self.ma]
         if isinstance(r, list):
             r = np.array(r)
-        if not isinstance(r, (float, int)):
+        if not isinstance(r, (float, int, np.float32, np.float64, np.int32, np.int64)):
             raise TypeError("\n\t=== Attribute 'rotation' should be a number ===")
         else:
             self._rotation = r
@@ -136,7 +136,7 @@ class SSTbeam():
 
     # ================================================================= #
     # =========================== Methods ============================= #
-    def getBeam(self, **kwargs):
+    def getBeam(self):
         """ Get the SST beam
         """
         model = AntennaModel(design='nenufar', freq=self.freq, polar=self.polar)
@@ -146,10 +146,10 @@ class SSTbeam():
         self.sstbeam = beam.getBeam()
         return
 
-    def plotBeam(self, **kwargs):
+    def plotBeam(self):
         """ Plot the SST Beam
         """
-        self.getBeam(**kwargs)
+        self.getBeam()
 
         theta = np.linspace(0., 90., self.sstbeam.shape[1])
         phi   = np.radians( np.linspace(0., 360., self.sstbeam.shape[0]) )
