@@ -146,7 +146,7 @@ class SSTbeam():
         self.sstbeam = beam.getBeam()
         return
 
-    def plotBeam(self):
+    def plotBeam(self, **kwargs):
         """ Plot the SST Beam
         """
         self.getBeam()
