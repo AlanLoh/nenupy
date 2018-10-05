@@ -181,7 +181,7 @@ class BSTbeam():
         """
         ma_beams = []
         for i in range(self.miniarrays.size):
-            mabeam = SSTbeam(miniarray=self.miniarrays[i], freq=self.freq, polar=self.polar,
+            mabeam = SSTbeam(ma=self.miniarrays[i], freq=self.freq, polar=self.polar,
                 azana=self.azana, elana=self.elana, rotation=self.rotations[i])
             mabeam.getBeam()
             ma_model = AntennaModel( design=mabeam.sstbeam, freq=self.freq)

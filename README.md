@@ -6,9 +6,17 @@
 ### pip
 To install *nenupy* with pip:
 ```
+pip install nenupy
+```
+or
+```
 python3 -m pip install --index-url https://test.pypi.org/simple/ nenupy
 ```
+
 If `nenupy` is already install, the newer version can be installed:
+```
+pip install nenupy --upgrade
+```
 ```
 python3 -m pip install --index-url https://test.pypi.org/simple/ nenupy --upgrade
 ```
