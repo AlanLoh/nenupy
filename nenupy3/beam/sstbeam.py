@@ -41,30 +41,27 @@ class SSTbeam():
         - e (float): pointed elevation in degrees
         - r (float): mini-array rotation in degrees
     """
-    def __init__(self, obsfile=None, **kwargs):
-        if obsfile is None:
-            self._evalkwargs(kwargs)
-        else:
-            self.obsfile = obsfile
-
+    def __init__(self, sst=None, **kwargs):
+        self.sst = sst
+        self._evalkwargs(kwargs)
+        
     # ================================================================= #
     # ======================== Getter / Setter ======================== #
     @property
-    def obsfile(self):
+    def sst(self):
         """ SST observation
         """
-        return self._obsfile
-    @obsfile.setter
-    def obsfile(self, o):
-        if o is None:
-            return
-        self._obsfile  = SST(o)
-        self.ma        = self._obsfile.ma
-        self.rotation  = self._obsfile.marotation
-        self.freq      = self._obsfile.freq
-        self.polar     = self._obsfile.polar
-        self.azana     = self._obsfile.azana 
-        self.elana     = self._obsfile.elana
+        return self._sst
+    @sst.setter
+    def sst(self, s):
+        if isinstance(s, SST):
+            self._sst      = s
+            self.ma        = self._sst.ma
+            self.rotation  = self._sst.marotation
+            self.freq      = self._sst.freq
+            self.polar     = self._sst.polar
+            # self.azana     = self._sst.azana 
+            # self.elana     = self._sst.elana
         return
 
     @property
@@ -108,7 +105,7 @@ class SSTbeam():
         if m is None:
             print("\n\t==== WARNING: ma is set by default ===")
             m = marecorded[0]
-        if not isinstance(m, (int, np.int32, np.int64) ):
+        if not isinstance(m, (int, np.int16, np.int32, np.int64) ):
             raise TypeError("\n\t=== Attribute 'ma' should be an integer ===")
         elif not m in marecorded:
             raise ValueError("\n\t=== Attribute 'ma' contains miniarray index not matching existing MAs (up to {}) ===".format(marecorded.max()))
@@ -128,7 +125,7 @@ class SSTbeam():
             r = miniarrays.ma[:, 1][self.ma]
         if isinstance(r, list):
             r = np.array(r)
-        if not isinstance(r, (float, int, np.float32, np.float64, np.int32, np.int64)):
+        if not isinstance(r, (float, int, np.float32, np.float64, np.int16, np.int32, np.int64)):
             raise TypeError("\n\t=== Attribute 'rotation' should be a number ===")
         else:
             self._rotation = r
@@ -215,12 +212,18 @@ class SSTbeam():
         allowed = ['ma', 'rotation', 'freq', 'polar', 'azana', 'elana']
         if not all([ki in allowed for ki in kwargs.keys()]):
             print("\n\t=== WARNING: unkwnown keywords, authorized: {} ===".format(allowed))
-        self.ma        = kwargs.get('ma', None)
-        self.rotation  = kwargs.get('rotation', None)
-        self.freq      = kwargs.get('freq', 50)
-        self.polar     = kwargs.get('polar', 'NW')
-        self.azana     = kwargs.get('azana', 180.)
-        self.elana     = kwargs.get('elana', 90.)
+        if not hasattr(self, 'ma'):
+            self.ma        = kwargs.get('ma', None)
+        if not hasattr(self, 'rotation'):
+            self.rotation  = kwargs.get('rotation', None)
+        if not hasattr(self, 'freq'):
+            self.freq      = kwargs.get('freq', 50)
+        if not hasattr(self, 'polar'):
+            self.polar     = kwargs.get('polar', 'NW')
+        if not hasattr(self, 'azana'):
+            self.azana     = kwargs.get('azana', 180.)
+        if not hasattr(self, 'elana'):
+            self.elana     = kwargs.get('elana', 90.)
         return
 
 

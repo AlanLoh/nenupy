@@ -1,5 +1,5 @@
 # **nenupy**
-*nenupy* is a Python package, written by A. Loh (LESIA, Obs. Paris), in order to handle *NenuFAR* observations.
+*nenupy* is a Python3 package ([install](https://www.anaconda.com/download/)), written by A. Loh (LESIA, Obs. Paris), in order to handle *NenuFAR* observations.
 [*NenuFAR*](https://nenufar.obs-nancay.fr) is a low-frequency radiotelescope located in Nancay, France.
 
 ## Installation

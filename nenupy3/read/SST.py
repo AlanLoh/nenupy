@@ -173,9 +173,9 @@ class SST():
             if not isinstance(t, Time):
                 try:
                     t = Time(t)
-                    self._time = t
                 except:
                     print("\n\t=== WARNING: Time syntax incorrect ===")
+            self._time = t
             return
 
     # ------ Specific getters ------ #
@@ -278,6 +278,27 @@ class SST():
 
         else:
             raise ValueError("\n\t=== ERROR: Plot nature not understood ===")
+        return
+
+    def saveData(self, savefile=None, **kwargs):
+        """ Save the data
+        """
+        if savefile is None:
+            savefile = self.obsname + '_data.fits'
+        self.getData(**kwargs)
+
+        prihdr = fits.Header()
+        prihdr.set('OBS', self.obsname)
+        prihdr.set('FREQ', str(self.freq))
+        prihdr.set('TIME', str(self.time))
+        prihdr.set('POLAR', self.polar)
+        prihdr.set('MINI-ARR', str(self.ma))
+        datahdu = fits.PrimaryHDU(self.d, header=prihdr)
+        freqhdu = fits.BinTableHDU.from_columns( [fits.Column(name='frequency', format='D', array=self.f)] )
+        timehdu = fits.BinTableHDU.from_columns( [fits.Column(name='mjd', format='D', array=self.t.mjd)] )
+        hdu = fits.PrimaryHDU(self.d.T, header=prihdr)
+        hdulist = fits.HDUList([hdu, freqhdu, timehdu])
+        hdulist.writeto(savefile, overwrite=True)
         return
 
     # ================================================================= #
