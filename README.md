@@ -1,5 +1,5 @@
 # **nenupy**
-*nenupy* is a Python3 package ([install](https://www.anaconda.com/download/)), written by A. Loh (LESIA, Obs. Paris), in order to handle *NenuFAR* observations.
+*nenupy* is a Python3 ([install](https://www.anaconda.com/download/) via Anaconda) package, written by A. Loh (LESIA, Obs. Paris), in order to handle *NenuFAR* observations.
 [*NenuFAR*](https://nenufar.obs-nancay.fr) is a low-frequency radiotelescope located in Nancay, France.
 
 ## Installation
@@ -8,22 +8,22 @@ To install *nenupy* with pip:
 ```
 pip install nenupy
 ```
-or
+<!-- or
 ```
 python3 -m pip install --index-url https://test.pypi.org/simple/ nenupy
-```
+``` -->
 
 If `nenupy` is already install, the newer version can be installed:
 ```
 pip install nenupy --upgrade
 ```
-```
+<!-- ```
 python3 -m pip install --index-url https://test.pypi.org/simple/ nenupy --upgrade
-```
+``` -->
 
 ### Package requirement
 * [*astropy*](http://www.astropy.org)
-* ...
+* [*pygsm*](https://github.com/telegraphic/PyGSM): please follow the *pygsm* package instructions to properly install it, it cannot be done via pip.
 
 ## Access and plot Statistics data
 Loading the environment, within python3:
