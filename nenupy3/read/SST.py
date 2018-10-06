@@ -293,11 +293,10 @@ class SST():
         prihdr.set('TIME', str(self.time))
         prihdr.set('POLAR', self.polar)
         prihdr.set('MINI-ARR', str(self.ma))
-        datahdu = fits.PrimaryHDU(self.d, header=prihdr)
+        datahdu = fits.PrimaryHDU(self.d.T, header=prihdr)
         freqhdu = fits.BinTableHDU.from_columns( [fits.Column(name='frequency', format='D', array=self.f)] )
         timehdu = fits.BinTableHDU.from_columns( [fits.Column(name='mjd', format='D', array=self.t.mjd)] )
-        hdu = fits.PrimaryHDU(self.d.T, header=prihdr)
-        hdulist = fits.HDUList([hdu, freqhdu, timehdu])
+        hdulist = fits.HDUList([datahdu, freqhdu, timehdu])
         hdulist.writeto(savefile, overwrite=True)
         return
 

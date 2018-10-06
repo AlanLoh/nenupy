@@ -13,6 +13,7 @@ import numpy as np
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 import matplotlib.ticker as mtick
+from astropy.io import fits
 
 from . import SSTbeam
 from . import PhasedArrayBeam
@@ -208,6 +209,24 @@ class BSTbeam():
         ax.yaxis.set_major_formatter(mtick.FuncFormatter( g ))
         plt.show()
         plt.close('all')
+        return
+
+    def saveBeam(self, savefile=None, **kwargs):
+        """ Save the beam
+        """
+        if savefile is None:
+            savefile = 'beam.fits'
+        if not hasattr(self, 'bstbeam'):
+            self.getBeam()
+
+        prihdr = fits.Header()
+        prihdr.set('FREQ', str(self.freq))
+        prihdr.set('POLAR', self.polar)
+        prihdr.set('MINI-ARR', str(self.miniarrays))
+        #prihdr.set('MA-ROT', str(self.rotation))
+        datahdu = fits.PrimaryHDU( np.fliplr(self.bstbeam).T, header=prihdr)
+        hdulist = fits.HDUList([datahdu])
+        hdulist.writeto(savefile, overwrite=True)
         return
 
     # ================================================================= #

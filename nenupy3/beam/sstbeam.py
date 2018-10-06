@@ -146,7 +146,8 @@ class SSTbeam():
     def plotBeam(self, **kwargs):
         """ Plot the SST Beam
         """
-        self.getBeam()
+        if not hasattr(self, 'sstbeam'):
+            self.getBeam()
 
         theta = np.linspace(0., 90., self.sstbeam.shape[1])
         phi   = np.radians( np.linspace(0., 360., self.sstbeam.shape[0]) )
@@ -161,6 +162,24 @@ class SSTbeam():
         ax.yaxis.set_major_formatter(mtick.FuncFormatter( g ))
         plt.show()
         plt.close('all')
+        return
+
+    def saveBeam(self, savefile=None, **kwargs):
+        """ Save the beam
+        """
+        if savefile is None:
+            savefile = 'beam.fits'
+        if not hasattr(self, 'sstbeam'):
+            self.getBeam()
+
+        prihdr = fits.Header()
+        prihdr.set('FREQ', str(self.freq))
+        prihdr.set('POLAR', self.polar)
+        prihdr.set('MINI-ARR', str(self.ma))
+        prihdr.set('MA-ROT', str(self.rotation))
+        datahdu = fits.PrimaryHDU( np.fliplr(self.sstbeam).T, header=prihdr)
+        hdulist = fits.HDUList([datahdu])
+        hdulist.writeto(savefile, overwrite=True)
         return
 
     # ================================================================= #
