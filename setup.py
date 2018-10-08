@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(name       = 'nenupy',
     packages     = find_packages(),
     include_package_data=True,
-    install_requires=['numpy', 'scipy', 'astropy', 'matplotlib'],
+    install_requires=['numpy', 'scipy', 'astropy', 'matplotlib', 'healpy'],
     version      = '0.3.2',
     description  = 'NenuFAR Python package',
     url          = 'https://github.com/AlanLoh/nenupy.git',

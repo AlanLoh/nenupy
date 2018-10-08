@@ -24,6 +24,7 @@ python3 -m pip install --index-url https://test.pypi.org/simple/ nenupy --upgrad
 ### Package requirement
 * [*astropy*](http://www.astropy.org)
 * [*pygsm*](https://github.com/telegraphic/PyGSM): please follow the *pygsm* package instructions to properly install it, it cannot be done via pip.
+* *healpy* (install with `conda install -c conda-forge healpy`)
 
 ## Access and plot Statistics data
 Loading the environment, within python3:

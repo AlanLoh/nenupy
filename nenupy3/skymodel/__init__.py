@@ -1,6 +1,6 @@
 #! /usr/bin/python3.6
 # -*- coding: utf-8 -*-
 
-from .gsm import GSM
+from .skymodel import SkyModel
 
-__all__ = ['GSM']
+__all__ = ['SkyModel']

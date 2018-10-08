@@ -71,10 +71,10 @@ class SSTbeam():
         return self._freq
     @freq.setter
     def freq(self, f):
-        if not isinstance(f, (int, float)):
-            return TypeError("\n\t=== Attribute 'freq' should be a number ===")
+        if not isinstance(f, (int, float, np.float32, np.float64)):
+            raise TypeError("\n\t=== Attribute 'freq' should be a number ===")
         elif (f<=0.) or (f>100.):
-            return ValueError("\n\t=== Attribute 'freq' set to a value outside of NenuFAR's frequency range ===")
+            raise ValueError("\n\t=== Attribute 'freq' set to a value outside of NenuFAR's frequency range ===")
         else:
             self._freq = f
             return
@@ -87,9 +87,9 @@ class SSTbeam():
     @polar.setter
     def polar(self, p):
         if not isinstance(p, (str)):
-            return TypeError("\n\t=== Attribute 'polar' should be a string ===")
+            raise TypeError("\n\t=== Attribute 'polar' should be a string ===")
         elif p.upper() not in ['NW', 'NE']:
-            return ValueError("\n\t=== Attribute 'polar' does not correspond to either 'NW' or 'NE' ===")
+            raise ValueError("\n\t=== Attribute 'polar' does not correspond to either 'NW' or 'NE' ===")
         else:
             self._polar = p.upper()
             return

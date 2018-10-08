@@ -10,13 +10,15 @@ import os
 import sys
 import numpy as np
 
+import healpy as hp
+from matplotlib import pyplot as plt
 import scipy.ndimage as ndimage
 
 try:
     from pygsm import GlobalSkyModel
 except:
     print("\n\t=== WARNING: PyGSM is not installed ===")
-    # raise ImportError("\n\t=== Impossible to import pygsm ===")
+    # raise ImportError("\n\t=== Impossible to import pygsm ===")    
 
 __author__ = 'Alan Loh'
 __copyright__ = 'Copyright 2018, nenupy'
@@ -26,11 +28,11 @@ __version__ = '0.0.1'
 __maintainer__ = 'Alan Loh'
 __email__ = 'alan.loh@obspm.fr'
 __status__ = 'WIP'
-__all__ = ['GSM']
+__all__ = ['SkyModel']
 
-class GSM():
+class SkyModel():
     def __init__(self):
-        self.nra = 1024
+        self.nra  = 1024
         self.ndec = 512
         return
 
@@ -67,6 +69,28 @@ class GSM():
         if sigma != 0.:
             self.skymodel = ndimage.gaussian_filter(self.skymodel, sigma=(sigma, sigma), order=0)
         return
+
+    def gsm2008(self, freq):
+        """ Generate a PyGSM 2008 skymodel in equatorial coordinates
+
+            Parameters
+            ----------
+            freq : float
+                Frequency in MHz
+
+            Returns
+            -------
+            self.skymodel : np.ndarray
+                Sky model
+        """
+        gsm     = GlobalSkyModel(freq_unit='MHz')
+        gsmmap  = gsm.generate(freq)
+        gsmcart = hp.cartview(gsmmap, coord=['G', 'C'], xsize=self.nra,
+            ysize=self.ndec, return_projected_map=True)
+        plt.close('all')
+        self.skymodel = gsmcart
+        return
+
 
 
 

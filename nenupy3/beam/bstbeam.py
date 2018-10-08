@@ -71,10 +71,10 @@ class BSTbeam():
         return self._freq
     @freq.setter
     def freq(self, f):
-        if not isinstance(f, (int, float)):
-            return TypeError("\n\t=== Attribute 'freq' should be a number ===")
+        if not isinstance(f, (int, float, np.float32, np.float64)):
+            raise TypeError("\n\t=== Attribute 'freq' should be a number ===")
         elif (f<=0.) or (f>100.):
-            return ValueError("\n\t=== Attribute 'freq' set to a value outside of NenuFAR's frequency range ===")
+            raise ValueError("\n\t=== Attribute 'freq' set to a value outside of NenuFAR's frequency range ===")
         else:
             self._freq = f
             return
@@ -87,9 +87,9 @@ class BSTbeam():
     @polar.setter
     def polar(self, p):
         if not isinstance(p, (str)):
-            return TypeError("\n\t=== Attribute 'polar' should be a string ===")
+            raise TypeError("\n\t=== Attribute 'polar' should be a string ===")
         elif p.upper() not in ['NW', 'NE']:
-            return ValueError("\n\t=== Attribute 'polar' does not correspond to either 'NW' or 'NE' ===")
+            raise ValueError("\n\t=== Attribute 'polar' does not correspond to either 'NW' or 'NE' ===")
         else:
             self._polar = p.upper()
             return
@@ -174,6 +174,54 @@ class BSTbeam():
         else:
             self._delays = d
             return
+
+    @property
+    def azana(self):
+        """ Azimuth during the analogic pointing self.abeam
+        """
+        return self._azana
+    @azana.setter
+    def azana(self, a):
+        if isinstance(a, (list, np.ndarray)):
+            a = a[0]
+        self._azana = a
+        return
+
+    @property
+    def elana(self):
+        """ Elevation during the analogic pointing self.abeam
+        """
+        return self._elana
+    @elana.setter
+    def elana(self, e):
+        if isinstance(e, (list, np.ndarray)):
+            e = e[0]
+        self._elana = e
+        return
+
+    @property
+    def azdig(self):
+        """ Azimuth during the numeric pointing self.dbeam
+        """
+        return self._azdig
+    @azdig.setter
+    def azdig(self, a):
+        if isinstance(a, (list, np.ndarray)):
+            a = a[0]
+        self._azdig = a
+        return
+
+    @property
+    def eldig(self):
+        """ Elevation during the numeric pointing self.dbeam
+        """
+        return self._eldig
+    @eldig.setter
+    def eldig(self, e):
+        if isinstance(e, (list, np.ndarray)):
+            e = e[0]
+        self._eldig = e
+        return
 
     # ================================================================= #
     # =========================== Methods ============================= #
