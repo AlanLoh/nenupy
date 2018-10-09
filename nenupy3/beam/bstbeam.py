@@ -20,6 +20,7 @@ from . import PhasedArrayBeam
 from .antenna import AntennaModel
 from .antenna import miniarrays
 from ..read import BST
+from ..utils import ProgressBar
 
 __author__ = 'Alan Loh'
 __copyright__ = 'Copyright 2018, nenupy'
@@ -49,9 +50,9 @@ class BSTbeam():
     def bst(self, b):
         if isinstance(b, BST):
             self._bst       = b
-            self.miniarrays = self._bst.miniarrays
-            self.rotations  = self._bst.marotation
-            self.positions  = self._bst.maposition
+            self.ma         = self._bst.ma
+            self.marotation = self._bst.marotation
+            self.maposition = self._bst.maposition
             self.freq       = self._bst.freq
             self.polar      = self._bst.polar
             self.azana      = self._bst.azana 
@@ -91,12 +92,12 @@ class BSTbeam():
             return
 
     @property
-    def miniarrays(self):
+    def ma(self):
         """ Miniarrays selection
         """
-        return self._miniarrays
-    @miniarrays.setter
-    def miniarrays(self, m):
+        return self._ma
+    @ma.setter
+    def ma(self, m):
         marecorded = miniarrays.ma[:, 0].astype(int)
         if m is None:
             print("\n\t==== WARNING: miniarrays are set by default ===")
@@ -104,51 +105,51 @@ class BSTbeam():
         if isinstance(m, list):
             m = np.array(m)
         if not isinstance(m, np.ndarray):
-            raise TypeError("\n\t=== Attribute 'miniarrays' should be an array ===")
+            raise TypeError("\n\t=== Attribute 'ma' should be an array ===")
         elif not all([ mi in marecorded for mi in m]):
-            raise ValueError("\n\t=== Attribute 'miniarrays' contains miniarray indices not matching existing MAs (up to {}) ===".format(marecorded.max()))
+            raise ValueError("\n\t=== Attribute 'ma' contains miniarray indices not matching existing MAs (up to {}) ===".format(marecorded.max()))
         else:
-            self._miniarrays = m
+            self._ma = m
             return
 
     @property
-    def rotations(self):
+    def marotation(self):
         """ MA rotation selection
         """
-        return self._rotations
-    @rotations.setter
-    def rotations(self, r):
+        return self._marotation
+    @marotation.setter
+    def marotation(self, r):
         if r is None:
             print("\n\t==== WARNING: MA rotations are set by default ===")
-            r = miniarrays.ma[:, 1][self.miniarrays]
+            r = miniarrays.ma[:, 1][self.ma]
         if isinstance(r, list):
             r = np.array(r)
         if not isinstance(r, np.ndarray):
-            raise TypeError("\n\t=== Attribute 'rotations' should be an array ===")
-        elif r.size != self.miniarrays.size:
-            raise ValueError("\n\t=== Attribute 'rotations' should be the same size as 'miniarrays' ===")
+            raise TypeError("\n\t=== Attribute 'marotation' should be an array ===")
+        elif r.size != self.ma.size:
+            raise ValueError("\n\t=== Attribute 'marotation' should be the same size as 'ma' ===")
         else:
-            self._rotations = r
+            self._marotation = r
             return
 
     @property
-    def positions(self):
+    def maposition(self):
         """ MA position selection
         """
-        return self._positions
-    @positions.setter
-    def positions(self, p):
+        return self._maposition
+    @maposition.setter
+    def maposition(self, p):
         if p is None:
             print("\n\t==== WARNING: MA positions are set by default ===")
-            p = miniarrays.ma[:, 2:5][self.miniarrays]
+            p = miniarrays.ma[:, 2:5][self.ma]
         if isinstance(p, list):
             p = np.array(p)
         if not isinstance(p, np.ndarray):
-            raise TypeError("\n\t=== Attribute 'positions' should be an array ===")
-        elif p.shape[0] != self.miniarrays.size:
-            raise ValueError("\n\t=== Attribute 'positions' should be the same size as 'miniarrays' ===")
+            raise TypeError("\n\t=== Attribute 'maposition' should be an array ===")
+        elif p.shape[0] != self.ma.size:
+            raise ValueError("\n\t=== Attribute 'maposition' should be the same size as 'ma' ===")
         else:
-            self._positions = p
+            self._maposition = p
             return
 
     @property
@@ -160,13 +161,13 @@ class BSTbeam():
     def delays(self, d):
         if d is None:
             print("\n\t==== WARNING: MA delays are set by default ===")
-            d = miniarrays.ma[:, 6][self.miniarrays]
+            d = miniarrays.ma[:, 6][self.ma]
         if isinstance(d, list):
             d = np.array(d)
         if not isinstance(d, np.ndarray):
             raise TypeError("\n\t=== Attribute 'delays' should be an array ===")
-        elif d.size != self.miniarrays.size:
-            raise ValueError("\n\t=== Attribute 'delays' should be the same size as 'miniarrays' ===")
+        elif d.size != self.ma.size:
+            raise ValueError("\n\t=== Attribute 'delays' should be the same size as 'ma' ===")
         else:
             self._delays = d
             return
@@ -225,14 +226,15 @@ class BSTbeam():
         """ Get the BST beam
         """
         ma_beams = []
-        for i in range(self.miniarrays.size):
-            mabeam = SSTbeam(ma=self.miniarrays[i], freq=self.freq, polar=self.polar,
-                azana=self.azana, elana=self.elana, rotation=self.rotations[i])
+        bar = ProgressBar(valmax=self.ma.size, title='Computing BST beam')
+        for i in range(self.ma.size):
+            mabeam = SSTbeam(ma=self.ma[i], freq=self.freq, polar=self.polar,
+                azana=self.azana, elana=self.elana, marotation=self.marotation[i])
             mabeam.getBeam()
             ma_model = AntennaModel( design=mabeam.sstbeam, freq=self.freq)
             ma_beams.append( ma_model )
-        
-        beam = PhasedArrayBeam(p=self.positions, m=ma_beams, a=self.azdig, e=self.eldig)
+            bar.update()
+        beam = PhasedArrayBeam(p=self.maposition, m=ma_beams, a=self.azdig, e=self.eldig)
         self.bstbeam = beam.getBeam()
 
     def plotBeam(self, **kwargs):
@@ -266,7 +268,7 @@ class BSTbeam():
         prihdr = fits.Header()
         prihdr.set('FREQ', str(self.freq))
         prihdr.set('POLAR', self.polar)
-        prihdr.set('MINI-ARR', str(self.miniarrays))
+        prihdr.set('MINI-ARR', str(self.ma))
         #prihdr.set('MA-ROT', str(self.rotation))
         datahdu = fits.PrimaryHDU( np.fliplr(self.bstbeam).T, header=prihdr)
         hdulist = fits.HDUList([datahdu])
@@ -282,15 +284,15 @@ class BSTbeam():
         kwargs : dictionnary
             Dictionnary of keys and values to look from in order to fill the class attributes
         """
-        allowed = ['miniarrays', 'rotations', 'positions', 'delays', 'freq', 'polar', 'azana', 'elana', 'azdig', 'eldig']
+        allowed = ['ma', 'marotation', 'maposition', 'delays', 'freq', 'polar', 'azana', 'elana', 'azdig', 'eldig']
         if not all([ki in allowed for ki in kwargs.keys()]):
             print("\n\t=== WARNING: unkwnown keywords, authorized: {} ===".format(allowed))
-        if not hasattr(self, 'miniarrays'):
-            self.miniarrays = kwargs.get('miniarrays', None)
-        if not hasattr(self, 'rotations'):
-            self.rotations  = kwargs.get('rotations', None)
-        if not hasattr(self, 'positions'):
-            self.positions  = kwargs.get('positions', None)
+        if not hasattr(self, 'ma'):
+            self.ma         = kwargs.get('ma', None)
+        if not hasattr(self, 'marotation'):
+            self.marotation = kwargs.get('marotation', None)
+        if not hasattr(self, 'maposition'):
+            self.maposition = kwargs.get('maposition', None)
         if not hasattr(self, 'delays'):
             self.delays     = kwargs.get('delays', None)
         if not hasattr(self, 'freq'):

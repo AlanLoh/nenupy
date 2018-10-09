@@ -34,12 +34,6 @@ __all__ = ['SSTbeam']
 
 class SSTbeam():
     """ Class to handle SST beams
-        Parameters:
-        - f (float): frequency in MHz
-        - p (string): 'NE' or 'NW'
-        - a (float): pointed azimuth in degrees
-        - e (float): pointed elevation in degrees
-        - r (float): mini-array rotation in degrees
     """
     def __init__(self, sst=None, **kwargs):
         self.sst = sst
@@ -55,11 +49,11 @@ class SSTbeam():
     @sst.setter
     def sst(self, s):
         if isinstance(s, SST):
-            self._sst      = s
-            self.ma        = self._sst.ma
-            self.rotation  = self._sst.marotation
-            self.freq      = self._sst.freq
-            self.polar     = self._sst.polar
+            self._sst       = s
+            self.ma         = self._sst.ma
+            self.marotation = self._sst.marotation
+            self.freq       = self._sst.freq
+            self.polar      = self._sst.polar
             # self.azana     = self._sst.azana 
             # self.elana     = self._sst.elana
         return
@@ -114,21 +108,21 @@ class SSTbeam():
             return
 
     @property
-    def rotation(self):
+    def marotation(self):
         """ MA rotation selection
         """
-        return self._rotation
-    @rotation.setter
-    def rotation(self, r):
+        return self._marotation
+    @marotation.setter
+    def marotation(self, r):
         if r is None:
             print("\n\t==== WARNING: MA rotation is set by default ===")
             r = miniarrays.ma[:, 1][self.ma]
         if isinstance(r, list):
             r = np.array(r)
         if not isinstance(r, (float, int, np.float32, np.float64, np.int16, np.int32, np.int64)):
-            raise TypeError("\n\t=== Attribute 'rotation' should be a number ===")
+            raise TypeError("\n\t=== Attribute 'marotation' should be a number ===")
         else:
-            self._rotation = r
+            self._marotation = r
             return
 
     # ================================================================= #
@@ -176,7 +170,7 @@ class SSTbeam():
         prihdr.set('FREQ', str(self.freq))
         prihdr.set('POLAR', self.polar)
         prihdr.set('MINI-ARR', str(self.ma))
-        prihdr.set('MA-ROT', str(self.rotation))
+        prihdr.set('MA-ROT', str(self.marotation))
         datahdu = fits.PrimaryHDU( np.fliplr(self.sstbeam).T, header=prihdr)
         hdulist = fits.HDUList([datahdu])
         hdulist.writeto(savefile, overwrite=True)
@@ -189,8 +183,8 @@ class SSTbeam():
         """
         antpos = miniarrays.antpos
 
-        if self.rotation is not None:
-            rot = np.radians( self.rotation )
+        if self.marotation is not None:
+            rot = np.radians( self.marotation )
             rotation = np.array([[ np.cos(rot),  np.sin(rot), 0],
                                  [-np.sin(rot),  np.cos(rot), 0],
                                  [ 0,            0,           1]])
@@ -228,21 +222,21 @@ class SSTbeam():
         kwargs : dictionnary
             Dictionnary of keys and values to look from in order to fill the class attributes
         """
-        allowed = ['ma', 'rotation', 'freq', 'polar', 'azana', 'elana']
+        allowed = ['ma', 'marotation', 'freq', 'polar', 'azana', 'elana']
         if not all([ki in allowed for ki in kwargs.keys()]):
             print("\n\t=== WARNING: unkwnown keywords, authorized: {} ===".format(allowed))
         if not hasattr(self, 'ma'):
-            self.ma        = kwargs.get('ma', None)
-        if not hasattr(self, 'rotation'):
-            self.rotation  = kwargs.get('rotation', None)
+            self.ma         = kwargs.get('ma', None)
+        if not hasattr(self, 'marotation'):
+            self.marotation = kwargs.get('marotation', None)
         if not hasattr(self, 'freq'):
-            self.freq      = kwargs.get('freq', 50)
+            self.freq       = kwargs.get('freq', 50)
         if not hasattr(self, 'polar'):
-            self.polar     = kwargs.get('polar', 'NW')
+            self.polar      = kwargs.get('polar', 'NW')
         if not hasattr(self, 'azana'):
-            self.azana     = kwargs.get('azana', 180.)
+            self.azana      = kwargs.get('azana', 180.)
         if not hasattr(self, 'elana'):
-            self.elana     = kwargs.get('elana', 90.)
+            self.elana      = kwargs.get('elana', 90.)
         return
 
 

@@ -14,7 +14,7 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 
 from astropy.io import fits
-from astropy.time import Time
+from astropy.time import Time, TimeDelta
 
 __author__ = 'Alan Loh'
 __copyright__ = 'Copyright 2018, nenupy'
@@ -117,8 +117,9 @@ class BST():
             self._dbeam = 0
         else:
             self._dbeam = b
-        self.freqmin = self._freqs[self._dbeam].min()
-        self.freqmax = self._freqs[self._dbeam].max()
+        freqs = self._freqs[self._dbeam]
+        self.freqmin = freqs[freqs > 0.].min()
+        self.freqmax = freqs[freqs > 0.].max()
         self._abeam  = self._digi2ana[self._dbeam] # change anabeam automatically
         return
 
@@ -133,11 +134,24 @@ class BST():
     @freq.setter
     def freq(self, f):
         if isinstance(f, list):
-            self._freq    = [0, 0]
-            self._freq[0] = min(self._freqs[self.dbeam], key=lambda x: np.abs(x-f[0]))
-            self._freq[1] = min(self._freqs[self.dbeam], key=lambda x: np.abs(x-f[1]))
+            if len(f) != 2:
+                raise ValueError("\n\t=== 'freq' should be a size 2 array ===")
+            elif not isinstance(f[0], (np.float32, np.float64, int, float)):
+                raise ValueError("\n\t=== 'freq' Syntax error ===")
+            elif not isinstance(f[1], (np.float32, np.float64, int, float)):
+                raise ValueError("\n\t=== 'freq' Syntax error ===")
+            else:
+                self._freq = f
+        elif isinstance(f, (np.float32, np.float64, int, float)):
+            self._freq = f
         else:
-            self._freq    = min(self._freqs[self.dbeam], key=lambda x: np.abs(x-f))  
+            raise ValueError("\n\t=== 'freq' Syntax error ===")
+        # if isinstance(f, list):
+        #     self._freq    = [0, 0]
+        #     self._freq[0] = min(self._freqs[self.dbeam], key=lambda x: np.abs(x-f[0]))
+        #     self._freq[1] = min(self._freqs[self.dbeam], key=lambda x: np.abs(x-f[1]))
+        # else:
+        #     self._freq    = min(self._freqs[self.dbeam], key=lambda x: np.abs(x-f))  
         return 
 
     @property
@@ -185,14 +199,14 @@ class BST():
     def marotation(self):
         """ Mini-array rotation in degrees
         """
-        self._marotation = self._marot[ self.miniarrays ]
+        self._marotation = self._marot[ self.ma ]
         return self._marotation
 
     @property
     def maposition(self):
         """ Lambert93 (x, y, z) Mini-Array positions
         """
-        self._maposition = self._mapos[ self.miniarrays ]
+        self._maposition = self._mapos[ self.ma ]
         return self._maposition
 
     @property
@@ -275,19 +289,25 @@ class BST():
 
         # ------ frequency ------ #
         if isinstance(self.freq, list):
-            mask_fre = (self._freqs[self.dbeam] > 0.) & (self._freqs[self.dbeam] >= self.freq[0]) & (self._freqs[self.dbeam] <= self.freq[-1])
+            freqi = min(self._freqs[self.dbeam], key=lambda x: np.abs(x-self.freq[0]))
+            freqf = min(self._freqs[self.dbeam], key=lambda x: np.abs(x-self.freq[1]))
+            #mask_fre = (self._freqs[self.dbeam] > 0.) & (self._freqs[self.dbeam] >= self.freq[0]) & (self._freqs[self.dbeam] <= self.freq[-1])
+            mask_fre = (self._freqs[self.dbeam] > 0.) & (self._freqs[self.dbeam] >= freqi) & (self._freqs[self.dbeam] <= freqf)
         else:
             mask_fre = (self._freqs[self.dbeam] == min(self._freqs[self.dbeam], key=lambda x: np.abs(x-self.freq)))
-        mask_fre = np.roll(mask_fre, self._bletlist[self.dbeam][0])
+        mask_freq = np.roll(mask_fre, self._bletlist[self.dbeam][0])
 
         # ------ time ------ #
+        digiti   = self._pointdigt[self.dbeam]
+        digitf   = self._pointdigt[self.dbeam] + self._ddeltat[self.dbeam]
+        mask_tim = (self._timeall >= digiti) & (self._timeall <= digitf)
         if isinstance(self.time, list):
-            mask_tim = (self._timeall >= self.time[0]) & (self._timeall <= self.time[1])
+            mask_tim = mask_tim & (self._timeall >= self.time[0]) & (self._timeall <= self.time[1])
         else:
-            mask_tim = (self._timeall.mjd == min(self._timeall.mjd, key=lambda x: np.abs(x-self.time.mjd)) )
+            mask_tim = mask_tim & (self._timeall.mjd == min(self._timeall.mjd, key=lambda x: np.abs(x-self.time.mjd)) )
        
         # ------ selected data ------ #
-        self.d = np.squeeze( self._dataall[ np.ix_(mask_tim, mask_pol, mask_fre) ] )
+        self.d = np.squeeze( self._dataall[ np.ix_(mask_tim, mask_pol, mask_freq) ] )
         self.t = self._timeall[ mask_tim ]
         self.f = self._freqs[self.dbeam][ mask_fre ]
         return
@@ -303,7 +323,7 @@ class BST():
             plt.plot(xtime, self.d)
             plt.xlabel('Time (min since {})'.format(self.t[0].iso))
             plt.ylabel('Amplitude')
-            plt.title('f={:3.2f} MHz, pol={}, abeam={}, dbeam={}'.format(self.freq, self.polar, self.abeam, self.dbeam))
+            plt.title('f={:3.2f} MHz, pol={}, abeam={}, dbeam={}'.format(self.f[0], self.polar, self.abeam, self.dbeam))
             plt.show()
             plt.close('all')
 
@@ -387,23 +407,25 @@ class BST():
         self.time     = [self.obstart.copy(), self.obstop.copy()]
         self.exposure = self.obstop - self.obstart
 
-        self.miniarrays = np.squeeze( setup_ins['noMROn'] )
-        self._marot     = np.squeeze( setup_ins['rotation'] )
-        self._mapos     = np.squeeze( setup_ins['noPosition'] )
-        self._mapos     = self._mapos.reshape( int(self._mapos.size/3), 3 )
-        self._pols      = np.squeeze( setup_ins['spol'] )
+        self.ma     = np.squeeze( setup_ins['noMROn'] )
+        self._marot = np.squeeze( setup_ins['rotation'] )
+        self._mapos = np.squeeze( setup_ins['noPosition'] )
+        self._mapos = self._mapos.reshape( int(self._mapos.size/3), 3 )
+        self._pols  = np.squeeze( setup_ins['spol'] )
         try:
-            self._delays = np.squeeze(setup_ins['delay'])[::2][ self.miniarrays ]
+            self._delays = np.squeeze(setup_ins['delay'])[::2][ self.ma ]
         except:
-            self._delays = np.zeros( self.miniarrays.size )
+            self._delays = np.zeros( self.ma.size )
 
         self.abeams     = setup_ana['NoAnaBeam']
         self._antlist   = np.array( [ np.array(eval(i)) - 1 for i in setup_ana['Antlist'] ])
+        self._adeltat   = TimeDelta(setup_ana['Duration'], format='sec')
 
         self.dbeams     = setup_bea['noBeam']
         self._digi2ana  = setup_bea['NoAnaBeam']
         self._bletlist  = setup_bea['BeamletList']
         self._freqs     = setup_bea['freqList']
+        self._ddeltat   = TimeDelta(setup_bea['Duration'], format='sec')
 
         self._pointana  = setup_pan['noAnaBeam']
         self._azlistana = setup_pan['AZ']
