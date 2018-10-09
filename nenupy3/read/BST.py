@@ -202,6 +202,12 @@ class BST():
         az = self._azlistana[ self._pointana==self.abeam ]
         if az.size == 1:
             az = az[0]
+        else:
+            if isinstance(self.time, list):
+                tmask = np.squeeze((self._pointanat >= self.time[0]) & (self._pointanat <= self.time[1]))
+                az = self._azlistana[tmask]
+            else:
+                az = self._azlistana[ np.argmin(np.abs( (self._pointanat - self.time).sec )) ]
         return az 
 
     @property
@@ -211,6 +217,12 @@ class BST():
         el = self._ellistana[ self._pointana==self.abeam ]
         if el.size == 1:
             el = el[0]
+        else:
+            if isinstance(self.time, list):
+                tmask = np.squeeze((self._pointanat >= self.time[0]) & (self._pointanat <= self.time[1]))
+                el = self._ellistana[tmask]
+            else:
+                el = self._ellistana[ np.argmin(np.abs( (self._pointanat - self.time).sec )) ]
         return el
 
     @property
@@ -220,6 +232,12 @@ class BST():
         az = self._azlistdig[ self._pointdig==self.dbeam ]
         if az.size == 1:
             az = az[0]
+        else:
+            if isinstance(self.time, list):
+                tmask = np.squeeze((self._pointdigt >= self.time[0]) & (self._pointdigt <= self.time[1]))
+                az = self._azlistdig[tmask]
+            else:
+                az = self._azlistdig[ np.argmin(np.abs( (self._pointdigt - self.time).sec )) ]
         return az
 
     @property
@@ -229,6 +247,12 @@ class BST():
         el = self._ellistdig[ self._pointdig==self.dbeam ]
         if el.size == 1:
             el = el[0]
+        else:
+            if isinstance(self.time, list):
+                tmask = np.squeeze((self._pointdigt >= self.time[0]) & (self._pointdigt <= self.time[1]))
+                el = self._ellistdig[tmask]
+            else:
+                el = self._ellistdig[ np.argmin(np.abs( (self._pointdigt - self.time).sec )) ]
         return el
 
 

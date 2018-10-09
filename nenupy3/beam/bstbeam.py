@@ -34,34 +34,30 @@ __all__ = ['BSTBeam']
 class BSTbeam():
     """ Class to handle BST beams
     """
-    def __init__(self, obsfile=None, **kwargs):
-        if obsfile is None:
-            self._evalkwargs(kwargs)
-        else:
-            self.obsfile = obsfile
+    def __init__(self, bst=None, **kwargs):
+        self.bst = bst
+        self._evalkwargs(kwargs)
 
     # ================================================================= #
     # ======================== Getter / Setter ======================== #
     @property
-    def obsfile(self):
+    def bst(self):
         """ BST observation
         """
-        return self._obsfile
-    @obsfile.setter
-    def obsfile(self, o):
-        if o is None:
-            return
-        self._obsfile   = BST(o)
-        self.miniarrays = self._obsfile.miniarrays
-        self.rotations  = self._obsfile.marotation
-        self.positions  = self._obsfile.maposition
-        self.delays     = self._obsfile._delays
-        self.freq       = self._obsfile.freq
-        self.polar      = self._obsfile.polar
-        self.azana      = self._obsfile.azana 
-        self.elana      = self._obsfile.elana
-        self.azdig      = self._obsfile.azdig
-        self.eldig      = self._obsfile.eldig
+        return self._bst
+    @bst.setter
+    def bst(self, b):
+        if isinstance(b, BST):
+            self._bst       = b
+            self.miniarrays = self._bst.miniarrays
+            self.rotations  = self._bst.marotation
+            self.positions  = self._bst.maposition
+            self.freq       = self._bst.freq
+            self.polar      = self._bst.polar
+            self.azana      = self._bst.azana 
+            self.elana      = self._bst.elana
+            self.azdig      = self._bst.azdig 
+            self.eldig      = self._bst.eldig
         return
 
     @property
@@ -289,16 +285,26 @@ class BSTbeam():
         allowed = ['miniarrays', 'rotations', 'positions', 'delays', 'freq', 'polar', 'azana', 'elana', 'azdig', 'eldig']
         if not all([ki in allowed for ki in kwargs.keys()]):
             print("\n\t=== WARNING: unkwnown keywords, authorized: {} ===".format(allowed))
-        self.miniarrays = kwargs.get('miniarrays', None)
-        self.rotations  = kwargs.get('rotations', None)
-        self.positions  = kwargs.get('positions', None)
-        self.delays     = kwargs.get('delays', None)
-        self.freq       = kwargs.get('freq', 50)
-        self.polar      = kwargs.get('polar', 'NW')
-        self.azana      = kwargs.get('azana', 180.)
-        self.elana      = kwargs.get('elana', 90.)
-        self.azdig      = kwargs.get('azdig', 180.)
-        self.eldig      = kwargs.get('eldig', 90.)
+        if not hasattr(self, 'miniarrays'):
+            self.miniarrays = kwargs.get('miniarrays', None)
+        if not hasattr(self, 'rotations'):
+            self.rotations  = kwargs.get('rotations', None)
+        if not hasattr(self, 'positions'):
+            self.positions  = kwargs.get('positions', None)
+        if not hasattr(self, 'delays'):
+            self.delays     = kwargs.get('delays', None)
+        if not hasattr(self, 'freq'):
+            self.freq       = kwargs.get('freq', 50)
+        if not hasattr(self, 'polar'):
+            self.polar      = kwargs.get('polar', 'NW')
+        if not hasattr(self, 'azana'):
+            self.azana      = kwargs.get('azana', 180.)
+        if not hasattr(self, 'elana'):
+            self.elana      = kwargs.get('elana', 90.)
+        if not hasattr(self, 'azdig'):
+            self.azdig      = kwargs.get('azdig', 180.)
+        if not hasattr(self, 'eldig'):
+            self.eldig      = kwargs.get('eldig', 90.)
         return
 
 
