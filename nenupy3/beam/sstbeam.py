@@ -163,6 +163,9 @@ class SSTbeam():
         """
         if savefile is None:
             savefile = 'beam.fits'
+        else:
+            if not savefile.endswith('.fits'):
+                raise ValueError("\n\t=== It should be a FITS ===")
         if not hasattr(self, 'sstbeam'):
             self.getBeam()
 

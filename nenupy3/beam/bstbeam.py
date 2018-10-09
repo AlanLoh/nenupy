@@ -262,14 +262,17 @@ class BSTbeam():
         """
         if savefile is None:
             savefile = 'beam.fits'
+        else:
+            if not savefile.endswith('.fits'):
+                raise ValueError("\n\t=== It should be a FITS ===")
         if not hasattr(self, 'bstbeam'):
             self.getBeam()
 
         prihdr = fits.Header()
         prihdr.set('FREQ', str(self.freq))
         prihdr.set('POLAR', self.polar)
-        prihdr.set('MINI-ARR', str(self.ma))
-        #prihdr.set('MA-ROT', str(self.rotation))
+        # prihdr.set('MINI-ARR', str(self.ma))
+        # prihdr.set('MA-ROT', str(self.rotation))
         datahdu = fits.PrimaryHDU( np.fliplr(self.bstbeam).T, header=prihdr)
         hdulist = fits.HDUList([datahdu])
         hdulist.writeto(savefile, overwrite=True)

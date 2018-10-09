@@ -360,6 +360,9 @@ class BST():
         """
         if savefile is None:
             savefile = self.obsname + '_data.fits'
+        else:
+            if not savefile.endswith('.fits'):
+                raise ValueError("\n\t=== It should be a FITS ===")
         self.getData(**kwargs)
 
         prihdr = fits.Header()
