@@ -231,24 +231,24 @@ class BSTbeam():
             mabeam = SSTbeam(ma=self.ma[i], freq=self.freq, polar=self.polar,
                 azana=self.azana, elana=self.elana, marotation=self.marotation[i])
             mabeam.getBeam()
-            ma_model = AntennaModel( design=mabeam.sstbeam, freq=self.freq)
+            ma_model = AntennaModel( design=mabeam.beam, freq=self.freq)
             ma_beams.append( ma_model )
             bar.update()
         beam = PhasedArrayBeam(p=self.maposition, m=ma_beams, a=self.azdig, e=self.eldig)
-        self.bstbeam = beam.getBeam()
+        self.beam = beam.getBeam()
 
     def plotBeam(self, **kwargs):
         """ Plot the BST Beam
         """
         self.getBeam(**kwargs)
 
-        theta = np.linspace(0., 90., self.bstbeam.shape[1])
-        phi   = np.radians( np.linspace(0., 360., self.bstbeam.shape[0]) )
+        theta = np.linspace(0., 90., self.beam.shape[1])
+        phi   = np.radians( np.linspace(0., 360., self.beam.shape[0]) )
         # ------ Plot ------ #
         fig = plt.figure()
         ax  = fig.add_subplot(111, projection='polar')
-        normcb = mpl.colors.LogNorm(vmin=self.bstbeam.max() * 1.e-4, vmax=self.bstbeam.max())
-        p = ax.pcolormesh(phi, theta, self.bstbeam.T, norm=normcb, **kwargs)
+        normcb = mpl.colors.LogNorm(vmin=self.beam.max() * 1.e-4, vmax=self.beam.max())
+        p = ax.pcolormesh(phi, theta, self.beam.T, norm=normcb, **kwargs)
         ax.grid(linestyle='-', linewidth=0.5, color='white', alpha=0.4)
         plt.setp(ax.get_yticklabels(), rotation='horizontal', color='white')
         g = lambda x,y: r'%d'%(90-x)
@@ -265,7 +265,7 @@ class BSTbeam():
         else:
             if not savefile.endswith('.fits'):
                 raise ValueError("\n\t=== It should be a FITS ===")
-        if not hasattr(self, 'bstbeam'):
+        if not hasattr(self, 'beam'):
             self.getBeam()
 
         prihdr = fits.Header()
@@ -273,7 +273,7 @@ class BSTbeam():
         prihdr.set('POLAR', self.polar)
         # prihdr.set('MINI-ARR', str(self.ma))
         # prihdr.set('MA-ROT', str(self.rotation))
-        datahdu = fits.PrimaryHDU( np.fliplr(self.bstbeam).T, header=prihdr)
+        datahdu = fits.PrimaryHDU( np.fliplr(self.beam).T, header=prihdr)
         hdulist = fits.HDUList([datahdu])
         hdulist.writeto(savefile, overwrite=True)
         return

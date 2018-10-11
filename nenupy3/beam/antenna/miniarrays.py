@@ -8,6 +8,9 @@ Mini-array measurements from (https://confluence2.obs-nancay.fr/pages/viewpage.a
 
 import numpy as np
 
+from astropy import units as u
+from astropy import coordinates as coord
+
 __author__ = 'Alan Loh'
 __copyright__ = 'Copyright 2018, nenupy'
 __credits__ = ['Alan Loh']
@@ -18,6 +21,8 @@ __email__ = 'alan.loh@obspm.fr'
 __status__ = 'WIP'
 __all__ = ['antpos', 'ma']
 
+
+nenufarloc = coord.EarthLocation(lat=47.376511*u.deg, lon=2.1924002*u.deg)
 
 antpos = np.array([
     -5.50000000e+00, -9.52627850e+00,  0.00000000e+00,

@@ -38,9 +38,9 @@ class SkyModel():
 
     # ================================================================= #
     # =========================== Methods ============================= #
-    def pointSource(self, ra, dec, intensity=1.e6, offset=0.1, sigma=0):
+    def pointSource(self, ra, dec, intensity=1.e6, offset=0.1, sigma=1):
         """ Generate a fake sky model in equatorial coordinates
-            Empyt sky with a single bright pixel
+            Empty sky with a single bright pixel
 
             Parameters
             ----------
@@ -61,13 +61,15 @@ class SkyModel():
                 Sky model
         """
         self.skymodel = np.zeros( (self.ndec, self.nra) ) + offset
-        decgrid = np.linspace(-90., 90.,   self.ndec) 
-        ragrid  = np.linspace(180., -180., self.nra) 
-        decind  = min(range(len(decgrid)), key=lambda i: np.abs(decgrid[i]-dec))
-        raind   = min(range(len(ragrid)),  key=lambda i: np.abs(ragrid[i]-ra))
+        decs = np.linspace(-90., 90.,   self.ndec) 
+        ras  = np.linspace(180., -180., self.nra)
+        if ra > 180.:
+            ra -= 360. 
+        decind  = min(range(decs.size), key=lambda i: np.abs(decs[i] - dec))
+        raind   = min(range(ras.size),  key=lambda i: np.abs(ras[i]  - ra))
         self.skymodel[decind, raind] = intensity
         if sigma != 0.:
-            self.skymodel = ndimage.gaussian_filter(self.skymodel, sigma=(sigma, sigma), order=0)
+            self.skymodel = ndimage.gaussian_filter(self.skymodel, sigma=(sigma, sigma), order=0, mode='wrap')
         return
 
     def gsm2008(self, freq):

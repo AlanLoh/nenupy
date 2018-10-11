@@ -274,12 +274,25 @@ class BST():
     # =========================== Methods ============================= #
     def getData(self, **kwargs):
         """ Make the data selection
-            Fill the attributes self.d (data), self.t (time), self.f (frequency)
+
+            Parameters
+            ----------
+            kwargs : {freq, polar, time, abeam, dbeam}
+                Keyword arguments
+
+            Returns
+            -------
+            self.d : np.ndarray
+                Data selected
+            self.f : np.ndarray
+                Frequency selected
+            self.t : np.ndarray
+                Time selected
         """
         self._evalkwargs(kwargs)
 
         # ------ load data only once ------ #
-        if not hasattr(self, '_data'):
+        if not hasattr(self, '_dataall'):
             with fits.open(self.obsfile, mode='readonly', ignore_missing_end=True, memmap=True) as fitsfile:
                self._timeall = Time( fitsfile[7].data['jd'], format='jd' ) 
                self._dataall = fitsfile[7].data['data'] 
@@ -344,6 +357,7 @@ class BST():
             ax  = fig.add_subplot(111)
             normcb = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
             spec   = ax.pcolormesh(xtime, self.f, self.d.T, cmap='bone', norm=normcb)
+            plt.colorbar(spec)
             ax.axis( [xtime.min(), xtime.max(), self.f.min(), self.f.max()] )
             plt.xlabel('Time (min since {})'.format(self.t[0].iso))
             plt.ylabel('Frequency (MHz)')

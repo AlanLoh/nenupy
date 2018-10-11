@@ -198,12 +198,25 @@ class SST():
     # =========================== Methods ============================= #
     def getData(self, **kwargs):
         """ Make the data selection
-            Fill the attributes self.d (data), self.t (time), self.f (frequency)
+
+            Parameters
+            ----------
+            kwargs : {freq, ma, polar, time}
+                Keyword arguments
+
+            Returns
+            -------
+            self.d : np.ndarray
+                Data selected
+            self.f : np.ndarray
+                Frequency selected
+            self.t : np.ndarray
+                Time selected
         """
         self._evalkwargs(kwargs)
 
         # ------ load data only once ------ #
-        if not hasattr(self, '_data'):
+        if not hasattr(self, '_dataall'):
             self._timeall = []
             self._dataall = []
             for ssfile in sorted(self.obsfile):
@@ -269,6 +282,7 @@ class SST():
             ax  = fig.add_subplot(111)
             normcb = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
             spec   = ax.pcolormesh(xtime, self.f, self.d.T, cmap='bone', norm=normcb)
+            plt.colorbar(spec)
             ax.axis( [xtime.min(), xtime.max(), self.f.min(), self.f.max()] )
             plt.xlabel('Time (min since {})'.format(self.t[0].iso))
             plt.ylabel('Frequency (MHz)')

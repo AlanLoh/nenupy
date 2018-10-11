@@ -134,22 +134,22 @@ class SSTbeam():
         elevation = self._squintMA(self.elana)
         az, el = self._realPointing(self.azana, elevation)
         beam  = PhasedArrayBeam(p=self._antPos(), m=model, a=az, e=el)
-        self.sstbeam = beam.getBeam()
+        self.beam = beam.getBeam()
         return
 
     def plotBeam(self, **kwargs):
         """ Plot the SST Beam
         """
-        if not hasattr(self, 'sstbeam'):
+        if not hasattr(self, 'beam'):
             self.getBeam()
 
-        theta = np.linspace(0., 90., self.sstbeam.shape[1])
-        phi   = np.radians( np.linspace(0., 360., self.sstbeam.shape[0]) )
+        theta = np.linspace(0., 90., self.beam.shape[1])
+        phi   = np.radians( np.linspace(0., 360., self.beam.shape[0]) )
         # ------ Plot ------ #
         fig = plt.figure()
         ax  = fig.add_subplot(111, projection='polar')
-        normcb = mpl.colors.LogNorm(vmin=self.sstbeam.max() * 1.e-4, vmax=self.sstbeam.max())
-        p = ax.pcolormesh(phi, theta, self.sstbeam.T, norm=normcb, **kwargs)
+        normcb = mpl.colors.LogNorm(vmin=self.beam.max() * 1.e-4, vmax=self.beam.max())
+        p = ax.pcolormesh(phi, theta, self.beam.T, norm=normcb, **kwargs)
         ax.grid(linestyle='-', linewidth=0.5, color='white', alpha=0.4)
         plt.setp(ax.get_yticklabels(), rotation='horizontal', color='white')
         g = lambda x,y: r'%d'%(90-x)
@@ -166,7 +166,7 @@ class SSTbeam():
         else:
             if not savefile.endswith('.fits'):
                 raise ValueError("\n\t=== It should be a FITS ===")
-        if not hasattr(self, 'sstbeam'):
+        if not hasattr(self, 'beam'):
             self.getBeam()
 
         prihdr = fits.Header()
@@ -174,7 +174,7 @@ class SSTbeam():
         prihdr.set('POLAR', self.polar)
         prihdr.set('MINI-ARR', str(self.ma))
         prihdr.set('MA-ROT', str(self.marotation))
-        datahdu = fits.PrimaryHDU( np.fliplr(self.sstbeam).T, header=prihdr)
+        datahdu = fits.PrimaryHDU( np.fliplr(self.beam).T, header=prihdr)
         hdulist = fits.HDUList([datahdu])
         hdulist.writeto(savefile, overwrite=True)
         return

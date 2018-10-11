@@ -4,7 +4,7 @@ setup(name       = 'nenupy',
     packages     = find_packages(),
     include_package_data=True,
     install_requires=['numpy', 'scipy', 'astropy', 'matplotlib'],
-    version      = '0.3.3',
+    version      = '0.3.4',
     description  = 'NenuFAR Python package',
     url          = 'https://github.com/AlanLoh/nenupy.git',
     author       = 'Alan Loh',
@@ -16,3 +16,7 @@ setup(name       = 'nenupy',
 # python3 setup.py sdist bdist_wheel
 # upload it:
 # python3 -m twine upload dist/*version*
+
+# Release:
+# git tag -a v0.1 -m "annotation for this release"
+# git push origin --tags
