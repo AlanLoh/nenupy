@@ -307,7 +307,7 @@ class SST():
         if self.f.size == 1:
             # ------ Light curve ------ #
             xtime = (self.t - self.t[0]).sec / 60
-            plt.plot(xtime, self.d)
+            plt.plot(xtime, self.d, **kwargs)
             plt.xlabel('Time (min since {})'.format(self.t[0].iso))
             plt.ylabel('Amplitude')
             plt.title('MA={}, f={:3.2f} MHz, pol={}'.format(self.ma, self.freq, self.polar))
@@ -316,7 +316,7 @@ class SST():
 
         elif self.t.size == 1:
             # ------ Spectrum ------ #
-            plt.plot(self.f, self.d)
+            plt.plot(self.f, self.d, **kwargs)
             plt.xlabel('Frequency (MHz)')
             plt.ylabel('Amplitude')
             plt.title('MA={}, t={}, pol={}'.format(self.ma, self.time.iso, self.polar))
@@ -330,7 +330,10 @@ class SST():
             fig = plt.figure()
             ax  = fig.add_subplot(111)
             normcb = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
-            spec   = ax.pcolormesh(xtime, self.f, self.d.T, cmap='bone', norm=normcb)
+            cmap = 'bone'
+            for key, value in kwargs.items():
+                if key == 'cmap': cmap = value
+            spec   = ax.pcolormesh(xtime, self.f, self.d.T, cmap=cmap, norm=normcb)
             plt.colorbar(spec)
             ax.axis( [xtime.min(), xtime.max(), self.f.min(), self.f.max()] )
             plt.xlabel('Time (min since {})'.format(self.t[0].iso))
