@@ -15,7 +15,34 @@ beam = SSTbeam(sst, azana=180, elana=70)
 sm = SkyModel()
 sm.pointSource(ra=294.5988991974212, dec=27.332279781434387, sigma=1)
 simul = Transit(obs=sst, beam=beam, skymodel=sm)
-simul.dt = 30
+simul.dt = 120
+simul.plotProfile()
+
+from nenupy3.read import SST
+from nenupy3.beam import SSTbeam
+from nenupy3.skymodel import SkyModel
+from nenupy3.simulation import Transit
+sst = SST()
+sst.getData(freq=80)
+beam = SSTbeam(sst)
+sm = SkyModel()
+sm.gsm2008(freq=sst.freq)
+simul = Transit(obs=sst, beam=beam, skymodel=sm)
+simul.dt = 300
+simul.plotProfile()
+
+from nenupy3.read import BST
+from nenupy3.beam import BSTbeam
+from nenupy3.skymodel import SkyModel
+from nenupy3.simulation import Transit
+bst = BST('20180501_034440_BST.fits')
+bst.getData(freq=80)
+sm = SkyModel()
+sm.gsm2008(freq=bst.freq)
+beam = BSTbeam(bst)
+simul = Transit(obs=bst, beam=beam, skymodel=sm)
+simul = Transit(obs=bst, beam=beam, skymodel=sm)
+simul.dt = 60
 simul.getProfile()
 
 """
@@ -23,8 +50,10 @@ simul.getProfile()
 import os
 import sys
 import numpy as np
+import matplotlib as mpl
+from matplotlib import pyplot as plt
 
-from astropy.time import TimeDelta
+from astropy.time import Time, TimeDelta
 from astropy import units as u
 from astropy import coordinates as coord
 
@@ -125,7 +154,7 @@ class Transit():
         nbtime  = int(np.ceil( (self.obs.t[-1]-self.obs.t[0]).sec / self.dt.sec ))
         self.dt = TimeDelta( (self.obs.t[-1]-self.obs.t[0]).sec / (nbtime-1), format='sec')
         
-        self.f = self.obs.freq.copy()
+        self.f = self.obs.freq
         self.t = np.zeros( nbtime )
         self.d = np.zeros( nbtime ) 
 
@@ -171,7 +200,22 @@ class Transit():
             bar.update()
         return
 
-    def saveProfile(self, savefile=None, **kwargs):
+    def plotProfile(self):
+        """ Plot the simulation profile against the data
+        """
+        if not hasattr(self, 'd'):
+            self.getProfile()
+        t0 = self.obs.t[0]
+        scale = np.median(self.obs.d) / np.median(self.d)
+        plt.plot( (self.obs.t - t0).sec/60., self.obs.d, label='Observation')
+        plt.plot( (Time(self.t, format='mjd') - t0).sec/60., self.d * scale, label='Simulation')
+        plt.xlabel('Time (min since {})'.format(t0.iso))
+        plt.ylabel('Amplitude')
+        plt.show()
+        plt.close('all')
+        return
+
+    def saveProfile(self, savefile=None):
         """ Save the simulation
         """
         if savefile is None:
@@ -180,7 +224,7 @@ class Transit():
             if not savefile.endswith('.fits'):
                 raise ValueError("\n\t=== It should be a FITS ===")
         if not hasattr(self, 'd'):
-            self.getProfile(**kwargs)
+            self.getProfile()
 
         prihdr = fits.Header()
         prihdr.set('OBS', self.obs.obsname)

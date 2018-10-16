@@ -20,10 +20,10 @@ __author__ = 'Alan Loh'
 __copyright__ = 'Copyright 2018, nenupy'
 __credits__ = ['Alan Loh']
 __license__ = 'MIT'
-__version__ = '0.0.1'
+__version__ = '0.1.0'
 __maintainer__ = 'Alan Loh'
 __email__ = 'alan.loh@obspm.fr'
-__status__ = 'WIP'
+__status__ = 'Production'
 __all__ = ['BST']
 
 
@@ -59,8 +59,10 @@ class BST():
             self._obsfile = o
             return
         
-        if (o is None) or (o == '') or (os.path.isdir(o)):
+        if (o is None) or (o == '') or (isinstance(o, str)):
             # Look at the current/specified directory
+            if o is None:
+                o = ''
             if os.path.isdir(o):
                 _opath = os.path.abspath(o)
                 bstfiles = glob.glob( os.path.join(_opath, '*BST.fits') )

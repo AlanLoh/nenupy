@@ -29,7 +29,7 @@ python3 -m pip install --index-url https://test.pypi.org/simple/ nenupy --upgrad
 ## Access and plot Statistics data
 Loading the environment, within python3:
 ```python
-from nenupy3.read import SST, BST, XST
+from nenupy.read import SST, BST, XST
 ```
 `SST`, `BST` and `XST` are three separate modules to read **Sub-band Statistics**, **Beamlet Statistics** and **Cross-correlation Statistics** data respectively.
 
@@ -60,13 +60,13 @@ bst_obs.plotData()
 ### SST beam / Mini-Array gain
 **SST** beams are computed through a separate module called `SSTbeam`.
 ```python
-from nenupy3.beam import SSTbeam
+from nenupy.beam import SSTbeam
 sst = SSTbeam()
 ```
 The object `sst` would then correspond to default Mini-Array number 0.
 A query could be more specific, for example:
 ```python
-from nenupy3.beam import SSTbeam
+from nenupy.beam import SSTbeam
 sst = SSTbeam(ma=21, freq=46, polar='NE', azana=175., elana=72.)
 sst.plotBeam() # will show the simulated beam
 ```

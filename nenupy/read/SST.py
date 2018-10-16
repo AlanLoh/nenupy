@@ -18,17 +18,17 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 
 from astropy.io import fits
-from astropy.time import Time
+from astropy.time import Time, TimeDelta
 
 
 __author__ = 'Alan Loh'
 __copyright__ = 'Copyright 2018, nenupy'
 __credits__ = ['Alan Loh']
 __license__ = 'MIT'
-__version__ = '0.0.1'
+__version__ = '0.1.0'
 __maintainer__ = 'Alan Loh'
 __email__ = 'alan.loh@obspm.fr'
-__status__ = 'WIP'
+__status__ = 'Production'
 __all__ = ['SST']
 
 
@@ -37,7 +37,8 @@ class SST():
         self.obsfile = obsfile
         self.ma      = 0
         self.freq    = 50
-        self.polar   = 'nw' 
+        self.polar   = 'nw'
+        self.abeam   = 0 
 
     def __str__(self):
         toprint  = '\t=== Class SST of nenupy ===\n'
@@ -63,8 +64,10 @@ class SST():
             self._obsfile = o
             return
         
-        if (o is None) or (o == '') or (os.path.isdir(o)):
+        if (o is None) or (o == '') or (isinstance(o, str)):
             # Look at the current/specified directory
+            if o is None:
+                o = ''
             if os.path.isdir(o):
                 _opath = os.path.abspath(o)
                 sstfiles = glob.glob( os.path.join(_opath, '*SST.fits') )
@@ -178,20 +181,66 @@ class SST():
             self._time = t
             return
 
+    @property
+    def abeam(self):
+        """ Index of the selected analogic beam
+        """
+        return self._abeam
+    @abeam.setter
+    def abeam(self, a):
+        if (a is None) or (a==-1):
+            return
+        elif a not in self.abeams:
+            print("\n\t=== WARNING: available AnaBeams are {} ===".format(self.abeams))
+            self._abeam = 0
+        else:
+            self._abeam = a
+        return
+
     # ------ Specific getters ------ #
     @property
     def marotation(self):
         """ Mini-array rotation in degrees
         """
-        self._marotation = self._marot[ self.ma ]
+        self._marotation = self._marot[ self.miniarrays == self.ma ][0]
         return self._marotation
 
     @property
     def maposition(self):
         """ Lambert93 (x, y, z) Mini-Array position
         """
-        self._maposition = self._mapos[ self.ma ]
+        self._maposition = self._mapos[ self.miniarrays == self.ma ][0]
         return self._maposition
+
+    @property
+    def azana(self):
+        """ Azimuth during the analogic pointing self.abeam
+        """
+        az = self._azlistana[ self._pointana==self.abeam ]
+        if az.size == 1:
+            az = az[0]
+        else:
+            if isinstance(self.time, list):
+                tmask = np.squeeze((self._pointanat >= self.time[0]) & (self._pointanat <= self.time[1]))
+                az = self._azlistana[tmask]
+            else:
+                az = self._azlistana[ np.argmin(np.abs( (self._pointanat - self.time).sec )) ]
+        return az 
+
+    @property
+    def elana(self):
+        """ Elevation during the analogic pointing self.abeam
+        """
+        el = self._ellistana[ self._pointana==self.abeam ]
+        if el.size == 1:
+            el = el[0]
+        else:
+            if isinstance(self.time, list):
+                tmask = np.squeeze((self._pointanat >= self.time[0]) & (self._pointanat <= self.time[1]))
+                el = self._ellistana[tmask]
+            else:
+                el = self._ellistana[ np.argmin(np.abs( (self._pointanat - self.time).sec )) ]
+        return el
     
 
     # ================================================================= #
@@ -352,6 +401,30 @@ class SST():
         self._mapos     = np.squeeze( setup_ins['noPosition'] )
         self._mapos     = self._mapos.reshape( int(self._mapos.size/3), 3 )
         self._pols      = np.squeeze( setup_ins['spol'] )
+
+        self._readParset()
+        return
+
+    def _readParset(self):
+        """ The SST Fits header is lacking some crucial informations
+            It is thus needed to read the parset file
+        """
+        try:
+            sstpath = os.path.dirname( self.obsfile[0] )
+            parsetfile = glob.glob( os.path.join(sstpath, '{}_*.parset'.format(self.obsname.split('_')[0])) )[0]
+        except:
+            raise IOError("\n\t=== No parset file found - necessary for SST file ===")
+        with open(parsetfile) as rf:
+            parset = rf.read()
+        parsedfile = parset.split('\n')
+
+        self.abeams     = np.arange([int(i.split('=')[1]) for i in parsedfile if 'nrAnaBeams' in i][0])
+        self._antlist   = np.array([ np.array(eval(i.split('=')[1]))-1 for i in sorted(parsedfile) if 'antList' in i ])
+        self._adeltat   = TimeDelta( np.array([float(i.split('=')[1]) for i in sorted(parsedfile) if ('duration' in i) & ('AnaBeam' in i) ]), format='sec')
+        self._pointana  = self.abeams.copy()
+        self._azlistana = np.array([float(i.split('=')[1]) for i in sorted(parsedfile) if ('angle1' in i) & ('AnaBeam' in i) ])
+        self._ellistana = np.array([float(i.split('=')[1]) for i in sorted(parsedfile) if ('angle2' in i) & ('AnaBeam' in i) ])
+        self._pointanat = Time(np.array([i.split('=')[1] for i in sorted(parsedfile) if ('startTime' in i) & ('AnaBeam' in i) ]))
         return
 
     def _createFakeObs(self):

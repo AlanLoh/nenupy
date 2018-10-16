@@ -1,0 +1,43 @@
+#! /usr/bin/python3.6
+# -*- coding: utf-8 -*-
+
+
+"""
+"""
+
+from nenupy.read import SST, BST
+import argparse
+
+__author__ = 'Alan Loh'
+__copyright__ = 'Copyright 2018, nenupy'
+__credits__ = ['Alan Loh']
+__license__ = 'MIT'
+__version__ = '0.0.1'
+__maintainer__ = 'Alan Loh'
+__email__ = 'alan.loh@obspm.fr'
+__status__ = 'WIP'
+
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-o', '--obs', type=str, help="Observation directory/file", required=True)
+    parser.add_argument('-f', '--freq', type=float, default=50, help="Frequency in MHz", required=False)
+    parser.add_argument('-p', '--polar', type=str, default='NW', help="Polarization", required=False)
+    # parser.add_argument('-t0', '--tstart', type=str, default='-1', help="Start time", required=False, nargs='+')
+    # parser.add_argument('-t1', '--tstop', type=str, default='-1', help="Stop time", required=False, nargs='+')
+    parser.add_argument('-m', '--ma', type=int, default=0, help="Mini-Array name index", required=False)
+    parser.add_argument('-a', '--ana', type=int, default=-1, help="Analogical beam index", required=False)
+    parser.add_argument('-d', '--digi', type=int, default=-1, help="Numerical beam index", required=False)
+    # parser.add_argument('-s', '--source', type=str, default='None', help="Source transit", required=False)
+    args = parser.parse_args()
+    
+    
+    try:
+        # ------ SST Observation ------ #
+        obs = SST(obsfile=args.obs)
+        obs.plotData(freq=args.freq, polar=args.polar, ma=args.ma) 
+    except:
+        # ------ BST Observation ------ #
+        obs = BST(obsfile=args.obs)
+        obs.plotData(freq=args.freq, polar=args.polar, abeam=args.ana, dbeam=args.digi) 

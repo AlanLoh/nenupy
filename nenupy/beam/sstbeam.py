@@ -54,8 +54,8 @@ class SSTbeam():
             self.marotation = self._sst.marotation
             self.freq       = self._sst.freq
             self.polar      = self._sst.polar
-            # self.azana     = self._sst.azana 
-            # self.elana     = self._sst.elana
+            self.azana     = self._sst.azana 
+            self.elana     = self._sst.elana
         return
 
     @property
@@ -133,8 +133,12 @@ class SSTbeam():
         model = AntennaModel(design='nenufar', freq=self.freq, polar=self.polar)
         elevation = self._squintMA(self.elana)
         az, el = self._realPointing(self.azana, elevation)
+        # az   -= self.marotation + 90. # origin correction
+        az   -= 90.
         beam  = PhasedArrayBeam(p=self._antPos(), m=model, a=az, e=el)
         self.beam = beam.getBeam()
+        # self.beam = np.roll(self.beam, int(1./beam.resol)*int(self.marotation + 90) , axis=1)
+        self.beam = np.roll(self.beam, int(1./beam.resol)*int(90) , axis=1)
         return
 
     def plotBeam(self, **kwargs):
