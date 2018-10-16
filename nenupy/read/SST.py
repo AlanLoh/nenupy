@@ -64,7 +64,7 @@ class SST():
             self._obsfile = o
             return
         
-        if (o is None) or (o == '') or (isinstance(o, str)):
+        if (o is None) or (o == '') or (isinstance(o, str)) and (not os.path.isfile(o)):
             # Look at the current/specified directory
             if o is None:
                 o = ''
