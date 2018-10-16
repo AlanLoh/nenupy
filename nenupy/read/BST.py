@@ -36,6 +36,8 @@ class BST():
         self.freq    = 50
         self.polar   = 'nw'
 
+        self._attrlist = ['polar', 'freq', 'time', 'abeam' 'dbeam']
+
     def __str__(self):
         toprint  = '\t=== Class SST of nenupy ===\n'
         toprint += '\tList of all current attributes:\n'
@@ -333,10 +335,12 @@ class BST():
         """
         self.getData(**kwargs)
 
+        plotkwargs = {key: value for (key, value) in kwargs.items() if key not in self._attrlist}
+
         if self.f.size == 1:
             # ------ Light curve ------ #
             xtime = (self.t - self.t[0]).sec / 60
-            plt.plot(xtime, self.d, **kwargs)
+            plt.plot(xtime, self.d, **plotkwargs)
             plt.xlabel('Time (min since {})'.format(self.t[0].iso))
             plt.ylabel('Amplitude')
             plt.title('f={:3.2f} MHz, pol={}, abeam={}, dbeam={}'.format(self.f[0], self.polar, self.abeam, self.dbeam))
@@ -345,7 +349,7 @@ class BST():
 
         elif self.t.size == 1:
             # ------ Spectrum ------ #
-            plt.plot(self.f, self.d, **kwargs)
+            plt.plot(self.f, self.d, **plotkwargs)
             plt.xlabel('Frequency (MHz)')
             plt.ylabel('Amplitude')
             plt.title('t={}, pol={}, abeam={}, dbeam={}'.format(self.time.iso, self.polar, self.abeam, self.dbeam))
@@ -360,7 +364,7 @@ class BST():
             ax  = fig.add_subplot(111)
             normcb = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
             cmap = 'bone'
-            for key, value in kwargs.items():
+            for key, value in plotkwargs.items():
                 if key == 'cmap': cmap = value
             spec   = ax.pcolormesh(xtime, self.f, self.d.T, cmap=cmap, norm=normcb)
             plt.colorbar(spec)

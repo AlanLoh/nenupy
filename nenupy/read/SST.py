@@ -4,9 +4,6 @@
 """
 Class to read NenuFAR SST data
         by A. Loh
-
-TO DO:
-    - read the parset if present
 """
 
 import os
@@ -39,6 +36,8 @@ class SST():
         self.freq    = 50
         self.polar   = 'nw'
         self.abeam   = 0 
+
+        self._attrlist = ['polar', 'freq', 'time', 'abeam', 'ma']
 
     def __str__(self):
         toprint  = '\t=== Class SST of nenupy ===\n'
@@ -304,10 +303,12 @@ class SST():
         """
         self.getData(**kwargs)
 
+        plotkwargs = {key: value for (key, value) in kwargs.items() if key not in self._attrlist}
+
         if self.f.size == 1:
             # ------ Light curve ------ #
             xtime = (self.t - self.t[0]).sec / 60
-            plt.plot(xtime, self.d, **kwargs)
+            plt.plot(xtime, self.d, **plotkwargs)
             plt.xlabel('Time (min since {})'.format(self.t[0].iso))
             plt.ylabel('Amplitude')
             plt.title('MA={}, f={:3.2f} MHz, pol={}'.format(self.ma, self.freq, self.polar))
@@ -316,7 +317,7 @@ class SST():
 
         elif self.t.size == 1:
             # ------ Spectrum ------ #
-            plt.plot(self.f, self.d, **kwargs)
+            plt.plot(self.f, self.d, **plotkwargs)
             plt.xlabel('Frequency (MHz)')
             plt.ylabel('Amplitude')
             plt.title('MA={}, t={}, pol={}'.format(self.ma, self.time.iso, self.polar))
@@ -331,7 +332,7 @@ class SST():
             ax  = fig.add_subplot(111)
             normcb = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
             cmap = 'bone'
-            for key, value in kwargs.items():
+            for key, value in plotkwargs.items():
                 if key == 'cmap': cmap = value
             spec   = ax.pcolormesh(xtime, self.f, self.d.T, cmap=cmap, norm=normcb)
             plt.colorbar(spec)
@@ -441,6 +442,7 @@ class SST():
             elif key == 'freq':  self.freq  = value
             elif key == 'time':  self.time  = value
             elif key == 'ma':    self.ma    = value
+            elif key == 'abeam': self.abeam = value
             else:
                 pass
         return
