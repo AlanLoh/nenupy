@@ -33,47 +33,48 @@ __status__ = 'WIP'
 __all__ = ['SSTbeam']
 
 class SSTbeam(object):
-    """ Class to handle SST beams
-        
-        Parameters
-        ----------
-        sst : SST class, optional
-            Instance of SST class, it refers to a particular observation
-        **kwargs : dict
-            Optional keywords:
-            - ma : integer
-                Mini-Array number (automatic by default)
-            - marotation : float
-                Mini-Array rotation (automatic by default)
-            - polar : str
-                Polarization, 'NE' or 'NW' ('NW' by default)
-            - freq : float
-                Frequency in MHz (50 by default)
-            - azana : float
-                Azimuth in degrees (180 by default)
-            - elana : float
-                Elevation in degrees (90 by default)
+    """ 
+    Class to handle SST beams
+    
+    Parameters
+    ----------
+    * sst : `SST` class, optional
+        Instance of *SST class*, it refers to a particular observation
+    * ma : integer, optional
+        Mini-Array number (automatic by default)
+    * marotation : float, optional
+        Mini-Array rotation (automatic by default)
+    * polar : str, optional
+        Polarization, 'NE' or 'NW' ('NW' by default)
+    * freq : float, optional
+        Frequency in MHz (50 by default)
+    * azana : float, optional
+        Azimuth in degrees (180 by default)
+    * elana : float, optional
+        Elevation in degrees (90 by default)
 
-        Returns
-        -------
-        beam : np.ndarray
-            Normalized 2D array of shape (azimuth, elevation)
+    Returns
+    -------
+    beam : np.ndarray
+        Normalized 2D array of shape (azimuth, elevation)
 
-        Examples
-        --------
-        To plot a beam:
-        >>> from nenupy.beam import SSTbeam
-        >>> beam = SSTbeam(ma=12, azana=30, elana=45, freq=65, polar='NE')
-        >>> beam.plotBeam()
+    Examples
+    --------
+    To plot a beam:
+    
+    >>> from nenupy.beam import SSTbeam
+    >>> beam = SSTbeam(ma=12, azana=30, elana=45, freq=65, polar='NE')
+    >>> beam.plotBeam()
 
-        Work on the beam computed from a given SST observation:
-        >>> from nenupy.read import SST
-        >>> from nenupy.beam import SSTbeam
-        >>> sst = SST('observation_SST.fits')
-        >>> sst.freq = 45
-        >>> sst.polar = 'ne'
-        >>> beam = SSTbeam(sst)
-        >>> beam.getBeam()
+    Work on the beam computed from a given SST observation:
+
+    >>> from nenupy.read import SST
+    >>> from nenupy.beam import SSTbeam
+    >>> sst = SST('observation_SST.fits')
+    >>> sst.freq = 45
+    >>> sst.polar = 'ne'
+    >>> beam = SSTbeam(sst)
+    >>> beam.getBeam()
     """
     def __init__(self, sst=None, **kwargs):
         self.sst = sst
@@ -96,6 +97,8 @@ class SSTbeam(object):
             self.polar      = self._sst.polar
             self.azana      = self._sst.azana 
             self.elana      = self._sst.elana
+        else:
+            self._sst = s
         return
 
     @property
@@ -135,7 +138,10 @@ class SSTbeam(object):
         return self._ma
     @ma.setter
     def ma(self, m):
-        marecorded = miniarrays.ma[:, 0].astype(int)
+        if self.sst is None:
+            marecorded = miniarrays.ma[:, 0].astype(int)
+        else:
+            marecorded = self.sst.miniarrays
         if m is None:
             print("\n\t==== WARNING: ma is set by default ===")
             m = marecorded[0]
@@ -151,20 +157,12 @@ class SSTbeam(object):
     def marotation(self):
         """ MA rotation selection
         """
-        if isinstance(self._marotation, (list, np.ndarray)):
-            return self._marotation[self.ma]
-        else:
-            return self._marotation
+        return self._marotation[self.ma]
     @marotation.setter
     def marotation(self, r):
         if r is None:
             print("\n\t==== WARNING: MA rotation is set by default ===")
             self._marotation = miniarrays.ma[:, 1]
-            return
-        if not isinstance(r, (float, int, np.float32, np.float64, np.int16, np.int32, np.int64)):
-            raise TypeError("\n\t=== Attribute 'marotation' should be a number ===")
-        else:
-            self._marotation = r
             return
 
     # ================================================================= #
@@ -186,8 +184,7 @@ class SSTbeam(object):
     def plotBeam(self, **kwargs):
         """ Plot the SST Beam
         """
-        if not hasattr(self, 'beam'):
-            self.getBeam()
+        self.getBeam()
 
         theta = np.linspace(0., 90., self.beam.shape[1])
         phi   = np.radians( np.linspace(0., 360., self.beam.shape[0]) )
@@ -200,11 +197,12 @@ class SSTbeam(object):
         plt.setp(ax.get_yticklabels(), rotation='horizontal', color='white')
         g = lambda x,y: r'%d'%(90-x)
         ax.yaxis.set_major_formatter(mtick.FuncFormatter( g ))
+        plt.title('MA={}, pol={}, freq={}MHz, az={}, el={}'.format(self.ma, self.polar, self.freq, self.azana, self.elana))
         plt.show()
         plt.close('all')
         return
 
-    def saveBeam(self, savefile=None, **kwargs):
+    def saveBeam(self, savefile=None):
         """ Save the beam
         """
         if savefile is None:
@@ -212,8 +210,7 @@ class SSTbeam(object):
         else:
             if not savefile.endswith('.fits'):
                 raise ValueError("\n\t=== It should be a FITS ===")
-        if not hasattr(self, 'beam'):
-            self.getBeam()
+        self.getBeam()
 
         prihdr = fits.Header()
         prihdr.set('FREQ', str(self.freq))

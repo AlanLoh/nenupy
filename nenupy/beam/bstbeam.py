@@ -228,7 +228,8 @@ class BSTbeam(object):
     def plotBeam(self, **kwargs):
         """ Plot the BST Beam
         """
-        self.getBeam(**kwargs)
+        if not hasattr(self, 'beam'):
+            self.getBeam(**kwargs)
 
         theta = np.linspace(0., 90., self.beam.shape[1])
         phi   = np.radians( np.linspace(0., 360., self.beam.shape[0]) )
@@ -245,7 +246,7 @@ class BSTbeam(object):
         plt.close('all')
         return
 
-    def saveBeam(self, savefile=None, **kwargs):
+    def saveBeam(self, savefile=None):
         """ Save the beam
         """
         if savefile is None:

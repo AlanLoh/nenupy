@@ -49,7 +49,7 @@ class SST():
         return toprint
 
     def __repr__(self):
-        return '<nenupy SST object>'
+        return '<SST object: obsfile={}>'.format(self.obsfile)
 
     # ================================================================= #
     # ======================== Getter / Setter ======================== #
