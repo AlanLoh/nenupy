@@ -32,7 +32,7 @@ __email__ = 'alan.loh@obspm.fr'
 __status__ = 'WIP'
 __all__ = ['BSTBeam']
 
-class BSTbeam():
+class BSTbeam(object):
     """ Class to handle BST beams
     """
     def __init__(self, bst=None, **kwargs):
@@ -116,61 +116,49 @@ class BSTbeam():
     def marotation(self):
         """ MA rotation selection
         """
-        return self._marotation
+        return self._marotation[self.ma]
     @marotation.setter
     def marotation(self, r):
         if r is None:
             print("\n\t==== WARNING: MA rotations are set by default ===")
-            r = miniarrays.ma[:, 1][self.ma]
-        if isinstance(r, list):
-            r = np.array(r)
-        if not isinstance(r, np.ndarray):
-            raise TypeError("\n\t=== Attribute 'marotation' should be an array ===")
-        elif r.size != self.ma.size:
-            raise ValueError("\n\t=== Attribute 'marotation' should be the same size as 'ma' ===")
-        else:
-            self._marotation = r
-            return
+            self._marotation = miniarrays.ma[:, 1]
+        if isinstance(r, list) or (isinstance(r, np.ndarray)):
+            self._marotation = np.array(r)
+            if self._marotation.size != self.ma.size:
+                raise ValueError("\n\t=== Attribute 'marotation' should be the same size as 'ma' ===")
+        return
 
     @property
     def maposition(self):
         """ MA position selection
         """
-        return self._maposition
+        return self._maposition[self.ma]
     @maposition.setter
     def maposition(self, p):
         if p is None:
             print("\n\t==== WARNING: MA positions are set by default ===")
-            p = miniarrays.ma[:, 2:5][self.ma]
-        if isinstance(p, list):
-            p = np.array(p)
-        if not isinstance(p, np.ndarray):
-            raise TypeError("\n\t=== Attribute 'maposition' should be an array ===")
-        elif p.shape[0] != self.ma.size:
-            raise ValueError("\n\t=== Attribute 'maposition' should be the same size as 'ma' ===")
-        else:
-            self._maposition = p
-            return
+            self._maposition = miniarrays.ma[:, 2:5]
+        if isinstance(p, list) or (isinstance(p, np.ndarray)):
+            self._maposition = np.array(p)
+            if self._maposition.shape[0] != self.ma.size:
+                raise ValueError("\n\t=== Attribute 'maposition' should be the same size as 'ma' ===")
+        return
 
     @property
     def delays(self):
         """ MA delay selection (in ns)
         """
-        return self._delays
+        return self._delays[self.ma]
     @delays.setter
     def delays(self, d):
         if d is None:
             print("\n\t==== WARNING: MA delays are set by default ===")
-            d = miniarrays.ma[:, 6][self.ma]
-        if isinstance(d, list):
-            d = np.array(d)
-        if not isinstance(d, np.ndarray):
-            raise TypeError("\n\t=== Attribute 'delays' should be an array ===")
-        elif d.size != self.ma.size:
-            raise ValueError("\n\t=== Attribute 'delays' should be the same size as 'ma' ===")
-        else:
-            self._delays = d
-            return
+            self._delays = miniarrays.ma[:, 6]
+        if isinstance(d, list) or isinstance(d, np.ndarray):
+            self._delays = np.array(d)
+            if self._delays.size != self.ma.size:
+                raise ValueError("\n\t=== Attribute 'delays' should be the same size as 'ma' ===")
+        return
 
     @property
     def azana(self):

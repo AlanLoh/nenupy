@@ -359,13 +359,15 @@ class BST():
         elif (self.f.size > 1) & (self.t.size > 1):
             # ------ Dynamic spectrum ------ #
             xtime = (self.t - self.t[0]).sec / 60
-            vmin, vmax = np.percentile(self.d, [5, 99]) 
-            fig = plt.figure()
-            ax  = fig.add_subplot(111)
-            normcb = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
+            vmin, vmax = np.percentile(self.d, [5, 99])
             cmap = 'bone'
             for key, value in plotkwargs.items():
                 if key == 'cmap': cmap = value
+                if key == 'vmin': vmax = value
+                if key == 'vmax': vmin = value 
+            fig = plt.figure()
+            ax  = fig.add_subplot(111)
+            normcb = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
             spec   = ax.pcolormesh(xtime, self.f, self.d.T, cmap=cmap, norm=normcb)
             plt.colorbar(spec)
             ax.axis( [xtime.min(), xtime.max(), self.f.min(), self.f.max()] )
