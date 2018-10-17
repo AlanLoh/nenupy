@@ -157,12 +157,20 @@ class SSTbeam(object):
     def marotation(self):
         """ MA rotation selection
         """
-        return self._marotation[self.ma]
+        if self.sst is None:
+            return self._marotation[self.ma]
+        else:
+            return self._marotation
     @marotation.setter
     def marotation(self, r):
         if r is None:
             print("\n\t==== WARNING: MA rotation is set by default ===")
             self._marotation = miniarrays.ma[:, 1]
+            return
+        if not isinstance(r, (float, int, np.float32, np.float64, np.int16, np.int32, np.int64)):
+            raise TypeError("\n\t=== Attribute 'marotation' should be a number ===")
+        else:
+            self._marotation = r
             return
 
     # ================================================================= #

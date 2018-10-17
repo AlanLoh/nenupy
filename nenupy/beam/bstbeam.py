@@ -53,12 +53,15 @@ class BSTbeam(object):
             self.ma         = self._bst.ma
             self.marotation = self._bst.marotation
             self.maposition = self._bst.maposition
+            self.delays     = self._bst._delays
             self.freq       = self._bst.freq
             self.polar      = self._bst.polar
             self.azana      = self._bst.azana 
             self.elana      = self._bst.elana
             self.azdig      = self._bst.azdig 
             self.eldig      = self._bst.eldig
+        else:
+            self._bst = b
         return
 
     @property
@@ -98,7 +101,10 @@ class BSTbeam(object):
         return self._ma
     @ma.setter
     def ma(self, m):
-        marecorded = miniarrays.ma[:, 0].astype(int)
+        if self.bst is None:
+            marecorded = miniarrays.ma[:, 0].astype(int)
+        else:
+            marecorded = self.bst.ma
         if m is None:
             print("\n\t==== WARNING: miniarrays are set by default ===")
             m = marecorded
@@ -116,7 +122,10 @@ class BSTbeam(object):
     def marotation(self):
         """ MA rotation selection
         """
-        return self._marotation[self.ma]
+        if self.bst is None:
+            return self._marotation[self.ma]
+        else:
+            return self._marotation
     @marotation.setter
     def marotation(self, r):
         if r is None:
@@ -132,7 +141,10 @@ class BSTbeam(object):
     def maposition(self):
         """ MA position selection
         """
-        return self._maposition[self.ma]
+        if self.bst is None:
+            return self._maposition[self.ma]
+        else:
+            return self._maposition
     @maposition.setter
     def maposition(self, p):
         if p is None:
@@ -148,12 +160,15 @@ class BSTbeam(object):
     def delays(self):
         """ MA delay selection (in ns)
         """
-        return self._delays[self.ma]
+        if self.bst is None:
+            return self._delays[self.ma]
+        else:
+            return self._delays
     @delays.setter
     def delays(self, d):
         if d is None:
             print("\n\t==== WARNING: MA delays are set by default ===")
-            self._delays = miniarrays.ma[:, 6]
+            self._delays = miniarrays.ma[:, 5]
         if isinstance(d, list) or isinstance(d, np.ndarray):
             self._delays = np.array(d)
             if self._delays.size != self.ma.size:
