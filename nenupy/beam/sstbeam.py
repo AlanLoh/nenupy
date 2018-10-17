@@ -34,6 +34,46 @@ __all__ = ['SSTbeam']
 
 class SSTbeam(object):
     """ Class to handle SST beams
+        
+        Parameters
+        ----------
+        sst : SST class, optional
+            Instance of SST class, it refers to a particular observation
+        **kwargs : dict
+            Optional keywords:
+            - ma : integer
+                Mini-Array number (automatic by default)
+            - marotation : float
+                Mini-Array rotation (automatic by default)
+            - polar : str
+                Polarization, 'NE' or 'NW' ('NW' by default)
+            - freq : float
+                Frequency in MHz (50 by default)
+            - azana : float
+                Azimuth in degrees (180 by default)
+            - elana : float
+                Elevation in degrees (90 by default)
+
+        Returns
+        -------
+        beam : np.ndarray
+            Normalized 2D array of shape (azimuth, elevation)
+
+        Examples
+        --------
+        To plot a beam:
+        >>> from nenupy.beam import SSTbeam
+        >>> beam = SSTbeam(ma=12, azana=30, elana=45, freq=65, polar='NE')
+        >>> beam.plotBeam()
+
+        Work on the beam computed from a given SST observation:
+        >>> from nenupy.read import SST
+        >>> from nenupy.beam import SSTbeam
+        >>> sst = SST('observation_SST.fits')
+        >>> sst.freq = 45
+        >>> sst.polar = 'ne'
+        >>> beam = SSTbeam(sst)
+        >>> beam.getBeam()
     """
     def __init__(self, sst=None, **kwargs):
         self.sst = sst
@@ -54,8 +94,8 @@ class SSTbeam(object):
             self.marotation = self._sst.marotation
             self.freq       = self._sst.freq
             self.polar      = self._sst.polar
-            self.azana     = self._sst.azana 
-            self.elana     = self._sst.elana
+            self.azana      = self._sst.azana 
+            self.elana      = self._sst.elana
         return
 
     @property
@@ -135,12 +175,12 @@ class SSTbeam(object):
         model = AntennaModel(design='nenufar', freq=self.freq, polar=self.polar)
         elevation = self._squintMA(self.elana)
         az, el = self._realPointing(self.azana, elevation)
-        # az   -= self.marotation + 90. # origin correction
-        az   -= 90.
+        # # az   -= self.marotation + 90. # origin correction
+        # az   -= 90.
         beam  = PhasedArrayBeam(p=self._antPos(), m=model, a=az, e=el)
         self.beam = beam.getBeam()
         # self.beam = np.roll(self.beam, int(1./beam.resol)*int(self.marotation + 90) , axis=1)
-        self.beam = np.roll(self.beam, int(1./beam.resol)*int(90) , axis=1)
+        # self.beam = np.roll(self.beam, int(1./beam.resol)*int(90) , axis=1)
         return
 
     def plotBeam(self, **kwargs):
@@ -226,10 +266,10 @@ class SSTbeam(object):
 
     def _evalkwargs(self, kwargs):
         """
-        Parameters
-        ----------
-        kwargs : dictionnary
-            Dictionnary of keys and values to look from in order to fill the class attributes
+            Parameters
+            ----------
+            kwargs : dictionnary
+                Dictionnary of keys and values to look from in order to fill the class attributes
         """
         allowed = ['ma', 'marotation', 'freq', 'polar', 'azana', 'elana']
         if not all([ki in allowed for ki in kwargs.keys()]):
