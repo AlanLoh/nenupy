@@ -330,8 +330,8 @@ class BST():
         mask_freq = np.roll(mask_fre, self._bletlist[self.dbeam][0])
 
         # ------ time ------ #
-        digiti   = self._pointdigt[self.dbeam]
-        digitf   = self._pointdigt[self.dbeam] + self._ddeltat[self.dbeam]
+        digiti   = self._pointdigt[ self._pointdig==self.dbeam ][0]
+        digitf   = self._pointdigt[ self._pointdig==self.dbeam ][-1]
         mask_tim = (self._timeall >= digiti) & (self._timeall <= digitf)
         if isinstance(self.time, list):
             mask_tim = mask_tim & (self._timeall >= self.time[0]) & (self._timeall <= self.time[1])
