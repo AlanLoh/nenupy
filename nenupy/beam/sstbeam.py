@@ -157,7 +157,8 @@ class SSTbeam(object):
     def marotation(self):
         """ MA rotation selection
         """
-        if self.sst is None:
+        #if (self.sst is None) or (
+        if isinstance(self._marotation, np.ndarray):
             return self._marotation[self.ma]
         else:
             return self._marotation
