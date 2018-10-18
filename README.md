@@ -4,9 +4,9 @@
 
 ## Installation
 ### pip
-To install *nenupy* with pip:
+To install *nenupy* with pip3:
 ```
-pip install nenupy
+pip3 install nenupy
 ```
 <!-- or
 ```
