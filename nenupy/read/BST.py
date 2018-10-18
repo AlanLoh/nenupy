@@ -236,11 +236,12 @@ class BST():
         if az.size == 1:
             az = az[0]
         else:
+            anatimes = self._pointanat[ self._pointana==self.abeam ]
             if isinstance(self.time, list):
-                tmask = np.squeeze((self._pointanat >= self.time[0]) & (self._pointanat <= self.time[1]))
-                az = self._azlistana[tmask]
+                tmask = np.squeeze((anatimes >= self.time[0]) & (anatimes <= self.time[1]))
+                az = az[tmask]
             else:
-                az = self._azlistana[ np.argmin(np.abs( (self._pointanat - self.time).sec )) ]
+                az = az[ np.argmin(np.abs( (anatimes - self.time).sec )) ]
         return az 
 
     @property
@@ -251,11 +252,12 @@ class BST():
         if el.size == 1:
             el = el[0]
         else:
+            anatimes = self._pointanat[ self._pointana==self.abeam ]
             if isinstance(self.time, list):
-                tmask = np.squeeze((self._pointanat >= self.time[0]) & (self._pointanat <= self.time[1]))
+                tmask = np.squeeze((anatimes >= self.time[0]) & (anatimes <= self.time[1]))
                 el = self._ellistana[tmask]
             else:
-                el = self._ellistana[ np.argmin(np.abs( (self._pointanat - self.time).sec )) ]
+                el = self._ellistana[ np.argmin(np.abs( (anatimes - self.time).sec )) ]
         return el
 
     @property
@@ -266,26 +268,28 @@ class BST():
         if az.size == 1:
             az = az[0]
         else:
+            digitimes = self._pointdigt[ self._pointdig==self.dbeam ]
             if isinstance(self.time, list):
-                tmask = np.squeeze((self._pointdigt >= self.time[0]) & (self._pointdigt <= self.time[1]))
-                az = self._azlistdig[tmask]
+                tmask = np.squeeze((digitimes >= self.time[0]) & (digitimes <= self.time[1]))
+                az = az[tmask]
             else:
-                az = self._azlistdig[ np.argmin(np.abs( (self._pointdigt - self.time).sec )) ]
+                az = az[ np.argmin(np.abs( (digitimes - self.time).sec )) ]
         return az
 
     @property
     def eldig(self):
         """ Elevation during the numeric pointing self.dbeam
-        """
+        """ 
         el = self._ellistdig[ self._pointdig==self.dbeam ]
         if el.size == 1:
             el = el[0]
         else:
+            digitimes = self._pointdigt[ self._pointdig==self.dbeam ]
             if isinstance(self.time, list):
-                tmask = np.squeeze((self._pointdigt >= self.time[0]) & (self._pointdigt <= self.time[1]))
-                el = self._ellistdig[tmask]
+                tmask = np.squeeze((digitimes >= self.time[0]) & (digitimes <= self.time[1]))
+                el = el[tmask]
             else:
-                el = self._ellistdig[ np.argmin(np.abs( (self._pointdigt - self.time).sec )) ]
+                el = el[ np.argmin(np.abs( (digitimes - self.time).sec )) ]
         return el
 
 

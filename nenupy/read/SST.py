@@ -213,7 +213,7 @@ class SST():
         """
         self._maposition = self._mapos[ self.miniarrays == self.ma ][0]
         return self._maposition
-
+    
     @property
     def azana(self):
         """ Azimuth during the analogic pointing self.abeam
@@ -222,11 +222,12 @@ class SST():
         if az.size == 1:
             az = az[0]
         else:
+            anatimes = self._pointanat[ self._pointana==self.abeam ]
             if isinstance(self.time, list):
-                tmask = np.squeeze((self._pointanat >= self.time[0]) & (self._pointanat <= self.time[1]))
-                az = self._azlistana[tmask]
+                tmask = np.squeeze((anatimes >= self.time[0]) & (anatimes <= self.time[1]))
+                az = az[tmask]
             else:
-                az = self._azlistana[ np.argmin(np.abs( (self._pointanat - self.time).sec )) ]
+                az = az[ np.argmin(np.abs( (anatimes - self.time).sec )) ]
         return az 
 
     @property
@@ -237,13 +238,13 @@ class SST():
         if el.size == 1:
             el = el[0]
         else:
+            anatimes = self._pointanat[ self._pointana==self.abeam ]
             if isinstance(self.time, list):
-                tmask = np.squeeze((self._pointanat >= self.time[0]) & (self._pointanat <= self.time[1]))
+                tmask = np.squeeze((anatimes >= self.time[0]) & (anatimes <= self.time[1]))
                 el = self._ellistana[tmask]
             else:
-                el = self._ellistana[ np.argmin(np.abs( (self._pointanat - self.time).sec )) ]
+                el = self._ellistana[ np.argmin(np.abs( (anatimes - self.time).sec )) ]
         return el
-    
 
     # ================================================================= #
     # =========================== Methods ============================= #
