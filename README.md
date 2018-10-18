@@ -13,7 +13,7 @@ pip3 install nenupy
 python3 -m pip install --index-url https://test.pypi.org/simple/ nenupy
 ``` -->
 
-If `nenupy` is already install, the newer version can be installed:
+If `nenupy` is already installed, the newer version can be installed:
 ```
 pip install nenupy --upgrade
 ```
