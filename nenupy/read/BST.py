@@ -36,7 +36,7 @@ class BST():
         self.freq    = 50
         self.polar   = 'nw'
 
-        self._attrlist = ['polar', 'freq', 'time', 'abeam' 'dbeam']
+        self._attrlist = ['polar', 'freq', 'time', 'abeam', 'dbeam']
 
     def __str__(self):
         toprint  = '\t=== Class SST of nenupy ===\n'
@@ -362,8 +362,6 @@ class BST():
                 plt.ylabel('Amplitude')
             plt.xlabel('Time (min since {})'.format(self.t[0].iso))
             plt.title('f={:3.2f} MHz, pol={}, abeam={}, dbeam={}'.format(self.f[0], self.polar, self.abeam, self.dbeam))
-            plt.show()
-            plt.close('all')
 
         elif self.t.size == 1:
             # ------ Spectrum ------ #
@@ -375,8 +373,6 @@ class BST():
                 plt.ylabel('Amplitude')
             plt.xlabel('Frequency (MHz)')
             plt.title('t={}, pol={}, abeam={}, dbeam={}'.format(self.time.iso, self.polar, self.abeam, self.dbeam))
-            plt.show()
-            plt.close('all')
 
         elif (self.f.size > 1) & (self.t.size > 1):
             # ------ Dynamic spectrum ------ #
@@ -396,11 +392,11 @@ class BST():
             plt.xlabel('Time (min since {})'.format(self.t[0].iso))
             plt.ylabel('Frequency (MHz)')
             plt.title('pol={}, abeam={}, dbeam={}'.format(self.polar, self.abeam, self.dbeam))
-            plt.show()
-            plt.close('all')
 
         else:
             raise ValueError("\n\t=== ERROR: Plot nature not understood ===")
+        plt.show()
+        plt.close('all')
         return
 
     def saveData(self, savefile=None, **kwargs):

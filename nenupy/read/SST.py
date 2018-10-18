@@ -319,8 +319,6 @@ class SST():
                 plt.ylabel('Amplitude')
             plt.xlabel('Time (min since {})'.format(self.t[0].iso))
             plt.title('MA={}, f={:3.2f} MHz, pol={}'.format(self.ma, self.freq, self.polar))
-            plt.show()
-            plt.close('all')
 
         elif self.t.size == 1:
             # ------ Spectrum ------ #
@@ -332,8 +330,6 @@ class SST():
                 plt.ylabel('Amplitude')
             plt.xlabel('Frequency (MHz)')
             plt.title('MA={}, t={}, pol={}'.format(self.ma, self.time.iso, self.polar))
-            plt.show()
-            plt.close('all')
 
         elif (self.f.size > 1) & (self.t.size > 1):
             # ------ Dynamic spectrum ------ #
@@ -353,11 +349,11 @@ class SST():
             plt.xlabel('Time (min since {})'.format(self.t[0].iso))
             plt.ylabel('Frequency (MHz)')
             plt.title('MA={}, pol={}'.format(self.ma, self.polar))
-            plt.show()
-            plt.close('all')
 
         else:
             raise ValueError("\n\t=== ERROR: Plot nature not understood ===")
+        plt.show()
+        plt.close('all')
         return
 
     def saveData(self, savefile=None, **kwargs):
