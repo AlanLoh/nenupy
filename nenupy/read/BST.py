@@ -42,7 +42,7 @@ class BST():
         toprint  = '\t=== Class SST of nenupy ===\n'
         toprint += '\tList of all current attributes:\n'
         for att in dir(self):
-            avoid = ['t', 'd', 'f', 'elana', 'azana', 'azdig', 'eldig', 'maposition', 'marotation']
+            avoid = ['t', 'd', 'f', 'elana', 'azana', 'azdig', 'eldig', 'maposition', 'marotation', 'delays']
             if (not att.startswith('_')) & (not any(x.isupper() for x in att)) & (att not in avoid):
                 toprint += "%s: %s\n"%(att, getattr(self, att))
         return toprint
@@ -201,18 +201,32 @@ class BST():
 
     # ------ Specific getters ------ #
     @property
+    def ma(self):
+        """ Mini-Arrays used
+        """
+        self._ma = self._malist[ self.abeam ]
+        return self._ma
+
+    @property
     def marotation(self):
         """ Mini-array rotation in degrees
         """
-        self._marotation = self._marot[ self.ma ]
+        self._marotation = self._marot[ np.searchsorted(self._maon, self.ma) ]
         return self._marotation
 
     @property
     def maposition(self):
         """ Lambert93 (x, y, z) Mini-Array positions
         """
-        self._maposition = self._mapos[ self.ma ]
+        self._maposition = self._mapos[ np.searchsorted(self._maon, self.ma) ]
         return self._maposition
+
+    @property
+    def delays(self):
+        """ Delays in nsec
+        """
+        self._delays = self._nsdelays[ self.ma ]
+        return self._delays
 
     @property
     def azana(self):
@@ -330,7 +344,7 @@ class BST():
         self.f = self._freqs[self.dbeam][ mask_fre ]
         return
 
-    def plotData(self, **kwargs):
+    def plotData(self, db=True, **kwargs):
         """ Plot the data
         """
         self.getData(**kwargs)
@@ -340,18 +354,26 @@ class BST():
         if self.f.size == 1:
             # ------ Light curve ------ #
             xtime = (self.t - self.t[0]).sec / 60
-            plt.plot(xtime, self.d, **plotkwargs)
+            if db:
+                plt.plot(xtime, 10.*np.log10(self.d), **plotkwargs)
+                plt.ylabel('dB')
+            else:
+                plt.plot(xtime, self.d, **plotkwargs)
+                plt.ylabel('Amplitude')
             plt.xlabel('Time (min since {})'.format(self.t[0].iso))
-            plt.ylabel('Amplitude')
             plt.title('f={:3.2f} MHz, pol={}, abeam={}, dbeam={}'.format(self.f[0], self.polar, self.abeam, self.dbeam))
             plt.show()
             plt.close('all')
 
         elif self.t.size == 1:
             # ------ Spectrum ------ #
-            plt.plot(self.f, self.d, **plotkwargs)
+            if db:
+                plt.plot(self.f, 10.*np.log10(self.d), **plotkwargs)
+                plt.ylabel('dB')
+            else:
+                plt.plot(self.f, self.d, **plotkwargs)
+                plt.ylabel('Amplitude')
             plt.xlabel('Frequency (MHz)')
-            plt.ylabel('Amplitude')
             plt.title('t={}, pol={}, abeam={}, dbeam={}'.format(self.time.iso, self.polar, self.abeam, self.dbeam))
             plt.show()
             plt.close('all')
@@ -436,19 +458,20 @@ class BST():
         self.time     = [self.obstart.copy(), self.obstop.copy()]
         self.exposure = self.obstop - self.obstart
 
-        self.ma     = np.squeeze( setup_ins['noMROn'] )
+        self._maon  = np.squeeze( setup_ins['noMROn'] )
         self._marot = np.squeeze( setup_ins['rotation'] )
         self._mapos = np.squeeze( setup_ins['noPosition'] )
         self._mapos = self._mapos.reshape( int(self._mapos.size/3), 3 )
         self._pols  = np.squeeze( setup_ins['spol'] )
         try:
-            self._delays = np.squeeze(setup_ins['delay'])[::2][ self.ma ]
+            self._nsdelays = np.squeeze(setup_ins['delay'])[::2]#[ self._maon ]
         except:
-            self._delays = np.zeros( self.ma.size )
+            self._nsdelays = np.zeros( self._maon.max() )
 
         self.abeams     = setup_ana['NoAnaBeam']
         self._antlist   = np.array( [ np.array(eval(i)) - 1 for i in setup_ana['Antlist'] ])
         self._adeltat   = TimeDelta(setup_ana['Duration'], format='sec')
+        self._malist    = np.array( [mrs[0:setup_ana['nbMRUsed'][i]] for i, mrs in enumerate(setup_ana['MRList'])] )
 
         self.dbeams     = setup_bea['noBeam']
         self._digi2ana  = setup_bea['NoAnaBeam']

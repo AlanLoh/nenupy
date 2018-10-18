@@ -301,7 +301,7 @@ class SST():
         self.f = self._freqs[ mask_fre ]
         return
 
-    def plotData(self, **kwargs):
+    def plotData(self, db=True, **kwargs):
         """ Plot the data
         """
         self.getData(**kwargs)
@@ -311,18 +311,26 @@ class SST():
         if self.f.size == 1:
             # ------ Light curve ------ #
             xtime = (self.t - self.t[0]).sec / 60
-            plt.plot(xtime, self.d, **plotkwargs)
+            if db:
+                plt.plot(xtime, 10.*np.log10(self.d), **plotkwargs)
+                plt.ylabel('dB')
+            else:
+                plt.plot(xtime, self.d, **plotkwargs)
+                plt.ylabel('Amplitude')
             plt.xlabel('Time (min since {})'.format(self.t[0].iso))
-            plt.ylabel('Amplitude')
             plt.title('MA={}, f={:3.2f} MHz, pol={}'.format(self.ma, self.freq, self.polar))
             plt.show()
             plt.close('all')
 
         elif self.t.size == 1:
             # ------ Spectrum ------ #
-            plt.plot(self.f, self.d, **plotkwargs)
+            if db:
+                plt.plot(self.f, 10.*np.log10(self.d), **plotkwargs)
+                plt.ylabel('dB')
+            else:
+                plt.plot(self.f, self.d, **plotkwargs)
+                plt.ylabel('Amplitude')
             plt.xlabel('Frequency (MHz)')
-            plt.ylabel('Amplitude')
             plt.title('MA={}, t={}, pol={}'.format(self.ma, self.time.iso, self.polar))
             plt.show()
             plt.close('all')

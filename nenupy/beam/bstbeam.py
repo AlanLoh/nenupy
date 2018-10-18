@@ -53,7 +53,7 @@ class BSTbeam(object):
             self.ma         = self._bst.ma
             self.marotation = self._bst.marotation
             self.maposition = self._bst.maposition
-            self.delays     = self._bst._delays
+            self.delays     = self._bst.delays
             self.freq       = self._bst.freq
             self.polar      = self._bst.polar
             self.azana      = self._bst.azana 
