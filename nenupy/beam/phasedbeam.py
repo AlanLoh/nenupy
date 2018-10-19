@@ -155,8 +155,8 @@ class PhasedArrayBeam():
         else:
             antgain = self.model.antenna_gain(np.linspace(0, 360, eiphi.shape[1]),
                 np.linspace(0, 90, eiphi.shape[0]))
-        
-        beam = eiphi * eiphi.conjugate() * antgain
+
+        beam = eiphi * eiphi.conjugate() * antgain**2.
         beam = np.real(beam) / np.real(beam).max()
         return beam
 

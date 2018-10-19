@@ -145,7 +145,7 @@ class SSTbeam(object):
         if m is None:
             print("\n\t==== WARNING: ma is set by default ===")
             m = marecorded[0]
-        if not isinstance(m, (int, np.int16, np.int32, np.int64) ):
+        if not isinstance(m, (int, np.integer) ):
             raise TypeError("\n\t=== Attribute 'ma' should be an integer ===")
         elif not m in marecorded:
             raise ValueError("\n\t=== Attribute 'ma' contains miniarray index not matching existing MAs (up to {}) ===".format(marecorded.max()))
