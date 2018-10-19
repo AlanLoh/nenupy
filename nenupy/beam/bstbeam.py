@@ -115,7 +115,7 @@ class BSTbeam(object):
         elif not all([ mi in marecorded for mi in m]):
             raise ValueError("\n\t=== Attribute 'ma' contains miniarray indices not matching existing MAs (up to {}) ===".format(marecorded.max()))
         else:
-            self._ma = m
+            self._ma = np.unique(m)
             return
 
     @property
