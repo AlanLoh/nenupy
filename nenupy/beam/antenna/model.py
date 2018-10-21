@@ -54,11 +54,19 @@ class AntennaModel():
 
     # ================================================================= #
     # =========================== Methods ============================= #
+    def plotAntGain(self):
+        """
+        """
+        from matplotlib import pyplot as plt
+        gain = self.antenna_gain(np.linspace(0,360,360), np.linspace(0,90,90))
+        plt.imshow(gain, origin='lower')
+        plt.show()
+        return
+
     def _makeCustom(self, model):
         gaininterp = interp2d( np.linspace(0., 360., model.shape[1]), 
              np.linspace(0., 90., model.shape[0]), model, kind='linear' )
         self.antenna_gain = gaininterp
-        # self.antenna_gain = model
         self.antenna_freq = self.kwargs['freq']
         return
     
@@ -86,7 +94,7 @@ class AntennaModel():
             gain = gain_inf * (f2-self.kwargs['freq']) / 10. + gain_sup * (self.kwargs['freq']-f1) / 10.
         else:
             gain = gain_inf
-        gain = np.flipud(gain).T
+
         gaininterp = interp2d( np.linspace(0., 360., gain.shape[1]), 
              np.linspace(0., 90., gain.shape[0]), gain, kind='linear' )
         

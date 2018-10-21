@@ -145,20 +145,21 @@ class PhasedArrayBeam():
         phase = phi0[:, :, :] - dphi[np.newaxis, np.newaxis, :]
 
         # ------ e^(i Phi) ------ #
-        eiphi   = np.sum( np.exp(1j * phase), axis=2 )
+        eiphi = np.sum( np.exp(1j * phase), axis=2 )
+        eiphi = np.flipud(eiphi.T)
         if isinstance(self.model, list):
             antgain = np.zeros( (eiphi.shape) )
             for i in range(len(self.model)):
-                antgain += self.model[i].antenna_gain(np.linspace(0, 360, eiphi.shape[1]),
-                    np.linspace(0, 90, eiphi.shape[0]))
+                antgain += np.flipud( self.model[i].antenna_gain(np.linspace(0, 360, eiphi.shape[1]),
+                    np.linspace(0, 90, eiphi.shape[0])) )
             #antgain /= antgain.max()
         else:
             antgain = self.model.antenna_gain(np.linspace(0, 360, eiphi.shape[1]),
                 np.linspace(0, 90, eiphi.shape[0]))
 
-        beam = eiphi * eiphi.conjugate() * antgain#**2.
+        beam = eiphi * eiphi.conjugate() * antgain
         beam = np.real(beam) / np.real(beam).max()
-        return beam
+        return np.flipud(beam)
 
 
 

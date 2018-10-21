@@ -5,25 +5,13 @@
 Class Simulate SST/BST time profiles
         by A. Loh
 
-from nenupy3.read import SST
-from nenupy3.beam import SSTbeam
-from nenupy3.skymodel import SkyModel
-from nenupy3.simulation import Transit
-sst = SST('20161120_150000_SST.fits')
-sst.getData(freq=80)
-beam = SSTbeam(sst, azana=180, elana=70)
-sm = SkyModel()
-sm.pointSource(ra=294.5988991974212, dec=27.332279781434387, sigma=1)
-simul = Transit(obs=sst, beam=beam, skymodel=sm)
-simul.dt = 120
-simul.plotProfile()
 
-from nenupy3.read import SST
-from nenupy3.beam import SSTbeam
-from nenupy3.skymodel import SkyModel
-from nenupy3.simulation import Transit
-sst = SST()
-sst.getData(freq=80)
+from nenupy.read import SST
+from nenupy.beam import SSTbeam
+from nenupy.skymodel import SkyModel
+from nenupy.simulation import Transit
+sst = SST('20170425_230000_SST.fits')
+sst.getData(freq=50)
 beam = SSTbeam(sst)
 sm = SkyModel()
 sm.gsm2008(freq=sst.freq)
@@ -31,19 +19,18 @@ simul = Transit(obs=sst, beam=beam, skymodel=sm)
 simul.dt = 300
 simul.plotProfile()
 
-from nenupy3.read import BST
-from nenupy3.beam import BSTbeam
-from nenupy3.skymodel import SkyModel
-from nenupy3.simulation import Transit
-bst = BST('20180501_034440_BST.fits')
-bst.getData(freq=80)
+from nenupy.read import BST
+from nenupy.beam import BSTbeam
+from nenupy.skymodel import SkyModel
+from nenupy.simulation import Transit
+bst = BST('20181018_195600_BST.fits')
+bst.getData(freq=50)
 sm = SkyModel()
 sm.gsm2008(freq=bst.freq)
 beam = BSTbeam(bst)
 simul = Transit(obs=bst, beam=beam, skymodel=sm)
-simul = Transit(obs=bst, beam=beam, skymodel=sm)
 simul.dt = 60
-simul.getProfile()
+simul.plotProfile()
 
 """
 
@@ -52,6 +39,7 @@ import sys
 import numpy as np
 import matplotlib as mpl
 from matplotlib import pyplot as plt
+from scipy.interpolate import interp2d
 
 from astropy.time import Time, TimeDelta
 from astropy import units as u
@@ -164,28 +152,23 @@ class Transit():
         decmodel = np.linspace(-90., 90., skymodel.shape[0]) 
         azimuth  = np.linspace(0., 360., skymodel.shape[1])
         zenitha  = 90. - np.linspace(0., 90., skymodel.shape[0]/2)
-        zgrid, agrid = np.meshgrid( zenitha, azimuth )
+        agrid, zgrid = np.meshgrid( azimuth, zenitha )
         domega = np.radians(ramodel[0]-ramodel[1])**2. * np.cos(np.radians(zgrid))
-        domega /= domega.max()
+        #domega /= domega.max()
 
         # ------ Fixed beam ------ #
-        if self.beam.beam.T.shape != skymodel.shape:
-            from scipy.interpolate import interp2d
-            bazi = np.linspace(0., 360., self.beam.beam.T.shape[1])
-            bele = np.linspace(0., 90.,  self.beam.beam.T.shape[0])
-            # fb   = interp2d(bazi, bele, np.flipud(self.beam.beam.T), kind='linear' )
-            fb   = interp2d(bazi, bele, self.beam.beam.T, kind='linear' )
-            # beam = fb( azimuth, 90.-zenitha )
-            beam = fb( np.linspace(0, 360, skymodel.shape[1]), np.linspace(0, 90, skymodel.shape[0]/2) )
-        else:
-            beam = self.beam.beam.T
+        beam = np.flipud(self.beam.beam)
+        bazi = np.linspace(0., 360., beam.shape[1])
+        bele = np.linspace(0., 90.,  beam.shape[0])
+        fb   = interp2d(bazi, bele, beam, kind='linear' )
+        beam = fb( np.linspace(0, 360, skymodel.shape[1]), np.linspace(0, 90, skymodel.shape[0]/2) )
 
         # ------ Loop over time ------ #
         bar = ProgressBar(valmax=nbtime, title='Transit observation simulation')
         for i in range(nbtime):
             # ------ Rotate skymodel ------ #
             frame  = coord.AltAz(obstime=self.obs.t[0] + i*self.dt, location=miniarrays.nenufarloc)
-            altaz  = coord.SkyCoord(agrid*u.deg, zgrid*u.deg, frame=frame)
+            altaz  = coord.SkyCoord(agrid*u.deg, (90-zgrid)*u.deg, frame=frame)
             radec  = altaz.transform_to(coord.FK5(equinox='J2000'))
             ragrid, decgrid = radec.ra.deg, radec.dec.deg
             ragrid[ragrid > 180] -= 360 # RA is within -180 and 180
@@ -194,7 +177,7 @@ class Transit():
             skysel  = skymodel[xdecind.astype(int), xraind.astype(int)]
 
             # ------ Integrate ------ #
-            amp       = np.sum(skysel * beam.T * domega) #/ (4 * np.pi) domega is normalised
+            amp       = np.sum(skysel * beam**2. * domega) # / (4 * np.pi) # domega is normalised
             self.d[i] = amp
             self.t[i] = (self.obs.t[0] + i*self.dt).mjd
             bar.update()

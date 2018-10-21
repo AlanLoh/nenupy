@@ -4,7 +4,7 @@
 
 ## Installation
 ### pip
-To install *nenupy* with pip3:
+To install *nenupy* with pip/pip3:
 ```
 pip3 install nenupy
 ```
@@ -70,3 +70,24 @@ from nenupy.beam import SSTbeam
 sst = SSTbeam(ma=21, freq=46, polar='NE', azana=175., elana=72.)
 sst.plotBeam() # will show the simulated beam
 ```
+
+## Keywords
+
+### Data selection
+* `freq`: Frequency in MHz (e.g. `freq=38.5`, `freq=[20, 80.2]`) 
+* `ma`: Mini-Array index (e.g. `ma=6`, `ma=[0,1,3,6,42]`)
+* `time`: UTC time (e.g. `time='2018-10-22 10:15:35.5'`, `time=['2018-10-22 10:15:35.5', '2018-10-22 16:00:00']`)
+* `polar`: Polarization (e.g. `polar='NW'`, `polar='NE'`)
+* `abeam`: Analogic beam index (e.g., `abeam=0`)
+* `dbeam`: Digital beam index (e.g. `dbeam=0`)
+
+### Observation charcateristics
+* `azana`: Azimuth in degrees (**analogic** beam)
+* `elana`: Elevation in degrees (**analogic** beam)
+* `azdig`: Azimuth in degrees (**digital** beam)
+* `eldig`: Elevation in degrees (**digital** beam)
+* `freqmin`: Minimum frequency in MHz
+* `freqmax`: Maximum frequency in MHz
+* `obstart`: Observation start time
+* `obstop`: Observation stop time
+
