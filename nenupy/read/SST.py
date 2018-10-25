@@ -426,19 +426,26 @@ class SST():
         try:
             sstpath = os.path.dirname( self.obsfile[0] )
             parsetfile = glob.glob( os.path.join(sstpath, '{}_*.parset'.format(self.obsname.split('_')[0])) )[0]
-        except:
-            raise IOError("\n\t=== No parset file found - necessary for SST file ===")
-        with open(parsetfile) as rf:
-            parset = rf.read()
-        parsedfile = parset.split('\n')
+            with open(parsetfile) as rf:
+                parset = rf.read()
+            parsedfile = parset.split('\n')
 
-        self.abeams     = np.arange([int(i.split('=')[1]) for i in parsedfile if 'nrAnaBeams' in i][0])
-        self._antlist   = np.array([ np.array(eval(i.split('=')[1]))-1 for i in sorted(parsedfile) if 'antList' in i ])
-        self._adeltat   = TimeDelta( np.array([float(i.split('=')[1]) for i in sorted(parsedfile) if ('duration' in i) & ('AnaBeam' in i) ]), format='sec')
-        self._pointana  = self.abeams.copy()
-        self._azlistana = np.array([float(i.split('=')[1]) for i in sorted(parsedfile) if ('angle1' in i) & ('AnaBeam' in i) ])
-        self._ellistana = np.array([float(i.split('=')[1]) for i in sorted(parsedfile) if ('angle2' in i) & ('AnaBeam' in i) ])
-        self._pointanat = Time(np.array([i.split('=')[1] for i in sorted(parsedfile) if ('startTime' in i) & ('AnaBeam' in i) ]))
+            self.abeams     = np.arange([int(i.split('=')[1]) for i in parsedfile if 'nrAnaBeams' in i][0])
+            self._antlist   = np.array([ np.array(eval(i.split('=')[1]))-1 for i in sorted(parsedfile) if 'antList' in i ])
+            self._adeltat   = TimeDelta( np.array([float(i.split('=')[1]) for i in sorted(parsedfile) if ('duration' in i) & ('AnaBeam' in i) ]), format='sec')
+            self._pointana  = self.abeams.copy()
+            self._azlistana = np.array([float(i.split('=')[1]) for i in sorted(parsedfile) if ('angle1' in i) & ('AnaBeam' in i) ])
+            self._ellistana = np.array([float(i.split('=')[1]) for i in sorted(parsedfile) if ('angle2' in i) & ('AnaBeam' in i) ])
+            self._pointanat = Time(np.array([i.split('=')[1] for i in sorted(parsedfile) if ('startTime' in i) & ('AnaBeam' in i) ]))
+        except:
+            # default values
+            self.abeams     = np.zeros(1)
+            self._antlist   = np.array([np.arange(19)])
+            self._adeltat   = TimeDelta( np.array([24 * 3600.]), format='sec')
+            self._pointana  = np.zeros(1)
+            self._azlistana = np.array([180])
+            self._ellistana = np.array([90])
+            self._pointanat = Time(np.array([self.obstart.iso]))
         return
 
     def _createFakeObs(self):

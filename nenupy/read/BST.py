@@ -39,7 +39,7 @@ class BST():
         self._attrlist = ['polar', 'freq', 'time', 'abeam', 'dbeam']
 
     def __str__(self):
-        toprint  = '\t=== Class SST of nenupy ===\n'
+        toprint  = '\t=== Class BST of nenupy ===\n'
         toprint += '\tList of all current attributes:\n'
         for att in dir(self):
             avoid = ['t', 'd', 'f', 'elana', 'azana', 'azdig', 'eldig', 'maposition', 'marotation', 'delays']
