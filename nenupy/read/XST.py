@@ -12,6 +12,7 @@ import numpy as np
 
 import matplotlib as mpl
 from matplotlib import pyplot as plt
+from mpl_toolkits import axes_grid1
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from astropy.io import fits
 from astropy.time import Time
@@ -146,6 +147,61 @@ class XST():
         self.d = data
         return
 
+    def plotCorrMat(self, polar='XX'):
+        """ Plot a matrix of Cross correlations mean amplitudes
+        """
+        data = fits.getdata(self.obsfile, ext=7, memmap=True)['DATA'][:, 0, :] 
+        data = np.mean(data, axis=0)
+
+        try:
+            pol = ['XX', 'XY', 'YX', 'YY'].index(polar.upper())
+        except ValueError:
+            raise
+
+        amp = np.zeros( (self.allma.size, self.allma.size) )    
+
+        for ant1 in self.allma:
+            for ant2 in self.allma[ant1:]:
+                baseline = np.sort( [ant1, ant2] )[::-1] # descending order
+                # ------ Indices ------
+                # These formulas were defined to fit the table of detail_FITS_00_05.pdf (it a kind of triangular series)
+                MA1X_MA2X = baseline[0]*2*(baseline[0]*2+1)/2       + 2*baseline[1]
+                MA1X_MA2Y = baseline[0]*2*(baseline[0]*2+1)/2+1     + 2*baseline[1] # it will be the same as next one for auto-corr
+                MA1Y_MA2X = (baseline[0]*2+1)*(baseline[0]*2+2)/2   + 2*baseline[1]
+                MA1Y_MA2Y = (baseline[0]*2+1)*(baseline[0]*2+2)/2+1 + 2*baseline[1]
+                index     = np.array([MA1X_MA2X, MA1X_MA2Y, MA1Y_MA2X, MA1Y_MA2Y]).astype(int)
+                d         = data[index]
+                if ant1 == ant2:
+                    # Index 1 (XY) is wrong for auto-correlations with the above algorithm,
+                    # doesn't matter, we replace the data by the conjugate of YX which exists anyway.
+                    d[1] = np.conjugate(d[2])
+                if not (ant1 == ant2):
+                    amp[ant1, ant2] = np.absolute(d[pol])
+        amp[amp == 0] = np.nan
+
+        def add_colorbar(im, aspect=20, pad_fraction=0.5, **kwargs):
+            """Add a vertical color bar to an image plot."""
+            divider = axes_grid1.make_axes_locatable(im.axes)
+            width = axes_grid1.axes_size.AxesY(im.axes, aspect=1./aspect)
+            pad = axes_grid1.axes_size.Fraction(pad_fraction, width)
+            current_ax = plt.gca()
+            cax = divider.append_axes("right", size=width, pad=pad)
+            plt.sca(current_ax)
+            return im.axes.figure.colorbar(im, cax=cax, **kwargs)
+
+        fig, ax = plt.subplots(figsize=(10, 10))
+        ax.set_title('{} - {}'.format( os.path.basename(self.obsfile), polar.upper() ))
+        ax.set_xlabel('MA')
+        ax.set_ylabel('MA')
+        im = plt.imshow(np.log10(amp), origin='lower', cmap='Spectral', interpolation='nearest')
+        ax.grid(color='k', linestyle='-', linewidth=0.5, alpha=0.5)
+        # cb = fig.colorbar(im, ax=ax)
+        # cb.set_label('log$_{10}$( Amplitude )')
+        cb = add_colorbar(im)
+        cb.set_label('log$_{10}$( Amplitude )')
+        plt.show()
+        return        
+
     def plotData(self, **kwargs):
         """ Plot
         """
@@ -259,6 +315,7 @@ class XST():
         self.time     = [self.obstart.copy(), self.obstop.copy()]
         self.exposure = self.obstop - self.obstart
 
+        self.allma      = np.squeeze( setup_ins['noMR'])
         self.miniarrays = np.squeeze( setup_ins['noMROn'] )
         self._marot     = np.squeeze( setup_ins['rotation'] )
         self._mapos     = np.squeeze( setup_ins['noPosition'] )
