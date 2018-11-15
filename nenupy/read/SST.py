@@ -6,6 +6,17 @@ Class to read NenuFAR SST data
         by A. Loh
 """
 
+__author__ = 'Alan Loh'
+__copyright__ = 'Copyright 2018, nenupy'
+__credits__ = ['Alan Loh']
+__license__ = 'MIT'
+__version__ = '0.1.0'
+__maintainer__ = 'Alan Loh'
+__email__ = 'alan.loh@obspm.fr'
+__status__ = 'Production'
+__all__ = ['SST']
+
+
 import os
 import sys
 import glob
@@ -16,17 +27,6 @@ from matplotlib import pyplot as plt
 
 from astropy.io import fits
 from astropy.time import Time, TimeDelta
-
-
-__author__ = 'Alan Loh'
-__copyright__ = 'Copyright 2018, nenupy'
-__credits__ = ['Alan Loh']
-__license__ = 'MIT'
-__version__ = '0.1.0'
-__maintainer__ = 'Alan Loh'
-__email__ = 'alan.loh@obspm.fr'
-__status__ = 'Production'
-__all__ = ['SST']
 
 
 class SST():

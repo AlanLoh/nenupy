@@ -6,17 +6,6 @@ Class to read BST NenuFAR data
         by A. Loh
 """
 
-import os
-import glob
-import sys
-import numpy as np
-
-import matplotlib as mpl
-from matplotlib import pyplot as plt
-
-from astropy.io import fits
-from astropy.time import Time, TimeDelta
-
 __author__ = 'Alan Loh'
 __copyright__ = 'Copyright 2018, nenupy'
 __credits__ = ['Alan Loh']
@@ -26,6 +15,18 @@ __maintainer__ = 'Alan Loh'
 __email__ = 'alan.loh@obspm.fr'
 __status__ = 'Production'
 __all__ = ['BST']
+
+
+import os
+import sys
+import glob
+import numpy as np
+
+import matplotlib as mpl
+from matplotlib import pyplot as plt
+
+from astropy.io import fits
+from astropy.time import Time, TimeDelta
 
 
 class BST():

@@ -6,17 +6,6 @@ Class to read XST NenuFAR data
         by A. Loh
 """
 
-import os
-import sys
-import numpy as np
-
-import matplotlib as mpl
-from matplotlib import pyplot as plt
-from mpl_toolkits import axes_grid1
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from astropy.io import fits
-from astropy.time import Time
-
 __author__ = 'Alan Loh'
 __copyright__ = 'Copyright 2018, nenupy'
 __credits__ = ['Alan Loh']
@@ -26,6 +15,20 @@ __maintainer__ = 'Alan Loh'
 __email__ = 'alan.loh@obspm.fr'
 __status__ = 'WIP'
 __all__ = ['XST']
+
+
+import os
+import sys
+import glob
+import numpy as np
+
+import matplotlib as mpl
+from matplotlib import pyplot as plt
+from mpl_toolkits import axes_grid1
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+from astropy.io import fits
+from astropy.time import Time, TimeDelta
 
 
 class XST():
