@@ -6,10 +6,32 @@
 Welcome to nenupy's documentation!
 ==================================
 
+##################################
+Introduction
+##################################
+
+This is the nenupy documentation page.
+
+The package can:
+
+* Read NenuFAR statistics data.
+
+* Compute the instrument beam, wth respect to a specific configuration.
+
+* Simulate an observation, using the beam model and a sky model.
+
+
+
+Documentation Contents
+----------------------
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
+   install
+   quickstart
+   read
+   beam
 
 
 Indices and tables
