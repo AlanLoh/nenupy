@@ -28,11 +28,10 @@ project = u'nenupy'
 copyright = u'2018, Alan Loh'
 author = u'Alan Loh'
 
-import nenupy
 # The short X.Y version.
-version = nenupy.__version__ 
+version = u'0.3.14' 
 # The full version, including alpha/beta/rc tags.
-release = nenupy.__version__
+release = u'0.3.14' 
 
 
 # -- General configuration ---------------------------------------------------
