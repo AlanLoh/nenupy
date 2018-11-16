@@ -23,10 +23,11 @@ project = u'nenupy'
 copyright = u'2018, Alan Loh'
 author = u'Alan Loh'
 
-# The short X.Y version
-version = u''
-# The full version, including alpha/beta/rc tags
-release = u'0.3.14'
+import nenupy
+# The short X.Y version.
+version = nenupy.__version__ 
+# The full version, including alpha/beta/rc tags.
+release = nenupy.__version__
 
 
 # -- General configuration ---------------------------------------------------
@@ -38,8 +39,10 @@ release = u'0.3.14'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = [
-]
+import os
+import sys
+sys.path.insert(0, os.path.abspath('../..'))
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
