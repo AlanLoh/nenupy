@@ -27,3 +27,6 @@ setup(name       = 'nenupy',
 # Release:
 # git tag -a v*version* -m "annotation for this release"
 # git push origin --tags
+
+# Documentation
+# sphinx-build -b html docs/ docs/_build/

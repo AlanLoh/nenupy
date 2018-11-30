@@ -29,7 +29,7 @@ from astropy.io import fits
 from astropy.time import Time, TimeDelta
 
 
-class SST():
+class SST(object):
     def __init__(self, obsfile=None):
         self.obsfile = obsfile
         self.ma      = 0

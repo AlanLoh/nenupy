@@ -254,14 +254,15 @@ class BSTbeam(object):
         ax  = fig.add_subplot(111, projection='polar')
         normcb = mpl.colors.LogNorm(vmin=self.beam.max() * 1.e-4, vmax=self.beam.max())
         p = ax.pcolormesh(phi, theta, self.beam, norm=normcb, rasterized=True, **kwargs)
-        # ax.grid(linestyle='-', linewidth=0.5, color='white', alpha=0.4)
-        # plt.setp(ax.get_yticklabels(), rotation='horizontal', color='white')
-        ax.axes.get_yaxis().set_ticks([])
-        # g = lambda x,y: r'%d'%(90-x)
-        # ax.yaxis.set_major_formatter(mtick.FuncFormatter( g ))
-        # plt.show()
-        plt.savefig('/Users/aloh/Desktop/natacha.pdf', dpi=200)
-        plt.close('all')
+        ax.grid(linestyle='-', linewidth=0.5, color='white', alpha=0.4)
+        plt.setp(ax.get_yticklabels(), rotation='horizontal', color='white')
+        
+        g = lambda x,y: r'%d'%(90-x)
+        ax.yaxis.set_major_formatter(mtick.FuncFormatter( g ))
+        plt.show()
+        # ax.axes.get_yaxis().set_ticks([])
+        # plt.savefig('/Users/aloh/Desktop/natacha.pdf', dpi=200)
+        # plt.close('all')
         return
 
     def saveBeam(self, savefile=None):

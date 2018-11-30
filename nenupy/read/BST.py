@@ -356,6 +356,30 @@ class BST():
 
     def plotData(self, db=True, **kwargs):
         """ Plot the data
+
+            .. note::
+                This function uses the same keyword argument as :func:`getData`.
+
+            Args:
+                * db : `bool`
+                    We all know what foo does.
+
+            Kwargs:
+                * freq : `float` or `list`
+                    The frequency in MHz
+                
+                * polar : `str`
+                    The polarization (`'NE'` or `'NW'`)
+                                
+                * time : `str`
+                    The time
+
+                * abeam : `int`
+                
+                * dbeam : `int`
+            
+            Example:
+                >>> plotData(db=True, freq=50, polar='NE')
         """
         self.getData(**kwargs)
 
