@@ -250,7 +250,7 @@ class BSTbeam(object):
         phi   = np.radians( np.linspace(0., 360., self.beam.shape[1]) )
         # ------ Plot ------ #
         # fig = plt.figure()
-        fig = plt.figure(figsize=(20/2.54,20/2.54))
+        fig = plt.figure(figsize=(20/2.54, 20/2.54))
         ax  = fig.add_subplot(111, projection='polar')
         normcb = mpl.colors.LogNorm(vmin=self.beam.max() * 1.e-4, vmax=self.beam.max())
         p = ax.pcolormesh(phi, theta, self.beam, norm=normcb, rasterized=True, **kwargs)

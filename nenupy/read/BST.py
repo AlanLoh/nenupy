@@ -237,7 +237,7 @@ class BST():
         if az.size == 1:
             az = az[0]
         else:
-            anatimes = self._pointanat[ self._pointana==self.abeam ]
+            anatimes = self._pointanat[self.abeam][ self._pointana==self.abeam ]
             if isinstance(self.time, list):
                 tmask = np.squeeze((anatimes >= self.time[0]) & (anatimes <= self.time[1]))
                 az = az[tmask]
@@ -253,7 +253,7 @@ class BST():
         if el.size == 1:
             el = el[0]
         else:
-            anatimes = self._pointanat[ self._pointana==self.abeam ]
+            anatimes = self._pointanat[self.abeam][ self._pointana==self.abeam ]
             if isinstance(self.time, list):
                 tmask = np.squeeze((anatimes >= self.time[0]) & (anatimes <= self.time[1]))
                 el = self._ellistana[tmask]
