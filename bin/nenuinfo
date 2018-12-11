@@ -1,0 +1,41 @@
+#! /usr/bin/python3.6
+# -*- coding: utf-8 -*-
+
+
+"""
+    Print the information of a NenuFAR SST or BST observation
+
+    Example
+    -------
+    >>> nenuinpfo -o my_bst_file.fits
+"""
+
+
+import argparse
+
+from nenupy.read import SST, BST
+
+
+__author__ = 'Alan Loh'
+__copyright__ = 'Copyright 2018, nenupy'
+__credits__ = ['Alan Loh']
+__license__ = 'MIT'
+__version__ = '0.0.1'
+__maintainer__ = 'Alan Loh'
+__email__ = 'alan.loh@obspm.fr'
+__status__ = 'Production'
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-o', '--obs', type=str, help="Observation directory/file", required=True)
+    args = parser.parse_args()
+
+    try:
+        # ------ SST Observation ------ #
+        obs = SST(obsfile=args.obs)
+    except:
+        # ------ BST Observation ------ #
+        obs = BST(obsfile=args.obs)
+
+    print(obs)
