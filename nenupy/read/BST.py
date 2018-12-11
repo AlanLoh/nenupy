@@ -48,6 +48,10 @@ class BST():
                 toprint += "%s: %s\n"%(att, getattr(self, att))
         return toprint
 
+
+    def __repr__(self):
+        return '<BST object: obsfile={}>'.format(self.obsfile)
+
     # ================================================================= #
     # ======================== Getter / Setter ======================== #
     @property
@@ -516,8 +520,13 @@ class BST():
         
         self._pointdig  = setup_pbe['noBeam']
         self._azlistdig = setup_pbe['AZ']
-        self._ellistdig = setup_pbe['EL']    
+        self._ellistdig = setup_pbe['EL']
         self._pointdigt = Time(setup_pbe['timestamp'])
+
+        if self._pointanat.shape[1] != 1:
+            self.type = 'tracking'
+        else:
+            self.type = 'transit'
         return
 
     def _createFakeObs(self):

@@ -379,7 +379,7 @@ class Tracking():
         #domega /= domega.max()
 
         # ------ Loop over time ------ #
-        bar = ProgressBar(valmax=nbtime, title='Transit observation simulation')
+        bar = ProgressBar(valmax=nbtime, title='Tracking observation simulation')
         for i in range(nbtime):
             # ------ Re-compute the beam ------ #
             if isinstance(self.obs, SST):

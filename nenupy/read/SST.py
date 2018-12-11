@@ -417,6 +417,11 @@ class SST(object):
         self._pols      = np.squeeze( setup_ins['spol'] )
 
         self._readParset()
+
+        # if self._pointanat.shape[1] != 1:
+        #     self.type = 'tracking'
+        # else:
+        self.type = 'transit'
         return
 
     def _readParset(self):

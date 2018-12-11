@@ -50,7 +50,9 @@ if __name__ == "__main__":
 
     sm = SkyModel()
     sm.gsm2008(freq=obs.freq)
-    # simul = Transit(obs=obs, beam=beam, skymodel=sm, start=args.tstart, stop=args.tstop)
-    simul = Tracking(obs=obs, skymodel=sm, start=args.tstart, stop=args.tstop)
+    if obs.type == 'transit':
+        simul = Transit(obs=obs, beam=beam, skymodel=sm, start=args.tstart, stop=args.tstop)
+    else:
+        simul = Tracking(obs=obs, skymodel=sm, start=args.tstart, stop=args.tstop)
     simul.dt = args.dt
     simul.plotProfile()
