@@ -227,7 +227,8 @@ class SST(object):
                 tmask = np.squeeze((anatimes >= self.time[0]) & (anatimes <= self.time[1]))
                 az = az[tmask]
             else:
-                az = az[ np.argmin(np.abs( (anatimes - self.time).sec )) ]
+                # az = az[ np.argmin(np.abs( (anatimes - self.time).sec )) ]
+                az = az[(anatimes <= self.time)][-1]
         return az 
 
     @property
@@ -241,9 +242,11 @@ class SST(object):
             anatimes = self._pointanat[ self._pointana==self.abeam ]
             if isinstance(self.time, list):
                 tmask = np.squeeze((anatimes >= self.time[0]) & (anatimes <= self.time[1]))
-                el = self._ellistana[tmask]
+                # el = self._ellistana[tmask]
+                el = el[tmask]
             else:
-                el = self._ellistana[ np.argmin(np.abs( (anatimes - self.time).sec )) ]
+                # el = self._ellistana[ np.argmin(np.abs( (anatimes - self.time).sec )) ]
+                el = el[(anatimes <= self.time)][-1]
         return el
 
     # ================================================================= #

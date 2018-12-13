@@ -83,7 +83,8 @@ class Transit():
         if not isinstance(o, (SST, BST)):
             raise AttributeError("\n\t=== obs must be either a SST or a BST class ===")
         else:
-            # MAKE SURE THIS IS A TRANSIT
+            assert o.type == 'transit', 'Observation doesnt look like a transit'
+
             if not hasattr(o, 'd'):
                 # Select a default time-profile
                 print("\n\t=== WARNING: default time profile ===")
@@ -283,7 +284,8 @@ class Tracking():
         if not isinstance(o, (SST, BST)):
             raise AttributeError("\n\t=== obs must be either a SST or a BST class ===")
         else:
-            # MAKE SURE THIS IS A TRANSIT
+            assert o.type == 'tracking', 'Observation doesnt look like a tracking'
+
             if not hasattr(o, 'd'):
                 # Select a default time-profile
                 print("\n\t=== WARNING: default time profile ===")
@@ -366,7 +368,8 @@ class Tracking():
         
         self.f = self.obs.freq
         self.t = np.zeros( nbtime )
-        self.d = np.zeros( nbtime ) 
+        self.d = np.zeros( nbtime )
+        tmp_coords = (None, None, None, None) 
 
         # ------ Load skymodel ------ #
         skymodel = self.skymodel.skymodel
@@ -382,17 +385,25 @@ class Tracking():
         bar = ProgressBar(valmax=nbtime, title='Tracking observation simulation')
         for i in range(nbtime):
             # ------ Re-compute the beam ------ #
-            if isinstance(self.obs, SST):
-                pass
-            elif isinstance(self.obs, BST):
-                self.obs.time = self.start + i*self.dt
-                obsbeam = BSTbeam(self.obs)
-                obsbeam.getBeam()
-            beam = np.flipud(obsbeam.beam)
-            bazi = np.linspace(0., 360., beam.shape[1])
-            bele = np.linspace(0., 90.,  beam.shape[0])
-            fb   = interp2d(bazi, bele, beam, kind='linear' )
-            beam = fb( np.linspace(0, 360, skymodel.shape[1]), np.linspace(0, 90, skymodel.shape[0]/2) )
+            self.obs.time = self.start + i*self.dt
+            if ((self.obs.azana != tmp_coords[0]) or
+                (self.obs.elana != tmp_coords[1]) or
+                (self.obs.azdig != tmp_coords[2]) or
+                (self.obs.eldig != tmp_coords[3])):
+                if isinstance(self.obs, SST):
+                    pass
+                elif isinstance(self.obs, BST):
+                    obsbeam = BSTbeam(self.obs)
+                    obsbeam.getBeam()
+                beam = np.flipud(obsbeam.beam)
+                bazi = np.linspace(0., 360., beam.shape[1])
+                bele = np.linspace(0., 90.,  beam.shape[0])
+                fb   = interp2d(bazi, bele, beam, kind='linear' )
+                beam = fb( np.linspace(0, 360, skymodel.shape[1]), np.linspace(0, 90, skymodel.shape[0]/2) )
+                tmp_coords = (self.obs.azana.copy(),
+                              self.obs.elana.copy(),
+                              self.obs.azdig.copy(),
+                              self.obs.eldig.copy())
 
             # ------ Rotate skymodel ------ #
             frame  = coord.AltAz(obstime=self.start + i*self.dt, location=miniarrays.nenufarloc)
@@ -412,14 +423,18 @@ class Tracking():
             bar.update()
         return
 
-    def plotProfile(self):
+    def plotProfile(self, showdata=True):
         """ Plot the simulation profile against the data
         """
         if not hasattr(self, 'd'):
             self.getProfile()
-        tmask = (self.obs.t >= self.start) & (self.obs.t <= self.stop)
-        scale = np.median(self.obs.d[tmask]) / np.median(self.d)
-        plt.plot( (self.obs.t[tmask] - self.start).sec/60., self.obs.d[tmask], label='Observation')
+        
+        if showdata:
+            tmask = (self.obs.t >= self.start) & (self.obs.t <= self.stop)
+            scale = np.median(self.obs.d[tmask]) / np.median(self.d)
+            plt.plot( (self.obs.t[tmask] - self.start).sec/60., self.obs.d[tmask], label='Observation')
+        else:
+            scale = 1.
         plt.plot( (Time(self.t, format='mjd') - self.start).sec/60., self.d * scale, label='Simulation')
         plt.xlabel('Time (min since {})'.format(self.start.iso))
         plt.ylabel('Amplitude')
