@@ -15,7 +15,7 @@
 ### pip
 To install *nenupy* with pip/pip3:
 ```
-pip3 install nenupy
+pip install nenupy
 ```
 <!-- or
 ```
@@ -34,6 +34,29 @@ python3 -m pip install --index-url https://test.pypi.org/simple/ nenupy --upgrad
 * [*astropy*](http://www.astropy.org)
 * [*pygsm*](https://github.com/telegraphic/PyGSM): please follow the *pygsm* package instructions to properly install it, it cannot be done via pip.
 * *healpy* (install with `conda install -c conda-forge healpy`)
+
+
+## Command-line Quickstart
+A few scripts are installed with the package to facilitate the calling of simple tasks. All those scripts (namely `nenuinfo`, `nenuplot`, `nenusim` and `nenucor`) can be called directly from the shell. Typing `script -h` will prompt the *help* menu where the user can figure out the available options and syntax.
+
+### Observation informations
+This basic script helps figuring out what were the main parameters of a particular observation:
+```
+nenuinfo --obs my_nenufar_observation.fits
+```
+
+### Data plot
+In order to plot some *NenuFAR* data, one can use the `nenuplot` script. The keywords for the data selection are the same as the ones listed on the bottom of this page (that are also used within the Python environment):
+```
+nenuplot --obs my_nenufar_observation.fits --freq 50.2 --polar NE
+```
+
+### Observation simulation
+TBW
+
+### XST cross-correlations visualization
+TBW
+
 
 ## Access and plot Statistics data
 Loading the environment, within python3:
@@ -90,7 +113,7 @@ sst.plotBeam() # will show the simulated beam
 * `abeam`: Analogic beam index (e.g., `abeam=0`)
 * `dbeam`: Digital beam index (e.g. `dbeam=0`)
 
-### Observation charcateristics
+### Observation characteristics
 * `azana`: Azimuth in degrees (**analogic** beam)
 * `elana`: Elevation in degrees (**analogic** beam)
 * `azdig`: Azimuth in degrees (**digital** beam)
