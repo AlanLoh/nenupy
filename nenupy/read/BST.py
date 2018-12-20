@@ -187,20 +187,19 @@ class BST(object):
     @time.setter
     def time(self, t):
         if isinstance(t, list):
-            try:
-                if not isinstance(t[0], Time):
-                    t[0] = Time(t[0])
-                if not isinstance(t[1], Time):
-                    t[1] = Time(t[1])
-                self._time = t
-            except:
-                print("\n\t=== WARNING: Time syntax incorrect ===")
+            if not isinstance(t[0], Time):
+                t[0] = Time(t[0])
+                
+            if not isinstance(t[1], Time):
+                t[1] = Time(t[1])
+            assert self.obstart <= t[0] <= self.obstop, 'time[0] outside time range'
+            assert self.obstart <= t[1] <= self.obstop, 'time[1] outside time range'
+            assert t[0] < t[1], 'time[0] > time[1]!'
+            self._time = t
         else:
             if not isinstance(t, Time):
-                try:
-                    t = Time(t)
-                except:
-                    print("\n\t=== WARNING: Time syntax incorrect ===")
+                t = Time(t)
+            assert self.obstart <= t <= self.obstop, 'time outside time range'
             self._time = t
             return
 

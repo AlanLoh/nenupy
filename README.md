@@ -87,7 +87,7 @@ Otherwise, the `plot()` method could also be used:
 bst_obs.plot()
 ```
 
-For more 'advanced' analysis plots, the user is invited to use the standard python plotting tools while selecting the data thanks to the *nenupy* package as demonstrated in the following examples.
+For more 'advanced' tasks, the user is invited to use the standard python tools for plotting and data analysis while selecting the NenuFAR data thanks to the *nenupy* package as demonstrated in the following examples.
 
 
 ### Example: overplot spectra of different mini-arrays
