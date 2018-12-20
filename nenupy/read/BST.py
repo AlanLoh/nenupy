@@ -1,4 +1,4 @@
-#! /usr/bin/python3.5
+#! /usr/bin/python
 # -*- coding: utf-8 -*-
 
 """
@@ -22,14 +22,14 @@ import sys
 import glob
 import numpy as np
 
-import matplotlib as mpl
+from matplotlib.colors import LogNorm
 from matplotlib import pyplot as plt
 
 from astropy.io import fits
 from astropy.time import Time, TimeDelta
 
 
-class BST():
+class BST(object):
     def __init__(self, obsfile):
         self.obsfile = obsfile
         self.abeam   = 0
@@ -43,7 +43,7 @@ class BST():
         toprint  = '\t=== Class BST of nenupy ===\n'
         toprint += '\tList of all current attributes:\n'
         for att in dir(self):
-            avoid = ['t', 'd', 'f', 'elana', 'azana', 'azdig', 'eldig', 'maposition', 'marotation', 'delays']
+            avoid = ['data', 'elana', 'azana', 'azdig', 'eldig', 'maposition', 'marotation', 'delays']
             if (not att.startswith('_')) & (not any(x.isupper() for x in att)) & (att not in avoid):
                 toprint += "%s: %s\n"%(att, getattr(self, att))
         return toprint
@@ -305,7 +305,7 @@ class BST():
 
     # ================================================================= #
     # =========================== Methods ============================= #
-    def getData(self, **kwargs):
+    def select(self, **kwargs):
         """ Make the data selection
 
             Parameters
@@ -358,16 +358,17 @@ class BST():
             mask_tim = mask_tim & (self._timeall.mjd == min(self._timeall.mjd, key=lambda x: np.abs(x-self.time.mjd)) )
        
         # ------ selected data ------ #
-        self.d = np.squeeze( self._dataall[ np.ix_(mask_tim, mask_pol, mask_freq) ] )
-        self.t = self._timeall[ mask_tim ]
-        self.f = self._freqs[self.dbeam][ mask_fre ]
+        d = np.squeeze( self._dataall[ np.ix_(mask_tim, mask_pol, mask_freq) ] )
+        t = self._timeall[ mask_tim ]
+        f = self._freqs[self.dbeam][ mask_fre ]
+        self.data = {'amp': d, 'freq': f, 'time': t}
         return
 
-    def plotData(self, db=True, **kwargs):
+    def plot(self, db=True, **kwargs):
         """ Plot the data
 
             .. note::
-                This function uses the same keyword argument as :func:`getData`.
+                This function uses the same keyword argument as :func:`select`.
 
             Args:
                 * db : `bool`
@@ -388,39 +389,39 @@ class BST():
                 * dbeam : `int`
             
             Example:
-                >>> plotData(db=True, freq=50, polar='NE')
+                >>> plot(db=True, freq=50, polar='NE')
         """
-        self.getData(**kwargs)
+        self.select(**kwargs)
 
         plotkwargs = {key: value for (key, value) in kwargs.items() if key not in self._attrlist}
 
-        if self.f.size == 1:
+        if self.data['freq'].size == 1:
             # ------ Light curve ------ #
-            xtime = (self.t - self.t[0]).sec / 60
+            xtime = (self.data['time'] - self.data['time'][0]).sec / 60
             if db:
-                plt.plot(xtime, 10.*np.log10(self.d), **plotkwargs)
+                plt.plot(xtime, 10.*np.log10(self.data['amp']), **plotkwargs)
                 plt.ylabel('dB')
             else:
-                plt.plot(xtime, self.d, **plotkwargs)
+                plt.plot(xtime, self.data['amp'], **plotkwargs)
                 plt.ylabel('Amplitude')
-            plt.xlabel('Time (min since {})'.format(self.t[0].iso))
-            plt.title('f={:3.2f} MHz, pol={}, abeam={}, dbeam={}'.format(self.f[0], self.polar, self.abeam, self.dbeam))
+            plt.xlabel('Time (min since {})'.format(self.data['time'][0].iso))
+            plt.title('f={:3.2f} MHz, pol={}, abeam={}, dbeam={}'.format(self.data['freq'][0], self.polar, self.abeam, self.dbeam))
 
-        elif self.t.size == 1:
+        elif self.data['time'].size == 1:
             # ------ Spectrum ------ #
             if db:
-                plt.plot(self.f, 10.*np.log10(self.d), **plotkwargs)
+                plt.plot(self.data['freq'], 10.*np.log10(self.data['amp']), **plotkwargs)
                 plt.ylabel('dB')
             else:
-                plt.plot(self.f, self.d, **plotkwargs)
+                plt.plot(self.data['freq'], self.data['amp'], **plotkwargs)
                 plt.ylabel('Amplitude')
             plt.xlabel('Frequency (MHz)')
             plt.title('t={}, pol={}, abeam={}, dbeam={}'.format(self.time.iso, self.polar, self.abeam, self.dbeam))
 
-        elif (self.f.size > 1) & (self.t.size > 1):
+        elif (self.data['freq'].size > 1) & (self.data['time'].size > 1):
             # ------ Dynamic spectrum ------ #
-            xtime = (self.t - self.t[0]).sec / 60
-            vmin, vmax = np.percentile(self.d, [5, 99])
+            xtime = (self.data['time'] - self.data['time'][0]).sec / 60
+            vmin, vmax = np.percentile(self.data['amp'], [5, 99])
             cmap = 'bone'
             for key, value in plotkwargs.items():
                 if key == 'cmap': cmap = value
@@ -428,11 +429,11 @@ class BST():
                 if key == 'vmax': vmin = value 
             fig = plt.figure()
             ax  = fig.add_subplot(111)
-            normcb = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
-            spec   = ax.pcolormesh(xtime, self.f, self.d.T, cmap=cmap, norm=normcb)
+            normcb = LogNorm(vmin=vmin, vmax=vmax)
+            spec   = ax.pcolormesh(xtime, self.data['freq'], self.data['amp'].T, cmap=cmap, norm=normcb)
             plt.colorbar(spec)
-            ax.axis( [xtime.min(), xtime.max(), self.f.min(), self.f.max()] )
-            plt.xlabel('Time (min since {})'.format(self.t[0].iso))
+            ax.axis( [xtime.min(), xtime.max(), self.data['freq'].min(), self.data['freq'].max()] )
+            plt.xlabel('Time (min since {})'.format(self.data['time'][0].iso))
             plt.ylabel('Frequency (MHz)')
             plt.title('pol={}, abeam={}, dbeam={}'.format(self.polar, self.abeam, self.dbeam))
 
@@ -442,7 +443,7 @@ class BST():
         plt.close('all')
         return
 
-    def saveData(self, savefile=None, **kwargs):
+    def save(self, savefile=None, **kwargs):
         """ Save the data
         """
         if savefile is None:
@@ -450,7 +451,7 @@ class BST():
         else:
             if not savefile.endswith('.fits'):
                 raise ValueError("\n\t=== It should be a FITS ===")
-        self.getData(**kwargs)
+        self.select(**kwargs)
 
         prihdr = fits.Header()
         prihdr.set('OBS', self.obsname)

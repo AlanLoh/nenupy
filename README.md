@@ -37,7 +37,7 @@ python3 -m pip install --index-url https://test.pypi.org/simple/ nenupy --upgrad
 
 
 ## Command-line Quickstart
-A few scripts are installed with the package to facilitate the calling of simple tasks. All those scripts (namely `nenuinfo`, `nenuplot`, `nenusim` and `nenucor`) can be called directly from the shell. Typing `script -h` will prompt the *help* menu where the user can figure out the available options and syntax.
+A few scripts are installed with the package to facilitate the calling of simple tasks. All those scripts (namely `nenuinfo`, `nenuplot`, `nenusim` and `nenucor`) can be called directly from the shell. Typing `{script} -h` will prompt the *help* menu where the user can figure out the available options and syntax.
 
 ### Observation informations
 This basic script helps figuring out what were the main parameters of a particular observation:

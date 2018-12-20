@@ -43,7 +43,7 @@ class SST(object):
         toprint  = '\t=== Class SST of nenupy ===\n'
         toprint += '\tList of all current attributes:\n'
         for att in dir(self):
-            avoid = ['t', 'd', 'f', 'elana', 'azana', 'maposition', 'marotation']
+            avoid = ['data', 'elana', 'azana', 'maposition', 'marotation']
             if (not att.startswith('_')) & (not any(x.isupper() for x in att)) & (att not in avoid):
                 toprint += "%s: %s\n"%(att, getattr(self, att))
         return toprint
@@ -251,7 +251,7 @@ class SST(object):
 
     # ================================================================= #
     # =========================== Methods ============================= #
-    def getData(self, **kwargs):
+    def select(self, **kwargs):
         """ Make the data selection
 
             Parameters
@@ -300,57 +300,61 @@ class SST(object):
         mask_ma = (self.miniarrays == self.ma)
        
         # ------ selected data ------ #
-        self.d = np.squeeze( self._dataall[ np.ix_(mask_tim, mask_ma, mask_pol, mask_fre) ] )
-        self.t = self._timeall[ mask_tim ]
-        self.f = self._freqs[ mask_fre ]
+        # self.d = np.squeeze( self._dataall[ np.ix_(mask_tim, mask_ma, mask_pol, mask_fre) ] )
+        # self.t = self._timeall[ mask_tim ]
+        # self.f = self._freqs[ mask_fre ]
+        d = np.squeeze( self._dataall[ np.ix_(mask_tim, mask_ma, mask_pol, mask_fre) ] )
+        t = self._timeall[ mask_tim ]
+        f = self._freqs[ mask_fre ]
+        self.data = {'amp': d, 'freq': f, 'time': t}
         return
 
-    def plotData(self, db=True, **kwargs):
+    def plot(self, db=True, **kwargs):
         """ Plot the data
         """
-        self.getData(**kwargs)
+        self.select(**kwargs)
 
         plotkwargs = {key: value for (key, value) in kwargs.items() if key not in self._attrlist}
 
-        if self.f.size == 1:
+        if self.data['freq'].size == 1:
             # ------ Light curve ------ #
-            xtime = (self.t - self.t[0]).sec / 60
+            xtime = (self.data['time'] - self.data['time'][0]).sec / 60
             if db:
-                plt.plot(xtime, 10.*np.log10(self.d), **plotkwargs)
+                plt.plot(xtime, 10.*np.log10(self.data['amp']), **plotkwargs)
                 plt.ylabel('dB')
             else:
-                plt.plot(xtime, self.d, **plotkwargs)
+                plt.plot(xtime, self.data['amp'], **plotkwargs)
                 plt.ylabel('Amplitude')
-            plt.xlabel('Time (min since {})'.format(self.t[0].iso))
+            plt.xlabel('Time (min since {})'.format(self.data['time'][0].iso))
             plt.title('MA={}, f={:3.2f} MHz, pol={}'.format(self.ma, self.freq, self.polar))
 
-        elif self.t.size == 1:
+        elif self.data['time'].size == 1:
             # ------ Spectrum ------ #
             if db:
-                plt.plot(self.f, 10.*np.log10(self.d), **plotkwargs)
+                plt.plot(self.data['freq'], 10.*np.log10(self.data['amp']), **plotkwargs)
                 plt.ylabel('dB')
             else:
-                plt.plot(self.f, self.d, **plotkwargs)
+                plt.plot(self.data['freq'], self.data['amp'], **plotkwargs)
                 plt.ylabel('Amplitude')
             plt.xlabel('Frequency (MHz)')
             plt.title('MA={}, t={}, pol={}'.format(self.ma, self.time.iso, self.polar))
 
-        elif (self.f.size > 1) & (self.t.size > 1):
+        elif (self.data['freq'].size > 1) & (self.data['time'].size > 1):
             # ------ Dynamic spectrum ------ #
-            xtime = (self.t - self.t[0]).sec / 60
-            vmin, vmax = np.percentile(self.d, [5, 99]) 
+            xtime = (self.data['time'] - self.data['time'][0]).sec / 60
+            vmin, vmax = np.percentile(self.data['amp'], [5, 99]) 
             cmap = 'bone'
             for key, value in plotkwargs.items():
                 if key == 'cmap': cmap = value
                 if key == 'vmin': vmax = value
-                if key == 'vmax': vmin = value 
+                if key == 'vmax': vmin = value
             fig = plt.figure()
             ax  = fig.add_subplot(111)
             normcb = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
-            spec   = ax.pcolormesh(xtime, self.f, self.d.T, cmap=cmap, norm=normcb)
+            spec   = ax.pcolormesh(xtime, self.data['freq'], self.data['amp'].T, cmap=cmap, norm=normcb)
             plt.colorbar(spec)
-            ax.axis( [xtime.min(), xtime.max(), self.f.min(), self.f.max()] )
-            plt.xlabel('Time (min since {})'.format(self.t[0].iso))
+            ax.axis( [xtime.min(), xtime.max(), self.data['freq'].min(), self.data['freq'].max()] )
+            plt.xlabel('Time (min since {})'.format(self.data['time'][0].iso))
             plt.ylabel('Frequency (MHz)')
             plt.title('MA={}, pol={}'.format(self.ma, self.polar))
 
@@ -360,7 +364,7 @@ class SST(object):
         plt.close('all')
         return
 
-    def saveData(self, savefile=None, **kwargs):
+    def save(self, savefile=None, **kwargs):
         """ Save the data
         """
         if savefile is None:
@@ -368,7 +372,7 @@ class SST(object):
         else:
             if not savefile.endswith('.fits'):
                 raise ValueError("\n\t=== It should be a FITS ===")
-        self.getData(**kwargs)
+        self.select(**kwargs)
 
         prihdr = fits.Header()
         prihdr.set('OBS', self.obsname)

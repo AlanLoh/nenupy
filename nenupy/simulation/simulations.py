@@ -37,7 +37,7 @@ simul.plotProfile()
 import os
 import sys
 import numpy as np
-import matplotlib as mpl
+# import matplotlib as mpl
 from matplotlib import pyplot as plt
 from scipy.interpolate import interp2d
 
@@ -144,7 +144,7 @@ class Transit():
     @start.setter
     def start(self, t):
         if t is None:
-            t = self.obs.t[0]
+            t = self.obs.data['time'][0]
 
         if not isinstance(t, Time):
             try:
@@ -162,7 +162,7 @@ class Transit():
     @stop.setter
     def stop(self, t):
         if t is None:
-            t = self.obs.t[-1]
+            t = self.obs.data['time'][-1]
 
         if not isinstance(t, Time):
             try:
@@ -228,9 +228,9 @@ class Transit():
         """
         if not hasattr(self, 'd'):
             self.getProfile()
-        tmask = (self.obs.t >= self.start) & (self.obs.t <= self.stop)
-        scale = np.median(self.obs.d[tmask]) / np.median(self.d)
-        plt.plot( (self.obs.t[tmask] - self.start).sec/60., self.obs.d[tmask], label='Observation')
+        tmask = (self.obs.data['time'] >= self.start) & (self.obs.data['time'] <= self.stop)
+        scale = np.median(self.obs.data['amp'][tmask]) / np.median(self.d)
+        plt.plot( (self.obs.data['time'][tmask] - self.start).sec/60., self.obs.data['amp'][tmask], label='Observation')
         plt.plot( (Time(self.t, format='mjd') - self.start).sec/60., self.d * scale, label='Simulation')
         plt.xlabel('Time (min since {})'.format(self.start.iso))
         plt.ylabel('Amplitude')
@@ -329,7 +329,7 @@ class Tracking():
     @start.setter
     def start(self, t):
         if t is None:
-            t = self.obs.t[0]
+            t = self.obs.data['time'][0]
 
         if not isinstance(t, Time):
             try:
@@ -347,7 +347,7 @@ class Tracking():
     @stop.setter
     def stop(self, t):
         if t is None:
-            t = self.obs.t[-1]
+            t = self.obs.data['time'][-1]
 
         if not isinstance(t, Time):
             try:
@@ -430,9 +430,9 @@ class Tracking():
             self.getProfile()
         
         if showdata:
-            tmask = (self.obs.t >= self.start) & (self.obs.t <= self.stop)
+            tmask = (self.obs.data['time'] >= self.start) & (self.obs.data['time'] <= self.stop)
             scale = np.median(self.obs.d[tmask]) / np.median(self.d)
-            plt.plot( (self.obs.t[tmask] - self.start).sec/60., self.obs.d[tmask], label='Observation')
+            plt.plot( (self.obs.data['time'][tmask] - self.start).sec/60., self.obs.data['amp'][tmask], label='Observation')
         else:
             scale = 1.
         plt.plot( (Time(self.t, format='mjd') - self.start).sec/60., self.d * scale, label='Simulation')
