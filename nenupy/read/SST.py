@@ -22,7 +22,7 @@ import sys
 import glob
 import numpy as np
 
-import matplotlib as mpl
+from matplotlib.colors import LogNorm
 from matplotlib import pyplot as plt
 
 from astropy.io import fits
@@ -350,7 +350,7 @@ class SST(object):
                 if key == 'vmax': vmin = value
             fig = plt.figure()
             ax  = fig.add_subplot(111)
-            normcb = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
+            normcb = LogNorm(vmin=vmin, vmax=vmax)
             spec   = ax.pcolormesh(xtime, self.data['freq'], self.data['amp'].T, cmap=cmap, norm=normcb)
             plt.colorbar(spec)
             ax.axis( [xtime.min(), xtime.max(), self.data['freq'].min(), self.data['freq'].max()] )

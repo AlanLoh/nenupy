@@ -71,21 +71,64 @@ bst_obs = BST('some_observation_BST.fits')
 ```
 `bst_obs` is now an *instance* of the `BST` class. It means it contains attributes that have been filled with the observation properties as well as some methods/functions to access and plot the data.
 
-Data selection is granted by the `getData()` method, which accepts keywords such as `freq`, `polar` and `time`:
+Data selection is granted by the `select()` method, which accepts keywords such as `freq`, `polar` and `time`:
 ```python
-bst_obs.getData( freq=[20, 60], time='2018-09-01 10:00:00.0', polar='nw' )
+bst_obs.select( freq=[20, 60], time='2018-09-01 10:00:00.0', polar='nw' )
 ```
 
-Once the function `getData()` has been called, the data are stored in the `d` attribute (`t`, `f` for time and frequency as well). The user can then use these variable to do some specific analysis or to plot the data using the generic `matplotlib` module:
+Once the function `select()` has been called, the data are stored in the `data` attribute. `data` is a dictionnary gathering the selected time (`data['time']`), frequency (`data['freq']`) and amplitude (`data['amp']`) arrays. The user can then use these variable to do some specific analysis or to plot the data using the generic `matplotlib` module:
 ```python
 from matplotlib import pyplot as plt
-plt.plot( bst_obs.t.mjd, bst_obs.d )
+plt.plot( bst_obs.data['time'].mjd, bst_obs.data['amp'] )
 plt.show()
 ```
-Otherwise, the `plotData()` method could also be used:
+Otherwise, the `plot()` method could also be used:
 ```python
-bst_obs.plotData()
+bst_obs.plot()
 ```
+
+For more 'advanced' analysis plots, the user is invited to use the standard python plotting tools while selecting the data thanks to the *nenupy* package as demonstrated in the following examples.
+
+
+### Example: overplot spectra of different mini-arrays
+```python
+from nenupy import SST
+from matplotlib import pyplot as plt
+
+sst = SST('20170426_000000_SST.fits')
+
+sst.select(time='2017-04-26T00:50:00', freq=[10, 90], ma=0)
+plt.plot(sst.data['freq'], sst.data['amp'], label='MA 0')
+
+sst.select(time='2017-04-26T00:50:00', freq=[10, 90], ma=1)
+plt.plot(sst.data['freq'], sst.data['amp'], label='MA 1')
+
+sst.select(time='2017-04-26T00:50:00', freq=[10, 90], ma=2)
+plt.plot(sst.data['freq'], sst.data['amp'], label='MA 2')
+
+plt.legend()
+
+plt.show()
+```
+
+### Example: overplot time-profile for both polarizations
+```python
+from nenupy import BST
+from matplotlib import pyplot as plt
+
+bst = BST('20180501_034440_BST.fits')
+
+bst.select(freq=50, polar='NW')
+plt.plot(bst.data['time'].mjd, bst.data['amp'], label='NW')
+
+bst.select(freq=50, polar='NE')
+plt.plot(bst.data['time'].mjd, bst.data['amp'], label='NE')
+
+plt.legend()
+
+plt.show()
+```
+
 
 ## Beam simulation
 
