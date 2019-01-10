@@ -43,7 +43,7 @@ class BST(object):
         toprint  = '\t=== Class BST of nenupy ===\n'
         toprint += '\tList of all current attributes:\n'
         for att in dir(self):
-            avoid = ['data', 'elana', 'azana', 'azdig', 'eldig', 'maposition', 'marotation', 'delays']
+            avoid = ['data', 'elana', 'azana', 'azdig', 'eldig', 'maposition', 'marotation', 'delays', 'plot', 'save', 'select']
             if (not att.startswith('_')) & (not any(x.isupper() for x in att)) & (att not in avoid):
                 toprint += "%s: %s\n"%(att, getattr(self, att))
         return toprint
@@ -70,7 +70,7 @@ class BST(object):
         if (o is None) or (o == '') or (isinstance(o, str)) and (not os.path.isfile(o)):
             # Look at the current/specified directory
             if o is None:
-                o = ''
+                return#o = ''
             if os.path.isdir(o):
                 _opath = os.path.abspath(o)
                 bstfiles = glob.glob( os.path.join(_opath, '*BST.fits') )
@@ -491,6 +491,11 @@ class BST(object):
             setup_bea = f[4].data
             setup_pan = f[5].data
             setup_pbe = f[6].data
+
+        try:
+            self.name = setup_obs['name']
+        except:
+            self.name = ''
 
         self.obstart  = Time( head['DATE-OBS'] + 'T' + head['TIME-OBS'] )
         self.obstop   = Time( head['DATE-END'] + 'T' + head['TIME-END'] )

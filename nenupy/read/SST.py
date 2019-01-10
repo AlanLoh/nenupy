@@ -43,7 +43,7 @@ class SST(object):
         toprint  = '\t=== Class SST of nenupy ===\n'
         toprint += '\tList of all current attributes:\n'
         for att in dir(self):
-            avoid = ['data', 'elana', 'azana', 'maposition', 'marotation']
+            avoid = ['data', 'elana', 'azana', 'maposition', 'marotation', 'plot', 'save', 'select']
             if (not att.startswith('_')) & (not any(x.isupper() for x in att)) & (att not in avoid):
                 toprint += "%s: %s\n"%(att, getattr(self, att))
         return toprint
