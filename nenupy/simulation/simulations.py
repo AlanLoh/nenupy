@@ -11,7 +11,7 @@ from nenupy.beam import SSTbeam
 from nenupy.skymodel import SkyModel
 from nenupy.simulation import Transit
 sst = SST('20170425_230000_SST.fits')
-sst.getData(freq=50)
+sst.select(freq=50)
 beam = SSTbeam(sst)
 sm = SkyModel()
 sm.gsm2008(freq=sst.freq)
@@ -24,7 +24,7 @@ from nenupy.beam import BSTbeam
 from nenupy.skymodel import SkyModel
 from nenupy.simulation import Transit
 bst = BST('20181018_195600_BST.fits')
-bst.getData(freq=50)
+bst.select(freq=50)
 sm = SkyModel()
 sm.gsm2008(freq=bst.freq)
 beam = BSTbeam(bst)
@@ -85,10 +85,10 @@ class Transit():
         else:
             assert o.type == 'transit', 'Observation doesnt look like a transit'
 
-            if not hasattr(o, 'd'):
+            if not hasattr(o, 'data'):
                 # Select a default time-profile
                 print("\n\t=== WARNING: default time profile ===")
-                o.getData(time=[o.obstart, o.obstop], freq=50, polar='nw')
+                o.select(time=[o.obstart, o.obstop], freq=50, polar='nw')
             self._obs = o
         return
 
@@ -289,7 +289,7 @@ class Tracking():
             if not hasattr(o, 'd'):
                 # Select a default time-profile
                 print("\n\t=== WARNING: default time profile ===")
-                o.getData(time=[o.obstart, o.obstop], freq=50, polar='nw')
+                o.select(time=[o.obstart, o.obstop], freq=50, polar='nw')
             self._obs = o
         return
 
@@ -431,7 +431,7 @@ class Tracking():
         
         if showdata:
             tmask = (self.obs.data['time'] >= self.start) & (self.obs.data['time'] <= self.stop)
-            scale = np.median(self.obs.d[tmask]) / np.median(self.d)
+            scale = np.median(self.obs.data['amp'][tmask]) / np.median(self.d)
             plt.plot( (self.obs.data['time'][tmask] - self.start).sec/60., self.obs.data['amp'][tmask], label='Observation')
         else:
             scale = 1.

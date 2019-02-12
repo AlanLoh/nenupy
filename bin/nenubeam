@@ -1,0 +1,70 @@
+#! /usr/bin/python3.6
+# -*- coding: utf-8 -*-
+
+
+"""
+"""
+
+from nenupy.read import BST, SST
+from nenupy.beam import BSTbeam, SSTbeam
+import argparse
+
+__author__ = 'Alan Loh'
+__copyright__ = 'Copyright 2019, nenupy'
+__credits__ = ['Alan Loh']
+__license__ = 'MIT'
+__version__ = '0.0.1'
+__maintainer__ = 'Alan Loh'
+__email__ = 'alan.loh@obspm.fr'
+__status__ = 'WIP'
+
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-o', '--obs', type=str, help="Observation directory/file or 'bst/sst'", required=True)
+    parser.add_argument('-f', '--freq', type=float, default=50, help="Frequency in MHz", required=False)
+    parser.add_argument('-p', '--polar', type=str, default='NW', help="Polarization", required=False)
+    parser.add_argument('-m', '--ma', type=int, default=0, help="Mini-Array name index", required=False)
+    # parser.add_argument('-a', '--ana', type=int, default=-1, help="Analogical beam index", required=False)
+    # parser.add_argument('-d', '--digi', type=int, default=-1, help="Numerical beam index", required=False)
+    parser.add_argument('-aa', '--azana', type=float, default=180, help="Analogical Azimuth", required=False)
+    parser.add_argument('-ea', '--elana', type=float, default=90, help="Analogical Elevation", required=False)
+    parser.add_argument('-ad', '--azdig', type=float, default=180, help="Numerical Azimuth", required=False)
+    parser.add_argument('-ed', '--eldig', type=float, default=90, help="Numerical Elevation", required=False)
+    args = parser.parse_args()
+
+    try:
+        # ------ SST Observation ------ #
+        if args.obs.lower() == 'sst':
+            obs = None
+        else:
+            obs = SST(obsfile=args.obs)
+            obs.ma = args.ma
+            obs.freq = args.freq
+            obs.polar = args.polar
+        beam = SSTbeam(sst=obs,
+            ma=args.ma,
+            freq=args.freq,
+            polar=args.polar,
+            azana=args.azana,
+            elana=args.elana)
+        beam.plotBeam(cmap='bone')
+
+    except:
+        # ------ BST Observation ------ #
+        if args.obs.lower() == 'bst':
+            obs = None
+        else:
+            obs = BST(obsfile=args.obs)
+            obs.freq = args.freq
+            obs.polar = args.polar
+        beam = BSTbeam(bst=obs,
+            freq=args.freq,
+            ma=args.ma,
+            polar=args.polar,
+            azana=args.azana,
+            elana=args.elana,
+            azdig=args.azdig,
+            eldig=args.eldig)
+        beam.plotBeam(cmap='bone')

@@ -186,20 +186,21 @@ class BST(object):
         return self._time
     @time.setter
     def time(self, t):
+        halfsec = TimeDelta(0.5, format='sec')
         if isinstance(t, list):
             if not isinstance(t[0], Time):
                 t[0] = Time(t[0])
                 
             if not isinstance(t[1], Time):
                 t[1] = Time(t[1])
-            assert self.obstart <= t[0] <= self.obstop, 'time[0] outside time range'
-            assert self.obstart <= t[1] <= self.obstop, 'time[1] outside time range'
+            assert self.obstart-halfsec <= t[0] <= self.obstop+halfsec, 'time[0] outside time range'
+            assert self.obstart-halfsec <= t[1] <= self.obstop+halfsec, 'time[1] outside time range'
             assert t[0] < t[1], 'time[0] > time[1]!'
             self._time = t
         else:
             if not isinstance(t, Time):
                 t = Time(t)
-            assert self.obstart <= t <= self.obstop, 'time outside time range'
+            assert self.obstart-halfsec <= t <= self.obstop+halfsec, 'time outside time range'
             self._time = t
             return
 

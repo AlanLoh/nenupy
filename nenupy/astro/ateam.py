@@ -27,7 +27,9 @@ hyda = (139.523546, -12.095553)
 
 
 class Source():
-    def __init__(self, source):
+    def __init__(self, source, time, location):
+        self.time = time
+        self.location = location
         self.source = source
 
     # ================================================================= #
@@ -37,11 +39,15 @@ class Source():
         return self._source
     @source.setter
     def source(self, s):
-        try:
+        # try:
+        if s.lower() in ['sun', 'moon', 'jupiter', 'saturn', 'mars', 'venus']:
+            with coord.solar_system_ephemeris.set('builtin'):
+                src = coord.get_body(s, self.time, self.location)
+        else:
             src = coord.SkyCoord.from_name(s)
-            self._source = src
-        except:
-            self._source = None
+        self._source = src
+        # except:
+        #     self._source = None
 
     # ================================================================= #
     # ========================= Class Methods ========================= #

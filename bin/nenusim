@@ -40,12 +40,12 @@ if __name__ == "__main__":
     try:
         # ------ SST Observation ------ #
         obs = SST(obsfile=args.obs)
-        obs.getData(freq=args.freq, polar=args.polar, ma=args.ma) 
+        obs.select(freq=args.freq, polar=args.polar, ma=args.ma) 
         beam = SSTbeam(obs)
     except:
         # ------ BST Observation ------ #
         obs = BST(obsfile=args.obs)
-        obs.getData(freq=args.freq, polar=args.polar, abeam=args.ana, dbeam=args.digi)
+        obs.select(freq=args.freq, polar=args.polar, abeam=args.ana, dbeam=args.digi)
         beam = BSTbeam(obs) 
 
     sm = SkyModel()

@@ -198,7 +198,7 @@ class SSTbeam(object):
         theta = np.linspace(0., 90., self.beam.shape[0])
         phi   = np.radians( np.linspace(0., 360., self.beam.shape[1]) )
         # ------ Plot ------ #
-        fig = plt.figure()
+        fig = plt.figure(figsize=(18/2.54, 18/2.54))
         ax  = fig.add_subplot(111, projection='polar')
         normcb = mpl.colors.LogNorm(vmin=self.beam.max() * 1.e-4, vmax=self.beam.max())
         p = ax.pcolormesh(phi, theta, self.beam, norm=normcb, **kwargs)
@@ -206,7 +206,7 @@ class SSTbeam(object):
         plt.setp(ax.get_yticklabels(), rotation='horizontal', color='white')
         g = lambda x,y: r'%d'%(90-x)
         ax.yaxis.set_major_formatter(mtick.FuncFormatter( g ))
-        plt.title('MA={}, pol={}, freq={}MHz, az={}, el={}'.format(self.ma, self.polar, self.freq, self.azana, self.elana))
+        plt.title('MA={}, pol={}, freq={:.2f}MHz, az={}, el={}'.format(self.ma, self.polar, self.freq, self.azana, self.elana))
         plt.show()
         plt.close('all')
         return

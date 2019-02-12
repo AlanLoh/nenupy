@@ -250,7 +250,7 @@ class BSTbeam(object):
         phi   = np.radians( np.linspace(0., 360., self.beam.shape[1]) )
         # ------ Plot ------ #
         # fig = plt.figure()
-        fig = plt.figure(figsize=(20/2.54, 20/2.54))
+        fig = plt.figure(figsize=(18/2.54, 18/2.54))
         ax  = fig.add_subplot(111, projection='polar')
         normcb = mpl.colors.LogNorm(vmin=self.beam.max() * 1.e-4, vmax=self.beam.max())
         p = ax.pcolormesh(phi, theta, self.beam, norm=normcb, rasterized=True, **kwargs)
@@ -259,6 +259,9 @@ class BSTbeam(object):
         
         g = lambda x,y: r'%d'%(90-x)
         ax.yaxis.set_major_formatter(mtick.FuncFormatter( g ))
+
+        plt.title('pol={}, freq={:.2f}MHz, az={}, el={}'.format(self.polar, self.freq, self.azana, self.elana))
+
         plt.show()
         # ax.axes.get_yaxis().set_ticks([])
         # plt.savefig('/Users/aloh/Desktop/natacha.pdf', dpi=200)
