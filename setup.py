@@ -30,3 +30,6 @@ setup(name       = 'nenupy',
 
 # Documentation
 # sphinx-build -b html docs/ docs/_build/
+
+# Update on nancep:
+# /usr/local/bin/pip3.5 install nenupy --install-option=--prefix=/cep/lofar/nenupy3

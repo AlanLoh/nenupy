@@ -55,6 +55,7 @@ if __name__ == "__main__":
         # ------ BST Observation ------ #
         if args.obs.lower() == 'bst':
             obs = None
+            args.ma = None
         else:
             obs = BST(obsfile=args.obs)
             obs.freq = args.freq

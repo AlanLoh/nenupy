@@ -228,15 +228,21 @@ class BSTbeam(object):
     def getBeam(self, **kwargs):
         """ Get the BST beam
         """
+        from astropy.time import Time
         ma_beams = []
-        bar = ProgressBar(valmax=self.ma.size, title='Computing BST beam')
+        # bar = ProgressBar(valmax=self.ma.size, title='Computing BST beam')
+        beams = {}
         for i in range(self.ma.size):
-            mabeam = SSTbeam(ma=self.ma[i], freq=self.freq, polar=self.polar,
-                azana=self.azana, elana=self.elana, marotation=self.marotation[i])
-            mabeam.getBeam()
-            ma_model = AntennaModel( design=mabeam.beam, freq=self.freq)
-            ma_beams.append( ma_model )
-            bar.update()
+            if str(self.marotation[i]%60) not in beams.keys():
+                # Only have to compute it 6 times
+                mabeam = SSTbeam(ma=self.ma[i], freq=self.freq, polar=self.polar,
+                    azana=self.azana, elana=self.elana, marotation=self.marotation[i])
+                mabeam.getBeam()
+                ma_model = AntennaModel( design=mabeam.beam, freq=self.freq)
+                # bar.update()
+                beams[str(self.marotation[i]%60)] = ma_model
+            # ma_beams.append( ma_model )
+            ma_beams.append( beams[str(self.marotation[i]%60)] )
         beam = PhasedArrayBeam(p=self.maposition, m=ma_beams, a=self.azdig, e=self.eldig)
         self.beam = beam.getBeam()
 

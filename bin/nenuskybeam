@@ -90,28 +90,64 @@ skysel  = skymodel[xdecind.astype(int), xraind.astype(int)]
 skybeam = (beam/beam.max()) * skysel
 skybeam = skybeam.compressed().reshape(skybeam.shape) # getting rid off mask array dunno why fits doesnt like
 
-# Save in FITS
-w = wcs.WCS(naxis=2)
-w.wcs.crpix = [skybeam.shape[1]/2., 0]
-w.wcs.cdelt = np.array([ 360./skybeam.shape[1] , 90. / skybeam.shape[0] ])
-w.wcs.crval = [180., 0.]
-w.wcs.cunit = ['deg', 'deg']
-w.wcs.ctype = ['RA---CAR', 'DEC--CAR']
-w.wcs.cname = ['Azimuth', 'Elevation']
-header = w.to_header()
-hdu1 = fits.PrimaryHDU(header=header)
-hdu1.data = skybeam
-hdus = fits.HDUList([hdu1])#, hdu2, hdu3])
-hdus.writeto(args.store, overwrite=True)
+if args.store.lower() == 'none':
+    import matplotlib as mpl
+    import pylab as plt
+    import matplotlib.ticker as mtick
+    # Plot
+    theta = np.linspace(0., 90., skybeam.shape[0])
+    phi   = np.radians( np.linspace(0., 360., skybeam.shape[1]) )
+    # ------ Plot ------ #
+    # fig = plt.figure()
+    fig = plt.figure(figsize=(18/2.54, 18/2.54))
+    ax  = fig.add_subplot(111, projection='polar')
+    normcb = mpl.colors.LogNorm(vmin=skybeam.max() * 1.e-5, vmax=skybeam.max())
+    p = ax.pcolormesh(phi, theta, np.flipud(skybeam), norm=normcb, rasterized=True, cmap='bone')
+    ax.grid(linestyle='-', linewidth=0.5, color='white', alpha=0.4)
+    plt.setp(ax.get_yticklabels(), rotation='horizontal', color='white')
+    
+    g = lambda x,y: r'%d'%(90-x)
+    ax.yaxis.set_major_formatter(mtick.FuncFormatter( g ))
 
-# Region file
-ateam = ['Vir A', 'Cyg A', 'Cas A', 'Tau A', 'Her A', 'Hyd A', 'Sun', 'Moon', 'Jupiter', 'Saturn']
-with open(args.store[:-4]+'reg', 'w') as rf:
-    rf.write("global color=green\n")
+    # Sources
+    ateam = ['Vir A', 'Cyg A', 'Cas A', 'Tau A', 'Her A', 'Hyd A', 'Sun', 'Moon', 'Jupiter', 'Saturn']
     for at in ateam:
         src = astro.Source( source=at, time=Time(args.time), location=miniarrays.nenufarloc )
         altaz = src.source.transform_to(frame)
         az, el = altaz.az.deg, altaz.alt.deg
-        px, py = w.wcs_world2pix(az, el, 1)
-        rf.write("point("+str(px)+", "+str(py)+")# point=cross text={"+at+"}\n" )
+        if el > 0:
+            # plt.scatter(np.radians(az), el, c='red', s=2, alpha=0.5)
+            # c = ax.scatter(theta, r, c=colors, s=area, cmap='hsv', alpha=0.75)
+            ax.scatter(np.radians(az), 90-el, s=150, facecolor='C3', edgecolor='C3', alpha=0.3)
+            ax.text(np.radians(az), 90-el, '   '+at, color='C3')
+
+    plt.title('pol={}, freq={:.2f}MHz, az={}, el={}'.format(args.polar, args.freq, args.azimuth, args.elevation))
+
+    plt.show()
+
+else:
+    # Save in FITS
+    w = wcs.WCS(naxis=2)
+    w.wcs.crpix = [skybeam.shape[1]/2., 0]
+    w.wcs.cdelt = np.array([ 360./skybeam.shape[1] , 90. / skybeam.shape[0] ])
+    w.wcs.crval = [180., 0.]
+    w.wcs.cunit = ['deg', 'deg']
+    w.wcs.ctype = ['RA---CAR', 'DEC--CAR']
+    w.wcs.cname = ['Azimuth', 'Elevation']
+    header = w.to_header()
+    hdu1 = fits.PrimaryHDU(header=header)
+    hdu1.data = skybeam
+    hdus = fits.HDUList([hdu1])#, hdu2, hdu3])
+    hdus.writeto(args.store, overwrite=True)
+
+    # Region file
+    ateam = ['Vir A', 'Cyg A', 'Cas A', 'Tau A', 'Her A', 'Hyd A', 'Sun', 'Moon', 'Jupiter', 'Saturn']
+    with open(args.store[:-4]+'reg', 'w') as rf:
+        rf.write("global color=green\n")
+        for at in ateam:
+            src = astro.Source( source=at, time=Time(args.time), location=miniarrays.nenufarloc )
+            altaz = src.source.transform_to(frame)
+            az, el = altaz.az.deg, altaz.alt.deg
+            px, py = w.wcs_world2pix(az, el, 1)
+            rf.write("point("+str(px)+", "+str(py)+")# point=cross text={"+at+"}\n" )
 

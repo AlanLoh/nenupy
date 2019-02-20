@@ -36,8 +36,8 @@ if __name__ == "__main__":
     try:
         # ------ SST Observation ------ #
         obs = SST(obsfile=args.obs)
-        obs.plotData(freq=args.freq, polar=args.polar, ma=args.ma) 
+        obs.plot(freq=args.freq, polar=args.polar, ma=args.ma) 
     except:
         # ------ BST Observation ------ #
         obs = BST(obsfile=args.obs)
-        obs.plotData(freq=args.freq, polar=args.polar, abeam=args.ana, dbeam=args.digi) 
+        obs.plot(freq=args.freq, polar=args.polar, abeam=args.ana, dbeam=args.digi) 

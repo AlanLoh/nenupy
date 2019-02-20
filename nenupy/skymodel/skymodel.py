@@ -72,7 +72,7 @@ class SkyModel():
             self.skymodel = ndimage.gaussian_filter(self.skymodel, sigma=(sigma, sigma), order=0, mode='wrap')
         return
 
-    def gsm2008(self, freq):
+    def gsm2008(self, freq, healpix=False):
         """ Generate a PyGSM 2008 skymodel in equatorial coordinates
 
             Parameters
@@ -87,9 +87,12 @@ class SkyModel():
         """
         gsm     = GlobalSkyModel(freq_unit='MHz')
         gsmmap  = gsm.generate(freq)
-        gsmcart = hp.cartview(gsmmap, coord=['G', 'C'], xsize=self.nra,
-            ysize=self.ndec, return_projected_map=True)
-        plt.close('all')
+        if not healpix:
+            gsmcart = hp.cartview(gsmmap, coord=['G', 'C'], xsize=self.nra,
+                ysize=self.ndec, return_projected_map=True)
+            plt.close('all')
+        else:
+            pass
         self.skymodel = gsmcart
         return
 
