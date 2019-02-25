@@ -439,6 +439,17 @@ class BST(object):
 
         else:
             raise ValueError("\n\t=== ERROR: Plot nature not understood ===")
+
+        if hasattr(self, 'src'):
+            if self.type == 'transit':
+                try:
+                    from ..astro import getTransit
+                    transit = getTransit(source=self.src, time=self.obstart, loc='Nenufar', az=self.azdig)
+                    transit = (transit - self.data['time'][0]).sec / 60.
+                    plt.axvline(x=transit, color='black', linestyle='-.', linewidth=1)
+                except:
+                    pass
+
         plt.show()
         plt.close('all')
         return
@@ -550,6 +561,7 @@ class BST(object):
             elif key == 'time':  self.time  = value
             elif key == 'abeam': self.abeam = value
             elif key == 'dbeam': self.dbeam = value
+            elif key == 'src':   self.src   = value
             else:
                 pass
         return

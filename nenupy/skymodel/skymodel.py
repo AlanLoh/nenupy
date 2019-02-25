@@ -30,7 +30,7 @@ __email__ = 'alan.loh@obspm.fr'
 __status__ = 'WIP'
 __all__ = ['SkyModel']
 
-class SkyModel():
+class SkyModel(object):
     def __init__(self):
         self.nra  = 1024
         self.ndec = 512
@@ -92,7 +92,7 @@ class SkyModel():
                 ysize=self.ndec, return_projected_map=True)
             plt.close('all')
         else:
-            pass
+            gsmcart = gsmmap
         self.skymodel = gsmcart
         return
 

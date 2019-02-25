@@ -190,7 +190,7 @@ class SSTbeam(object):
         # self.beam = np.roll(self.beam, int(1./beam.resol)*int(90) , axis=1)
         return
 
-    def plotBeam(self, **kwargs):
+    def plot(self, store=None, **kwargs):
         """ Plot the SST Beam
         """
         self.getBeam()
@@ -206,12 +206,16 @@ class SSTbeam(object):
         plt.setp(ax.get_yticklabels(), rotation='horizontal', color='white')
         g = lambda x,y: r'%d'%(90-x)
         ax.yaxis.set_major_formatter(mtick.FuncFormatter( g ))
-        plt.title('MA={}, pol={}, freq={:.2f}MHz, az={}, el={}'.format(self.ma, self.polar, self.freq, self.azana, self.elana))
-        plt.show()
+        if store is not None:
+            plt.savefig(store, dpi=300, facecolor='none',
+                edgecolor='none', transparent=True, bbox_inches='tight')
+        else:
+            plt.title('MA={}, pol={}, freq={:.2f}MHz, az={}, el={}'.format(self.ma, self.polar, self.freq, self.azana, self.elana))
+            plt.show()
         plt.close('all')
         return
 
-    def saveBeam(self, savefile=None):
+    def save(self, savefile=None):
         """ Save the beam
         """
         if savefile is None:

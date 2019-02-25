@@ -29,10 +29,12 @@ if __name__ == "__main__":
     parser.add_argument('-m', '--ma', type=int, default=0, help="Mini-Array name index", required=False)
     parser.add_argument('-a', '--ana', type=int, default=-1, help="Analogical beam index", required=False)
     parser.add_argument('-d', '--digi', type=int, default=-1, help="Numerical beam index", required=False)
-    # parser.add_argument('-s', '--source', type=str, default='None', help="Source transit", required=False)
+    parser.add_argument('-s', '--source', type=str, default='None', help="Source transit", required=False)
     args = parser.parse_args()
     
-    
+    if isinstance(args.freq, list):
+        if len(args.freq) == 1:
+            args.freq = args.freq[0]    
     try:
         # ------ SST Observation ------ #
         obs = SST(obsfile=args.obs)
@@ -40,4 +42,5 @@ if __name__ == "__main__":
     except:
         # ------ BST Observation ------ #
         obs = BST(obsfile=args.obs)
+        obs.src = args.source
         obs.plot(freq=args.freq, polar=args.polar, abeam=args.ana, dbeam=args.digi) 

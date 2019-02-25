@@ -22,7 +22,7 @@ __status__ = 'WIP'
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-o', '--obs', type=str, help="Observation directory/file or 'bst/sst'", required=True)
+    parser.add_argument('-o', '--obs', type=str, default='bst', help="Observation directory/file or 'bst/sst'", required=False)
     parser.add_argument('-f', '--freq', type=float, default=50, help="Frequency in MHz", required=False)
     parser.add_argument('-p', '--polar', type=str, default='NW', help="Polarization", required=False)
     parser.add_argument('-m', '--ma', type=int, default=0, help="Mini-Array name index", required=False)
@@ -32,7 +32,12 @@ if __name__ == "__main__":
     parser.add_argument('-ea', '--elana', type=float, default=90, help="Analogical Elevation", required=False)
     parser.add_argument('-ad', '--azdig', type=float, default=180, help="Numerical Azimuth", required=False)
     parser.add_argument('-ed', '--eldig', type=float, default=90, help="Numerical Elevation", required=False)
+    parser.add_argument('-s',  '--store', type=str, default='None', help="Figure name", required=False)
     args = parser.parse_args()
+
+    print(args.store)
+    if args.store.lower() == 'none':
+        args.store = None
 
     try:
         # ------ SST Observation ------ #
@@ -49,7 +54,7 @@ if __name__ == "__main__":
             polar=args.polar,
             azana=args.azana,
             elana=args.elana)
-        beam.plotBeam(cmap='bone')
+        beam.plot(store=args.store, cmap='bone')
 
     except:
         # ------ BST Observation ------ #
@@ -68,4 +73,4 @@ if __name__ == "__main__":
             elana=args.elana,
             azdig=args.azdig,
             eldig=args.eldig)
-        beam.plotBeam(cmap='bone')
+        beam.plot(store=args.store, cmap='bone')

@@ -246,7 +246,7 @@ class BSTbeam(object):
         beam = PhasedArrayBeam(p=self.maposition, m=ma_beams, a=self.azdig, e=self.eldig)
         self.beam = beam.getBeam()
 
-    def plotBeam(self, **kwargs):
+    def plot(self, store=None, **kwargs):
         """ Plot the BST Beam
         """
         if not hasattr(self, 'beam'):
@@ -255,26 +255,26 @@ class BSTbeam(object):
         theta = np.linspace(0., 90., self.beam.shape[0])
         phi   = np.radians( np.linspace(0., 360., self.beam.shape[1]) )
         # ------ Plot ------ #
-        # fig = plt.figure()
         fig = plt.figure(figsize=(18/2.54, 18/2.54))
         ax  = fig.add_subplot(111, projection='polar')
         normcb = mpl.colors.LogNorm(vmin=self.beam.max() * 1.e-4, vmax=self.beam.max())
         p = ax.pcolormesh(phi, theta, self.beam, norm=normcb, rasterized=True, **kwargs)
         ax.grid(linestyle='-', linewidth=0.5, color='white', alpha=0.4)
         plt.setp(ax.get_yticklabels(), rotation='horizontal', color='white')
-        
         g = lambda x,y: r'%d'%(90-x)
         ax.yaxis.set_major_formatter(mtick.FuncFormatter( g ))
-
-        plt.title('pol={}, freq={:.2f}MHz, az={}, el={}'.format(self.polar, self.freq, self.azana, self.elana))
-
-        plt.show()
+        if store is not None:
+            plt.savefig(store, dpi=300, facecolor='none',
+                edgecolor='none', transparent=True, bbox_inches='tight')
+        else:
+            plt.title('pol={}, freq={:.2f}MHz, az={}, el={}'.format(self.polar, self.freq, self.azana, self.elana))
+            plt.show()
         # ax.axes.get_yaxis().set_ticks([])
         # plt.savefig('/Users/aloh/Desktop/natacha.pdf', dpi=200)
-        # plt.close('all')
+        plt.close('all')
         return
 
-    def saveBeam(self, savefile=None):
+    def save(self, savefile=None):
         """ Save the beam
         """
         if savefile is None:
