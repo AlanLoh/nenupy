@@ -12,6 +12,8 @@ from astropy.time import Time, TimeDelta
 from astropy import units as u
 from astropy import coordinates as coord
 
+from .ateam import Source
+
 __author__ = ['Alan Loh']
 __copyright__ = 'Copyright 2018, celespy'
 __credits__ = ['Alan Loh']
@@ -99,25 +101,29 @@ def getSrc(source, time=None, loc=None, unit='deg'):
         * **src** : ``astropy.coord.SkyCoord``
             SkyCoord object
     """
-    if isinstance(source, str):
-        if source.lower() in ['sun', 'moon', 'jupiter', 'saturn', 'mars', 'venus']:
-            time = getTime(time)
-            loc  = getLoc(loc)
-            with coord.solar_system_ephemeris.set('builtin'):
-                src = coord.get_body(source, time, loc)
+    try:
+        ateam = Source(source=source)
+        src = ateam.source
+    except:
+        if isinstance(source, str):
+            if source.lower() in ['sun', 'moon', 'jupiter', 'saturn', 'mars', 'venus']:
+                time = getTime(time)
+                loc  = getLoc(loc)
+                with coord.solar_system_ephemeris.set('builtin'):
+                    src = coord.get_body(source, time, loc)
+            else:
+                src = coord.SkyCoord.from_name(source)
+        elif isinstance(source, tuple):
+            assert len(source)==2, 'Only length 2 tuple is understood.'
+            if not unit.lower() == 'deg':
+                ra, dec = np.degrees(source)
+            else:
+                ra, dec = source
+            src = coord.SkyCoord(ra*u.deg, dec*u.deg, frame='icrs')
+        elif isinstance(source, coord.SkyCoord):
+            src = source
         else:
-            src = coord.SkyCoord.from_name(source)
-    elif isinstance(source, tuple):
-        assert len(source)==2, 'Only length 2 tuple is understood.'
-        if not unit.lower() == 'deg':
-            ra, dec = np.degrees(source)
-        else:
-            ra, dec = source
-        src = coord.SkyCoord(ra*u.deg, dec*u.deg, frame='icrs')
-    elif isinstance(source, coord.SkyCoord):
-        src = source
-    else:
-        raise ValueError('source parameter not understood.')
+            raise ValueError('source parameter not understood.')
 
     return src
 

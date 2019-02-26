@@ -14,20 +14,20 @@ __version__ = '0.0.1'
 __maintainer__ = 'Alan Loh'
 __email__ = 'alan.loh@obspm.fr'
 __status__ = 'WIP'
-__all__ = ['vira', 'cyga', 'casa', 'hera', 'hyda', 'Source']
+__all__ = ['Source']
 
 
 from astropy import coordinates as coord
 
-vira = (187.70593075, +12.39112331)
-cyga = (299.86815263, +40.73391583)
-casa = (350.850000, +58.815000)
-hera = (252.783433, +04.993031)
-hyda = (139.523546, -12.095553)
+ateam = {'vir a': (187.70593075, +12.39112331),
+         'cyg a': (299.86815263, +40.73391583),
+         'cas a': (350.850000, +58.815000),
+         'her a': (252.783433, +04.993031),
+         'hyd a': (139.523546, -12.095553)}
 
 
 class Source():
-    def __init__(self, source, time, location):
+    def __init__(self, source, time=None, location=None):
         self.time = time
         self.location = location
         self.source = source
@@ -40,35 +40,50 @@ class Source():
     @source.setter
     def source(self, s):
         # try:
-        if s.lower() in ['sun', 'moon', 'jupiter', 'saturn', 'mars', 'venus']:
-            with coord.solar_system_ephemeris.set('builtin'):
-                src = coord.get_body(s, self.time, self.location)
+        if not isinstance(s, coord.SkyCoord):
+            if s.lower() in ateam.keys():
+                src = coord.SkyCoord(ateam[s.lower()][0], ateam[s.lower()][1], frame="icrs", unit="deg")
+            elif s.lower() in ['sun', 'moon', 'jupiter', 'saturn', 'mars', 'venus']:
+                with coord.solar_system_ephemeris.set('builtin'):
+                    src = coord.get_body(s, self.time, self.location)
+            else:
+                src = coord.SkyCoord.from_name(s)
         else:
-            src = coord.SkyCoord.from_name(s)
+            src = s
         self._source = src
         # except:
         #     self._source = None
 
     # ================================================================= #
     # ========================= Class Methods ========================= #
-    @classmethod
-    def VirA(cls):
-        return cls(source='vira')
+    # @classmethod
+    # def VirA(cls):
+    #     # return cls(source='vira')
+    #     self.source = coord.SkyCoord(vira[0], vira[1], frame="icrs", unit="deg")
+    #     return
 
-    @classmethod
-    def CygA(cls):
-        return cls(source='cyga')
+    # # @classmethod
+    # def CygA(cls):
+    #     # return cls(source='cyga')
+    #     self.source = coord.SkyCoord(cyga[0], cyga[1], frame="icrs", unit="deg")
+    #     return
 
-    @classmethod
-    def CasA(cls):
-        return cls(source='casa')
+    # # @classmethod
+    # def CasA(cls):
+    #     # return cls(source='casa')
+    #     self.source = coord.SkyCoord(casa[0], casa[1], frame="icrs", unit="deg")
+    #     return
 
-    @classmethod
-    def HerA(cls):
-        return cls(source='hera')
+    # # @classmethod
+    # def HerA(cls):
+    #     # return cls(source='hera')
+    #     self.source = coord.SkyCoord(hera[0], hera[1], frame="icrs", unit="deg")
+    #     return
 
-    @classmethod
-    def HydA(cls):
-        return cls(source='hyda')
+    # # @classmethod
+    # def HydA(cls):
+    #     # return cls(source='hyda')
+    #     self.source = coord.SkyCoord(hyda[0], hyda[1], frame="icrs", unit="deg")
+    #     return
 
 

@@ -11,8 +11,6 @@ from scipy.interpolate import interp2d
 from astropy.time import Time
 from astropy import units as u
 from astropy import coordinates as coord
-from astropy import wcs
-from astropy.io import fits
 
 from nenupy.beam import SSTbeam, BSTbeam
 from nenupy.beam.antenna import miniarrays
@@ -122,8 +120,9 @@ if args.store.lower() == 'none':
             ax.text(np.radians(az), 90-el, '   '+at, color='#d62728')
 
     plt.title('pol={}, freq={:.2f}MHz, az={}, el={}'.format(args.polar, args.freq, args.azimuth, args.elevation))
-
+    ax.set_ylim(0, 90)
     plt.show()
+    plt.close('all')
 
 elif args.store.lower().endswith('png'):
     import matplotlib as mpl
@@ -153,11 +152,15 @@ elif args.store.lower().endswith('png'):
         if el > 0:
             ax.scatter(np.radians(az), 90-el, s=150, facecolor='#d62728', edgecolor='#d62728', alpha=0.3)
             ax.text(np.radians(az), 90-el, '   '+at, color='#d62728')
-
+    ax.set_ylim(0, 90)
     plt.savefig(args.store, dpi=200, facecolor='none',
         edgecolor='none', transparent=True, bbox_inches='tight')
+    plt.close('all')
 
 else:
+    from astropy import wcs
+    from astropy.io import fits
+
     # Save in FITS
     w = wcs.WCS(naxis=2)
     w.wcs.crpix = [skybeam.shape[1]/2., 0]
@@ -170,8 +173,10 @@ else:
     hdu1 = fits.PrimaryHDU(header=header)
     hdu1.data = skybeam
     hdus = fits.HDUList([hdu1])#, hdu2, hdu3])
-    hdus.writeto(args.store, overwrite=True)
-
+    try:
+        hdus.writeto(args.store, overwrite=True)
+    except:
+        hdus.writeto(args.store, clobber=True)
     # Region file
     ateam = ['Vir A', 'Cyg A', 'Cas A', 'Tau A', 'Her A', 'Hyd A', 'Sun', 'Moon', 'Jupiter', 'Saturn']
     with open(args.store[:-4]+'reg', 'w') as rf:

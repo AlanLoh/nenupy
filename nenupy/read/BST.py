@@ -471,10 +471,44 @@ class BST(object):
         prihdr.set('POLAR', self.polar)
         #prihdr.set('MINI-ARR', str(self.ma))
         datahdu = fits.PrimaryHDU(self.d.T, header=prihdr)
-        freqhdu = fits.BinTableHDU.from_columns( [fits.Column(name='frequency', format='D', array=self.f)] )
-        timehdu = fits.BinTableHDU.from_columns( [fits.Column(name='mjd', format='D', array=self.t.mjd)] )
+        freqhdu = fits.BinTableHDU.from_columns( [fits.Column(name='frequency', format='D', array=self.data['freq'])] )
+        timehdu = fits.BinTableHDU.from_columns( [fits.Column(name='mjd', format='D', array=self.data['time'].mjd)] )
         hdulist = fits.HDUList([datahdu, freqhdu, timehdu])
         hdulist.writeto(savefile, overwrite=True)
+        return
+
+    def mean(self, axis='freq'):
+        """
+        """
+        if axis.lower() == 'freq':
+            if self.data['freq'].size > 1:
+                self.data['amp'] = np.mean(self.data['amp'], axis=1)
+                self.data['freq'] = np.mean(self.data['freq'])
+        elif axis.lower() == 'time':
+            if self.data['time'].size > 1:
+                self.data['amp'] = np.mean(self.data['amp'], axis=0)
+                self.data['time'] = Time(np.mean(self.data['time'].mjd), format='mjd')
+        else:
+            print('Axis {} not in [freq, time]'.format(axis))
+        return
+
+    def from_transit(self, source, unit='sec'):
+        """ Redefine the time with respect to the transit time
+        """
+        if self.type == 'transit':
+            # try:
+            from ..astro import getTransit
+            transit = getTransit(source=source, time=self.obstart, loc='Nenufar', az=self.azdig)
+            if unit.lower() == 'sec':
+                self.data['time'] = (self.data['time'] - transit).sec
+            elif unit.lower() == 'min':
+                self.data['time'] = (self.data['time'] - transit).sec / 60.
+            elif unit.lower() == 'hour':
+                self.data['time'] = (self.data['time'] - transit).sec / 3600.
+            else:
+                print('Accepted values are [sec, min, hour]')
+        #     except:
+        #         pass
         return
 
     # ================================================================= #
