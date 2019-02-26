@@ -19,11 +19,12 @@ __all__ = ['Source']
 
 from astropy import coordinates as coord
 
-ateam = {'vir a': (187.70593075, +12.39112331),
+ATEAM = {'vir a': (187.70593075, +12.39112331),
          'cyg a': (299.86815263, +40.73391583),
          'cas a': (350.850000, +58.815000),
          'her a': (252.783433, +04.993031),
-         'hyd a': (139.523546, -12.095553)}
+         'hyd a': (139.523546, -12.095553),
+         'tau a': (83.63308, +22.01450)}
 
 
 class Source():
@@ -41,8 +42,8 @@ class Source():
     def source(self, s):
         # try:
         if not isinstance(s, coord.SkyCoord):
-            if s.lower() in ateam.keys():
-                src = coord.SkyCoord(ateam[s.lower()][0], ateam[s.lower()][1], frame="icrs", unit="deg")
+            if s.lower() in ATEAM.keys():
+                src = coord.SkyCoord(ATEAM[s.lower()][0], ATEAM[s.lower()][1], frame="icrs", unit="deg")
             elif s.lower() in ['sun', 'moon', 'jupiter', 'saturn', 'mars', 'venus']:
                 with coord.solar_system_ephemeris.set('builtin'):
                     src = coord.get_body(s, self.time, self.location)
