@@ -106,7 +106,7 @@ class BSTbeam(object):
         else:
             marecorded = self.bst.ma
         if m is None:
-            print("\n\t==== WARNING: miniarrays are set by default ===")
+            # print("\n\t==== WARNING: miniarrays are set by default ===")
             m = marecorded
         if isinstance(m, list):
             m = np.array(m)
@@ -129,7 +129,7 @@ class BSTbeam(object):
     @marotation.setter
     def marotation(self, r):
         if r is None:
-            print("\n\t==== WARNING: MA rotations are set by default ===")
+            # print("\n\t==== WARNING: MA rotations are set by default ===")
             self._marotation = miniarrays.ma[:, 1]
         if isinstance(r, list) or (isinstance(r, np.ndarray)):
             self._marotation = np.array(r)
@@ -148,7 +148,7 @@ class BSTbeam(object):
     @maposition.setter
     def maposition(self, p):
         if p is None:
-            print("\n\t==== WARNING: MA positions are set by default ===")
+            # print("\n\t==== WARNING: MA positions are set by default ===")
             self._maposition = miniarrays.ma[:, 2:5]
         if isinstance(p, list) or (isinstance(p, np.ndarray)):
             self._maposition = np.array(p)
@@ -167,7 +167,7 @@ class BSTbeam(object):
     @delays.setter
     def delays(self, d):
         if d is None:
-            print("\n\t==== WARNING: MA delays are set by default ===")
+            # print("\n\t==== WARNING: MA delays are set by default ===")
             self._delays = miniarrays.ma[:, 5]
         if isinstance(d, list) or isinstance(d, np.ndarray):
             self._delays = np.array(d)

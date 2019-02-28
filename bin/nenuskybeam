@@ -119,6 +119,8 @@ if args.store.lower() == 'none':
             ax.scatter(np.radians(az), 90-el, s=150, facecolor='#d62728', edgecolor='#d62728', alpha=0.3)
             ax.text(np.radians(az), 90-el, '   '+at, color='#d62728')
 
+    ax.set_theta_zero_location('N')
+    ax.set_theta_direction(-1)
     plt.title('pol={}, freq={:.2f}MHz, az={}, el={}'.format(args.polar, args.freq, args.azimuth, args.elevation))
     ax.set_ylim(0, 90)
     plt.show()
@@ -152,6 +154,8 @@ elif args.store.lower().endswith('png'):
         if el > 0:
             ax.scatter(np.radians(az), 90-el, s=150, facecolor='#d62728', edgecolor='#d62728', alpha=0.3)
             ax.text(np.radians(az), 90-el, '   '+at, color='#d62728')
+    ax.set_theta_zero_location('N')
+    ax.set_theta_direction(-1)
     ax.set_ylim(0, 90)
     plt.savefig(args.store, dpi=200, facecolor='none',
         edgecolor='none', transparent=True, bbox_inches='tight')

@@ -288,6 +288,11 @@ def getTransit(source, time, loc, az=None, el=None, unit='deg', way='rise', t_st
     loc    = getLoc(loc)
     source = getSrc(source=source, time=time, loc=loc, unit=unit)
 
+    try:
+        lat = loc.lat.deg
+    except:
+        lat = loc.latitude.deg
+
     assert (way.lower() == 'rise') or (way.lower() == 'set'), 'way must be either rise or set'
 
     # Find rough time intervald
@@ -296,8 +301,8 @@ def getTransit(source, time, loc, az=None, el=None, unit='deg', way='rise', t_st
         if (az is not None) & (el is None):
             c1 = getAltaz(source, time, loc).az.deg
             c2 = getAltaz(source, time+bigdt, loc).az.deg
-            if source.dec.deg > loc.lat.deg:
-                deltaaz = np.degrees(np.arccos((90-source.dec.deg)/loc.lat.deg)) # az span
+            if source.dec.deg > lat:
+                deltaaz = np.degrees(np.arccos((90-source.dec.deg)/lat)) # az span
                 # circumpolar
                 # if (c1 <= az <= c2) or ( (c2 < c1) & (c2 >= az) & (c1 >= az) ):
                 #     break
@@ -349,7 +354,7 @@ def getTransit(source, time, loc, az=None, el=None, unit='deg', way='rise', t_st
         if (az is not None) & (el is None):
             c1 = getAltaz(source, time, loc).az.deg
             c2 = getAltaz(source, time+middt, loc).az.deg
-            if source.dec.deg > loc.lat.deg:
+            if source.dec.deg > lat:
                 # circumpolar
                 if (0. < az <= 0.+deltaaz):
                     if   (270. <= c1 < 360.) & (270. <= c2 < 360.):
@@ -396,7 +401,7 @@ def getTransit(source, time, loc, az=None, el=None, unit='deg', way='rise', t_st
         if (az is not None) & (el is None):
             c1 = getAltaz(source, time, loc).az.deg
             c2 = getAltaz(source, time+smalldt, loc).az.deg
-            if source.dec.deg > loc.lat.deg:
+            if source.dec.deg > lat:
                 # circumpolar
                 if (0. < az <= 0.+deltaaz):
                     if   (270. <= c1 < 360.) & (270. <= c2 < 360.):
