@@ -197,7 +197,8 @@ def toRadec(source, time, loc, unit='deg'):
     if isinstance(source, tuple):
         az, alt = source
         if not unit.lower() == 'deg':
-            az, alt = np.degrees(az, alt)
+            az = np.degrees(az)
+            alt = np.degrees(alt)
     else:
         raise ValueError('source parameter not understood.')
     time  = getTime(time)
@@ -288,161 +289,67 @@ def getTransit(source, time, loc, az=None, el=None, unit='deg', way='rise', t_st
     loc    = getLoc(loc)
     source = getSrc(source=source, time=time, loc=loc, unit=unit)
 
-    try:
-        lat = loc.lat.deg
-    except:
-        lat = loc.latitude.deg
-
     assert (way.lower() == 'rise') or (way.lower() == 'set'), 'way must be either rise or set'
 
-    # Find rough time intervald
+    def find_time_interval(start, dt, source, az, el):
+        while start <= start + dt:
+            if (az is not None) & (el is None):
+                c1 = getAltaz(source, start, loc).az.deg
+                c2 = getAltaz(source, start+dt, loc).az.deg
+                if source.dec.deg > loc.lat.deg:
+                    deltaaz = np.degrees(np.arccos((90-source.dec.deg)/loc.lat.deg)) # az span
+                    # circumpolar
+                    if (0. < az <= 0.+deltaaz):
+                        if   (270. <= c1 < 360.) & (270. <= c2 < 360.):
+                            pass
+                        elif (0. <= c1 < 90.) & (0. <= c2 < 90.):
+                            if (c2 <= az <= c1):
+                                break
+                        else:
+                            if (270. <= c2 <= 360.) & (c1 >= az):
+                                break
+                    elif (az == 0.) or (az == 360.):
+                        if (c2 - c1 > 180):
+                            break
+                    elif (360.-deltaaz <= az < 360.):
+                        if   (270. <= c1 < 360.) & (270. <= c2 < 360.):
+                            if (c2 <= az <= c1):
+                                break
+                        elif (0. <= c1 < 90.) & (0. <= c2 < 90.):
+                            pass
+                        else:
+                            if (0. <= c1 <= 90.) & (c2 <= az):
+                                break
+                    else:
+                        raise ValueError('Azimuth {} not valid for a circumpolar source, only 0.+/-{}'.format(az, deltaaz))
+                    
+                else:
+                    if (c1 <= az <= c2):
+                        break
+            elif (el is not None) & (az is None):
+                c1 = getAltaz(source, start, loc).alt.deg
+                c2 = getAltaz(source, start+dt, loc).alt.deg
+                if way.lower() == 'rise':
+                    if (c1 <= el <= c2):
+                        break
+                elif way.lower() == 'set':
+                    if (c2 <= el <= c1):
+                        break
+            else:
+                raise ValueError('either az or el parameters should not be None')
+            start += dt
+        return start
+
     bigdt = TimeDelta(t_step, format='sec') 
-    while time <= time + TimeDelta(1, format='jd'):
-        if (az is not None) & (el is None):
-            c1 = getAltaz(source, time, loc).az.deg
-            c2 = getAltaz(source, time+bigdt, loc).az.deg
-            if source.dec.deg > lat:
-                deltaaz = np.degrees(np.arccos((90-source.dec.deg)/lat)) # az span
-                # circumpolar
-                # if (c1 <= az <= c2) or ( (c2 < c1) & (c2 >= az) & (c1 >= az) ):
-                #     break
-                if (0. < az <= 0.+deltaaz):
-                    if   (270. <= c1 < 360.) & (270. <= c2 < 360.):
-                        if (c1 <= az <= c2):
-                            break
-                    elif (0. <= c1 < 90.) & (0. <= c2 < 90.):
-                        if (c2 <= az <= c1):
-                            break
-                    else:
-                        if (c1 + 360. >= 360. - az >= c2):
-                            break
-                elif (az == 0.) or (az == 360.):
-                    if (c2 - c1 > 180):
-                        break
-                elif (360.-deltaaz <= az < 360.):
-                    if   (270. <= c1 < 360.) & (270. <= c2 < 360.):
-                        if (c2 <= az <= c1):
-                            break
-                    elif (0. <= c1 < 90.) & (0. <= c2 < 90.):
-                        if (c1 <= az <= c2):
-                            break
-                    else:
-                        if (c2 <= az <= c1+360.):
-                            break
-                else:
-                    raise ValueError('Azimuth {} not valid for a circumpolar source, only 0.+/-{}'.format(az, deltaaz))
-                
-            else:
-                if (c1 <= az <= c2):
-                    break
-        elif (el is not None) & (az is None):
-            c1 = getAltaz(source, time, loc).alt.deg
-            c2 = getAltaz(source, time+bigdt, loc).alt.deg
-            if way.lower() == 'rise':
-                if (c1 <= el <= c2):
-                    break
-            elif way.lower() == 'set':
-                if (c2 <= el <= c1):
-                    break
-        else:
-            raise ValueError('either az or el parameters should not be None')
-        time += bigdt
-
-    # mid search
+    new_start = find_time_interval(start=time, dt=bigdt, source=source, az=az, el=el)
     middt = TimeDelta(t_step/6., format='sec')
-    while time <= time + bigdt:
-        if (az is not None) & (el is None):
-            c1 = getAltaz(source, time, loc).az.deg
-            c2 = getAltaz(source, time+middt, loc).az.deg
-            if source.dec.deg > lat:
-                # circumpolar
-                if (0. < az <= 0.+deltaaz):
-                    if   (270. <= c1 < 360.) & (270. <= c2 < 360.):
-                        if (c1 <= az <= c2):
-                            break
-                    elif (0. <= c1 < 90.) & (0. <= c2 < 90.):
-                        if (c2 <= az <= c1):
-                            break
-                    else:
-                        if (c1 + 360. >= 360. - az >= c2):
-                            break
-                elif (az == 0.) or (az == 360.):
-                    if (c2 - c1 > 180.):
-                        break
-                elif (360.-deltaaz <= az < 360.):
-                    if   (270. <= c1 < 360.) & (270. <= c2 < 360.):
-                        if (c2 <= az <= c1):
-                            break
-                    elif (0. <= c1 < 90.) & (0. <= c2 < 90.):
-                        if (c1 <= az <= c2):
-                            break
-                    else:
-                        if (c2 <= az <= c1+360.):
-                            break
-                else:
-                    pass
-            else:
-                if (c1 <= az <= c2):
-                    break
-        elif (el is not None) & (az is None):
-            c1 = getAltaz(source, time, loc).alt.deg
-            c2 = getAltaz(source, time+middt, loc).alt.deg
-            if way.lower() == 'rise':
-                if (c1 <= el <= c2):
-                    break
-            elif way.lower() == 'set':
-                if (c2 <= el <= c1):
-                    break
-        time += middt
-
-    # finer search
+    new_start = find_time_interval(start=new_start, dt=middt, source=source, az=az, el=el)
     smalldt = TimeDelta(t_step/360, format='sec')
-    while time <= time + middt:
-        if (az is not None) & (el is None):
-            c1 = getAltaz(source, time, loc).az.deg
-            c2 = getAltaz(source, time+smalldt, loc).az.deg
-            if source.dec.deg > lat:
-                # circumpolar
-                if (0. < az <= 0.+deltaaz):
-                    if   (270. <= c1 < 360.) & (270. <= c2 < 360.):
-                        if (c1 <= az <= c2):
-                            break
-                    elif (0. <= c1 < 90.) & (0. <= c2 < 90.):
-                        if (c2 <= az <= c1):
-                            break
-                    else:
-                        if (c1 + 360. >= 360. - az >= c2):
-                            break
-                elif (az == 0.) or (az == 360.):
-                    if (c2 - c1 > 180.):
-                        break
-                elif (360.-deltaaz <= az < 360.):
-                    if   (270. <= c1 < 360.) & (270. <= c2 < 360.):
-                        if (c2 <= az <= c1):
-                            break
-                    elif (0. <= c1 < 90.) & (0. <= c2 < 90.):
-                        if (c1 <= az <= c2):
-                            break
-                    else:
-                        if (c2 <= az <= c1+360.):
-                            break
-                else:
-                    pass
-            else:
-                if (c1 <= az <= c2):
-                    break
-        elif (el is not None) & (az is None):
-            c1 = getAltaz(source, time, loc).alt.deg
-            c2 = getAltaz(source, time+smalldt, loc).alt.deg
-            if way.lower() == 'rise':
-                if (c1 <= el <= c2):
-                    break
-            elif way.lower() == 'set':
-                if (c2 <= el <= c1):
-                    break
-        time += smalldt
+    new_start = find_time_interval(start=new_start, dt=smalldt, source=source, az=az, el=el)
+    smallestdt = TimeDelta(t_step/1800., format='sec')
+    new_start = find_time_interval(start=new_start, dt=smallestdt, source=source, az=az, el=el)
 
-    return time + smalldt/2.
+    return new_start + smallestdt/2.
 
 
 # =================================================================================== #

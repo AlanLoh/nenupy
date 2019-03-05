@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from .phasedbeam import PhasedArrayBeam
-from .sstbeam import SSTbeam
-from .bstbeam import BSTbeam
+from .sstbeam import SSTbeam, SSTbeamHPX
+from .bstbeam import BSTbeam, BSTbeamHPX
 
-__all__ = ['PhasedArrayBeam', 'SSTbeam', 'BSTbeam']
+__all__ = ['PhasedArrayBeam', 'SSTbeam', 'BSTbeam', 'SSTbeamHPX', 'BSTbeamHPX']
