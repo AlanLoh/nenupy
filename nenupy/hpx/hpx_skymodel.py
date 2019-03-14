@@ -109,13 +109,13 @@ class Skymodel(object):
         """
         src = getSrc(source=(ra, dec))
         src_gal = src.galactic
-        self.map = np.repeat(0., hp.nside2npix(self.nside))
+        self.map = np.repeat(1.e-1, hp.nside2npix(self.nside))
         pixel = hp.ang2pix(nside=self.nside,
             theta=src_gal.l.deg,
             phi=src_gal.b.deg,
             lonlat=True,
             nest=False)
-        self.map[pixel] = 1000
+        self.map[pixel] = 1.e6
         return
     # --------------------------------------------------------- #
     def _kwargs(self, kwargs):

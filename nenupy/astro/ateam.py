@@ -27,7 +27,7 @@ ATEAM = {'vir a': (187.70593075, +12.39112331),
          'tau a': (83.63308, +22.01450)}
 
 
-class Source():
+class Source(object):
     def __init__(self, source, time=None, location=None):
         self.time = time
         self.location = location
@@ -45,8 +45,11 @@ class Source():
             if s.lower() in ATEAM.keys():
                 src = coord.SkyCoord(ATEAM[s.lower()][0], ATEAM[s.lower()][1], frame="icrs", unit="deg")
             elif s.lower() in ['sun', 'moon', 'jupiter', 'saturn', 'mars', 'venus']:
-                with coord.solar_system_ephemeris.set('builtin'):
-                    src = coord.get_body(s, self.time, self.location)
+                try:
+                    with coord.solar_system_ephemeris.set('builtin'):
+                        src = coord.get_body(s, self.time, self.location)
+                except:
+                    src = None
             else:
                 src = coord.SkyCoord.from_name(s)
         else:

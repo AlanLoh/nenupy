@@ -302,6 +302,26 @@ class BST(object):
                 el = el[(digitimes <= self.time)][-1]
         return el
 
+    @ property
+    def angles(self):
+        """ Pointed angle
+        """
+        if self.type == 'tracking':
+            from nenupy.astro import toRadec
+            digitimes = self._pointdigt[ self._pointdig==self.dbeam ]
+            if isinstance(self.time, list):
+                tmask = np.squeeze((digitimes >= self.time[0]) & (digitimes <= self.time[1]))
+                tt = digitimes[tmask][0]
+            else:
+                tt = digitimes[(digitimes <= self.time)][-1]
+            radec = toRadec(source=(self.azdig[0], self.eldig[0]),
+                time=tt,
+                loc='NenuFAR')
+            return (radec.ra.deg, radec.dec.deg, 'J2000')
+        else:
+            self.type = 'transit'
+            return (self.azdig, self.eldig, 'ALTAZ')
+
 
     # ================================================================= #
     # =========================== Methods ============================= #

@@ -11,6 +11,13 @@
         t.predict(src=None, resol=1, freq=55, duration=86400, miniarrays=[10], azana=180, elana=90, azdig=180, eldig=90)
         ```
 
+        - Transit prediction with a pointsource model
+        ```
+        from nenupy.hpx import Transit
+        t=Transit()
+        t.predict(src='Cyg A', resol=0.2, freq=60, duration=3600, skymodel='pointsource', ra=299.868, dec=40.734)
+        ``` 
+
         - Tracking prediction of Cyg A using the GSM:
         ```
         from nenupy.hpx import Tracking
@@ -149,8 +156,8 @@ class Simu(object):
             # Sky rotation:
             sky = sm.get_skymodel(time=current, model=self.skymodel, **kwargs)
             # Integrate the beam x sky
-            integ = np.sum(self.beam * sky * self.db.domega)
-            
+            integ = np.sum(self.beam * sky )#* self.db.domega ) #/ (4 * np.pi) #self.db.domega ) no need cause hpx?
+
             self.simulation['time'].append(current.mjd)
             self.simulation['amp'].append(integ)            
             bar.update()
@@ -160,12 +167,13 @@ class Simu(object):
         self.simulation['amp'] = np.array(self.simulation['amp'])
         return
     # --------------------------------------------------------- #
-    def _tracking_sky(self, src=None, **kwargs):
+    def _tracking_sky(self, src=None, obs=None, **kwargs):
         """ Perform a sky rotation from `self.start` to `self.stop`
             with `dt` sec steps.
             For each time step, a new beam is computed toward `src`.
         """
-        src = getSrc(src)
+        if obs is None:
+            src = getSrc(src)
 
         self.simulation = {'time': [],
                             'amp': []}
@@ -180,16 +188,23 @@ class Simu(object):
             # Sky rotation:
             sky = sm.get_skymodel(time=current, model=self.skymodel, **kwargs)
             # Compute the beam
-            altaz = getAltaz(source=src,
-                time=current,
-                loc='NenuFAR')
-            self.azana = altaz.az.deg
-            self.elana = altaz.alt.deg
-            self.azdig = altaz.az.deg
-            self.eldig = altaz.alt.deg
+            if obs is None:
+                altaz = getAltaz(source=src,
+                    time=current,
+                    loc='NenuFAR')
+                self.azana = altaz.az.deg
+                self.elana = altaz.alt.deg
+                self.azdig = altaz.az.deg
+                self.eldig = altaz.alt.deg
+            else:
+                obs.time = current
+                self.azana = obs.azana
+                self.elana = obs.elana
+                self.azdig = obs.azdig
+                self.eldig = obs.eldig
             self._compute_beam()
             # Integrate the beam x sky
-            integ = np.sum(self.beam * sky * self.db.domega)
+            integ = np.sum(self.beam * sky) # / (4 * np.pi) # * self.db.domega)
 
             self.simulation['time'].append(current.mjd)
             self.simulation['amp'].append(integ)            
@@ -272,14 +287,16 @@ class Transit(Simu):
         self._transit_sky(**kwargs)
         return
     # --------------------------------------------------------- #
-    def from_bst(self, obs, freq=50, polar='NW', dbeam=0, **kwargs):
+    def from_bst(self, obs, dbeam=0, **kwargs):
         """ Do the simulaiton based on an existing BST observation
         """
+        self._simukwargs(kwargs)
+
         if not isinstance(obs, BST):
             bst = BST(obs)
         assert bst.type == 'transit',\
             'Obs is not a transit.'
-        bst.select(freq=freq, polar=polar, dbeam=dbeam)
+        bst.select(freq=self.freq, polar=self.polar, dbeam=dbeam)
 
         self.azana = bst.azana
         self.elana = bst.elana
@@ -342,7 +359,32 @@ class Tracking(Simu):
         self.start = getTime(time)
         self.stop = self.start + duration
 
-        self._tracking_sky(src, **kwargs)
+        self._tracking_sky(src=src, **kwargs)
+        return
+    # --------------------------------------------------------- #
+    def from_bst(self, obs, dbeam=0, **kwargs):
+        """ Do the simulaiton based on an existing BST observation
+        """
+        self._simukwargs(kwargs)
+
+        if not isinstance(obs, BST):
+            bst = BST(obs)
+        assert bst.type == 'tracking',\
+            'Obs is not a tracking.'
+        bst.select(freq=self.freq, polar=self.polar, dbeam=dbeam)
+
+        self.azana = bst.azana
+        self.elana = bst.elana
+        self.azdig = bst.azdig
+        self.eldig = bst.eldig
+        self.nomas = bst.ma
+        self.freq = bst.data['freq'][0]
+        self.polar = bst.polar
+
+        self.start = bst.data['time'][0]
+        self.stop = bst.data['time'][-1]
+
+        self._tracking_sky(obs=bst, **kwargs)
         return
     # --------------------------------------------------------- #
     def plot(self):

@@ -30,6 +30,8 @@ class Anabeam(object):
     """
     
     def __init__(self, **kwargs):
+        self.instrument_effect = True
+        self.antpos_offset = 90 # angle to rotate
         self._anakwargs(kwargs)
 
     # ========================================================= #
@@ -44,7 +46,7 @@ class Anabeam(object):
         assert 0. <= f <= 100.,\
             '{} MHz outside the frequency range'.format(f)
         self._freq = f
-        self.kwave = 2 * np.pi * f * 1.e6 / 3e8
+        self.kwave = 2 * np.pi * f * 1.e6 / 299792458
         return
     # --------------------------------------------------------- #
     @property
@@ -102,9 +104,9 @@ class Anabeam(object):
     @marot.setter
     def marot(self, r):
         if r is None:
-            self._marot = miniarrays.ma[:, 1] + 90 
+            self._marot = miniarrays.ma[:, 1] + self.antpos_offset 
         else:
-            self._marot = np.repeat(r, miniarrays.ma[:, 1].size) + 90
+            self._marot = np.repeat(r, miniarrays.ma[:, 1].size) + self.antpos_offset
         return
     # --------------------------------------------------------- #
     @property
@@ -152,8 +154,9 @@ class Anabeam(object):
                                     nest=False)
         self.azgrid = np.radians(self.azgrid[::-1]) # east is 90
         self.elgrid = np.radians(self.elgrid)
-        self.domega = hp.nside2resol(self._nside)**2. * np.cos(np.pi/2 - self.elgrid)
         self._over_horizon = (self.elgrid < 0.)
+        self.domega = hp.nside2resol(self._nside)**2. * np.cos(np.pi/2 - self.elgrid)
+        self.domega[self._over_horizon] = 0.
         return
     # --------------------------------------------------------- #
     def _ant_pos(self):
@@ -166,7 +169,7 @@ class Anabeam(object):
                                  [-np.sin(rot), np.cos(rot), 0],
                                  [ 0,           0,           1]])
             antpos = np.dot( antpos, rotation )
-        return antpos
+        return antpos#[9].reshape((1, 3)) # single_ant
     # --------------------------------------------------------- #
     def _ant_gain(self):
         """
@@ -177,21 +180,21 @@ class Anabeam(object):
                 return self.antgain
         f1 = int( np.floor( self.freq/10. ) ) * 10
         f2 = int( np.ceil(  self.freq/10. ) ) * 10
-        cols={'NW_10': 0,                                                            
-              'NW_20': 1,                                                            
-              'NW_30': 2,                                                            
-              'NW_40': 3,                                                            
-              'NW_50': 4,                                                            
-              'NW_60': 5,                                                            
-              'NW_70': 6,                                                            
-              'NW_80': 7,                                                            
-              'NE_10': 8,                                                            
-              'NE_20': 9,                                                            
-              'NE_30': 10,                                                            
-              'NE_40': 11,                                                            
-              'NE_50': 12,                                                            
-              'NE_60': 13,                                                            
-              'NE_70': 14,                                                            
+        cols={'NW_10': 0,
+              'NW_20': 1,
+              'NW_30': 2,
+              'NW_40': 3,
+              'NW_50': 4,
+              'NW_60': 5,
+              'NW_70': 6,
+              'NW_80': 7,
+              'NE_10': 8,
+              'NE_20': 9,
+              'NE_30': 10,
+              'NE_40': 11,
+              'NE_50': 12,
+              'NE_60': 13,
+              'NE_70': 14,
               'NE_80': 15}
         modulpath = os.path.dirname(os.path.realpath(__file__))
         antfile = os.path.join(modulpath, 'NenuFAR_Ant_Hpx.fits') 
@@ -211,35 +214,34 @@ class Anabeam(object):
             antgain = antgain1
         self.antgain = hp.ud_grade(antgain, nside_out=self._nside)
         return self.antgain
-
-    # def _realPointing(self, a, e):
-    #     """ Find the real pointing direction from self.ra, self.dec
-    #         Nenufar can only point towards directions on a 128 x 128 cells grid
-    #         Therefore PZ computed for each -desired- direction at a resolution of 0.05deg
-    #         the corresponding real observed direction.
-    #     """ 
-    #     modulepath = os.path.dirname( os.path.realpath(__file__) )
-    #     thph = fits.getdata( os.path.join(modulepath, 'NenuFAR_thph.fits') )
-    #     theta, phi = ( int((90.-e)/0.05 - 0.5), int(a/0.05 - 0.5)  )
-    #     t, p = thph[:, theta, phi]
-    #     return p, 90.-t
-
-    # def _squintMA(self, e):
-    #     """ Compute the elevation to be pointed that take into account the squint if we want to observe ele
-    #     """
-    #     modulepath = os.path.dirname( os.path.realpath(__file__) )
-    #     squint  = readsav( os.path.join(modulepath, 'squint_table.sav') )
-    #     optfreq = 30
-    #     indfreq = np.where(squint['freq']==optfreq)[0][0]
-    #     newele  = interp1d(squint['elev_desiree'][indfreq,:], squint['elev_a_pointer'])(e)
-    #     if newele < 20.: # squint is limited at 20 deg elevation
-    #         newele = 20.
-    #     return newele
     # --------------------------------------------------------- #
     def _real_pointing(self, azimuth, elevation):
+        """ azimuth and elevation in radians
+        """
+        if self.instrument_effect:
+            from astropy.io.fits import getdata
+            ff = '/Users/aloh/Documents/Work/Scripts/Own_Packages/nenupy/nenupy/beam/NenuFAR_thph.fits'
+            thph = getdata( ff )
+            phi = int(np.degrees(azimuth)/0.05 - 0.5)  
+            theta = int((90.-np.degrees(elevation))/0.05 - 0.5)
+            t, p = thph[:, theta, phi]
+            azimuth = np.radians(p)
+            elevation = np.radians(90. - t)
         return azimuth, elevation
     # --------------------------------------------------------- #
     def _squint(self, elevation):
+        """ elevation in degrees
+        """
+        if self.instrument_effect:
+            from scipy.io.idl import readsav
+            from scipy.interpolate import interp1d
+            squint  = readsav('/Users/aloh/Documents/Work/Scripts/Own_Packages/nenupy/nenupy/beam/squint_table.sav')
+            optfreq = 30
+            indfreq = np.where(squint['freq']==optfreq)[0][0]
+            newele  = interp1d(squint['elev_desiree'][indfreq,:], squint['elev_a_pointer'])(elevation)
+            if newele < 20.: # squint is limited at 20 deg elevation
+                newele = 20.
+            elevation = newele
         return elevation    
     # --------------------------------------------------------- #
     def _compute_anabeam(self):
@@ -252,7 +254,7 @@ class Anabeam(object):
         az, el = self._real_pointing(self.azana, self.elana)
         ux = np.cos(az) * np.cos(el)
         uy = np.sin(az) * np.cos(el)
-        uz = np.cos(el)
+        uz = np.sin(el)
         phix = antpos[:, 0] * ux[np.newaxis]
         phiy = antpos[:, 1] * uy[np.newaxis]
         phiz = antpos[:, 2] * uz[np.newaxis]
@@ -273,9 +275,10 @@ class Anabeam(object):
         eiphi = np.sum( np.exp(1j * dphase), axis=1 )
 
         beam = eiphi * eiphi.conjugate() * self._ant_gain()
+        # beam = self._ant_gain()
         beam = np.real(beam)
-        beam[self._over_horizon] = 0.
-        self.anabeam = beam / beam.max()
+        beam[self._over_horizon] = 0
+        self.anabeam = beam# / beam.max()
         return
     # --------------------------------------------------------- #
     def _anakwargs(self, kwargs):
@@ -393,7 +396,7 @@ class Digibeam(Anabeam):
                 abeams[str(self.marot%60)] = self.anabeam.copy()
                 if self.miniarrays.size == 1:
                     # Only take the Anabeam
-                    self.digibeam = self.anabeam / self.anabeam.max()
+                    self.digibeam = self.anabeam
                     return
             if not 'summed_mas' in locals():
                 summed_mas = abeams[str(self.marot%60)]
@@ -425,7 +428,7 @@ class Digibeam(Anabeam):
         beam = eiphi * eiphi.conjugate() * summed_mas
         beam = np.real(beam)
         # beam[self._over_horizon] = 0.
-        self.digibeam = beam / beam.max()
+        self.digibeam = beam# / beam.max()
 
         return
     # --------------------------------------------------------- #

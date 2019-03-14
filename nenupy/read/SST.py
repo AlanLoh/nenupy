@@ -97,7 +97,7 @@ class SST(object):
         self._obsfile = sorted(o)
 
         if not self._isSST():
-            raise ValueError("\t=== Files might not all be SST observaitons ===")
+            raise ValueError("\t=== Files might not all be SST observations ===")
         else:
             self._readSST()
 
@@ -293,6 +293,51 @@ class SST(object):
                 Time selected
         """
         self._evalkwargs(kwargs)
+        for ssfile in sorted(self.obsfile):
+            with fits.open(ssfile, mode='readonly', ignore_missing_end=True, memmap=True) as fitsfile:
+                all_time = fitsfile[7].data['jd']
+                # ------ polarization ------ #
+                mask_pol = (self._pols == self.polar)
+                # ------ frequency ------ #
+                if isinstance(self.freq, list):
+                    mask_fre = (self._freqs > 0.) & (self._freqs >= self.freq[0]) & (self._freqs <= self.freq[-1])
+                else:
+                    mask_fre = (self._freqs == min(self._freqs, key=lambda x: np.abs(x-self.freq)))
+                # ------ time ------ #
+                time_obj = Time(all_time, format='jd')
+                if isinstance(self.time, list):
+                    mask_tim = (time_obj >= self.time[0]) & (time_obj <= self.time[1])
+                else:
+                    mask_tim = (time_obj.mjd == min(time_obj.mjd, key=lambda x: np.abs(x-self.time.mjd)) )
+                # ------ mini-array ------ #
+                mask_ma = (self.miniarrays == self.ma)
+                if not 'this_data' in locals():
+                    this_data = fitsfile[7].data['data'][np.ix_(mask_tim, mask_ma, mask_pol, mask_fre)]
+                    this_time = all_time[mask_tim]
+                else:
+                    this_data = np.vstack( (this_data, fitsfile[7].data['data'][np.ix_(mask_tim, mask_ma, mask_pol, mask_fre)]))
+                    this_time = np.hstack( (this_time, all_time[mask_tim]) )
+        f = self._freqs[ mask_fre ]
+        self.data = {'amp': np.squeeze(this_data), 'freq': f, 'time': Time(np.squeeze(this_time), format='jd')}
+        return
+    def select_v0(self, **kwargs):
+        """ Make the data selection
+
+            Parameters
+            ----------
+            kwargs : {freq, ma, polar, time}
+                Keyword arguments
+
+            Returns
+            -------
+            self.d : np.ndarray
+                Data selected
+            self.f : np.ndarray
+                Frequency selected
+            self.t : np.ndarray
+                Time selected
+        """
+        self._evalkwargs(kwargs)
 
         # ------ load data only once ------ #
         if not hasattr(self, '_dataall'):
@@ -419,7 +464,10 @@ class SST(object):
         isSST = True
         for sstfile in self.obsfile:
             with fits.open(sstfile, mode='readonly', ignore_missing_end=True, memmap=True) as f:
-                if f[0].header['OBJECT'] != 'subband Statistics':
+                if not 'OBJECT' in f[0].header.keys():
+                    # This is an old fits
+                    break
+                if f[0].header['OBJECT'].lower() != 'subband statistics':
                     isSST = False
                 else:
                     pass
@@ -432,7 +480,12 @@ class SST(object):
         
         headi = fits.getheader(self.obsfile[0], ext=0, ignore_missing_end=True, memmap=True)
         headf = fits.getheader(self.obsfile[-1], ext=0, ignore_missing_end=True, memmap=True)
-        self.obstart  = Time( headi['DATE-OBS'] + 'T' + headi['TIME-OBS'] )
+        # if headi['DATE-END'] == '':
+        #     headi['DATE-END'] = headi['DATE-OBS']
+        # if headf['DATE-END'] == '':
+        #     headf['DATE-END'] = headf['DATE-OBS']
+        if not hasattr(self, 'obstart'):
+            self.obstart  = Time( headi['DATE-OBS'] + 'T' + headi['TIME-OBS'] )
         self.obstop   = Time( headf['DATE-END'] + 'T' + headf['TIME-END'] )
         self.time     = [self.obstart.copy(), self.obstop.copy()]
         self.exposure = self.obstop - self.obstart

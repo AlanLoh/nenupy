@@ -109,8 +109,11 @@ def getSrc(source, time=None, loc=None, unit='deg'):
             if source.lower() in ['sun', 'moon', 'jupiter', 'saturn', 'mars', 'venus']:
                 time = getTime(time)
                 loc  = getLoc(loc)
-                with coord.solar_system_ephemeris.set('builtin'):
-                    src = coord.get_body(source, time, loc)
+                try:
+                    with coord.solar_system_ephemeris.set('builtin'):
+                        src = coord.get_body(source, time, loc)
+                except:
+                    src = None
             else:
                 src = coord.SkyCoord.from_name(source)
         elif isinstance(source, tuple):
