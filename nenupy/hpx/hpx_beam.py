@@ -220,7 +220,7 @@ class Anabeam(object):
         """
         if self.instrument_effect:
             from astropy.io.fits import getdata
-            ff = '/Users/aloh/Documents/Work/Scripts/Own_Packages/nenupy/nenupy/beam/NenuFAR_thph.fits'
+            ff = os.path.join(os.path.dirname(__file__), '../beam/NenuFAR_thph.fits')
             thph = getdata( ff )
             phi = int(np.degrees(azimuth)/0.05 - 0.5)  
             theta = int((90.-np.degrees(elevation))/0.05 - 0.5)
@@ -235,7 +235,7 @@ class Anabeam(object):
         if self.instrument_effect:
             from scipy.io.idl import readsav
             from scipy.interpolate import interp1d
-            squint  = readsav('/Users/aloh/Documents/Work/Scripts/Own_Packages/nenupy/nenupy/beam/squint_table.sav')
+            squint  = readsav(os.path.join(os.path.dirname(__file__), '../beam/squint_table.sav'))
             optfreq = 30
             indfreq = np.where(squint['freq']==optfreq)[0][0]
             newele  = interp1d(squint['elev_desiree'][indfreq,:], squint['elev_a_pointer'])(elevation)

@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument('-a', '--azimuth', type=float, default=180, help="Azimuth in degrees", required=False)
     parser.add_argument('-e', '--elevation', type=float, default=90, help="Elevation in degrees", required=False)
     parser.add_argument('-p', '--polar', type=str, default='NW', help="Polarization (NW or NE)", required=False)
-    parser.add_argument('-m', '--ma', type=int, default=-1, help="Mini-Array name indices (e.g. -m -1: all mini-arrays; -m 10 20)", required=False, nargs='+')
+    parser.add_argument('-m', '--ma', type=int, default=[-1], help="Mini-Array name indices (e.g. -m -1: all mini-arrays; -m 10 20)", required=False, nargs='+')
     args = parser.parse_args()
 
     if args.ma == [-1]:
