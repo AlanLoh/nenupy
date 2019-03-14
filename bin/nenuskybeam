@@ -61,7 +61,7 @@ if __name__ == "__main__":
     theta = np.linspace(0., 90., skybeam.shape[0])
     phi   = np.radians( np.linspace(-180., 180., skybeam.shape[1]) )
 
-    fig = plt.figure(figsize=(18/2.54, 18/2.54))
+    fig = plt.figure(figsize=(15/2.54, 15/2.54))
     ax  = fig.add_subplot(111, projection='polar')
     normcb = mpl.colors.LogNorm(vmin=skybeam.max() * 1.e-5, vmax=skybeam.max())
     p = ax.pcolormesh(phi, theta, np.flipud(skybeam), norm=normcb, rasterized=True, cmap='bone')
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     ax.set_ylim(0, 90)
 
     if args.store.lower().endswith('png'):
-        plt.savefig(args.store, dpi=100, facecolor='none',
+        plt.savefig(args.store, facecolor='none',
             edgecolor='none', transparent=True, bbox_inches='tight')
     else:
         plt.show()
