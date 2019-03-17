@@ -463,7 +463,7 @@ class BST(object):
         if hasattr(self, 'src'):
             if self.type == 'transit':
                 try:
-                    from ..astro import getTransit
+                    from nenupy.astro import getTransit
                     transit = getTransit(source=self.src, time=self.obstart, loc='Nenufar', az=self.azdig)
                     transit = (transit - self.data['time'][0]).sec / 60.
                     plt.axvline(x=transit, color='black', linestyle='-.', linewidth=1)
@@ -599,7 +599,8 @@ class BST(object):
         self._ellistdig = setup_pbe['EL']
         self._pointdigt = Time(setup_pbe['timestamp'])
 
-        if self._pointanat.shape[1] != 1:
+        # if self._pointanat.shape[1] != 1:
+        if self._pointdig.size > self.dbeams.size:
             self.type = 'tracking'
         else:
             self.type = 'transit'

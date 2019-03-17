@@ -139,7 +139,7 @@ class Anabeam(object):
     def get_anabeam(self):
         """
         """
-        beam = self._compute_anabeam()
+        self._compute_anabeam()
         return
 
 
@@ -169,7 +169,13 @@ class Anabeam(object):
                                  [-np.sin(rot), np.cos(rot), 0],
                                  [ 0,           0,           1]])
             antpos = np.dot( antpos, rotation )
-        return antpos#[9].reshape((1, 3)) # single_ant
+        if self.ant is None:
+            # use the 19 antennas
+            return antpos
+        else:
+            self.ant = np.array(self.ant)
+            return antpos[self.ant].reshape((self.ant.size, 3))
+        return antpos
     # --------------------------------------------------------- #
     def _ant_gain(self):
         """
@@ -291,6 +297,7 @@ class Anabeam(object):
         self.azana = kwargs.get('azana', 180.)
         self.elana = kwargs.get('elana', 90.)
         self.resol = kwargs.get('resol', 0.9)
+        self.ant   = kwargs.get('ant', None)
         return
 # ============================================================= #
 # ============================================================= #

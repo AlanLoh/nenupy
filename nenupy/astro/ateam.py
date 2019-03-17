@@ -45,11 +45,8 @@ class Source(object):
             if s.lower() in ATEAM.keys():
                 src = coord.SkyCoord(ATEAM[s.lower()][0], ATEAM[s.lower()][1], frame="icrs", unit="deg")
             elif s.lower() in ['sun', 'moon', 'jupiter', 'saturn', 'mars', 'venus']:
-                try:
-                    with coord.solar_system_ephemeris.set('builtin'):
-                        src = coord.get_body(s, self.time, self.location)
-                except:
-                    src = None
+                with coord.solar_system_ephemeris.set('builtin'):
+                    src = coord.get_body(s, self.time, self.location)
             else:
                 src = coord.SkyCoord.from_name(s)
         else:

@@ -287,13 +287,13 @@ class Transit(Simu):
         self._transit_sky(**kwargs)
         return
     # --------------------------------------------------------- #
-    def from_bst(self, obs, dbeam=0, **kwargs):
+    def from_bst(self, bst, dbeam=0, **kwargs):
         """ Do the simulaiton based on an existing BST observation
         """
         self._simukwargs(kwargs)
 
-        if not isinstance(obs, BST):
-            bst = BST(obs)
+        if not isinstance(bst, BST):
+            bst = BST(bst)
         assert bst.type == 'transit',\
             'Obs is not a transit.'
         bst.select(freq=self.freq, polar=self.polar, dbeam=dbeam)
@@ -362,13 +362,13 @@ class Tracking(Simu):
         self._tracking_sky(src=src, **kwargs)
         return
     # --------------------------------------------------------- #
-    def from_bst(self, obs, dbeam=0, **kwargs):
+    def from_bst(self, bst, dbeam=0, **kwargs):
         """ Do the simulaiton based on an existing BST observation
         """
         self._simukwargs(kwargs)
 
-        if not isinstance(obs, BST):
-            bst = BST(obs)
+        if not isinstance(bst, BST):
+            bst = BST(bst)
         assert bst.type == 'tracking',\
             'Obs is not a tracking.'
         bst.select(freq=self.freq, polar=self.polar, dbeam=dbeam)
