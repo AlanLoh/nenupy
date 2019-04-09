@@ -96,10 +96,10 @@ class XST():
             except:
                 print("\n\t=== WARNING: Mini-Array index {} not recognized ===".format(m))
                 m = 0
-        if m in self.miniarrays:
+        if m in self.allma:
                 self._ma1 = m
         else:
-            print("\n\t=== WARNING: available Mini-Arrays are {} ===".format(self.miniarrays))
+            print("\n\t=== WARNING: available Mini-Arrays are {} ===".format(self.allma))
             self._ma1 = 0
         return
 
@@ -118,10 +118,10 @@ class XST():
             except:
                 print("\n\t=== WARNING: Mini-Array index {} not recognized ===".format(m))
                 m = 0
-        if m in self.miniarrays:
+        if m in self.allma:
                 self._ma2 = m
         else:
-            print("\n\t=== WARNING: available Mini-Arrays are {} ===".format(self.miniarrays))
+            print("\n\t=== WARNING: available Mini-Arrays are {} ===".format(self.allma))
             self._ma2 = 0
         return
 
@@ -148,6 +148,48 @@ class XST():
             # doesn't matter, we replace the data by the conjugate of YX which exists.
             data[:, :, 1] = np.conjugate(data[:, :, 2])
         self.d = data
+        return
+
+    def plot_cross_time(self, ma, polar='XX'):
+        """ Plot all the cross correlations between the Mini-Array `ma`
+            and the rest of the Mini-Arrays vs time for the last frequency band
+        """
+        
+        # pol = ['XX', 'XY', 'YX', 'YY'].index(polar.upper())
+        # self.ma1 = ma
+        # for ant2 in self.allma:
+        #     self.ma2 = ant2
+        #     if self.ma1 == self.ma2:
+        #         continue
+        #     self.getData()
+        #     if 'data' in locals():
+        #         data = np.vstack( (data, self.d[:, -1, pol]) )
+        #     else:
+        #         data = self.d[:, -1, pol].copy()
+        # import pylab as plt
+        # plt.imshow(np.absolute(data), origin='lower', aspect='auto')
+        # plt.show()
+
+
+        pol = ['XX', 'XY', 'YX', 'YY'].index(polar.upper())
+        data = fits.getdata(self.obsfile, ext=7, memmap=True)['DATA'][:, -1, :]
+        amp = np.zeros( (self.allma.size, data.shape[0]) ) 
+        for ant2 in self.allma:
+            if ma == ant2:
+                continue
+            baseline = np.sort( [ma, ant2] )[::-1] # descending order
+            # ------ Indices ------
+            # These formulas were defined to fit the table of detail_FITS_00_05.pdf (it a kind of triangular series)
+            MA1X_MA2X = baseline[0]*2*(baseline[0]*2+1)/2       + 2*baseline[1]
+            MA1X_MA2Y = baseline[0]*2*(baseline[0]*2+1)/2+1     + 2*baseline[1] # it will be the same as next one for auto-corr
+            MA1Y_MA2X = (baseline[0]*2+1)*(baseline[0]*2+2)/2   + 2*baseline[1]
+            MA1Y_MA2Y = (baseline[0]*2+1)*(baseline[0]*2+2)/2+1 + 2*baseline[1]
+            index     = np.array([MA1X_MA2X, MA1X_MA2Y, MA1Y_MA2X, MA1Y_MA2Y]).astype(int)
+            d         = data[:, index]
+            amp[ant2, :] = np.absolute(d[:, pol])
+        amp[amp == 0] = np.nan
+        plt.imshow(np.log10(amp), origin='lower', aspect='auto')
+        plt.show()
         return
 
     def plotCorrMat(self, polar='XX'):

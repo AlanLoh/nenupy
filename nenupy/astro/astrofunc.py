@@ -116,6 +116,8 @@ def getSrc(source, time=None, loc=None, unit='deg'):
                 #     src = None
                 with coord.solar_system_ephemeris.set('builtin'):
                     src = coord.get_body(source, time, loc)
+            if source.lower() == 'zenith':
+                print('To be implemented')
             else:
                 src = coord.SkyCoord.from_name(source)
         elif isinstance(source, tuple):
@@ -136,7 +138,7 @@ def getSrc(source, time=None, loc=None, unit='deg'):
 # =================================================================================== #
 # ------------------------------------ getAltaz ------------------------------------- #
 # =================================================================================== #
-def getAltaz(source, time, loc, unit='deg'):
+def getAltaz(source, time, loc, unit='deg', galactic=False):
     """ Convert Equatorial coordinates (in deg) to the Horizontal (alt-az) system
 
         Parameters
@@ -162,15 +164,18 @@ def getAltaz(source, time, loc, unit='deg'):
         assert len(source)==2, 'Only length 2 tuple is understood.'
         ra, dec = source
         if not unit.lower() == 'deg':
-            ra, dec = np.degrees(ra, dec)
+            ra, dec = np.degrees(ra), np.degrees(dec)
     elif isinstance(source, coord.SkyCoord):
         ra, dec = source.ra.deg, source.dec.deg
     else:
         raise ValueError('source parameter not understood.')
 
     time  = getTime(time)
-    loc   = getLoc(loc) 
-    radec = coord.SkyCoord(ra*u.deg, dec*u.deg, frame='icrs')
+    loc   = getLoc(loc)
+    if galactic:
+        radec = coord.SkyCoord(ra*u.deg, dec*u.deg, frame='galactic')
+    else:    
+        radec = coord.SkyCoord(ra*u.deg, dec*u.deg, frame='icrs')
     frame = coord.AltAz(obstime=time, location=loc)
     altaz = radec.transform_to(frame)
 

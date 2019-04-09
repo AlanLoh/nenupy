@@ -12,7 +12,7 @@ from astropy.time import Time
 
 from pygsm import GlobalSkyModel
 
-from nenupy.astro import toRadec, getSrc
+from nenupy.astro import toRadec, getSrc, getAltaz
 
 
 __author__ = 'Alan Loh'
@@ -92,6 +92,57 @@ class Skymodel(object):
         sys.stdout = sys.__stdout__
 
         return skymap
+
+    def visible_sky(self, time='now', model='gsm', **kwargs):
+        if model.lower() == 'gsm': 
+            if not hasattr(self, 'map'):
+                self._load_gsm_model()
+        elif model.lower() == 'pointsource':
+            if not hasattr(self, 'map'):
+                try:
+                    ra = kwargs['ra']
+                    dec = kwargs['dec']
+                except:
+                    raise ValueErrror('ra and dec should be specified.')
+                self._load_point_model(ra=ra, dec=dec)
+        else:
+            raise ValueErrror('Only gsm or pointsource')
+
+        lgrid, bgrid = hp.pix2ang(nside=self.nside,
+                                    ipix=np.arange(hp.nside2npix(self.nside)),
+                                    lonlat=True,
+                                    nest=False)
+        print(lgrid.min(), lgrid.max(), bgrid.min(), bgrid.max())
+        altaz = getAltaz((lgrid, bgrid), time=time, loc='NenuFAR', galactic=True)
+        azgrid, elgrid = altaz.az.deg, altaz.alt.deg
+        # altaz_map = self.get_skymodel(time=time, model=model)
+
+        # npix = hp.nside2npix(self.nside)
+        # azgrid, elgrid = hp.pix2ang(nside=self.nside,
+        #                             ipix=np.arange(npix),
+        #                             lonlat=True,
+        #                             nest=False)
+        # elgrid = np.radians(elgrid)
+        over_horizon = (elgrid < 0.)
+        self.map[over_horizon] = np.nan
+        
+        # altaz = getAltaz((0., 0.),
+        #     time=self.time,
+        #     loc='NenuFAR',
+        #     unit='deg')
+
+        # rot_alt = altaz.alt.rad
+        # rot_az = (altaz.az.rad)%(2.*np.pi)
+
+        # rot = hp.Rotator(deg=False,
+        #     rot=[rot_az, rot_alt],
+        #     coord=['G', 'C'])
+        # sys.stdout = open(os.devnull, 'w')
+        # skymap = rot.rotate_map_alms(altaz_map)
+        # # skymap = rot.rotate_map_pixel(self.map)
+        # sys.stdout = sys.__stdout__
+
+        return self.map
 
     # ========================================================= #
     # ----------------------- Internal ------------------------ #
