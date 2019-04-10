@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
     ax.set_theta_zero_location('N')
     ax.set_theta_direction(-1)
-    plt.title('pol={}, freq={:.2f}MHz, az={}, el={}'.format(args.polar, args.freq, args.azimuth, args.elevation))
+    plt.title('pol={}, freq={:.1f}MHz, az={:.2f}, el={:.2f}\ntime={} UTC'.format(args.polar, args.freq, args.azimuth, args.elevation, args.time))
     ax.set_ylim(0, 90)
 
     if args.store.lower().endswith('png'):

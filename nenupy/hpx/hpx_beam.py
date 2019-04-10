@@ -32,6 +32,7 @@ class Anabeam(object):
     def __init__(self, **kwargs):
         self.instrument_effect = True
         self.antpos_offset = 90 # angle to rotate
+        self._ant_nec_mode = 'nec4'
         self._anakwargs(kwargs)
 
     # ========================================================= #
@@ -142,6 +143,15 @@ class Anabeam(object):
         self._compute_anabeam()
         return
 
+    # --------------------------------------------------------- #
+    def get_azel_anabeam(self, az, el):
+        """ Get the gain value at direction (az, el)
+        """
+        if not hasattr(self, 'anabeam'):
+            self.get_anabeam()
+        gain_idx = hp.ang2pix(theta=az, phi=el, nside=self._nside, lonlat=True)
+        return self.anabeam[gain_idx]
+
 
     # ========================================================= #
     # ----------------------- Internal ------------------------ #
@@ -184,41 +194,74 @@ class Anabeam(object):
             if hp.npix2nside(self.antgain.size) == self._nside:
                 # This has already been computed
                 return self.antgain
-        f1 = int( np.floor( self.freq/10. ) ) * 10
-        f2 = int( np.ceil(  self.freq/10. ) ) * 10
-        cols={'NW_10': 0,
-              'NW_20': 1,
-              'NW_30': 2,
-              'NW_40': 3,
-              'NW_50': 4,
-              'NW_60': 5,
-              'NW_70': 6,
-              'NW_80': 7,
-              'NE_10': 8,
-              'NE_20': 9,
-              'NE_30': 10,
-              'NE_40': 11,
-              'NE_50': 12,
-              'NE_60': 13,
-              'NE_70': 14,
-              'NE_80': 15}
-        modulpath = os.path.dirname(os.path.realpath(__file__))
-        antfile = os.path.join(modulpath, 'NenuFAR_Ant_Hpx.fits') 
-        antgain1 = hp.read_map(filename=antfile,
-            hdu=1,
-            field=cols['{}_{}'.format(self.polar, f1)],
-            verbose=False,
-            memmap=True)
-        antgain2 = hp.read_map(filename=antfile,
-            hdu=1,
-            field=cols['{}_{}'.format(self.polar, f2)],
-            verbose=False,
-            memmap=True)
-        if f1 != f2:
-            antgain = antgain1 * (f2-self.freq) / 10. + antgain2 * (self.freq-f1) / 10.
+        if self._ant_nec_mode == 'nec4':
+            modulpath = os.path.dirname(os.path.realpath(__file__))
+            antfile = os.path.join(modulpath, 'NenuFAR_Ant_NEC4_Hpx.fits')
+            freqs = np.arange(10, 92.5, 2.5) 
+
+            f1 = freqs[freqs <= self.freq].max()
+            f2 = freqs[freqs >= self.freq].min()
+            
+            count = 0
+            cols = {}
+            for p in ['NW', 'NE']:
+                for f in freqs:
+                    cols['{}_{}'.format(p, f)] = count
+                    count += 1
+
+            antgain1 = hp.read_map(filename=antfile,
+                hdu=1,
+                field=cols['{}_{}'.format(self.polar, f1)],
+                verbose=False,
+                memmap=True)
+            antgain2 = hp.read_map(filename=antfile,
+                hdu=1,
+                field=cols['{}_{}'.format(self.polar, f2)],
+                verbose=False,
+                memmap=True)
+
+            if f1 != f2:
+                antgain = antgain1 * (f2-self.freq) / 2.5 + antgain2 * (self.freq-f1) / 2.5
+            else:
+                antgain = antgain1
+            self.antgain = hp.ud_grade(antgain, nside_out=self._nside)
+
         else:
-            antgain = antgain1
-        self.antgain = hp.ud_grade(antgain, nside_out=self._nside)
+            f1 = int( np.floor( self.freq/10. ) ) * 10
+            f2 = int( np.ceil(  self.freq/10. ) ) * 10
+            cols={'NW_10': 0,
+                  'NW_20': 1,
+                  'NW_30': 2,
+                  'NW_40': 3,
+                  'NW_50': 4,
+                  'NW_60': 5,
+                  'NW_70': 6,
+                  'NW_80': 7,
+                  'NE_10': 8,
+                  'NE_20': 9,
+                  'NE_30': 10,
+                  'NE_40': 11,
+                  'NE_50': 12,
+                  'NE_60': 13,
+                  'NE_70': 14,
+                  'NE_80': 15}
+            modulpath = os.path.dirname(os.path.realpath(__file__))
+            antfile = os.path.join(modulpath, 'NenuFAR_Ant_Hpx.fits') 
+            antgain1 = hp.read_map(filename=antfile,
+                hdu=1,
+                field=cols['{}_{}'.format(self.polar, f1)],
+                verbose=False,
+                memmap=True)
+            antgain2 = hp.read_map(filename=antfile,
+                hdu=1,
+                field=cols['{}_{}'.format(self.polar, f2)],
+                verbose=False,
+                memmap=True)
+            if f1 != f2:
+                antgain = antgain1 * (f2-self.freq) / 10. + antgain2 * (self.freq-f1) / 10.
+            else:
+                antgain = antgain1
+            self.antgain = hp.ud_grade(antgain, nside_out=self._nside)
         return self.antgain
     # --------------------------------------------------------- #
     def _real_pointing(self, azimuth, elevation):
@@ -280,9 +323,9 @@ class Anabeam(object):
         # ------ e^(i Phi) ------ #
         eiphi = np.sum( np.exp(1j * dphase), axis=1 )
 
-        beam = eiphi * eiphi.conjugate() * self._ant_gain()
+        beam = eiphi * eiphi.conjugate()# * self._ant_gain()
         # beam = self._ant_gain()
-        beam = np.real(beam)
+        beam = np.absolute(beam) * self._ant_gain()#np.real(beam)
         beam[self._over_horizon] = 0
         self.anabeam = beam# / beam.max()
         return
@@ -385,9 +428,16 @@ class Digibeam(Anabeam):
         # hp.cartview( np.log10(self.digibeam))
         # # hp.graticule()
         # plt.show()
-
-            
         return self.digibeam
+
+    # --------------------------------------------------------- #
+    def get_azel_digibeam(self, az, el):
+        """ Get the gain value at direction (az, el)
+        """
+        if not hasattr(self, 'digibeam'):
+            self.get_digibeam()
+        gain_idx = hp.ang2pix(theta=az, phi=el, nside=self._nside, lonlat=True)
+        return self.digibeam[gain_idx]
 
     # ========================================================= #
     # ----------------------- Internal ------------------------ #
@@ -433,7 +483,7 @@ class Digibeam(Anabeam):
         eiphi = np.sum( np.exp(1j * dphase), axis=1 )
 
         beam = eiphi * eiphi.conjugate() * summed_mas
-        beam = np.real(beam)
+        beam = np.absolute(beam)#np.real(beam)
         # beam[self._over_horizon] = 0.
         self.digibeam = beam# / beam.max()
 
