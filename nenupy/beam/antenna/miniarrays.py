@@ -19,7 +19,7 @@ __version__ = '0.0.1'
 __maintainer__ = 'Alan Loh'
 __email__ = 'alan.loh@obspm.fr'
 __status__ = 'WIP'
-__all__ = ['antpos', 'ma', 'all_ma', 'nenufarloc']
+__all__ = ['antpos', 'ma', 'all_ma', 'all_remote', 'ma_petal', 'nenufarloc']
 
 
 nenufarloc = coord.EarthLocation(lat=47.376511*u.deg, lon=2.1924002*u.deg)
@@ -107,7 +107,7 @@ ma = np.array([
     [55, 90,  639216.821, 6697651.656, 182.376, 1106,   23.5]
 ])
 
-# All planned Mini-Arrays
+# All planned Mini-Arrays (they are not indexed as MA indices)
 all_ma = np.array([[639113.347, 6697663.522, 0.0],
                    [639094.592, 6697644.758, 0.0],
                    [639039.214, 6697646.506, 0.0],
@@ -204,3 +204,32 @@ all_ma = np.array([[639113.347, 6697663.522, 0.0],
                    [639158.085, 6697404.914, 0.0],
                    [639199.446, 6697454.725, 0.0],
                    [639213.387, 6697485.127, 0.0]])
+
+# Petals
+# real MA indices :
+ma_petal = {
+  'P1': np.array([0, 1, 2, 5, 52, 53, 54, 55]),
+  'P2': np.array([10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]),
+  'P3': np.array([22, 23, 24, 25, 26, 27, 28, 29, 30, 31]),
+  'P4': np.array([9, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51]),
+  'P5': np.array([6, 7, 8, 32, 33, 34, 35, 36, 37, 38, 39, 40]),
+  'P6': np.array([3, 4, 56, 57, 58, 59, 60, 61, 62, 63]),
+  'P7': np.array([64, 65, 66, 67, 68, 69, 70, 71]),
+  'P8': np.array([72, 73, 74, 76, 78, 81, 82, 87, 88, 89, 90, 91, 92, 93, 94]),
+  'P9': np.array([75, 77, 79, 80, 83, 84, 85, 86, 95]),
+}
+
+# Compatible with `all_ma`
+# ma_petal2 = {
+#   'P6': np.array([52,53,54,55,56,57,58,59]),
+#   'P7': np.array([60,61,62,63,64,65,66,69]),
+#   'P8': np.array([67,68,70,71,80,81,86,87,88,89,90,91,92,93]),
+#   'P9': np.array([74,76,78,79,82,83,84,85,94,95]),
+# }
+
+
+
+# All planned remote Mini-Arrays
+all_remote = np.array([
+      [639592.76, 6697936.983, 184.324]
+    ])

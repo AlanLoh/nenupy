@@ -12,7 +12,8 @@ __version__ = '0.0.1'
 __maintainer__ = 'Alan Loh'
 __email__ = 'alan.loh@obspm.fr'
 __status__ = 'WIP'
-__all__ = ['ant_eff_area',
+__all__ = ['cor_azel',
+           'ant_eff_area',
            'ma_eff_area',
            'nenufar_eff_area',
            'sky_temperature',
@@ -37,6 +38,23 @@ import astropy.units as u
 from astropy import constants as const
 from nenupy.beam.antenna import miniarrays
 import numpy as np
+
+
+# =================================================================================== #
+# ------------------------------------ cor_azel ------------------------------------- #
+# =================================================================================== #
+def cor_azel(az, el):
+    """
+    """
+    from scipy.io import readsav
+    from scipy.interpolate import interp1d
+    aa = readsav('/Users/aloh/Desktop/cor_azel.sav')
+    daz_interp = interp1d(aa['x_cor'], aa['daz_cor'])
+    del_interp = interp1d(aa['x_cor'], aa['del_cor'])
+
+    az_cor = az + daz_interp(az)/60.
+    el_cor = el + del_interp(az)/60.
+    return az_cor, el_cor
 
 
 # =================================================================================== #
@@ -392,7 +410,7 @@ def nenufar_fov(freq):
         - fov : float
             Field of view in deg^2
     """
-    fwhm = ma_psf(freq=freq)
+    fwhm = ma_resol(freq=freq)
     radius = fwhm / 2 
     fov = np.pi * radius**2
     return fov
@@ -448,7 +466,11 @@ def nenufar_im_rate(ma=96, nch=64, dt=1, bwidth=75, tobs=3600):
     bw_sb = 0.1953125 * u.MHz
     n_subband = (bwidth / bw_sb).value
     n_subband = np.round(n_subband) if np.round(n_subband) < 768 else 768
-    return n_subband
+
+    sb_rate = 8. * 4. * nch * (ma*(ma - 1)/2. + ma)/dt
+    rate = sb_rate * n_subband
+    volume = rate * tobs
+    return volume
 
 
 # =================================================================================== #
@@ -466,8 +488,10 @@ def nenufar_baselines(ma=None, auto=False):
 
         Parameters
         ----------
-        - ma : list, np.ndarray
+        - ma : list, np.ndarray, str
             Mini-arrays indices to use for the calculation (None=all 96 mini-arrays)
+            'core': 96 core mini-arrays
+            'remote': core + 6 remote
         - auto : bool
             Take into account auto-correlations or not
 
@@ -476,7 +500,17 @@ def nenufar_baselines(ma=None, auto=False):
         - baselines
     """
     mapos = miniarrays.all_ma
-    if ma is not None:
+    mapos2 = miniarrays.all_remote
+    if isinstance(ma, str):
+        if ma.lower() == 'core':
+            pass
+        elif ma.lower() == 'remote':
+            mapos = np.vstack((mapos, mapos2))
+        else:
+            pass
+    elif ma is None:
+        pass
+    else:
         ma = np.array(ma, dtype=np.int32) 
         mapos = mapos[ma].reshape((ma.size, 3))
     n_ant = mapos.shape[0]
@@ -492,7 +526,7 @@ def nenufar_baselines(ma=None, auto=False):
 # =================================================================================== #
 # ------------------------------------- plot_uv ------------------------------------- #
 # =================================================================================== #
-def plot_uv(uvw, title=''):
+def plot_uv(uvw, title='', unit='lambda'):
     import pylab as plt
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     fig, ax = plt.subplots(figsize=(7, 7))
@@ -501,7 +535,7 @@ def plot_uv(uvw, title=''):
     hbins = ax.hexbin(x=u,
                       y=v,
                       C=None,
-                      cmap='bone_r',
+                      cmap='inferno',#'bone_r',
                       mincnt=1,
                       bins=None,
                       gridsize=200,
@@ -510,7 +544,7 @@ def plot_uv(uvw, title=''):
                       yscale='linear',
                       edgecolors='face',
                       linewidths=0,
-                      vmax=None)#,
+                      vmax=None,)#,
                       # C=None,
                       # gridsize=200,
                       # mincnt=1,
@@ -528,9 +562,35 @@ def plot_uv(uvw, title=''):
     cb = fig.colorbar(hbins, cax=cax)
     cb.set_label('Histogram')
     ax.set_title(title)
-    ax.set_xlabel('u ($\\lambda$)')
-    ax.set_ylabel('v ($\\lambda$)')
+    if unit.lower == 'lambda':
+        ax.set_xlabel('u ($\\lambda$)')
+        ax.set_ylabel('v ($\\lambda$)')
+    else:
+        ax.set_xlabel('u (m)')
+        ax.set_ylabel('v (m)')
     lim = np.max((np.abs(ax.get_xlim()).max(), np.abs(ax.get_ylim()).max()))
+
+    # Show circles of resolutions:
+    lambdas = np.linspace(0, lim, 4)
+    for i, lamb in enumerate(lambdas[1:]):
+        col = '0.7'# 'white' if i<2 else 'black'
+        resol = np.degrees(1. / lamb) #* 3600
+        circle = plt.Circle((0, 0), lamb, color=col, linestyle='-', fill=False, linewidth=1)#, alpha=0.5)
+        ax.add_artist(circle)
+        # ax.text(0, -lamb, '{:.2f} deg'.format(resol), horizontalalignment='center', verticalalignment='bottom', color='black')
+        ax.text(lamb*np.cos(-np.pi/4), lamb*np.sin(-np.pi/4), '{:.2f} deg'.format(resol),
+            horizontalalignment='right',
+            verticalalignment='bottom',
+            color='black',
+            bbox=dict(boxstyle="round",
+                   edgecolor='none',
+                   facecolor='white',
+                   alpha = 0.8,
+                   )
+            )
+
+        # print(arcesc_resol / 60)
+
     ax.set_xlim(-lim, lim)
     ax.set_ylim(-lim, lim)
     plt.show()
@@ -539,7 +599,7 @@ def plot_uv(uvw, title=''):
 # =================================================================================== #
 # --------------------------------- nenufar_uvw_snap -------------------------------- #
 # =================================================================================== #
-def nenufar_uvw_snap(time='now', freq=50, source='North Celestial Pole', ma=None, auto=False, plot=False):
+def nenufar_uvw_snap(time='now', freq=50, source='North Celestial Pole', ma=None, auto=False, plot=False, unit='lambda'):
     """ Compute the snapshot (u,v,w) plane at time `time
 
         Parameters
@@ -576,6 +636,7 @@ def nenufar_uvw_snap(time='now', freq=50, source='North Celestial Pole', ma=None
     n_baselines = len(baselines)
     # uvw = np.zeros( (n_baselines, 3) )
     
+    nenufar_lat = np.radians(nenufar_lat)
     # E, N, U coordinates to x, y, z (https://web.njit.edu/~gary/728/Lecture6.html)
     trans1 = np.matrix([ [0, -np.sin(nenufar_lat), np.cos(nenufar_lat)],
                          [1,                    0,                   0],
@@ -592,10 +653,10 @@ def nenufar_uvw_snap(time='now', freq=50, source='North Celestial Pole', ma=None
     #     uvw[k, :] = np.squeeze(temp) * freq*1.e6 / const.c.value 
 
     xyz = np.dot(baselines[:, 1, :] - baselines[:, 0, :], trans1)
-    uvw = np.dot(xyz, trans2) * freq*1.e6 / const.c.value
+    uvw = np.dot(xyz, trans2) * freq*1.e6 / const.c.value if unit.lower()=='lambda' else np.dot(xyz, trans2)
 
     if plot:
-        plot_uv(uvw, title='Instantaneous UV coverage')
+        plot_uv(uvw, title='Instantaneous UV coverage ({} MHz)'.format(freq), unit=unit)
         return
     else:
         return np.array(uvw)
@@ -604,7 +665,7 @@ def nenufar_uvw_snap(time='now', freq=50, source='North Celestial Pole', ma=None
 # =================================================================================== #
 # -------------------------------- nenufar_uvw_track -------------------------------- #
 # =================================================================================== #
-def nenufar_uvw_track(start, stop, dt=1, freq=50, source='North Celestial Pole', ma=None, auto=False, plot=False):
+def nenufar_uvw_track(start, stop, dt=1, freq=50, source='North Celestial Pole', ma=None, auto=False, plot=False, unit='lambda'):
     """
     """
     from nenupy.astro import getSrc, getTime
@@ -622,6 +683,7 @@ def nenufar_uvw_track(start, stop, dt=1, freq=50, source='North Celestial Pole',
 
     baselines = nenufar_baselines(ma=ma, auto=auto)
     n_baselines = len(baselines)
+    nenufar_lat = np.radians(nenufar_lat)
     trans1 = np.matrix([ [0, -np.sin(nenufar_lat), np.cos(nenufar_lat)],
                          [1,                    0,                   0],
                          [0,  np.cos(nenufar_lat), np.sin(nenufar_lat)]])
@@ -634,7 +696,8 @@ def nenufar_uvw_track(start, stop, dt=1, freq=50, source='North Celestial Pole',
                             [-np.sin(dec)*np.cos(ha),  np.sin(dec)*np.sin(ha), np.cos(dec)],
                             [ np.cos(dec)*np.cos(ha), -np.cos(dec)*np.sin(ha), np.sin(dec)]])
         xyz = np.dot(baselines[:, 1, :] - baselines[:, 0, :], trans1)
-        tmp_uvw = np.dot(xyz, trans2) * freq*1.e6 / const.c.value
+        # tmp_uvw = np.dot(xyz, trans2) * freq*1.e6 / const.c.value
+        tmp_uvw = np.dot(xyz, trans2) * freq*1.e6 / const.c.value if unit.lower()=='lambda' else np.dot(xyz, trans2)
 
         # tmp_uvw = nenufar_uvw_snap(time=start+i*dt, freq=freq, source=source, ma=ma, auto=auto)
         
@@ -644,7 +707,7 @@ def nenufar_uvw_track(start, stop, dt=1, freq=50, source='North Celestial Pole',
             uvw = np.vstack((uvw, tmp_uvw))
 
     if plot:
-        plot_uv(uvw, title='UV coverage ({0:.1f} sec)'.format((i+1)*dt.value))
+        plot_uv(uvw, title='UV coverage ({0:.1f} sec, {1:} MHz)'.format((i+1)*dt.value, freq), unit=unit)
         return
     else:
         return uvw

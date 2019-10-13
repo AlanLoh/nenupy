@@ -590,11 +590,19 @@ class BST(object):
         self._ddeltat   = TimeDelta(setup_bea['Duration'], format='sec')
 
         self._pointana  = setup_pan['noAnaBeam']
+        # if (self._pointana.size > 1) & (np.unique(self._pointana).size == 1):
+        #     # Multi-transit
+        #     self.abeams = np.arange(self._pointana.size, dtype=int)
+        #     self._pointana = np.arange(self._pointana.size, dtype=int)
         self._azlistana = setup_pan['AZ']
         self._ellistana = setup_pan['EL']
         self._pointanat = Time(np.array([setup_pan['timestamp'][self._pointana==i] for i in self.abeams]))
         
         self._pointdig  = setup_pbe['noBeam']
+        # if (self._pointdig.size > 1) & (np.unique(self._pointdig).size == 1):
+        #     # Multi-transit
+        #     self._pointdig = np.arange(self._pointdig.size, dtype=int)
+        #     self.dbeams = np.arange(self._pointdig.size, dtype=int)
         self._azlistdig = setup_pbe['AZ']
         self._ellistdig = setup_pbe['EL']
         self._pointdigt = Time(setup_pbe['timestamp'])

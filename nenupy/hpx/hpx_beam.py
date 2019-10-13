@@ -152,6 +152,31 @@ class Anabeam(object):
         gain_idx = hp.ang2pix(theta=az, phi=el, nside=self._nside, lonlat=True)
         return self.anabeam[gain_idx]
 
+    # --------------------------------------------------------- #
+    def slice_anabeam(self, az=None, el=None, n=100):
+        """ Get a slice of the analog beam.
+
+            Parameters
+            ----------
+            az : float (default = None)
+            el : float (default = None)
+            n : int (default = 100)
+                Number of points for the slice evaluation
+        """
+        n = int(n)
+        if az is not None:
+            if el is not None:
+                raise Exception('Only one parameter should not be None between az and el')
+            elevation = np.linspace(0, 90, n)
+            azimuth = np.ones(n) * az
+        elif el is not None:
+            elevation = np.ones(n) * el
+            azimuth = np.linspace(0, 360, n)
+        else:
+            raise Exception('Either az or el parameters should not be None')
+        slice_pixels = hp.ang2pix(self._nside, theta=azimuth, phi=elevation, lonlat=True)
+        return self.anabeam[slice_pixels]
+
 
     # ========================================================= #
     # ----------------------- Internal ------------------------ #
@@ -438,6 +463,31 @@ class Digibeam(Anabeam):
             self.get_digibeam()
         gain_idx = hp.ang2pix(theta=az, phi=el, nside=self._nside, lonlat=True)
         return self.digibeam[gain_idx]
+
+    # --------------------------------------------------------- #
+    def slice_digibeam(self, az=None, el=None, n=100):
+        """ Get a slice of the numerical beam.
+
+            Parameters
+            ----------
+            az : float (default = None)
+            el : float (default = None)
+            n : int (default = 100)
+                Number of points for the slice evaluation
+        """
+        n = int(n)
+        if az is not None:
+            if el is not None:
+                raise Exception('Only one parameter should not be None between az and el')
+            elevation = np.linspace(0, 90, n)
+            azimuth = np.ones(n) * az
+        elif el is not None:
+            elevation = np.ones(n) * el
+            azimuth = np.linspace(0, 360, n)
+        else:
+            raise Exception('Either az or el parameters should not be None')
+        slice_pixels = hp.ang2pix(self._nside, theta=azimuth, phi=elevation, lonlat=True)
+        return self.digibeam[slice_pixels]
 
     # ========================================================= #
     # ----------------------- Internal ------------------------ #

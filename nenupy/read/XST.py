@@ -328,6 +328,33 @@ class XST():
         """
         return
 
+    def makeImage(self):
+        """
+            A CHECKER : https://github.com/cosmicpudding/lofarimaging/blob/master/LOFAR%20LBA%20imaging%20tutorial%20v4.ipynb
+        """
+        # Getting the Visbilities
+        # data = fits.getdata(self.obsfile, ext=7, memmap=True)['DATA']
+        # subbandlist = fits.getdata(self.obsfile, ext=2)['subbandlist']
+        
+        # MXX = np.zeros((nbMRon,nbMRon,DATA.shape[0],len(subbandlist[0])),dtype=np.complex)
+        # MYY = np.zeros((nbMRon,nbMRon,DATA.shape[0],len(subbandlist[0])),dtype=np.complex)        
+        # N = DATA.shape[0]*len(subbandlist[0])
+
+        # for i_t in range(data.shape[0]):
+        #    for i_sb in range(len(subbandlist[0])):
+        #         M = np.zeros((nbMRon*2, nbMRon*2),dtype=np.complex)
+        #         M[np.tril_indices(nbMRon*2,0)] = data[i_t,i_sb,:]
+
+        #         # X polar
+        #         Mup = M[::2,::2].T.conj() # up triangle version, transpose of the lower triangle version stored in the FITS
+        #         Mup[range(Mup.shape[0]),range(Mup.shape[1])] = 0
+        #         MXX[:,:,i_t,i_sb] = M[::2,::2] + Mup
+        #         # Y polar
+        #         Mup = M[1::2,1::2].T.conj() # up triangle version, transpose of the lower triangle version stored in the FITS
+        #         Mup[range(Mup.shape[0]),range(Mup.shape[1])] = 0
+        #         MYY[:,:,i_t,i_sb] = M[1::2,1::2] + Mup
+        return
+
     # ================================================================= #
     # =========================== Internal ============================ #
     def _isXST(self):

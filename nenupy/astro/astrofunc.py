@@ -116,7 +116,7 @@ def getSrc(source, time=None, loc=None, unit='deg'):
                 #     src = None
                 with coord.solar_system_ephemeris.set('builtin'):
                     src = coord.get_body(source, time, loc)
-            # if source.lower() == 'zenith':
+            # elif source.lower() == 'zenith':
             #     print('To be implemented')
             else:
                 src = coord.SkyCoord.from_name(source)

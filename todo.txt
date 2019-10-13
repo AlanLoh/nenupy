@@ -1,0 +1,49 @@
+TO DO
+
+Include MOC
+
+from astropy_healpix import HEALPix
+from astropy.units import Unit as u
+from astropy.io import fits
+from astropy.time import Time
+from astropy.coordinates import AltAz, ICRS, SkyCoord, EarthLocation
+from mocpy import STMOC, TimeMOC, MOC
+
+file='20190320_104900_BST.fits'
+hd = fits.open(file)
+
+nenufar_location = EarthLocation.from_geodetic(lat=47.376511*u('deg'), lon=2.1924002*u('deg'), height=136*u('m'))
+nenufar_times = Time(hd[6].data['timestamp'])
+nenufar_coord_altaz = AltAz(alt=hd[6].data['EL']*u('deg'), az=hd[6].data['AZ']*u('deg'), obstime=nenufar_times, location=nenufar_location)
+nenufar_coord_icrs = nenufar_coord_altaz.transform_to(ICRS)
+
+nenufar_lon = nenufar_coord_icrs.ra
+nenufar_lat = nenufar_coord_icrs.dec
+
+%time nenufar_tmoc = TimeMOC.from_time_ranges(nenufar_times, nenufar_times+TimeDelta(10*u('s')), TimeDelta(1*u('s')))
+%time nenufar_stmoc = STMOC.from_times_positions(nenufar_times, 18, nenufar_lon, nenufar_lat, 10)
+
+nenufar_tmoc.write('./tmoc.fits', overwrite=True)
+nenufar_stmoc.write('./stmoc.fits', overwrite=True)
+
+nenufar_tmoc.plot()
+
+
+
+
+
+
+
+
+
+nenufar_moc_1d = MOC.from_elliptical_cone(nenufar_lon[0], nenufar_lat[0], 1*u('deg'), 1*u('deg'), 0*u('deg'),18)
+nenufar_moc_10d = MOC.from_elliptical_cone(nenufar_lon[0], nenufar_lat[0], 10*u('deg'), 10*u('deg'), 0*u('deg'),18)
+
+nenufar_moc_15d = MOC.from_elliptical_cone(nenufar_lon[0], nenufar_lat[0], 15*u('deg'), 15*u('deg'), 0*u('deg'),18)
+nenufar_moc_20d = MOC.from_elliptical_cone(nenufar_lon[0], nenufar_lat[0], 20*u('deg'), 20*u('deg'), 0*u('deg'),18)
+
+nenufar_moc_ring = nenufar_moc_20d.difference(nenufar_moc_15d)
+
+nenufar_moc_1d.write('./moc_1d.fits', overwrite=True)
+nenufar_moc_10d.write('./moc_10d.fits', overwrite=True)
+nenufar_moc_ring.write('./moc_ring.fits', overwrite=True)

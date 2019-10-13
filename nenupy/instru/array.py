@@ -13,10 +13,54 @@ __all__ = ['core_ma',
            'remote_ma']
 
 
-def core_ma():
-    """ Iterator over the core Mini-Arrays
+import numpy as np
+
+
+class MiniArrays(object):
+    """ NenuFAR Mini-Arrays class
     """
-    ma_index = 0
-    while ma_index < 96:
-        yield ma_index
-        ma_index += 1
+    def __init__(self, ma_indices):
+        self.indices = ma_indices
+
+    def itcore():
+        """ Iterator over the core Mini-Arrays
+        """
+        ma_index = 0
+        while ma_index < 96:
+            yield ma_index
+            ma_index += 1
+
+
+class UVW(object):
+    """ Class to handle UVW distributions
+    """
+
+    def __init__(self, antennas):
+        self.antennas = antennas
+        self.autocor = False
+
+    @property
+    def antennas(self):
+        return self._antennas
+    @antennas.setter
+    def antenas(self, ant):
+        if not isinstance(ant, np.ndarray):
+            ant = np.array(ant)
+        assert ant.shape[1] == 3,\
+            'ant axis 1 should be 3D (x, y, z)'
+        self._antennas = ant
+        self.n_ant = ant.shape[0]
+        return
+
+    def _baselines(self):
+        """
+        """
+        baselines = []
+        auto = int(not self.autocor)
+        for i in range(0, self.n_ant-auto):
+            for j in range(i+int(not auto), self.n_ant):
+                ant1 = self.antenas[i]
+                ant2 = self.antenas[j]
+                baselines.append( (ant1, ant2) )
+        return np.array(baselines)
+    
