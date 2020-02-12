@@ -322,7 +322,7 @@ class SpecData(object):
             polar=self.polar.copy())
 
 
-    def tmean(self, t1=None, t2=None):
+    def tmean(self, t1=None, t2=None, method='mean',):
         """ Average over the time.
             
             Parameters
@@ -351,9 +351,13 @@ class SpecData(object):
         tmask = (self.time >= t1) & (self.time <= t2)
         tmasked = self.time[tmask]
         dt = (tmasked[-1] - tmasked[0])
-        mean = np.mean(self.data[tmask, :, :], axis=0)
+        #mean = np.mean(self.data[tmask, :, :], axis=0)
+        average = np.mean(self.data[tmask, :, :], axis=0)\
+            if method == 'mean'\
+            else np.median(self.data[tmask, :, :], axis=0)
         return SpecData(
-            data=np.expand_dims(mean, axis=0),
+            #data=np.expand_dims(mean, axis=0),
+            data=np.expand_dims(average, axis=0),
             time=np.array([tmasked[0] + dt/2.]),
             freq=self.freq.copy(),
             polar=self.polar.copy())
@@ -617,13 +621,13 @@ class BST(NenuFAR_Obs):
         """
         self._tmask = np.ones(self.times.size, dtype=bool)
         self._tmask *= (
-            (self.times >= self.beam_start) &\
-            (self.times <= self.beam_stop)
+            (self.times >= self.beam_start[0]) &\
+            (self.times <= self.beam_stop[-1])
             )
 
         if self._time.size == 2:
-            if (self._time[0] > self.beam_stop) or\
-                (self._time[1] < self.beam_start):
+            if (self._time[0] > self.beam_stop[-1]) or\
+                (self._time[1] < self.beam_start[0]):
                 pass 
             else:
                 self._tmask *= (
@@ -631,8 +635,8 @@ class BST(NenuFAR_Obs):
                     (self.times <= self._time[1])
                     )
         else:
-            if (self._time[0] > self.beam_stop) or\
-                (self._time[0] < self.beam_start):
+            if (self._time[0] > self.beam_stop[-1]) or\
+                (self._time[0] < self.beam_start[0]):
                 pass 
             else:
                 self._tmask *= (
@@ -749,24 +753,36 @@ class BST(NenuFAR_Obs):
         """ Start of the selected numerical pointing
         """
         start = self._meta['pbe']['timestamp'][self._pointing]
-        start = start[0]
-        start = np.datetime64(start.replace('Z', ''), 's')
+        start = np.array(
+            [s.replace('Z', '') for s in start],
+            dtype='datetime64[s]')
         return start
 
     @property
     def beam_stop(self):
         """ End of the selected numerical pointing
         """
-        if not self._pointing[-1]:
-            # Last element is False: don't go to the last timestamp
-            stop = self._meta['pbe']['timestamp'][np.roll(self._pointing, 1)]
-            if not isinstance(stop, str):
-                stop = stop[-1]
-            stop = np.datetime64(stop.replace('Z', ''), 's')
-        else:
-            stop = self.obs_stop
-        if stop <= self.beam_start:
-            stop = self.obs_stop
+        stop = self._meta['pbe']['timestamp'][np.roll(self._pointing, 1)]
+        stop = np.array(
+                [s.replace('Z', '') for s in stop],
+                dtype='datetime64[s]')
+        for i, s in enumerate(stop):
+            if s <= self.beam_start[0]:
+                stop[i] = self.obs_stop
+        # if not self._pointing[-1]:
+        #     # Last element is False: don't go to the last timestamp
+        #     stop = self._meta['pbe']['timestamp'][np.roll(self._pointing, 1)]
+        #     # if not isinstance(stop, str):
+        #     #     stop = stop[-1]
+        #     # stop = np.datetime64(stop.replace('Z', ''), 's')
+        #     stop = np.array(
+        #         [s.replace('Z', '') for s in stop],
+        #         dtype='datetime64[s]')
+        # else:
+        #     stop = self.obs_stop
+        # for i, s in enumerate(stop):
+        #     if s <= self.beam_start:
+        #         stop[i] = self.obs_stop
         return stop
 
     @property
@@ -841,6 +857,32 @@ class BST(NenuFAR_Obs):
         el = self.all_eldig[self._pointing]
         return el * u.deg
 
+
+    @property
+    def ma(self):
+        """ Mini-array used
+        """
+        n = self._meta['ana']['nbMRUsed'][self.ab]
+        return self._meta['ana']['MRList'][self.ab, :n]
+
+
+    @property
+    def ma_position(self):
+        """ Positions of mini-arrays
+        """
+        pos = self._meta['ins']['noPosition']
+        pos = pos.reshape((pos.size//3, 3))
+        return pos[self.ma]
+
+
+    @property
+    def ma_rotation(self):
+        """ Rotations of mini-arrays
+        """
+        rot = self._meta['ins']['rotation']
+        rot = rot[0]
+        return rot[self.ma]
+    
 
     # ------------------------- Method -------------------------#
     def select(self, **kwargs):

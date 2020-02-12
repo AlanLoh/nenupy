@@ -510,17 +510,23 @@ class Digibeam(Anabeam):
             else:
                 summed_mas += abeams[str(self.marot%60)]
 
-        ux = np.cos(self.azdig) * np.cos(self.eldig)
-        uy = np.sin(self.azdig) * np.cos(self.eldig)
-        uz = np.cos(self.eldig)
+        # ux = np.cos(self.azdig - np.pi/2) * np.cos(np.pi/2 - self.eldig)
+        # uy = np.sin(self.azdig - np.pi/2) * np.cos(np.pi/2 - self.eldig)
+        # uz = np.sin(self.eldig)
+        uy = np.cos(self.azdig) * np.cos(self.eldig)
+        ux = np.sin(self.azdig) * np.cos(self.eldig)
+        uz = np.sin(self.eldig)
         phix = self.mapos[:, 0] * ux[np.newaxis]
         phiy = self.mapos[:, 1] * uy[np.newaxis]
         phiz = self.mapos[:, 2] * uz[np.newaxis]
         phi  = phix + phiy + phiz
 
         # ------ Phase reference ------ #
-        ux = np.cos(self.azgrid) * np.cos(self.elgrid) 
-        uy = np.sin(self.azgrid) * np.cos(self.elgrid) 
+        # ux = np.cos(self.azgrid - np.pi/2) * np.cos(np.pi/2 - self.elgrid) 
+        # uy = np.sin(self.azgrid - np.pi/2) * np.cos(np.pi/2 - self.elgrid) 
+        # uz = np.sin(np.pi/2 - self.elgrid)
+        uy = np.cos(self.azgrid) * np.cos(self.elgrid) 
+        ux = np.sin(self.azgrid) * np.cos(self.elgrid) 
         uz = np.sin(self.elgrid)
         phi0x = self.mapos[:, 0] * ux[:, np.newaxis]
         phi0y = self.mapos[:, 1] * uy[:, np.newaxis]

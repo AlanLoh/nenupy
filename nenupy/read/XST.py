@@ -323,6 +323,29 @@ class XST():
         plt.close('')
         return
 
+    def beamform(self, m1=0, m2=0, **kwargs):
+        """
+            BST = (Xi + Xj)²
+            BST = (Xi + Xj)(Xi + Xj)* = XiXi* + XiXj* + XjXi* + XjXj* = XiXi* + 2Re(XiXj*) + XjXj*
+            BST = XST[i,i] + 2*Re(XST[i,j]) + XST[j,j]
+            i et j étant 2 mini-réseaux
+            XST[i,j] est la partie réelle de la corrélation du réseau i avec le réseau j.
+        """
+        self.getData(ma1=m1, ma2=m1)
+        xst1_xst1 = np.real(self.d)
+        self.getData(ma1=m2, ma2=m2)
+        xst2_xst2 = np.real(self.d)
+        self.getData(ma1=m1, ma2=m2)
+        xst1_xst2 = np.real(self.d)
+
+        bst = xst1_xst1 + 2*xst1_xst2 + xst2_xst2
+
+        plt.plot(10*np.log10(bst[:, 8, 0]), label='XX')
+        plt.plot(10*np.log10(bst[:, 8, 3]), label='XX')
+        plt.legend()
+        plt.show()
+        return
+
     def convertMS(self):
         """ Convert the XST data into a Measurement Set
         """
