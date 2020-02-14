@@ -2,6 +2,10 @@
 
 [![nenupy](https://img.shields.io/pypi/v/nenupy.svg)](
     https://pypi.python.org/pypi/nenupy)
+[![PyPI download month](https://img.shields.io/pypi/dm/nenupy.svg)](
+    https://pypi.python.org/pypi/nenupy/)
+[![PyPI pyversions](https://img.shields.io/pypi/pyversions/nenupy.svg)](
+    https://pypi.python.org/pypi/nenupy/)
 
 <!-- ![Alt text](./Logo-NenuFAR-noir.svg) -->
 <p align="center">
