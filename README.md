@@ -6,6 +6,8 @@
     https://pypi.python.org/pypi/nenupy/)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/nenupy.svg)](
     https://pypi.python.org/pypi/nenupy/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3667816.svg)](https://doi.org/10.5281/zenodo.3667816)
+
 
 <!-- ![Alt text](./Logo-NenuFAR-noir.svg) -->
 <p align="center">

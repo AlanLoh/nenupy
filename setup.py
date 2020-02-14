@@ -17,6 +17,9 @@ setup(name       = 'nenupy',
     author       = metadata['author'],
     author_email = metadata['email'],
     license      = 'MIT',
+    classifiers=[
+        "Programming Language :: Python :: 3",
+    ],
     zip_safe     = False)
 
 # make the package:
