@@ -124,7 +124,7 @@ class Simu(object):
 
     # ========================================================= #
     # ----------------------- Internal ------------------------ #
-    def _compute_beam(self):
+    def _compute_dbeam(self):
         """ Compute a numeric beam
         """
         self.db = Digibeam(azana=self.azana,
@@ -134,8 +134,35 @@ class Simu(object):
             miniarrays=self.nomas,
             freq=self.freq,
             polar=self.polar,
-            resol=self.resol)
+            resol=self.resol
+        )
         self.beam = self.db.get_digibeam()
+        return
+    def _compute_abeam(self):
+        """ Compute a numeric beam
+        """
+        self.ab = Anabeam(
+            azana=self.azana,
+            elana=self.elana,
+            miniarrays=self.nomas,
+            freq=self.freq,
+            polar=self.polar,
+            resol=self.resol)
+        self.ab.get_anabeam()
+        self.beam = self.ab.anabeam
+        return
+    # --------------------------------------------------------- #
+    def _snap_sky(self, t, **kwargs):
+        """ get the sky at time t
+        """
+        self.simulation = {'time': [],
+                            'amp': []}
+        sm = self.model
+        t = Time(t)
+        sky = sm.get_skymodel(time=t, model=self.skymodel, **kwargs)
+        integ = np.sum(self.beam * sky)
+        self.simulation['amp'].append(integ)
+        self.simulation['time'].append(t.mjd)
         return
     # --------------------------------------------------------- #
     def _transit_sky(self, **kwargs):
@@ -202,7 +229,7 @@ class Simu(object):
                 self.elana = obs.elana
                 self.azdig = obs.azdig
                 self.eldig = obs.eldig
-            self._compute_beam()
+            self._compute_dbeam()
             # Integrate the beam x sky
             integ = np.sum(self.beam * sky) # / (4 * np.pi) # * self.db.domega)
 
@@ -282,10 +309,23 @@ class Transit(Simu):
             self.start = time
             self.stop = time + duration
 
-        self._compute_beam()
+        self._compute_dbeam()
 
         self._transit_sky(**kwargs)
         return
+
+    def sst_spectrum(self, az, el, time, **kwargs):
+        """
+        """
+        self._simukwargs(kwargs)
+
+        self.azana = az
+        self.elana = el
+        self._compute_abeam()
+        self._snap_sky(t=time, **kwargs)
+        return
+
+
     # --------------------------------------------------------- #
     def from_bst(self, bst, dbeam=0, **kwargs):
         """ Do the simulaiton based on an existing BST observation
@@ -305,7 +345,35 @@ class Transit(Simu):
         self.nomas = bst.ma
         self.freq = bst.data['freq'][0]
         self.polar = bst.polar
-        self._compute_beam()
+        self._compute_dbeam()
+
+        self.start = bst.data['time'][0]
+        self.stop = bst.data['time'][-1]
+
+        self._transit_sky(**kwargs)
+        return
+    # --------------------------------------------------------- #
+    def from_sst(self, bst, dbeam=0, **kwargs):
+        """ Do the simulaiton based on an existing SST observation
+
+        TO complete
+        """
+        self._simukwargs(kwargs)
+
+        if not isinstance(bst, BST):
+            bst = BST(bst)
+        assert bst.type == 'transit',\
+            'Obs is not a transit.'
+        bst.select(freq=self.freq, polar=self.polar, dbeam=dbeam)
+
+        self.azana = bst.azana
+        self.elana = bst.elana
+        self.azdig = bst.azdig
+        self.eldig = bst.eldig
+        self.nomas = bst.ma
+        self.freq = bst.data['freq'][0]
+        self.polar = bst.polar
+        self._compute_abeam()
 
         self.start = bst.data['time'][0]
         self.stop = bst.data['time'][-1]
