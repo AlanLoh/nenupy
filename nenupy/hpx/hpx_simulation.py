@@ -314,6 +314,21 @@ class Transit(Simu):
         self._transit_sky(**kwargs)
         return
 
+    def transit(self, az=180, el=90, time='now', duration=1800, **kwargs):
+        """
+        """
+        self._simukwargs(kwargs)
+        duration = TimeDelta(duration, format='sec')
+        self.azana = az
+        self.elana = el
+        self.azdig = az
+        self.eldig = el
+        time = getTime(time)
+        self.start = time
+        self.stop = time + duration
+        self._compute_dbeam()
+        self._transit_sky(**kwargs)
+
     def sst_spectrum(self, az, el, time, **kwargs):
         """
         """
