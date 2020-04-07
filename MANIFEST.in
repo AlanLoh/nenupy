@@ -1,9 +1,4 @@
-include nenupy/beam/antenna/LSS_GRID_AG*.sav
-include nenupy/beam/NenuFAR_thph.fits
-include nenupy/beam/squint_table.sav
-include nenupy/hpx/NenuFAR_Ant_Hpx.fits
-include nenupy/hpx/NenuFAR_Ant_NEC4_Hpx.fits
-
-include nenupysim/instru/NenuFAR_thph.fits
-include nenupysim/instru/squint_table.sav
-include nenupysim/instru/NenuFAR_Ant_Hpx.fits
+include nenupy/instru/NenuFAR_thph.fits
+include nenupy/instru/squint_table.sav
+include nenupy/instru/NenuFAR_Ant_Hpx.fits
+include nenupy/skymodel/lfsky.fits

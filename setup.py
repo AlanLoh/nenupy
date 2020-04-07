@@ -1,26 +1,38 @@
+#! /usr/bin/python3
+# -*- coding: utf-8 -*-
+
+
 from setuptools import setup, find_packages
-import re
 import nenupy
 
-meta_file = open('nenupy/metadata.py').read()
-metadata  = dict(re.findall("__([a-z]+)__\s*=\s*'([^']+)'", meta_file))
 
-setup(name       = 'nenupy',
-    packages     = find_packages(),
+setup(
+    name='nenupy',
+    packages=find_packages(),
     include_package_data=True,
-    install_requires=['numpy', 'scipy', 'astropy', 'matplotlib'],
+    install_requires=[
+        'numpy',
+        'scipy',
+        'astropy',
+        'matplotlib',
+        'healpy',
+        'numba',
+        'numexpr',
+        'pyproj'
+    ],
     python_requires='>=3.5',
-    scripts      = ['bin/nenuplot', 'bin/nenusim', 'bin/nenucor', 'bin/nenuinfo', 'bin/nenuplot-gui', 'bin/nenubeam', 'bin/nenuskybeam'],
-    version      = nenupy.__version__,
-    description  = 'NenuFAR Python package',
-    url          = 'https://github.com/AlanLoh/nenupy.git',
-    author       = metadata['author'],
-    author_email = metadata['email'],
-    license      = 'MIT',
+    # scripts=[],
+    version=nenupy.__version__,
+    description='NenuFAR Python package',
+    url='https://github.com/AlanLoh/nenupy.git',
+    author=nenupy.__author__,
+    author_email=nenupy.__email__,
+    license='MIT',
     classifiers=[
         "Programming Language :: Python :: 3",
     ],
-    zip_safe     = False)
+    zip_safe=False
+)
 
 # make the package:
 # python3 setup.py sdist bdist_wheel

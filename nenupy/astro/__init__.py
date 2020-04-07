@@ -1,5 +1,5 @@
-#! /usr/bin/python3.6
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 
-from .ateam import *
-from .astrofunc import *
+from .hpxsky import HpxSky
+from .astro import *

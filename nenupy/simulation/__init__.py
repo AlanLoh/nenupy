@@ -1,6 +1,5 @@
-#! /usr/bin/python3.6
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 
-from .simulations import Transit, Tracking
 
-__all__ = ['Transit', 'Tracking']
+from .hpxsimu import HpxSimu

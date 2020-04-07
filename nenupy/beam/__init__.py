@@ -1,8 +1,6 @@
-#! /usr/bin/python3.5
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 
-from .phasedbeam import PhasedArrayBeam
-from .sstbeam import SSTbeam, SSTbeamHPX
-from .bstbeam import BSTbeam, BSTbeamHPX
 
-__all__ = ['PhasedArrayBeam', 'SSTbeam', 'BSTbeam', 'SSTbeamHPX', 'BSTbeamHPX']
+from .hpxbeam_utils import ma_antpos, ma_info, ma_pos
+from .hpxbeam import HpxABeam, HpxDBeam

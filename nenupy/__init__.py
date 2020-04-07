@@ -1,17 +1,12 @@
-#! /usr/bin/python3.5
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 
-# from .read import SST, BST, XST
-# from .read import __all__ as allread
-
 __author__ = 'Alan Loh'
-__copyright__ = 'Copyright 2018, nenupy'
+__copyright__ = 'Copyright 2020, nenupy'
 __credits__ = ['Alan Loh']
 __license__ = 'MIT'
-__version__ = '0.6.0'
+__version__ = '1.0.0'
 __maintainer__ = 'Alan Loh'
 __email__ = 'alan.loh@obspm.fr'
 
-__all__ = [] 
-# __all__.extend(allread)
-# dontuse # __all__.extend(['beam', 'skymodel', 'astro'])
+

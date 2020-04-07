@@ -1,6 +1,6 @@
-#! /usr/bin/python3.6
+#! /usr/bin/python3
 # -*- coding: utf-8 -*-
 
-from .skymodel import SkyModel
-
-__all__ = ['SkyModel']
+from .skymodel import Skymodel
+from .hpxgsm import HpxGSM
+from .hpxlofar import HpxLOFAR
