@@ -13,7 +13,7 @@ It may also useful to load as well the :class:`~astropy.time.Time` and :class:`~
 >>> from astropy.time import Time
 >>> import astropy.units as u
 
-The :class:`~nenupy.beam.hpxbeam.HpxABeam` object inherits from the :class:`~nenupy.astro.hpxsky.HpxSky` class, that enables sky coordinates handling using `HEALPix <https://healpix.jpl.nasa.gov/>`_ representation. Instanciation of :class:`~nenupy.beam.hpxbeam.HpxABeam` object is made while setting the `resolution` parameter (by default, the value is assumed to be expressed in degrees, but it might be safer to specify the unit):
+The :class:`~nenupy.beam.hpxbeam.HpxABeam` object inherits from the :class:`~nenupy.astro.hpxsky.HpxSky` class, that enables sky coordinates handling using `HEALPix <https://healpix.jpl.nasa.gov/>`_ representation. Instanciation of :class:`~nenupy.beam.hpxbeam.HpxABeam` object is made while setting the ``resolution`` parameter (by default, the value is assumed to be expressed in degrees, but it might be safer to specify the unit):
 
 >>> anabeam = HpxABeam(
         resolution=0.5 * u.deg
@@ -22,7 +22,7 @@ The :class:`~nenupy.beam.hpxbeam.HpxABeam` object inherits from the :class:`~nen
 A :class:`~nenupy.astro.hpxsky.HpxSky` object has been created with the HEALPix resolution closest to the required 0.5 degrees (see for e.g. the `HEALPix pixel information <https://lambda.gsfc.nasa.gov/toolbox/tb_pixelcoords.cfm>`_ to look for available pixel sizes). 
 
 .. note::
-    Therefore, the `nside` attribute has been set:
+    Therefore, the ``nside`` attribute has been set:
 
     >>> anabeam.nside
         128
@@ -30,7 +30,7 @@ A :class:`~nenupy.astro.hpxsky.HpxSky` object has been created with the HEALPix 
     which, by looking a the conversion table, corresponds to a mean spacing of 0.4581 degrees (see also :func:`~healpy.pixelfunc.nside2resol`).
 
 .. warning::
-    The higher the resolution, the longer it will take for the computation to perform. For most cases, the `resolution` parameter doesn't need to be set lower than 0.2 or 0.1 degrees. Check the beam width at a given frequency on the `NenuFAR summary <https://nenufar.obs-nancay.fr/en/astronomer/>`_.
+    The higher the resolution, the longer it will take for the computation to perform. For most cases, the ``resolution`` parameter doesn't need to be set lower than 0.2 or 0.1 degrees. Check the beam width at a given frequency on the `NenuFAR summary <https://nenufar.obs-nancay.fr/en/astronomer/>`_.
 
 Beam computation is then simply performed by calling the :meth:`~nenupy.beam.hpxbeam.HpxABeam.beam` method. The example below simulates the beam from the Mini-Array 02 towards local zenith (i.e. azimuth=180deg, elevation=90deg) at a given time: 
 
@@ -43,10 +43,10 @@ Beam computation is then simply performed by calling the :meth:`~nenupy.beam.hpx
     )
 
 .. note::
-    Setting the `time` parameter (default is current time) allows for computing the correspondance between visible sky from NenuFAR's location and the equatorial coordinates. This also masks unseen pixels for plotting and further computation purposes.
+    Setting the ``time`` parameter (default is current time) allows for computing the correspondance between visible sky from NenuFAR's location and the equatorial coordinates. This also masks unseen pixels for plotting and further computation purposes.
 
 .. note::
-    Some other parameters may also be given for the Analog beam computation, see :class:`~nenupy.beam.hpxbeam.HpxABeam` for the full description. For e.g., the frequency used to compensate for the beamsquint effect can be modified using the `squintfreq` keyword:
+    Some other parameters may also be given for the Analog beam computation, see :class:`~nenupy.beam.hpxbeam.HpxABeam` for the full description. For e.g., the frequency used to compensate for the beamsquint effect can be modified using the ``squintfreq`` keyword:
 
     >>> anabeam.beam(
         freq=80*u.MHz,
@@ -77,7 +77,7 @@ Computation of the NenuFAR beam (also here referred to as 'Digital beam') requir
         resolution=0.2 * u.deg
     )
 
-Aiming at seeing finer structures in the beam, the `resolution` has been set to a lower value. Furthermore, besides `azana` and `elana` that define the analog pointing (and rely on :func:`~nenupy.instru.instru.analog_pointing` to determine the effective pointing with respect to available physical cable delay combinations and :func:`~nenupy.instru.instru.desquint_elevation` to correct for beamsquint effect), the digital pointing direction needs also to be precised using `azdig` and `eldig` keywords:
+Aiming at seeing finer structures in the beam, the ``resolution`` has been set to a lower value. Furthermore, besides ``azana`` and ``elana`` that define the analog pointing (and rely on :func:`~nenupy.instru.instru.analog_pointing` to determine the effective pointing with respect to available physical cable delay combinations and :func:`~nenupy.instru.instru.desquint_elevation` to correct for beamsquint effect), the digital pointing direction needs also to be precised using ``azdig`` and ``eldig`` keywords:
 
 >>> digibeam.beam(
         freq=40*u.MHz,

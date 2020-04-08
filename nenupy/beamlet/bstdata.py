@@ -97,6 +97,7 @@ from astropy.time import Time
 import astropy.units as u
 
 from nenupy.beamlet import Beamlet
+from nenupy.beamlet import SData
 
 import logging
 log = logging.getLogger(__name__)
@@ -632,7 +633,7 @@ class BST_Data(Beamlet):
             :type polar: `str`, optional
 
             :returns: Selected data
-            :rtype: :class:`numpy.ndarray`
+            :rtype: :class:`nenupy.beamlet.sdata.SData`
         """
         self._fill_attr(kwargs)
         data = self.data[
@@ -642,7 +643,13 @@ class BST_Data(Beamlet):
                 self._freq_idx
             )
         ]
-        return data
+        # return data
+        return SData(
+            data=data,
+            time=self.time,
+            freq=self.freq,
+            polar=self.polar
+        )
 
 
     # --------------------------------------------------------- #

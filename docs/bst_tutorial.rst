@@ -1,5 +1,0 @@
-BST analysis
-============
-
-Observation directory
----------------------

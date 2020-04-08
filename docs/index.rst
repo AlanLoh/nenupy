@@ -45,8 +45,10 @@ Finally, observations can then be simulated using the simulated beam and a sky m
    :caption: Tutorials
    :maxdepth: 1
    
-   bst_tutorial
-   beam_simulation
+   tuto_bst
+   tuto_beam_simulation
+   tuto_simulation
+   tuto_xst2bst
 
 .. _data-reading:
 

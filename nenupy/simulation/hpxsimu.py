@@ -36,6 +36,7 @@ from astropy.time import Time, TimeDelta
 from nenupy.skymodel import HpxGSM
 from nenupy.beam import HpxABeam, HpxDBeam
 from nenupy.instru import nenufar_loc
+from nenupy.beamlet import SData
 from nenupy.beamlet import BST_Data
 
 import logging
@@ -90,6 +91,17 @@ class HpxSimu(object):
                     'Simulation of digital pointing'
                 )
         self._ma = m
+        return
+
+
+    @property
+    def freq(self):
+        return self._freq
+    @freq.setter
+    def freq(self, f):
+        if not isinstance(f, u.Quantity):
+            f *= u.MHz
+        self._freq = f
         return
 
 
@@ -244,7 +256,12 @@ class HpxSimu(object):
                 )
             )
             time_list.append(time.mjd)
-        return Time(time_list, format='mjd'), np.array(amp_list)
+        return SData(
+            data=np.expand_dims(np.array(amp_list), axis=(1, 2)),
+            time=Time(time_list, format='mjd'),
+            freq=self.freq,
+            polar=self._gain.polar
+        )
 
     
     def azel_transit(self, az, el, t0, dt, duration, **kwargs):
