@@ -16,6 +16,7 @@ setup(
         'astropy',
         'matplotlib',
         'healpy',
+        'reproject',
         'numba',
         'numexpr',
         'pyproj'

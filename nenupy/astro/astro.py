@@ -132,21 +132,22 @@ def lha(time, ra):
 # ------------------------ wavelength ------------------------- #
 # ============================================================= #
 def wavelength(freq):
-    """ Convert between MHz and wavelength in meters
+    """ Convert radio frequency in wavelength.
 
-        Returns
-        -------
-        wavelength : `np.ndarray`
-            Wavelength in meters
+        :param freq:
+            Frequency (assumed in MHz unless a
+            :class:`astropy.units.Quantity` is provided)
+        :type freq: `float`, :class:`numpy.ndarray` or
+            :class:`astropy.units.Quantity`
+
+        :returns: Wavelength in meters
+        :rtype: :class:`astropy.units.Quantity`
     """
-    if not hasattr(freq, '__len__'):
-        freq = [freq]
-    if not isinstance(freq, np.ndarray):
-        freq = np.array(freq)
-    freq *= u.MHz
+    if not isinstance(freq, u.Quantity):
+        freq *= u.MHz
     freq = freq.to(u.Hz)
-    wavel = lspeed.value / freq.value
-    return wavel
+    wavel = lspeed / freq
+    return wavel.to(u.m)
 # ============================================================= #
 
 

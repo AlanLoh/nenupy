@@ -48,6 +48,8 @@ intersphinx_mapping = {
     'astropy': ('https://docs.astropy.org/en/stable/', None),
     'numpy': ('https://docs.scipy.org/doc/numpy/', None),
     'python': ('http://docs.python.org/3', None),
+    'healpy': ('https://healpy.readthedocs.io/en/latest/', None),
+    # 'nenupy': ('https://nenupy.readthedocs.io/en/latest/', None),
 }
 
 default_role = 'obj'

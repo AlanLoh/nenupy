@@ -166,7 +166,7 @@ class HpxBeam(HpxSky):
         )
         nt = ne.set_num_threads(ne._init_num_threads())
         delay = ne.evaluate('phi_grid-phi0')
-        coeff = 2j * np.pi / wavelength(freq)
+        coeff = 2j * np.pi / wavelength(freq).value
         
         if self.ncpus == 1:
             # Normal
@@ -327,8 +327,8 @@ class HpxDBeam(HpxBeam):
                 summa += abeams[str(rot%60)]
 
         arrfac = self.array_factor(
-            az=self.azdig * u.deg,
-            el=self.eldig * u.deg,
+            az=self.azdig if isinstance(self.azdig, u.Quantity) else self.azdig * u.deg,
+            el=self.eldig if isinstance(self.azdig, u.Quantity) else self.eldig * u.deg,
             antpos=ma_pos[np.isin(ma_info['ma'], self.ma)],
             freq=self.freq
         )

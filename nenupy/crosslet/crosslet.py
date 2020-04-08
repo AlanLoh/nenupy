@@ -262,7 +262,7 @@ class Crosslet(object):
             ma_pos[self._ant1[mask]] - ma_pos[self._ant2[mask]],
             u
         )
-        wavel = wavelength(self.freqs)
+        wavel = wavelength(self.freqs).value
         p[:, trix, triy] = np.exp(
             -2.j*np.pi/wavel[:, None] * dphi
         )
@@ -286,11 +286,11 @@ class Crosslet(object):
         u = np.mean( # Mean in time
             uvw.uvw[..., 0],
             axis=0
-        )[self.mask_auto]/wavelength(self.freqs[f_idx])
+        )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
         v = np.mean(
             uvw.uvw[..., 1],
             axis=0
-        )[self.mask_auto]/wavelength(self.freqs[f_idx])
+        )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
         # Mulitply (u, v) by (l, m) and compute FT exp
         ul = ft_mul(
             x=np.tile(u, (l.size, 1)).T,
