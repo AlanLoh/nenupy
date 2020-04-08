@@ -6,9 +6,30 @@
 Welcome to nenupy's documentation!
 ====================================
 
-The ``nenupy`` Python package is aimed at the analysis of 
-`NenuFAR <https://nenufar.obs-nancay.fr/en/astronomer/>`_ high-rate 
-time-frequency output data from the *UnDySPuTeD* backend.
+`nenupy` stands for Python package for `NenuFAR <https://nenufar.obs-nancay.fr/en/astronomer/>`_ (New Extension in Nançay Upgrading `LOFAR <http://www.lofar.org/>`_), a low-frequency radio-telescope located in Nançay, France. 
+
+It enables reading of the so-called statistics data (or low-rate data) ouptput from the *LANewBa* (LOFAR-like Advanced New Backend) backend, namely *SST*, *BST* and *XST*. Further analysis can be performed depending on the considered dataset (see the tutorial section). 
+
+`nenupy` also allows for *NenuFAR* beam simulation in the radio phased-array frame on a `HEALPix <https://healpix.jpl.nasa.gov/>`_ grid, while taking most of instrumental effects and properties into account.
+
+Finally, observations can then be simulated using the simulated beam and a sky model.
+
+.. note::
+   By default, `logging <https://docs.python.org/3/library/logging.html>`_ is set to `WARNING` level. However, this can be changed dynamically by the user, for e.g.:
+
+   >>> import nenupy
+   >>> import logging
+   >>> logging.getLogger('nenupy').setLevel(logging.INFO)
+
+.. note::
+   Users are most welcome to signal bugs or ask for complementary functionalities via sending a 
+   `Github issue <https://github.com/AlanLoh/nenupy/issues/new/>`_.
+
+.. note::
+   DOI for the `nenupy` package: `10.5281/zenodo.3667815 <https://zenodo.org/record/3667816/>`_.
+
+.. seealso::
+   `nenupytf <https://nenupytf.readthedocs.io/en/latest/>`_, the Python package to read high-rate time-frequency data from the *UnDySPuTeD* NenuFAR backend.
 
 .. _getting-started:
 
@@ -17,7 +38,15 @@ time-frequency output data from the *UnDySPuTeD* backend.
    :maxdepth: 1
 
    install
-   quickstart
+
+.. _tutorials:
+
+.. toctree::
+   :caption: Tutorials
+   :maxdepth: 1
+   
+   bst_tutorial
+   beam_simulation
 
 .. _data-reading:
 
@@ -37,6 +66,15 @@ time-frequency output data from the *UnDySPuTeD* backend.
    nenupy.beam
    nenupy.skymodel
    nenupy.simulation
+
+.. _tools:
+
+.. toctree::
+   :caption: Tools
+   :maxdepth: 2
+
+   nenupy.astro
+   nenupy.instru
 
 
 *****
