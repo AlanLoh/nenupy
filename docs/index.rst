@@ -15,7 +15,7 @@ It enables reading of the so-called statistics data (or low-rate data) ouptput f
 Finally, observations can then be simulated using the simulated beam and a sky model.
 
 .. note::
-   By default, `logging <https://docs.python.org/3/library/logging.html>`_ is set to `WARNING` level. However, this can be changed dynamically by the user, for e.g.:
+   By default, `logging <https://docs.python.org/3/library/logging.html>`_ is set to ``WARNING`` level. However, this can be changed dynamically by the user, for e.g.:
 
    >>> import nenupy
    >>> import logging

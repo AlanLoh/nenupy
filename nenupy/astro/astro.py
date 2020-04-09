@@ -182,9 +182,15 @@ def ho_coord(alt, az, time):
                 time='2020-01-01 12:00:00'
             )
     """
+    if not isinstance(az, u.Quantity):
+        az *= u.deg
+    if not isinstance(alt, u.Quantity):
+        alt *= u.deg
+    if not isinstance(time, Time):
+        time = Time(time)
     return AltAz(
-        az=az*u.deg,
-        alt=alt*u.deg,
+        az=az,
+        alt=alt,
         location=nenufar_loc(),
         obstime=time
     )
@@ -215,9 +221,13 @@ def eq_coord(ra, dec):
                 dec=39,
             )
     """
+    if not isinstance(ra, u.Quantity):
+        ra *= u.deg
+    if not isinstance(dec, u.Quantity):
+        dec *= u.deg
     return ICRS(
-        ra=ra*u.deg,
-        dec=dec*u.deg
+        ra=ra,
+        dec=dec
     )
 # ============================================================= #
 

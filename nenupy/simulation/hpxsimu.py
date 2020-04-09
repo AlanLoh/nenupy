@@ -144,72 +144,72 @@ class HpxSimu(object):
         return
 
 
-    def time_profile(self, times, c1, c2, csys='altaz', **kwargs):
-        """ Simulate a NenuFAR time-profile.
+    # def time_profile(self, times, c1, c2, csys='altaz', **kwargs):
+    #     """ Simulate a NenuFAR time-profile.
 
-            :param times:
-                Time (scalar or array) of the simulation
-            :type times: :class:`astropy.time.Time` 
-            :param c1:
-                First coordinate (scalar or array) of the
-                miniarray pointing (either RA or Az) in deg.
-            :type c1: `np.ndarray` or `float`
-            :param c2:
-                Second coordinate (scalar or array) of the
-                miniarray pointing (either Dec or Alt) in deg.
-            :type c2: `np.ndarray` or `float`
-            :param csys:
-                Coordinate system used to understand `c1` and `c2`
-                Either `'altaz'` or `'radec'`
-                Default: `'altaz'`
+    #         :param times:
+    #             Time (scalar or array) of the simulation
+    #         :type times: :class:`astropy.time.Time` 
+    #         :param c1:
+    #             First coordinate (scalar or array) of the
+    #             miniarray pointing (either RA or Az) in deg.
+    #         :type c1: `np.ndarray` or `float`
+    #         :param c2:
+    #             Second coordinate (scalar or array) of the
+    #             miniarray pointing (either Dec or Alt) in deg.
+    #         :type c2: `np.ndarray` or `float`
+    #         :param csys:
+    #             Coordinate system used to understand `c1` and `c2`
+    #             Either `'altaz'` or `'radec'`
+    #             Default: `'altaz'`
 
-            :returns: (times, amplitudes)
-            :rtype: (:class:`astropy.time.Time`, `np.ndarray`)
-        """
-        amp_list = []
-        time_list = []
-        az, el = self._to_altaz(
-            c1=c1,
-            c2=c2,
-            times=times,
-            csys=csys
-        )
-        # Instanciate the GSM
-        gsm = HpxGSM(
-            freq=self.freq,
-            resolution=self.resolution
-        )
-        # Loop over times
-        for i, time in enumerate(tqdm(times)):
-            if 'azana' not in kwargs.keys():
-                kwargs['azana'] = az[i]
-            if 'elana' not in kwargs.keys():
-                kwargs['elana'] = el[i]
-            self._gain.beam(
-                time=time,
-                # azana=az[i],
-                # elana=el[i],
-                azdig=az[i],
-                eldig=el[i],
-                freq=self.freq,
-                **kwargs
-            )
-            # Rotate the HPX mask of the GSM
-            gsm.time = time
-            # Multiply and sum GMS and Beam
-            vmask = gsm._is_visible
-            gsmcut = gsm.skymap[vmask]
-            beamcut = self._gain.skymap[vmask]
-            amp_list.append(
-                ne.evaluate(
-                    'sum(gsmcut*beamcut)'
-                )
-            )
-            time_list.append(time.mjd)
-        return Time(time_list, format='mjd'), np.array(amp_list)
+    #         :returns: (times, amplitudes)
+    #         :rtype: (:class:`astropy.time.Time`, `np.ndarray`)
+    #     """
+    #     amp_list = []
+    #     time_list = []
+    #     az, el = self._to_altaz(
+    #         c1=c1,
+    #         c2=c2,
+    #         times=times,
+    #         csys=csys
+    #     )
+    #     # Instanciate the GSM
+    #     gsm = HpxGSM(
+    #         freq=self.freq,
+    #         resolution=self.resolution
+    #     )
+    #     # Loop over times
+    #     for i, time in enumerate(tqdm(times)):
+    #         if 'azana' not in kwargs.keys():
+    #             kwargs['azana'] = az[i]
+    #         if 'elana' not in kwargs.keys():
+    #             kwargs['elana'] = el[i]
+    #         self._gain.beam(
+    #             time=time,
+    #             # azana=az[i],
+    #             # elana=el[i],
+    #             azdig=az[i],
+    #             eldig=el[i],
+    #             freq=self.freq,
+    #             **kwargs
+    #         )
+    #         # Rotate the HPX mask of the GSM
+    #         gsm.time = time
+    #         # Multiply and sum GMS and Beam
+    #         vmask = gsm._is_visible
+    #         gsmcut = gsm.skymap[vmask]
+    #         beamcut = self._gain.skymap[vmask]
+    #         amp_list.append(
+    #             ne.evaluate(
+    #                 'sum(gsmcut*beamcut)'
+    #             )
+    #         )
+    #         time_list.append(time.mjd)
+    #     return Time(time_list, format='mjd'), np.array(amp_list)
 
 
-    def time_profile2(self, times, anadir, digdir=None, **kwargs):
+    def time_profile(self, times, anadir, digdir=None, **kwargs):
         """
         """
         amp_list = []
@@ -227,20 +227,12 @@ class HpxSimu(object):
         )
         # Loop over times
         for i, time in enumerate(tqdm(times)):
-            log.debug(
-                'ana=({}; {}) dig=({}, {})'.format(
-                   anadir[i].az.deg,
-                   anadir[i].alt.deg,
-                   None if digdir is None else digdir[i].az.deg,
-                   None if digdir is None else digdir[i].alt.deg
-                )
-            )
             self._gain.beam(
                 time=time,
                 azana=anadir[i].az.deg,
                 elana=anadir[i].alt.deg,
-                azdig=None if digdir is None else digdir[i].az.deg,
-                eldig=None if digdir is None else digdir[i].alt.deg,
+                azdig=None if digdir is None else digdir[i].az,
+                eldig=None if digdir is None else digdir[i].alt,
                 freq=self.freq,
                 **kwargs
             )
@@ -264,119 +256,224 @@ class HpxSimu(object):
         )
 
     
-    def azel_transit(self, az, el, t0, dt, duration, **kwargs):
-        """ Simulate a transit at coordinates (`az`, `el`)
-            at time `t0`.
-            The beam is fixed in AltAz coordinates.
+    # def azel_transit(self, az, el, t0, dt, duration, **kwargs):
+    #     """ Simulate a transit at coordinates (`az`, `el`)
+    #         at time `t0`.
+    #         The beam is fixed in AltAz coordinates.
             
-            :param az:
-                Azimuth of transit in degrees
-            :type az: `float`
-            :param el:
-                Elevation of transit in degrees
-            :type el: `float`
-            :param t0:
-                Time of transit
-            :type t0: :class:`astropy.time.Time` 
-            :param dt:
-                Time resolution of simulation
-            :type dt: :class:`astropy.time.DeltaTime`
-            :param duration:
-                Duration of observation simulation
-            :type duration: :class:`astropy.DeltaTime.Time`
+    #         :param az:
+    #             Azimuth of transit in degrees
+    #         :type az: `float`
+    #         :param el:
+    #             Elevation of transit in degrees
+    #         :type el: `float`
+    #         :param t0:
+    #             Time of transit
+    #         :type t0: :class:`astropy.time.Time` 
+    #         :param dt:
+    #             Time resolution of simulation
+    #         :type dt: :class:`astropy.time.DeltaTime`
+    #         :param duration:
+    #             Duration of observation simulation
+    #         :type duration: :class:`astropy.DeltaTime.Time`
 
-            :returns: (times, amplitudes)
-            :rtype: (:class:`astropy.time.Time`, `np.ndarray`)
+    #         :returns: (times, amplitudes)
+    #         :rtype: (:class:`astropy.time.Time`, `np.ndarray`)
+    #     """
+    #     tmin = t0 - duration/2
+    #     tmax = t0 + duration/2
+    #     times = tmin + dt * np.arange(int(duration/dt) + 1)
+    #     az = np.ones(times.size) * az
+    #     el = np.ones(times.size) * el
+    #     return self.time_profile(
+    #         times=times,
+    #         c1=az,
+    #         c2=el,
+    #         csys='altaz',
+    #         **kwargs
+    #     )
+
+    def azel_transit(self, acoord, t0, dt, duration, dcoord=None, **kwargs):
         """
+        """
+        if not isinstance(acoord, AltAz):
+            raise TypeError(
+                'acoord should be an AltAz object'
+            )
+        if not isinstance(t0, Time):
+            t0 = Time(t0)
+        if not isinstance(dt, TimeDelta):
+            dt = TimeDelta(dt, format='sec')
+        if not isinstance(duration, TimeDelta):
+            duration = TimeDelta(duration, format='sec')
         tmin = t0 - duration/2
         tmax = t0 + duration/2
-        times = tmin + dt * np.arange(int(duration/dt) + 1)
-        az = np.ones(times.size) * az
-        el = np.ones(times.size) * el
+        times = tmin + dt * np.arange(int(duration/dt) + 2)
+        anacoord = AltAz(
+            az=np.ones(times.size) * acoord.az,
+            alt=np.ones(times.size) * acoord.alt,
+            obstime=times,
+            location=nenufar_loc
+        )
+        if dcoord is None:
+            digcoord = anacoord.copy()
+        else:
+            if not isinstance(dcoord, AltAz):
+                raise TypeError(
+                    'dcoord should be an AltAz object'
+                )
+            digcoord = AltAz(
+                az=np.ones(times.size) * dcoord.az,
+                alt=np.ones(times.size) * dcoord.alt,
+                obstime=times,
+                location=nenufar_loc
+            )
         return self.time_profile(
             times=times,
-            c1=az,
-            c2=el,
-            csys='altaz',
+            anadir=anacoord,
+            digdir=digcoord,
             **kwargs
         )
 
 
-    def radec_transit(self, ra, dec, t0, dt, duration, **kwargs):
-        """ Simulate a transit at coordinates (`ra`, `dec`)
-            at time `t0`.
-            The beam is fixed in AltAz coordinates.
-
-            :param ra:
-                Right Ascension of transit in degrees
-            :type ra: `float`
-            :param dec:
-                Declination of transit in degrees
-            :type dec: `float`
-            :param t0:
-                Time of transit
-            :type t0: :class:`astropy.time.Time` 
-            :param dt:
-                Time resolution of simulation
-            :type dt: :class:`astropy.time.DeltaTime`
-            :param duration:
-                Duration of observation simulation
-            :type duration: :class:`astropy.DeltaTime.Time`
-
-            :returns: (times, amplitudes)
-            :rtype: (:class:`astropy.time.Time`, `np.ndarray`)
+    def radec_transit(self, acoord, t0, dt, duration, dcoord=None, **kwargs):
         """
-        az, el = self._to_altaz(
-            c1=ra,
-            c2=dec,
-            times=t0,
-            csys='radec'
+        """
+        if not isinstance(t0, Time):
+            t0 = Time(t0)
+        altaz_frame = AltAz(
+            obstime=t0,
+            location=nenufar_loc
         )
+        if not isinstance(acoord, ICRS):
+            raise TypeError(
+                'acoord should be an ICRS object'
+            )
+        if dcoord is not None:
+            if not isinstance(dcoord, ICRS):
+                raise TypeError(
+                    'dcoord should be an ICRS object'
+                )
+            dcoord = dcoord.transform_to(altaz_frame)
+        acoord = acoord.transform_to(altaz_frame)
         return self.azel_transit(
-            az=az[0],
-            el=el[0],
+            acoord=acoord,
             t0=t0,
             dt=dt,
             duration=duration,
+            dcoord=dcoord,
             **kwargs
         )
 
+    # def radec_transit(self, ra, dec, t0, dt, duration, **kwargs):
+    #     """ Simulate a transit at coordinates (`ra`, `dec`)
+    #         at time `t0`.
+    #         The beam is fixed in AltAz coordinates.
 
-    def radec_tracking(self, ra, dec, t0, dt, duration, **kwargs):
-        """ Simulate a tracking at coordinates (`ra`, `dec`)
-            at time `t0`.
-            The beam is fixed in RADec coordinates.
+    #         :param ra:
+    #             Right Ascension of transit in degrees
+    #         :type ra: `float`
+    #         :param dec:
+    #             Declination of transit in degrees
+    #         :type dec: `float`
+    #         :param t0:
+    #             Time of transit
+    #         :type t0: :class:`astropy.time.Time` 
+    #         :param dt:
+    #             Time resolution of simulation
+    #         :type dt: :class:`astropy.time.DeltaTime`
+    #         :param duration:
+    #             Duration of observation simulation
+    #         :type duration: :class:`astropy.DeltaTime.Time`
 
-            :param ra:
-                Right Ascension of transit in degrees
-            :type ra: `float`
-            :param dec:
-                Declination of transit in degrees
-            :type dec: `float`
-            :param t0:
-                Start time of simulation
-            :type t0: :class:`astropy.time.Time` 
-            :param dt:
-                Time resolution of simulation
-            :type dt: :class:`astropy.time.DeltaTime`
-            :param duration:
-                Duration of observation simulation
-            :type duration: :class:`astropy.DeltaTime.Time`
+    #         :returns: (times, amplitudes)
+    #         :rtype: (:class:`astropy.time.Time`, `np.ndarray`)
+    #     """
+    #     az, el = self._to_altaz(
+    #         c1=ra,
+    #         c2=dec,
+    #         times=t0,
+    #         csys='radec'
+    #     )
+    #     return self.azel_transit(
+    #         az=az[0],
+    #         el=el[0],
+    #         t0=t0,
+    #         dt=dt,
+    #         duration=duration,
+    #         **kwargs
+    #     )
 
-            :returns: (times, amplitudes)
-            :rtype: (:class:`astropy.time.Time`, `np.ndarray`)
+
+    def radec_tracking(self, acoord, t0, dt, duration, dcoord=None, **kwargs):
         """
+        """
+        if not isinstance(t0, Time):
+            t0 = Time(t0)
+        if not isinstance(dt, TimeDelta):
+            dt = TimeDelta(dt, format='sec')
+        if not isinstance(duration, TimeDelta):
+            duration = TimeDelta(duration, format='sec')
         tmax = t0 + duration
-        times = t0 + dt * np.arange(int(duration/dt) + 1)
-        ra = np.ones(times.size) * ra
-        dec = np.ones(times.size) * dec
+        times = t0 + dt * np.arange(int(duration/dt) + 2)
+        altaz_frame = AltAz(
+            obstime=times,
+            location=nenufar_loc
+        )
+        if not isinstance(acoord, ICRS):
+            raise TypeError(
+                'acoord should be an ICRS object'
+            )
+        if dcoord is not None:
+            if not isinstance(dcoord, ICRS):
+                raise TypeError(
+                    'dcoord should be an ICRS object'
+                )
+            dcoord = dcoord.transform_to(altaz_frame)
+        acoord = acoord.transform_to(altaz_frame)
         return self.time_profile(
             times=times,
-            c1=ra,
-            c2=dec,
-            csys='radec',
+            anadir=acoord,
+            digdir=dcoord,
             **kwargs
         )
+
+
+    # def radec_tracking(self, ra, dec, t0, dt, duration, **kwargs):
+    #     """ Simulate a tracking at coordinates (`ra`, `dec`)
+    #         at time `t0`.
+    #         The beam is fixed in RADec coordinates.
+
+    #         :param ra:
+    #             Right Ascension of transit in degrees
+    #         :type ra: `float`
+    #         :param dec:
+    #             Declination of transit in degrees
+    #         :type dec: `float`
+    #         :param t0:
+    #             Start time of simulation
+    #         :type t0: :class:`astropy.time.Time` 
+    #         :param dt:
+    #             Time resolution of simulation
+    #         :type dt: :class:`astropy.time.DeltaTime`
+    #         :param duration:
+    #             Duration of observation simulation
+    #         :type duration: :class:`astropy.DeltaTime.Time`
+
+    #         :returns: (times, amplitudes)
+    #         :rtype: (:class:`astropy.time.Time`, `np.ndarray`)
+    #     """
+    #     tmax = t0 + duration
+    #     times = t0 + dt * np.arange(int(duration/dt) + 1)
+    #     ra = np.ones(times.size) * ra
+    #     dec = np.ones(times.size) * dec
+    #     return self.time_profile(
+    #         times=times,
+    #         c1=ra,
+    #         c2=dec,
+    #         csys='radec',
+    #         **kwargs
+    #     )
 
 
     @classmethod
@@ -402,7 +499,7 @@ class HpxSimu(object):
         kwargs['ma'] = bstdata.mas
         kwargs['polar'] = bstdata.polar
         times = bstdata.t_min + np.arange(
-            int((bstdata.t_max - bstdata.t_min)/dt) + 1
+            int((bstdata.t_max - bstdata.t_min)/dt) + 2
         )*dt
         anaidx = np.searchsorted(
             bstdata.utana[:, 0],
@@ -432,7 +529,7 @@ class HpxSimu(object):
             obstime=times,
             location=nenufar_loc
         )
-        return simu.time_profile2(
+        return simu.time_profile(
             times=times,
             anadir=anacoord,
             digdir=digcoord,

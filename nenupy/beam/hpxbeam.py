@@ -41,6 +41,9 @@ from multiprocessing import Pool, sharedctypes
 from healpy import ud_grade
 import astropy.units as u
 
+import logging
+log = logging.getLogger(__name__)
+
 
 # ============================================================= #
 # ------------------- Parallel computation -------------------- #
@@ -119,9 +122,83 @@ class HpxBeam(HpxSky):
             resolution=resolution
         )
 
+
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
-    
+    @property
+    def azana(self):
+        """
+        """
+        return self._azana
+    @azana.setter
+    def azana(self, a):
+        if isinstance(a, u.Quantity):
+            pass
+        elif a is None:
+            raise ValuError(
+                'azana should not be None'
+            )
+        else:
+            a *= u.deg
+        self._azana = a
+        return
+
+
+    @property
+    def elana(self):
+        """
+        """
+        return self._elana
+    @elana.setter
+    def elana(self, e):
+        if isinstance(e, u.Quantity):
+            pass
+        elif e is None:
+            raise ValuError(
+                'azana should not be None'
+            )
+        else:
+            e *= u.deg
+        self._elana = e
+        return
+
+
+    @property
+    def azdig(self):
+        """
+        """
+        if self._azdig is None:
+            return self.azana
+        return self._azdig
+    @azdig.setter
+    def azdig(self, a):
+        if isinstance(a, u.Quantity):
+            pass
+        elif a is None:
+            pass
+        else:
+            a *= u.deg
+        self._azdig = a
+        return
+
+
+    @property
+    def eldig(self):
+        """
+        """
+        if self._eldig is None:
+            return self.elana
+        return self._eldig
+    @eldig.setter
+    def eldig(self, e):
+        if isinstance(e, u.Quantity):
+            pass
+        elif e is None:
+            pass
+        else:
+            e *= u.deg
+        self._eldig = e
+        return
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -140,12 +217,6 @@ class HpxBeam(HpxSky):
             phi = antennas * xyz_proj
             return phi
 
-        # # Compensate beam squint
-        # el = desquint_elevation(elevation=el).value
-        # # Real pointing
-        # az, el = analog_pointing(az, el)
-        # az = az.value
-        # el = el.value
         self.phase_center = to_radec(
             ho_coord(
                 az=az.value,
@@ -234,6 +305,14 @@ class HpxABeam(HpxBeam):
         )
         # Real pointing
         az, el = analog_pointing(self.azana, el)
+        log.debug(
+            'ABeam asked=({}; {}) effective=({}, {})'.format(
+                self.azana,
+                self.elana,
+                az,
+                el
+            )
+        )
 
         arrfac = self.array_factor(
             az=az,
@@ -295,6 +374,8 @@ class HpxDBeam(HpxBeam):
         )
         self._fill_attr(kwargs)
 
+
+
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
 
@@ -325,10 +406,15 @@ class HpxDBeam(HpxBeam):
                 summa = abeams[str(rot%60)]
             else:
                 summa += abeams[str(rot%60)]
-
+        log.debug(
+            'DBeam effective=({}, {})'.format(
+                self.azdig,
+                self.eldig,
+            )
+        )
         arrfac = self.array_factor(
-            az=self.azdig if isinstance(self.azdig, u.Quantity) else self.azdig * u.deg,
-            el=self.eldig if isinstance(self.azdig, u.Quantity) else self.eldig * u.deg,
+            az=self.azdig,
+            el=self.eldig,
             antpos=ma_pos[np.isin(ma_info['ma'], self.ma)],
             freq=self.freq
         )

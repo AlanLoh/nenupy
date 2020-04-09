@@ -7,6 +7,7 @@ nenupy.beamlet
 
    nenupy.beamlet.beamlet
    nenupy.beamlet.bstdata
+   nenupy.beamlet.sdata
 
 
 
