@@ -1,3 +1,5 @@
+.. _tuto_simu_ref:
+
 Observation simulations
 =======================
 

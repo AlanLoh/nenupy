@@ -20,7 +20,8 @@ __all__ = [
     'nenufar_loc',
     'analog_pointing',
     'desquint_elevation',
-    'nenufar_ant_gain'
+    'nenufar_ant_gain',
+    'read_cal_table'
 ]
 
 
@@ -44,6 +45,9 @@ import os, sys
 from os.path import join, dirname
 from scipy.io.idl import readsav
 from scipy.interpolate import interp1d
+
+import logging
+log = logging.getLogger(__name__)
 
 
 # ============================================================= #
@@ -188,7 +192,7 @@ def nenufar_ant_gain(freq, polar='NW', nside=64, time=None):
     gain_freqs = np.arange(10, 90, 10, dtype=int)
     count = 0
     cols = {}
-    for p in ['NW', 'NE']:
+    for p in ['NE', 'NW']:#['NW', 'NE']:
         for f in gain_freqs:
             cols['{}_{}'.format(p, f)] = count
             count += 1
@@ -243,5 +247,46 @@ def nenufar_ant_gain(freq, polar='NW', nside=64, time=None):
     return gain / gain.max()
 # ============================================================= #
 
+
+# ============================================================= #
+# ---------------------- read_cal_table ----------------------- #
+# ============================================================= #
+def read_cal_table(calfile=None):
+    """
+        data(sb, ma, pol)
+    """
+    if (calfile is None) or (calfile.lower() == 'default'):
+        calfile = join(
+            dirname(__file__),
+            'cal_pz_2_multi_2019-02-23.dat',
+        )
+    with open(calfile, 'rb') as f:
+        log.info(
+            'Loading calibration table {}'.format(
+                calfile
+            )
+        )
+        header = []
+        while True:
+            line = f.readline()
+            header.append(line)
+            if line.startswith(b'HeaderStop'):
+                break
+    hd_size = sum([len(s) for s in header])
+    dtype = np.dtype(
+        [
+            ('data', 'float64', (512, 96, 2, 2))
+        ]
+    )
+    tmp = np.memmap(
+        filename=calfile,
+        dtype='int8',
+        mode='r',
+        offset=hd_size
+    )
+    decoded = tmp.view(dtype)[0]['data']
+    data = decoded[..., 0] + 1.j*decoded[..., 1]
+    return data
+# ============================================================= #
 
 

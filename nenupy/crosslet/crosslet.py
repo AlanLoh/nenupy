@@ -31,9 +31,10 @@ except ModuleNotFoundError:
         return func
 
 from nenupy.astro import wavelength, HpxSky, eq_zenith
-from nenupy.instru import nenufar_loc
+from nenupy.instru import nenufar_loc, read_cal_table
 from nenupy.beam import ma_pos
 from nenupy.crosslet import UVW
+from nenupy.beamlet.sdata import SData
 
 import logging
 log = logging.getLogger(__name__)
@@ -195,7 +196,7 @@ class Crosslet(object):
     #     return
 
 
-    def beamform(self, az, el, pol='NW', ma=None, calibration=None):
+    def beamform(self, az, el, pol='NW', ma=None, calibration='default'):
         """ Beamform the crosslets in the direction (az, el).
         """
         log.info(
@@ -205,15 +206,26 @@ class Crosslet(object):
                 pol
             )
         )
-        #Calibration table
-        if calibration is not None:
-            cal = self._read_cal(calibration)
-        else:
-            cal = 1
         # Mini-Array selection
         if ma is None:
             ma = self.mas.copy()
         mas = self._mas_idx[np.isin(self.mas, ma)]
+        # Calibration table
+        if calibration.lower() == 'none':
+            # No calibration
+            cal = np.ones(
+                (self.sb_idx.size, mas.size)
+            )
+        else:
+            pol_idx = {'NW': [0], 'NE': [1]}
+            cal = read_cal_table(
+                calfile=calibration
+            )
+            cal = cal[np.ix_(
+                self.sb_idx,
+                mas,
+                pol_idx[pol]
+            )].squeeze()
         # Matrix of BSTs
         c = np.zeros(
             (
@@ -234,6 +246,10 @@ class Crosslet(object):
             dtype=np.complex
         )
         # Pointing direction
+        if isinstance(az, un.Quantity):
+            az = az.to(un.deg).value
+        if isinstance(el, un.Quantity):
+            el = el.to(un.deg).value
         az = np.radians(az)
         el = np.radians(el)
         u = np.array([
@@ -255,10 +271,17 @@ class Crosslet(object):
                 cpol.shape
             )
         )
-        # Computation
+        # Put the Xcorr in a matrix
         trix, triy = np.tril_indices(mas.size, 0)
         c[:, :, trix, triy] = cpol
         c[:, :, triy, trix] = c[:, :, trix, triy].conj()
+        # Calibrate the Xcorr with the caltable
+        for fi in range(c.shape[1]):
+            cal_i = np.expand_dims(cal[fi], axis=1)
+            cal_i_h = np.expand_dims(cal[fi].T.conj(), axis=0)
+            mul = np.matrix(cal_i) * np.matrix(cal_i_h)
+            c[:, fi, ...] *= mul[np.newaxis, ...] 
+        # Phase the Xcorr
         dphi = np.dot(
             ma_pos[self._ant1[mask]] - ma_pos[self._ant2[mask]],
             u
@@ -268,7 +291,14 @@ class Crosslet(object):
             -2.j*np.pi/wavel[:, None] * dphi
         )
         p[:, triy, trix] = p[:, trix, triy].conj()
-        return np.sum((c * p).real, axis=(2, 3))      
+        data = np.sum((c * p).real, axis=(2, 3))
+
+        return SData(
+            data=np.expand_dims(data, axis=2),
+            time=self.times,
+            freq=self.freqs,
+            polar=np.array([pol.upper()])
+        )
 
 
     def image(self, resolution=1, fov=50):
@@ -328,37 +358,5 @@ class Crosslet(object):
         corr_mask = (corr[i_ant1] == c1) & (corr[i_ant2] == c2)
         indices = np.arange(i_ant1.size)[corr_mask]
         return indices
-
-
-    def _read_cal(self, calfile):
-        """
-        """
-        with open(calfile, 'rb') as f:
-            log.info(
-                'Loading calibration table {}'.format(
-                    calfile
-                )
-            )
-            header = []
-            while True:
-                line = f.readline()
-                header.append(line)
-                if line.startswith(b'HeaderStop'):
-                    break
-        hd_size = sum([len(s) for s in header])
-        dtype = np.dtype(
-            [
-                ('data', 'float64', (512, 96, 2, 2))
-            ]
-        )
-        tmp = np.memmap(
-            filename=calfile,
-            dtype='int8',
-            mode='r',
-            offset=hd_size
-        )
-        decoded = tmp.view(dtype)[0]['data']
-        data = decoded[..., 0] + 1.j*decoded[..., 1]
-        return data
 # ============================================================= #
 

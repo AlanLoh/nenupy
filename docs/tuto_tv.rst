@@ -1,3 +1,5 @@
+.. _tuto_tv:
+
 NenuFAR TV image
 ================
 

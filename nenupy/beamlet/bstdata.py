@@ -247,7 +247,8 @@ class BST_Data(Beamlet):
     @property
     def freqs(self):
         """ Recorded frequencies for a given digital beam (set
-            with :attr:`BST_Data.dbeam`).
+            with :attr:`BST_Data.dbeam`). Converted to mid
+            sub-band frequencies
 
             :getter: Available frequencies
             
@@ -255,7 +256,8 @@ class BST_Data(Beamlet):
         """
         infos = self.meta['bea']
         nbm = infos['nbBeamlet'][self.dbeam]
-        return infos['freqList'][self.dbeam][:nbm] * u.MHz
+        hbw = 0.1953125/2
+        return (infos['freqList'][self.dbeam][:nbm] - hbw)*u.MHz
 
 
     @property
@@ -643,7 +645,6 @@ class BST_Data(Beamlet):
                 self._freq_idx
             )
         ]
-        # return data
         return SData(
             data=data,
             time=self.time,

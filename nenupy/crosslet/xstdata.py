@@ -22,6 +22,7 @@ __all__ = [
 
 from astropy.io import fits
 from astropy.time import Time, TimeDelta
+import astropy.units as u
 from os.path import abspath, isfile
 import numpy as np
 
@@ -87,7 +88,8 @@ class XST_Data(Crosslet):
         self.vis = data_tmp['data']
         self.times = Time(data_tmp['jd'], format='jd')
         bw = 0.1953125
-        self.freqs = np.unique(data_tmp['xstsubband']) * bw
+        self.sb_idx = np.unique(data_tmp['xstsubband'])
+        self.freqs = self.sb_idx * bw * u.MHz
         return
 # ============================================================= #
 
