@@ -21,6 +21,7 @@ __all__ = [
 
 
 import numpy as np
+import astropy.units as un
 try:
     from tqdm import tqdm
 except ModuleNotFoundError:
@@ -273,12 +274,14 @@ class Crosslet(object):
     def image(self, resolution=1, fov=50):
         """
         """
+        if not isinstance(fov, un.Quantity):
+            fov *= un.deg
         f_idx = 0 # Frequency index
         # Sky preparation
         sky = HpxSky(resolution=resolution)
         exposure = self.times[-1] - self.times[0]
         sky.time = self.times[0] + exposure/2.
-        sky._is_visible = sky._ho_coords.alt.deg >= 90 - fov/2.
+        sky._is_visible = sky._ho_coords.alt >= 90*un.deg - fov/2.
         phase_center = eq_zenith(sky.time)
         l, m, n = sky.lmn(phase_center=phase_center)
         # UVW coordinates

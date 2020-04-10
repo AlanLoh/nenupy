@@ -146,7 +146,7 @@ class UVW(object):
     def from_tvdata(cls, tvdata):
         """
         """
-        from nenupyst.crosslet import TV_Data
+        from nenupy.crosslet import TV_Data
         if not isinstance(tvdata, TV_Data):
             raise TypeError(
                 'tvdata must be a TV_Data instance'
