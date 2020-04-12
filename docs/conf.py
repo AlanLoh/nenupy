@@ -39,6 +39,7 @@ extensions = [
     'sphinx.ext.napoleon', # 'numpydoc'
     'sphinx.ext.intersphinx',
     'sphinx.ext.autosectionlabel',
+    'sphinx.ext.mathjax', # equations
     'recommonmark',
     'sphinx_rtd_theme'
 ]

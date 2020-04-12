@@ -113,7 +113,7 @@ class Crosslet(object):
     def xx(self):
         """ Cross correlation XX
         """
-        xx = self.vis[..., self._get_cross_idx('X', 'X')]
+        xx = self.vis[:, :, self._get_cross_idx('X', 'X')]
         log.info(
             'XX loaded.'
         )
@@ -124,7 +124,7 @@ class Crosslet(object):
     def yy(self):
         """ Cross correlation YY
         """
-        yy = self.vis[..., self._get_cross_idx('Y', 'Y')]
+        yy = self.vis[:, :, self._get_cross_idx('Y', 'Y')]
         log.info(
             'YY loaded.'
         )
@@ -135,7 +135,7 @@ class Crosslet(object):
     def yx(self):
         """ Cross correlation YX
         """
-        yx = self.vis[..., self._get_cross_idx('Y', 'X')]
+        yx = self.vis[:, :, self._get_cross_idx('Y', 'X')]
         log.info(
             'YX loaded.'
         )
@@ -154,10 +154,10 @@ class Crosslet(object):
             (list(self.yx.shape[:-1]) + [ma1.size]),
             dtype=np.complex
         )
-        _xy[..., auto] = self.yx[..., auto].conj()
+        _xy[:, :, auto] = self.yx[:, :, auto].conj()
         # Get XY correlations
         indices = self._get_cross_idx('X', 'Y')
-        _xy[..., cross] = self.vis[..., indices]
+        _xy[:, :, cross] = self.vis[:, :, indices]
         log.info(
             'XY loaded.'
         )
@@ -197,7 +197,73 @@ class Crosslet(object):
 
 
     def beamform(self, az, el, pol='NW', ma=None, calibration='default'):
-        """ Beamform the crosslets in the direction (az, el).
+        r""" Converts cross correlation statistics data XST, 
+            :math:`\mathbf{X}(t, \nu)`, in beamformed data BST,
+            :math:`B(t, \nu)`, where :math:`t` and :math:`\nu` are
+            the time and the frequency respectively.
+            :math:`\mathbf{X}(t, \nu)` is a subset of XST data at
+            the required polarization ``pol``.
+
+            This is done for a given phasing direction in local
+            sky coordinates :math:`\varphi` (azimuth, ``az``) and
+            :math:`\theta` (elevation, ``el``), with a selection
+            of Mini-Arrays ``ma`` (numbered :math:`a`).
+
+            .. math::
+                B (t, \nu) = \operatorname{Re} \left\{
+                \sum
+                    \left[
+                        \underset{\scriptscriptstyle a \times 1}{\mathbf{C}}
+                        \cdot
+                        \underset{\scriptscriptstyle 1 \times a}{\mathbf{C}^{H}}
+                    \right](\nu)
+                    \cdot
+                    \underset{\scriptscriptstyle a \times a}{\mathbf{X}} (t, \nu)
+                    \cdot
+                    \left[
+                        \underset{\scriptscriptstyle a \times 1}{\mathbf{P}}
+                        \cdot
+                        \underset{\scriptscriptstyle 1 \times a}{\mathbf{P}^{H}}
+                    \right](\nu)
+                \right\}
+
+            .. math::
+                \rm{with} \quad
+                \cases{
+                    \mathbf{C}(\nu ) = e^{2 \pi i \nu \mathbf{ t }} \quad \rm{the~calibration~ file}\\
+                    \mathbf{P} (\nu) = e^{-2 \pi i \frac{\nu}{c} (\mathbf{b} \cdot \mathbf{u})} \quad \rm{phasing}\\
+                    \underset{\scriptscriptstyle a \times 3}{\mathbf{b}} = \mathbf{a}_{1} - \mathbf{a}_{2} \quad \rm{baselines}\\
+                    \underset{\scriptscriptstyle 3 \times 1}{\mathbf{u}} = \left[
+                        \cos(\theta)\cos(\varphi),
+                        \cos(\theta)\sin(\varphi),
+                        \sin(\theta) \right]
+                }
+
+            :param az:
+                Azimuth coordinate used for beamforming (default
+                unit is degrees in `float` input).
+            :type az: `float` or :class:`~astropy.units.Quantity`
+            :param el:
+                Elevation coordinate used for beamforming (default
+                unit is degrees in `float` input).
+            :type el: `float` or :class:`~astropy.units.Quantity`
+            :param pol:
+                Polarization (either ``'NW'`` or ``'NE'``.
+            :type pol: `str`
+            :param ma:
+                Subset of Mini-Arrays (minimum 2) used for
+                beamforming.
+            :type ma: `list` or :class:`~numpy.ndarray`
+            :param calibration:
+                Calibration file (i.e, :math:`\mathbf{C}`). If
+                ``'none'``, no calibration is applied. If
+                ``'default'``, the standard calibration file is
+                used, otherwise the calibration file name should
+                be given (see also :func:`~nenupy.instru.instru.read_cal_table`).
+            :type calibration: `str`
+
+            :returns: Beamformed data.
+            :rtype: :class:`nenupy.beamlet.sdata.SData`
         """
         log.info(
             'Beamforming towards az={}, el={}, pol={}'.format(
@@ -263,9 +329,9 @@ class Crosslet(object):
             'Loading data...'
         )
         if pol.upper() == 'NW':
-            cpol = self.xx[..., mask]
+            cpol = self.xx[:, :, mask]
         else:
-            cpol = self.yy[..., mask]
+            cpol = self.yy[:, :, mask]
         log.info(
             'Data of shape {} loaded for beamforming'.format(
                 cpol.shape
@@ -280,7 +346,7 @@ class Crosslet(object):
             cal_i = np.expand_dims(cal[fi], axis=1)
             cal_i_h = np.expand_dims(cal[fi].T.conj(), axis=0)
             mul = np.matrix(cal_i) * np.matrix(cal_i_h)
-            c[:, fi, ...] *= mul[np.newaxis, ...] 
+            c[:, fi, :, :] *= mul[np.newaxis, :, :]
         # Phase the Xcorr
         dphi = np.dot(
             ma_pos[self._ant1[mask]] - ma_pos[self._ant2[mask]],
@@ -292,7 +358,9 @@ class Crosslet(object):
         )
         p[:, triy, trix] = p[:, trix, triy].conj()
         data = np.sum((c * p).real, axis=(2, 3))
-
+        log.info(
+            'Beamforming complete.'
+        )
         return SData(
             data=np.expand_dims(data, axis=2),
             time=self.times,
@@ -317,11 +385,11 @@ class Crosslet(object):
         # UVW coordinates
         uvw = UVW.from_tvdata(self)
         u = np.mean( # Mean in time
-            uvw.uvw[..., 0],
+            uvw.uvw[:, :, 0],
             axis=0
         )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
         v = np.mean(
-            uvw.uvw[..., 1],
+            uvw.uvw[:, :, 1],
             axis=0
         )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
         # Mulitply (u, v) by (l, m) and compute FT exp

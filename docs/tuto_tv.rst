@@ -68,7 +68,7 @@ The image is now computed and stored as a :class:`~nenupy.astro.hpxsky.HpxSky` o
 >>> im.plot(
         db=False,
         center=src_3c380
-        size=30 * un.deg,
+        size=30 * u.deg,
     )
 
 .. image:: ./_images/tvimage.png
