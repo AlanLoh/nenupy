@@ -84,4 +84,44 @@ Corresponding BST observation can be simulated using :meth:`~nenupy.simulation.h
     The Mini-Array pair being roughly East-West orientated implies North-South beam fringes. The meridian transit of Cygnus A thus appears like a sinusoidal curve.
     The corresponding simulation is shown in green and some discrepancies can be noted: lower fringe amplitudes (mostly due to Cygnus A not being a perfect point source in the `GSM <https://github.com/telegraphic/PyGSM>`_ skymodel) and phase-shift of the fringes (maybe due to a slight instrument `shift from ideal pointing <https://nenufar.obs-nancay.fr/en/astronomer/#identified-features>`_).
 
+The same dataset can also be used to beamform any subset of NenuFAR Mini-Arrays, in particular the whole array. ``miniarrays`` variable is a list of the 56 Mini-Arrays names:
 
+>>> miniarrays = np.arange(56)
+
+The :meth:`~nenupy.crosslet.crosslet.Crosslet.beamform` method is once again called with this new Mini-Array subset in input, and the results are stored in the :class:`~nenupy.beamlet.sdata.SData` object ``bst_d``:
+
+>>> bst_d = xst.beamform(
+        az=bst.azdig[0],
+        el=bst.eldig[0],
+        pol=bst.polar,
+        ma=miniarrays,
+        calibration='default'
+    )
+
+A simulation can also be made using the (almost) same array configuration while calling :meth:`~nenupy.simulation.hpxsimu.HpxSimu.azel_transit` after having defined a coordinate object with :func:`~nenupy.astro.astro.ho_coord`:
+
+>>> from nenupy.astro import ho_coord
+>>> transit_altaz = ho_coord(
+        az=bst.azdig[0],
+        alt=bst.eldig[0],
+        time=bst.times[0]
+    )
+>>> simu = HpxSimu(
+        freq=xst.freqs[freq_idx],
+        resolution=0.5,
+        ma=miniarrays,
+        polar=bst.polar
+    )
+>>> exposure = bst.times[-1] - bst.times[0]
+>>> result = simu.azel_transit(
+        acoord=transit_altaz,
+        t0=bst.times[0] + exposure/2.,
+        dt=TimeDelta(60, format='sec'),
+        duration=exposure,
+    )
+
+.. image:: ./_images/bst2xst_56mas.png
+  :width: 800
+
+.. note::
+    It should be noted that the reconstructed beamformed observation (blue curve) was made with only 8 Mini-Arrays analog phased towards the meridian transit of Cygnus A, the other 48 were default phased at the local zenith. However, the simulation (orange curve) assumed that the 56 Mini-Arrays were analog phased towards the target. This, in addition to the skymodel uncertainties, are the main caveats for this comparison interpretation.

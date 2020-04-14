@@ -61,7 +61,7 @@ Setting up NenuFAR array with only one Mini-Array (namely 00), to simulate a SST
 The call of :meth:`~nenupy.simulation.hpxsimu.HpxSimu.azel_transit` allows for the simulation to start. ``dt`` and ``duration`` keywords stand respectively for simulation time step and total duration of the simulation (``t0=transit_time`` being the mid-time of the simulation).
 
 >>> result = simu.azel_transit(
-        acoord=altaz,
+        acoord=transit_altaz,
         t0=transit_time,
         dt=TimeDelta(15*60, format='sec'),
         duration=TimeDelta(24*3600, format='sec'),

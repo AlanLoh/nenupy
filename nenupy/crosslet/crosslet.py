@@ -6,6 +6,19 @@
     ********
     Crosslet
     ********
+
+    :class:`~nenupy.crosslet.crosslet.Crosslet` is the main class
+    for both :class:`~nenupy.crosslet.xstdata.XST_Data` and
+    :class:`~nenupy.crosslet.tvdata.TV_Data`, which inherit from
+    it.
+
+    This enables *beamforming* with the 
+    :meth:`~nenupy.crosslet.crosslet.Crosslet.beamform` method
+    (see also :ref:`tuto_beamforming` for a detailed tutorial)
+    and *imaging* with the
+    :meth:`~nenupy.crosslet.crosslet.Crosslet.image` method
+    (see also :ref:`tuto_tv` for a detailed tutorial) from 
+    cross-correlation statistics data.
 """
 
 
@@ -84,7 +97,12 @@ def ft_sum(vis, exptf):
 # ------------------------- Crosslet -------------------------- #
 # ============================================================= #
 class Crosslet(object):
-    """
+    """ :class:`~nenupy.crosslet.crosslet.Crosslet` class is not
+        designed to be called directly but rather as a base class
+        for both :class:`~nenupy.crosslet.xstdata.XST_Data` and
+        :class:`~nenupy.crosslet.tvdata.TV_Data` (see their 
+        related documentation for further instructions on how
+        to load these data sets).
     """
 
     def __init__(self):
@@ -99,6 +117,15 @@ class Crosslet(object):
     # --------------------- Getter/Setter --------------------- #
     @property
     def mas(self):
+        """ Mini-Arrays used to get the cross-correlation
+            statistics data.
+
+            :setter: Mini-Array list
+            
+            :getter: Mini-Array list
+            
+            :type: :class:`~numpy.ndarray`
+        """
         return self._mas
     @mas.setter
     def mas(self, m):
@@ -111,7 +138,13 @@ class Crosslet(object):
 
     @property
     def xx(self):
-        """ Cross correlation XX
+        """ Extracts the XX polarization from the cross-correlation
+            statistics data. Also refered to as ``'NW'``.
+            Array is shaped like (time, frequencies, baselines).
+
+            :getter: XX polarization
+            
+            :type: :class:`~numpy.ndarray`
         """
         xx = self.vis[:, :, self._get_cross_idx('X', 'X')]
         log.info(
@@ -122,7 +155,13 @@ class Crosslet(object):
 
     @property
     def yy(self):
-        """ Cross correlation YY
+        """ Extracts the YY polarization from the cross-correlation
+            statistics data. Also refered to as ``'NE'``.
+            Array is shaped like (time, frequencies, baselines).
+
+            :getter: YY polarization
+            
+            :type: :class:`~numpy.ndarray`
         """
         yy = self.vis[:, :, self._get_cross_idx('Y', 'Y')]
         log.info(
@@ -133,7 +172,13 @@ class Crosslet(object):
 
     @property
     def yx(self):
-        """ Cross correlation YX
+        """ Extracts the YX polarization from the cross-correlation
+            statistics data.
+            Array is shaped like (time, frequencies, baselines).
+
+            :getter: YX polarization
+            
+            :type: :class:`~numpy.ndarray`
         """
         yx = self.vis[:, :, self._get_cross_idx('Y', 'X')]
         log.info(
@@ -144,7 +189,17 @@ class Crosslet(object):
 
     @property
     def xy(self):
-        """ Cross correlation XY
+        """ Extracts the XY polarization from the cross-correlation
+            statistics data. This polarization is not recorded by
+            default for the NenuFAR auto-correlations. However
+            this can be computed as it is the complex conjugate
+            of :attr:`~nenupy.crosslet.crosslet.Crosslet.yx`
+            auto-correlations.
+            Array is shaped like (time, frequencies, baselines).
+
+            :getter: XY polarization
+            
+            :type: :class:`~numpy.ndarray`
         """
         # Deal with lack of auto XY cross in XST-like data
         ma1, ma2 = np.tril_indices(self.mas.size, 0)
@@ -166,14 +221,34 @@ class Crosslet(object):
 
     @property
     def stokes_i(self):
-        """ Stokes I
+        r""" Computes the stokes parameter I from the
+            cross-correlation statistics data using
+            :attr:`~nenupy.crosslet.crosslet.Crosslet.xx` and 
+            :attr:`~nenupy.crosslet.crosslet.Crosslet.yy`.
+            
+            .. math::
+                \mathbf{I}(t, \nu) = \frac{1}{2} \left[
+                    \mathbf{XX}(t, \nu) + \mathbf{YY}(t, \nu)
+                \right]
+
+            Array is shaped like (time, frequencies, baselines).
+
+            :getter: Stokes I data
+            
+            :type: :class:`~numpy.ndarray`
         """
         return 0.5*(self.xx + self.yy)
 
 
     @property
     def mask_auto(self):
-        """
+        """ Masks auto-correlations. In particular, this is used 
+            to compute the image (see 
+            :meth:`~nenupy.crosslet.crosslet.Crosslet.image`).
+
+            :getter: Auto-correlation mask
+            
+            :type: :class:`~numpy.ndarray`
         """
         ma1, ma2 = np.tril_indices(self.mas.size, 0)
         auto = ma1 == ma2
@@ -232,7 +307,7 @@ class Crosslet(object):
                 \cases{
                     \mathbf{C}(\nu ) = e^{2 \pi i \nu \mathbf{ t }} \quad \rm{the~calibration~ file}\\
                     \mathbf{P} (\nu) = e^{-2 \pi i \frac{\nu}{c} (\mathbf{b} \cdot \mathbf{u})} \quad \rm{phasing}\\
-                    \underset{\scriptscriptstyle a \times 3}{\mathbf{b}} = \mathbf{a}_{1} - \mathbf{a}_{2} \quad \rm{baselines}\\
+                    \underset{\scriptscriptstyle a \times 3}{\mathbf{b}} = \mathbf{a}_{1} - \mathbf{a}_{2} \quad \rm{baseline~positions}\\
                     \underset{\scriptscriptstyle 3 \times 1}{\mathbf{u}} = \left[
                         \cos(\theta)\cos(\varphi),
                         \cos(\theta)\sin(\varphi),
@@ -255,15 +330,26 @@ class Crosslet(object):
                 beamforming.
             :type ma: `list` or :class:`~numpy.ndarray`
             :param calibration:
-                Calibration file (i.e, :math:`\mathbf{C}`). If
-                ``'none'``, no calibration is applied. If
-                ``'default'``, the standard calibration file is
+                Antenna delay calibration file (i.e, :math:`\mathbf{C}`).
+                If ``'none'``, no calibration is applied.
+                If ``'default'``, the standard calibration file is
                 used, otherwise the calibration file name should
                 be given (see also :func:`~nenupy.instru.instru.read_cal_table`).
             :type calibration: `str`
 
             :returns: Beamformed data.
-            :rtype: :class:`nenupy.beamlet.sdata.SData`
+            :rtype: :class:`~nenupy.beamlet.sdata.SData`
+
+            :Example:
+                >>> from nenupy.crosslet import XST_Data
+                >>> xst = XST_Data('20191129_141900_XST.fits')
+                >>> bf = xst.beamform(
+                        az=180,
+                        el=90,
+                        pol='NW',
+                        ma=[17, 44],
+                        calibration='default'
+                    )
         """
         log.info(
             'Beamforming towards az={}, el={}, pol={}'.format(
@@ -370,7 +456,57 @@ class Crosslet(object):
 
 
     def image(self, resolution=1, fov=50):
-        """
+        r""" Converts NenuFAR-TV-like data sets containing
+            visibilities (:math:`V(u,v,\nu , t)`) into images
+            :math:`I(l, m, \nu)` phase-centered at the local
+            zenith while time averaging the visibilities.
+            The Field of View ``fov`` argument defines the
+            diameter angular size (zenith-centered) above which
+            the image is not computed.
+            
+            .. math::
+                I(l, m, \nu) = \int
+                    \langle V(u, v, \nu, t) \rangle_t e^{
+                        2 \pi i \frac{\nu}{c} \left(
+                            \langle u(t) \rangle_t l + \langle v(t) \rangle_t m
+                        \right)
+                    }
+                    \, du \, dv
+
+            :param resolution:
+                Resoltion (in degrees if a `float` is given) of
+                the HEALPix grid (passed to initialize the 
+                :class:`~nenupy.astro.hpxsky.HpxSky` object).
+            :type resolution: `float` or :class:`~astropy.units.Quantity`
+            :param fov:
+                Field of view diameter of the image (in degrees
+                if a `float` is given).
+            :type fov: `float` or :class:`~astropy.units.Quantity`
+
+            :returns: HEALPix sky object embedding the computed
+                image.
+            :rtype: :class:`~nenupy.astro.hpxsky.HpxSky`
+
+            :Example:
+                >>> from nenupy.crosslet import TV_Data
+                >>> import astropy.units as u
+                >>> tv = TV_Data('20191204_132113_nenufarTV.dat')
+                >>> im = tv.image(
+                        resolution=0.2*u.deg,
+                        fov=60*u.deg
+                    )
+
+            .. seealso::
+                :class:`~nenupy.astro.hpxsky.HpxSky`,
+                :meth:`~nenupy.astro.hpxsky.HpxSky.lmn`,
+                :meth:`~nenupy.crosslet.uvw.UVW.from_tvdata`
+
+            .. warning::
+                This method is intended to be used for NenuFAR-TV
+                data and relatively small XST datasets. It is not
+                suited to long observations for which a MS
+                conversion is required before using imaging
+                dedicated softwares.
         """
         if not isinstance(fov, un.Quantity):
             fov *= un.deg
