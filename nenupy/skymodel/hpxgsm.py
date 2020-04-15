@@ -58,6 +58,7 @@
 
     .. seealso::
         :class:`~nenupy.astro.hpxsky.HpxSky`
+
 """
 
 
@@ -97,6 +98,7 @@ class HpxGSM(HpxSky):
             Desired sky model resolution. The best matching
             available HEALPix angular resolution is set.
         :type resolution: `float` or :class:`~astropy.units.Quantity`
+
     """
 
     def __init__(self, freq=50, resolution=1):
