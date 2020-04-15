@@ -203,7 +203,45 @@ class HpxBeam(HpxSky):
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def array_factor(self, az, el, antpos, freq):
-        """
+        r""" Computation of the array factor :math:`\mathcal{A}`
+            is done as follows:
+
+            .. math::
+                \mathcal{A} = \left| \sum_{n_{\scriptscriptstyle \rm ant}} e^{2 \pi i \frac{\nu}{c} (\varphi_0 - \varphi)} \right|^2
+
+            .. math::
+                \varphi = \underset{\scriptstyle n_{\scriptscriptstyle \rm ant}\, \times\, 3}{\mathbf{P}_{\rm ant}} \cdot \pmatrix{
+                    \cos(\phi)\cos(\theta)\\
+                    \sin(\phi)\cos(\theta)\\
+                    \sin(\theta)
+                }
+
+            .. math::
+                \varphi_0 = \underset{\scriptstyle n_{\scriptscriptstyle \rm ant}\, \times\, 3}{\mathbf{P}_{\rm ant}} \cdot \pmatrix{
+                    \cos(\phi_0)\cos(\theta_0)\\
+                    \sin(\phi_0)\cos(\theta_0)\\
+                    \sin(\theta_0)
+                }
+
+            :math:`\mathbf{P}_{\rm ant}` is the antenna position
+            matrix, :math:`\phi` and :math:`\theta` are the sky
+            local coordinates (azimuth and elevation respectively)
+            gridded on a HEALPix representation, whereas 
+            :math:`\phi_0` and :math:`\theta_0` are the pointing
+            direction in local coordinates.
+
+            :param az:
+            :type az:
+            :param el:
+            :type el:
+            :param antpos:
+            :type antpos:
+            :param freq:
+            :type freq:
+
+            :returns:
+            :rtype: :class:`~numpy.ndarray`
+
         """
         def get_phi(az, el, antpos):
             xyz_proj = np.array(
@@ -248,7 +286,8 @@ class HpxBeam(HpxSky):
             # Multiproc
             af = np.sum(mp_expo(self.ncpus, coeff, delay), axis=0)
 
-        return np.abs(af * af.conjugate())
+        #return np.abs(af * af.conjugate())
+        return np.real(af * af.conjugate())
 
 
     def radial_profile(self, da=1.):

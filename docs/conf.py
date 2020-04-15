@@ -53,6 +53,8 @@ intersphinx_mapping = {
     # 'nenupy': ('https://nenupy.readthedocs.io/en/latest/', None),
 }
 
+autodoc_mock_imports = ['pygsm']
+
 default_role = 'obj'
 
 # Add any paths that contain templates here, relative to this directory.
