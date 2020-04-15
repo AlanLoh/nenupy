@@ -249,6 +249,9 @@ def analog_pointing(azimuth, elevation):
         finding the actual pointing order given an aziumuth and
         an elevation as requests.
 
+        .. image:: ./_images/analog_pointing.png
+            :width: 800
+
         :param azimuth:
             Requested azimuth (in degrees if `float`).
         :type azimuth: `float` or :class:`astropy.units.Quantity`
@@ -276,8 +279,12 @@ def analog_pointing(azimuth, elevation):
         'NenuFAR_thph.fits'
     )
     thph = getdata(file) # azimuth, zenith angle
-    phi_idx = int(azimuth.value/0.05 - 0.5)  
-    theta_idx = int((90. - elevation.value)/0.05 - 0.5)
+    if np.isscalar(azimuth) and np.isscalar(elevation):
+        phi_idx = int(azimuth.value/0.05 - 0.5)
+        theta_idx = int((90. - elevation.value)/0.05 - 0.5)
+    else:
+        phi_idx = (azimuth.value/0.05 - 0.5).astype(int)
+        theta_idx = ((90. - elevation.value)/0.05 - 0.5).astype(int)
     t, p = thph[:, theta_idx, phi_idx]
     azimuth = p * u.deg
     elevation = (90. - t) * u.deg
@@ -295,6 +302,10 @@ def desquint_elevation(elevation, opt_freq=30):
         towards greater elevations.
         This function allows for correcting this effect by shifting
         pointing elevation a little bit lower.
+        The correction is limited to elevation greater than 20 
+        deg, otherwise, analog pointing can shift drastically if
+        a low elevation is required
+        (see :func:`~nenupy.instru.instru.analog_pointing`).
 
         .. image:: ./_images/desquint.png
             :width: 800
@@ -306,7 +317,7 @@ def desquint_elevation(elevation, opt_freq=30):
             Beam squint optimization frequency (in MHz if `float`)
         :type opt_freq: `float` or :class:`astropy.units.Quantity`
 
-        :returns: Elevation to point
+        :returns: Beamsquint-corrected elevation to point
         :rtype: :class:`~astropy.units.Quantity`
 
         :Example:
