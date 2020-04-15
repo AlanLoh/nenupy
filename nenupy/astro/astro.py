@@ -6,6 +6,22 @@
     **********************
     Astronomical Functions
     **********************
+
+    Below are defined a set of useful astronomical functions
+    summarized as:
+    
+    * :func:`~nenupy.astro.astro.nenufar_loc`: NenuFAR Earth coordinates
+    * :func:`~nenupy.astro.astro.lst`: Sidereal time
+    * :func:`~nenupy.astro.astro.lha`: Local hour angle
+    * :func:`~nenupy.astro.astro.wavelength`: Convert frequency to wavelength
+    * :func:`~nenupy.astro.astro.ho_coord`: Define a :class:`~astropy.coordinates.AltAz` object
+    * :func:`~nenupy.astro.astro.eq_coord`: Define a :class:`~astropy.coordinates.ICRS` object
+    * :func:`~nenupy.astro.astro.to_radec`: Convert :class:`~astropy.coordinates.AltAz` to :class:`~astropy.coordinates.ICRS`
+    * :func:`~nenupy.astro.astro.to_altaz`: Convert :class:`~astropy.coordinates.ICRS` to :class:`~astropy.coordinates.AltAz`
+    * :func:`~nenupy.astro.astro.ho_zenith`: Get the local zenith in :class:`~astropy.coordinates.AltAz` coordinates
+    * :func:`~nenupy.astro.astro.eq_zenith`: Get the local zenith in :class:`~astropy.coordinates.ICRS` coordinates
+    * :func:`~nenupy.astro.astro.radio_sources`: Get main radio sources
+
 """
 
 
@@ -52,14 +68,13 @@ from astropy.constants import c as lspeed
 def nenufar_loc():
     """ Returns the coordinate of NenuFAR array
 
-        :returns: :class:`astropy.coordinates.EarthLocation`
+        :returns: :class:`~astropy.coordinates.EarthLocation`
             object
-        :rtype: :class:`astropy.coordinates.EarthLocation`
+        :rtype: :class:`~astropy.coordinates.EarthLocation`
 
         :Example:
-        
-        >>> from nenupysim.astro import nenufar_loc
-        >>> location = nenufar_loc()
+            >>> from nenupysim.astro import nenufar_loc
+            >>> location = nenufar_loc()
     """
     # return EarthLocation( # old
     #     lat=47.375944 * u.deg,
@@ -82,10 +97,10 @@ def lst(time):
     """ Local sidereal time
 
         :param time: Time
-        :type time: :class:`astropy.time.Time`
+        :type time: :class:`~astropy.time.Time`
 
         :returns: LST time
-        :rtype: :class:`astropy.coordinates.angles.Angle`
+        :rtype: :class:`~astropy.coordinates.Angle`
     """
     if not isinstance(time, Time):
         raise TypeError(
@@ -105,12 +120,12 @@ def lha(time, ra):
     """ Local hour angle of an object in the observer's sky
         
         :param time: Time
-        :type time: :class:`astropy.time.Time`
+        :type time: :class:`~astropy.time.Time`
         :param ra: Right Ascension
-        :type ra: `float` or :class:`astropy.coordinates.angles.Angle`
+        :type ra: `float` or :class:`~astropy.coordinates.Angle`
 
         :returns: LHA time
-        :rtype: :class:`astropy.coordinates.angles.Angle`
+        :rtype: :class:`~astropy.coordinates.Angle`
     """
     if not isinstance(ra, Angle):
         ra = Angle(ra * u.deg)
@@ -136,12 +151,12 @@ def wavelength(freq):
 
         :param freq:
             Frequency (assumed in MHz unless a
-            :class:`astropy.units.Quantity` is provided)
-        :type freq: `float`, :class:`numpy.ndarray` or
-            :class:`astropy.units.Quantity`
+            :class:`~astropy.units.Quantity` is provided)
+        :type freq: `float`, :class:`~numpy.ndarray` or
+            :class:`~astropy.units.Quantity`
 
         :returns: Wavelength in meters
-        :rtype: :class:`astropy.units.Quantity`
+        :rtype: :class:`~astropy.units.Quantity`
     """
     if not isinstance(freq, u.Quantity):
         freq *= u.MHz
@@ -159,28 +174,27 @@ def ho_coord(alt, az, time):
     
         :param alt:
             Altitude in degrees
-        :type alt: float
+        :type alt: `float` or :class:`~astropy.units.Quantity`
         :param az:
             Azimuth in degrees
-        :type az: float
+        :type az: `float` or :class:`~astropy.units.Quantity`
         :param time:
             Time at which the local zenith coordinates should be 
             computed. It can either be provided as an 
-            :class:`astropy.time.Time` object or a string in ISO
+            :class:`~astropy.time.Time` object or a string in ISO
             or ISOT format.
-        :type time: str, :class:`astropy.time.Time`
+        :type time: str, :class:`~astropy.time.Time`
 
-        :returns: :class:`astropy.coordinates.AltAz` object
-        :rtype: :class:`astropy.coordinates.AltAz`
+        :returns: :class:`~astropy.coordinates.AltAz` object
+        :rtype: :class:`~astropy.coordinates.AltAz`
 
         :Example:
-        
-        >>> from nenupysim.astro import ho_coord
-        >>> altaz = ho_coord(
-                alt=45,
-                az=180,
-                time='2020-01-01 12:00:00'
-            )
+            >>> from nenupysim.astro import ho_coord
+            >>> altaz = ho_coord(
+                    alt=45,
+                    az=180,
+                    time='2020-01-01 12:00:00'
+                )
     """
     if not isinstance(az, u.Quantity):
         az *= u.deg
@@ -205,21 +219,20 @@ def eq_coord(ra, dec):
         
         :param ra:
             Right ascension in degrees
-        :type ra: float
+        :type ra: `float` or :class:`~astropy.units.Quantity`
         :param dec:
             Declination in degrees
-        :type dec: float
+        :type dec: `float` or :class:`~astropy.units.Quantity`
 
-        :returns: :class:`astropy.coordinates.ICRS` object
-        :rtype: :class:`astropy.coordinates.ICRS`
+        :returns: :class:`~astropy.coordinates.ICRS` object
+        :rtype: :class:`~astropy.coordinates.ICRS`
 
         :Example:
-        
-        >>> from nenupysim.astro import eq_coord
-        >>> radec = eq_coord(
-                ra=51,
-                dec=39,
-            )
+            >>> from nenupysim.astro import eq_coord
+            >>> radec = eq_coord(
+                    ra=51,
+                    dec=39,
+                )
     """
     if not isinstance(ra, u.Quantity):
         ra *= u.deg
@@ -240,18 +253,17 @@ def to_radec(altaz):
         
         :param altaz:
             Horizontal coordinates
-        :type altaz: :class:`astropy.coordinates.AltAz`
+        :type altaz: :class:`~astropy.coordinates.AltAz`
 
-        :returns: :class:`astropy.coordinates.ICRS` object
-        :rtype: :class:`astropy.coordinates.ICRS`
+        :returns: :class:`~astropy.coordinates.ICRS` object
+        :rtype: :class:`~astropy.coordinates.ICRS`
 
         :Example:
-        
-        >>> from nenupysim.astro import eq_coord
-        >>> radec = eq_coord(
-                ra=51,
-                dec=39,
-            )
+            >>> from nenupysim.astro import eq_coord
+            >>> radec = eq_coord(
+                    ra=51,
+                    dec=39,
+                )
     """
     if not isinstance(altaz, AltAz):
         raise TypeError(
@@ -269,24 +281,23 @@ def to_altaz(radec, time):
         
         :param radec:
             Equatorial coordinates
-        :type altaz: :class:`astropy.coordinates.ICRS`
+        :type altaz: :class:`~astropy.coordinates.ICRS`
         :param time:
             Time at which the local coordinates should be 
             computed. It can either be provided as an 
-            :class:`astropy.time.Time` object or a string in ISO
+            :class:`~astropy.time.Time` object or a string in ISO
             or ISOT format.
-        :type time: str, :class:`astropy.time.Time`
+        :type time: `str`, :class:`~astropy.time.Time`
 
-        :returns: :class:`astropy.coordinates.AltAz` object
-        :rtype: :class:`astropy.coordinates.AltAz`
+        :returns: :class:`~astropy.coordinates.AltAz` object
+        :rtype: :class:`~astropy.coordinates.AltAz`
 
         :Example:
-        
-        >>> from nenupysim.astro import eq_coord
-        >>> radec = eq_coord(
-                ra=51,
-                dec=39,
-            )
+            >>> from nenupysim.astro import eq_coord
+            >>> radec = eq_coord(
+                    ra=51,
+                    dec=39,
+                )
     """
     if not isinstance(radec, ICRS):
         raise TypeError(
@@ -309,17 +320,16 @@ def ho_zenith(time):
         :param time:
             Time at which the local zenith coordinates should be 
             computed. It can either be provided as an 
-            :class:`astropy.time.Time` object or a string in ISO
+            :class:`~astropy.time.Time` object or a string in ISO
             or ISOT format.
-        :type time: str, :class:`astropy.time.Time`
+        :type time: `str`, :class:`~astropy.time.Time`
 
-        :returns: :class:`astropy.coordinates.AltAz` object
-        :rtype: :class:`astropy.coordinates.AltAz`
+        :returns: :class:`~astropy.coordinates.AltAz` object
+        :rtype: :class:`~astropy.coordinates.AltAz`
 
         :Example:
-        
-        >>> from nenupysim.astro import ho_zenith
-        >>> zen_altaz = ho_zenith(time='2020-01-01 12:00:00')
+            >>> from nenupysim.astro import ho_zenith
+            >>> zen_altaz = ho_zenith(time='2020-01-01 12:00:00')
     """
     if time.isscalar:
         return ho_coord(
@@ -345,14 +355,13 @@ def eq_zenith(time):
         :param time:
             Time at which the local zenith coordinates should be 
             computed. It can either be provided as an 
-            :class:`astropy.time.Time` object or a string in ISO
+            :class:`~astropy.time.Time` object or a string in ISO
             or ISOT format.
-        :type time: str, :class:`astropy.time.Time`
+        :type time: `str`, :class:`~astropy.time.Time`
 
         :Example:
-        
-        >>> from nenupysim.astro import ho_zenith
-        >>> zen_radec = eq_zenith(time='2020-01-01 12:00:00')
+            >>> from nenupysim.astro import ho_zenith
+            >>> zen_radec = eq_zenith(time='2020-01-01 12:00:00')
     """
     altaz_zenith = ho_zenith(
         time=time

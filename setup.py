@@ -31,6 +31,7 @@ setup(
     license='MIT',
     classifiers=[
         "Programming Language :: Python :: 3",
+        "Intended Audience :: Science/Research"
     ],
     zip_safe=False
 )

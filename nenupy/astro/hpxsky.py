@@ -6,6 +6,14 @@
     ***********
     HEALPix Sky
     ***********
+
+    :class:`~nenupy.astro.hpxsky.HpxSky` class is designed to
+    handle `HEALPix <https://healpix.jpl.nasa.gov/>`_ sky map
+    representation and comes with many attributes and methods
+    to ease pixel selection and plotting on sky coordinates.
+
+    .. seealso::
+        `healpy documentation <https://healpy.readthedocs.io/en/latest/>`_
 """
 
 
@@ -47,7 +55,16 @@ from nenupy.instru import nenufar_loc, HiddenPrints
 # -------------------------- HpxSky --------------------------- #
 # ============================================================= #
 class HpxSky(object):
-    """
+    """ Base class for all ``nenupy`` HEALPix sky representation
+        related objects.
+
+        .. seealso::
+            :class:`~nenupy.simulation.hpxsimu.HpxSimu`,
+            :class:`~nenupy.skymodel.hpxgsm.HpxGSM`,
+            :class:`~nenupy.skymodel.hpxlofar.HpxLOFAR`,
+            :class:`~nenupy.beam.hpxbeam.HpxABeam`,
+            :class:`~nenupy.beam.hpxbeam.HpxDBeam`,
+            :meth:`~nenupy.crosslet.crosslet.Crosslet.image`,
     """
 
     def __init__(self, resolution=1):
@@ -65,22 +82,21 @@ class HpxSky(object):
     def resolution(self):
         """ Angular resolution of the HEALPix grid defined as the
             mean spacing between pixels.
-            See for e.g. `HEALPix <https://lambda.gsfc.nasa.gov/toolbox/tb_pixelcoords.cfm>`_
+            See for e.g. `HEALPix <https://lambda.gsfc.nasa.gov/toolbox/tb_pixelcoords.cfm>`_.
             
             Default value is `1`.
             
-            :setter: :class:`astropy.units.Quantity` that can be 
-                converted as an angle or :class:`astropy.coordinates.Angle` 
+            :setter: :class:`~astropy.units.Quantity` that can be 
+                converted as an angle or :class:`~astropy.coordinates.Angle` 
                 or a `float` which will be understood as degrees.
             
             :getter: resolution
             
-            :type: :class:`astropy.coordinates.Angle`
+            :type: :class:`~astropy.coordinates.Angle`
 
             :Example:
-            
-            >>> from nenupysim.astro import HpxSky
-            >>> sky = HpxSky(resolution=0.5)
+                >>> from nenupysim.astro import HpxSky
+                >>> sky = HpxSky(resolution=0.5)
         """
         return self._resolution
     @resolution.setter
@@ -110,12 +126,12 @@ class HpxSky(object):
         """ UTC time at which horizontal coordinates should be 
             computed.
             
-            :setter: :class:`astropy.time.Time` or `str` able
-                to be parsed as a time.
+            :setter: :class:`~astropy.time.Time` or `str` able
+                to be parsed as a time
             
             :getter: time
             
-            :type: :class:`astropy.time.Time`
+            :type: :class:`~astropy.time.Time`
         """
         return self._time
     @time.setter
@@ -136,6 +152,18 @@ class HpxSky(object):
 
     @property
     def skymap(self):
+        """ Map of the sky in HEALPix RING representation.
+            If :attr:`~nenupy.astro.hpxsky.HpxSky.visible_sky` is
+            `True`, pixels belonging to the sky portion invisible
+            at NenuFAR's location at :attr:`~nenupy.astro.hpxsky.HpxSky.time`
+            are masked.
+
+            :setter: Sky map
+            
+            :getter: Sky map
+            
+            :type: :class:`~numpy.ma.core.MaskedArray`
+        """
         if self.visible_sky:
             mask = np.ones(self._skymap.size, dtype=bool)
             mask[self._is_visible] = False
@@ -154,7 +182,14 @@ class HpxSky(object):
 
     @property
     def visible_sky(self):
-        """
+        """ Mask or not the invisible sky from NenuFAR's location
+            (see :attr:`~nenupy.astro.hpxsky.HpxSky.skymap`).
+
+            :setter: Mask invisible sky?
+            
+            :getter: Mask invisible sky?
+            
+            :type: `bool`
         """
         return self._visible_sky
     @visible_sky.setter
@@ -173,7 +208,7 @@ class HpxSky(object):
 
             :getter: (RA, Dec) coordinates
             
-            :type: :class:`astropy.coordinates.SkyCoord`
+            :type: :class:`~astropy.coordinates.SkyCoord`
         """
         if self.visible_sky:
             return self._eq_coords[self._is_visible]
@@ -183,11 +218,13 @@ class HpxSky(object):
 
     @property
     def ho_coords(self):
-        """ Horizontal coordinates of the HEALPix sky.
+        """ Horizontal coordinates of the HEALPix sky computed
+            at NenuFAR's location and at
+            time :attr:`~nenupy.astro.hpxsky.HpxSky.time`.
 
             :getter: (Alt, Az) coordinates
 
-            :type: :class:`astropy.coordinates.SkyCoord`
+            :type: :class:`~astropy.coordinates.SkyCoord`
         """
         if self.visible_sky:
             return self._ho_coords[self._is_visible]
@@ -202,7 +239,7 @@ class HpxSky(object):
 
             :param position:
                 Equatorial position
-            :type position: :class:`astropy.coordinates.SkyCoord`
+            :type position: :class:`~astropy.coordinates.SkyCoord`
         """
         rot = Rotator(
             deg=True,
@@ -214,11 +251,28 @@ class HpxSky(object):
 
 
     def lmn(self, phase_center):
-        """ (l, m, n) image domain coordinates
+        r""" (l, m, n) image domain coordinates computed from 
+            HEALPix equatorial coordinates (in Right-Ascension
+            :math:`\alpha` and Declination :math:`\delta`, see
+            :attr:`~nenupy.astro.hpxsky.HpxSky.eq_coords`) with
+            respect to the ``phase_center`` (of equatorial 
+            coordinates :math:`\alpha_0`, :math:`\delta_0`).
+
+            .. math::
+                \cases{
+                    l = \cos(\delta) \sin( \Delta \alpha)\\
+                    m = \sin(\delta) \cos(\delta_0) - \cos(\delta) \sin(\delta_0) \cos(\Delta \alpha)\\
+                    n = \sqrt{ 1 - l^2 - m^2 }
+                }
+
+            where :math:`\Delta \alpha = \alpha - \alpha_0`.
 
             :param phase_center:
                 Phase center of image
-            :type phase_center: :class:`astropy.coordinates.SkyCoord`
+            :type phase_center: :class:`~astropy.coordinates.SkyCoord`
+
+            :returns: (l, m, n)
+            :rtype: `tuple` of 3 :class:`~numpy.ndarray`
         """
         ra = self.eq_coords.ra.rad
         dec = self.eq_coords.dec.rad
@@ -233,27 +287,35 @@ class HpxSky(object):
 
 
     def radec_value(self, ra=None, dec=None, n=100):
-        """ Get the `skymap` values at `az`, `al` coordinates.
+        """ Get the :attr:`~nenupy.astro.hpxsky.HpxSky.skymap`
+            values at ``ra``, ``dec`` coordinates.
 
             :param ra:
-                RA in equatorial coordinates (degrees)
+                RA in equatorial coordinates (in degrees if `float`)
                 Default: None
-            :type ra: `float` or `np.ndarray`
+            :type ra: `float`, :class:`~numpy.ndarray`, or :class:`~astropy.units.Quantity`
             :param dec:
-                Declination in equatorial coordinates (degrees)
+                Declination in equatorial coordinates (in degrees if `float`)
                 Default: None
-            :type dec: `float` or `np.ndarray`
+            :type dec: `float`, :class:`~numpy.ndarray`, or :class:`~astropy.units.Quantity`
             :param n:
                 Number of points to evaluate if one coordinate is `None`
                 Default: 100
             :type n: `int`
+
+            :returns: Sky map values at ``ra``, ``dec``
+            :rtype: :class:`~numpy.ndarray`
         """
         if (ra is not None) and (dec is not None):
             pass
         elif (ra is not None) and (dec is None):
+            if isinstance(ra, u.Quantity):
+                ra = ra.to(u.deg).value
             ra = np.ones(n) * ra
             dec = np.linspace(0, 90, n)
         elif (ra is None) and (dec is not None):
+            if isinstance(dec, u.Quantity):
+                dec = dec.to(u.deg).value
             ra = np.linspace(0, 360, n)
             dec = np.ones(n) * dec
         else:
@@ -271,27 +333,35 @@ class HpxSky(object):
 
 
     def azel_value(self, az=None, el=None, n=100):
-        """ Get the `skymap` values at `az`, `al` coordinates.
+        """ Get the :attr:`~nenupy.astro.hpxsky.HpxSky.skymap`
+            values at ``az``, ``el`` coordinates.
 
             :param az:
                 Azimuth in horizontal coordinates (degrees)
                 Default: None
-            :type az: `float` or `np.ndarray`
+            :type az: `float`, :class:`~numpy.ndarray`, or :class:`~astropy.units.Quantity`
             :param el:
                 Elevation in horizontal coordinates (degrees)
                 Default: None
-            :type el: `float` or `np.ndarray`
+            :type el: `float`, :class:`~numpy.ndarray`, or :class:`~astropy.units.Quantity`
             :param n:
                 Number of points to evaluate if one coordinate is `None`
                 Default: 100
             :type n: `int`
+
+            :returns: Sky map values at ``az``, ``el``
+            :rtype: :class:`~numpy.ndarray`
         """
         if (az is not None) and (el is not None):
             pass
         elif (az is not None) and (el is None):
+            if isinstance(az, u.Quantity):
+                az = az.to(u.deg).value
             az = np.ones(n) * az
             el = np.linspace(0, 90, n)
         elif (az is None) and (el is not None):
+            if isinstance(el, u.Quantity):
+                el = el.to(u.deg).value
             az = np.linspace(0, 360, n)
             el = np.ones(n) * el
         else:
@@ -317,17 +387,52 @@ class HpxSky(object):
 
 
     def plot(self, figname=None, db=True, **kwargs):
-        """
-            Possible kwargs:
-                cmap
-                vmin
-                vmax
-                tickscol
-                title
-                cblabel
-                grid
-                center
-                size
+        """ Plot the HEALPix :attr:`~nenupy.astro.hpxsky.HpxSky.skymap`
+            on an equatorial grid with a Elliptical frame.
+
+            :param figname:
+                Figure name, if ``None`` (default value), the
+                figure is not saved.
+            :type figname: `str`
+            :param db:
+                Sacle the data in decibel units. Default is
+                ``True``.
+            :type db: `bool`
+            :param cmap:
+                Name of the colormap. Default is ``'YlGnBu_r'``.
+            :type cmap: `str`
+            :param vmin:
+                Minimum value to scale the figure. Default is
+                min(:attr:`~nenupy.astro.hpxsky.HpxSky.skymap`).
+            :type vmin: `float`
+            :param vmax:
+                Maximum value to scale the figure. Default is
+                max(:attr:`~nenupy.astro.hpxsky.HpxSky.skymap`).
+            :type vmax: `float`
+            :param tickscol:
+                Color of the RA ticks. Default is ``'black'``.
+            :type tickscol: `str`
+            :param title:
+                Title of the plot. Default is ``None``.
+            :type title: `str`
+            :param cblabel:
+                Colorbar label. Default is ``'Amp'`` if ``db=False``
+                of ``'dB'`` if ``db=True``.
+            :type cblabel: `str`
+            :param grid:
+                Show the equatorial grid.
+            :type grid: `bool`
+            :param center:
+                Center of the plot. Default is
+                ``SkyCoord(0.*u.deg, 0.*u.deg)``.
+            :type center: :class:`~astropy.coordinates.SkyCoord`
+            :param size:
+                Diameter of the cutout. Default is whole sky.
+            :type size: `float` or :class:`~astropy.units.Quantity`
+            :param figsize:
+                Figure size in inches. Default is ``(15, 10)``.
+            :type figsize: `tuple`
+
         """
         # Lot of imports for this one...
         from reproject import reproject_from_healpix
@@ -344,6 +449,10 @@ class HpxSky(object):
         raauto = True
         if 'center' not in kwargs.keys():
             kwargs['center'] = SkyCoord(0.*u.deg, 0.*u.deg)
+        if not isinstance(kwargs['center'], SkyCoord):
+            raise TypeError(
+                'center must be a SkyCoord object.'
+            )
 
         # Preparing WCS projection
         dangle = 0.675
@@ -352,8 +461,10 @@ class HpxSky(object):
         nra = 480*scale
         ndec = 240*scale
         if 'size' in kwargs.keys():
+            if isinstance(kwargs['size'], u.Quantity):
+                kwargs['size'] = kwargs['size'].to(u.deg).value
             resol = dangle/scale
-            nra = int(kwargs['size'].to(u.deg).value / resol)
+            nra = int(kwargs['size'] / resol)
             ndec = nra
             raauto = False
 
@@ -387,8 +498,16 @@ class HpxSky(object):
             kwargs['cmap'] = 'YlGnBu_r'
         if 'vmin' not in kwargs.keys():
             kwargs['vmin'] = np.min(data[mask])
+        elif kwargs['vmin'] is None:
+            kwargs['vmin'] = np.min(data[mask])
+        else:
+            pass
         if 'vmax' not in kwargs.keys():
             kwargs['vmax'] = np.max(data[mask])
+        elif kwargs['vmax'] is None:
+            kwargs['vmax'] = np.max(data[mask])
+        else:
+            pass
         if 'tickscol' not in kwargs.keys():
             kwargs['tickscol'] = 'black'
         if 'title' not in kwargs.keys():
