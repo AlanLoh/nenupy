@@ -138,7 +138,7 @@ class HpxSky(object):
     def time(self, t):
         if t is None:
             t = Time.now()
-        self._time = Time(t)
+        self._time = Time(t) if not isinstance(t, Time) else t
 
         # Update Az-Alt coordinates
         altaz_frame = AltAz(
@@ -476,7 +476,8 @@ class HpxSky(object):
 
         # Make an array out of HEALPix representation
         skymap = self.skymap.copy()
-        skymap[~self._is_visible] = np.nan
+        if self.visible_sky:
+            skymap[~self._is_visible] = np.nan
         array, fp = reproject_from_healpix(
             (skymap, ICRS()),
             wcs,
