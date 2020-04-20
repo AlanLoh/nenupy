@@ -2,10 +2,13 @@
 # -*- coding: utf-8 -*-
 
 
-"""
+r"""
     ******************************
     NenuFAR Observation Simulation
     ******************************
+
+    .. math::
+        \mathcal{B} (\nu, t) = \int \rm{GSM} (\varphi, \theta, \nu, t) \mathcal{N}_g (\varphi, \theta, \nu, t)\, d\varphi \, d\theta
 """
 
 
@@ -33,7 +36,7 @@ from astropy import units as u
 from astropy.coordinates import EarthLocation, AltAz, ICRS
 from astropy.time import Time, TimeDelta
 
-from nenupy.skymodel import HpxGSM
+from nenupy.skymodel import HpxGSM, HpxLOFAR
 from nenupy.beam import HpxABeam, HpxDBeam
 from nenupy.instru import nenufar_loc
 from nenupy.beamlet import SData
@@ -50,7 +53,8 @@ class HpxSimu(object):
     """
     """
 
-    def __init__(self, freq=50, resolution=1, **kwargs):
+    def __init__(self, freq=50, resolution=1, model='gsm', **kwargs):
+        self.model = model
         self._gain = None
         self.freq = freq
         self.resolution = resolution
@@ -104,6 +108,19 @@ class HpxSimu(object):
         self._freq = f
         return
 
+
+    @property
+    def model(self):
+        return self._model
+    @model.setter
+    def model(self, m):
+        m = m.lower()
+        if m not in ['gsm', 'lofar']:
+            raise ValueError(
+                'Unrecognized skymodel'
+            )
+        self._model = m
+        return
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -220,11 +237,18 @@ class HpxSimu(object):
                 del kwargs[key]
             except KeyError:
                 pass
-        # Instanciate the GSM
-        gsm = HpxGSM(
-            freq=self.freq,
-            resolution=self.resolution
-        )
+        # Instanciate the SkyModel
+        if self.model == 'gsm':
+            smodel = HpxGSM(
+                freq=self.freq,
+                resolution=self.resolution
+            )
+        elif self.model == 'lofar':
+            smodel = HpxLOFAR(
+                freq=self.freq,
+                resolution=self.resolution,
+                smooth=False
+            )
         # Loop over times
         for i, time in enumerate(tqdm(times)):
             self._gain.beam(
@@ -237,10 +261,10 @@ class HpxSimu(object):
                 **kwargs
             )
             # Rotate the HPX mask of the GSM
-            gsm.time = time
+            smodel.time = time
             # Multiply and sum GMS and Beam
-            vmask = gsm._is_visible
-            gsmcut = gsm.skymap[vmask]
+            vmask = smodel._is_visible
+            gsmcut = smodel.skymap[vmask]
             beamcut = self._gain.skymap[vmask]
             amp_list.append(
                 ne.evaluate(
@@ -477,7 +501,7 @@ class HpxSimu(object):
 
 
     @classmethod
-    def from_bst(cls, bstdata, resolution=1, dt=None, **kwargs):
+    def from_bst(cls, bstdata, resolution=1, dt=None, model='gsm', **kwargs):
         """
         """
         if not isinstance(bstdata, BST_Data):
@@ -515,6 +539,7 @@ class HpxSimu(object):
         simu = cls(
             freq=bstdata.freq[0].value,
             resolution=resolution,
+            model=model,
             **kwargs
         )
         anacoord = AltAz(

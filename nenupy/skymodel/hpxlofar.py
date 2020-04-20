@@ -38,12 +38,13 @@ class HpxLOFAR(HpxSky):
     """
     """
 
-    def __init__(self, freq=50, resolution=1):
+    def __init__(self, freq=50, resolution=1, smooth=True):
         super().__init__(
             resolution=resolution
         )
         self._load_lofar()
-        self.freq = freq 
+        self._smooth = smooth
+        self.freq = freq
 
 
     # --------------------------------------------------------- #
@@ -53,6 +54,8 @@ class HpxLOFAR(HpxSky):
         return self._freq
     @freq.setter
     def freq(self, f):
+        if not isinstance(f, u.Quantity):
+            f *= u.MHz
         self._freq = f
         self._populate()
         return
@@ -120,16 +123,17 @@ class HpxLOFAR(HpxSky):
         )
         # There are possibly overlaps, find a way to avoid that!
         self.skymap[indices] = self._extrapol_spec(
-            freq=self.freq,
+            freq=self._freq.to(u.MHz).value,
             rflux=self.model_table['flux'],
             rfreq=self.model_table['rfreq'],
             index=self.model_table['index']
         )
-        with HiddenPrints():
-            self.skymap = smoothing(
-                self.skymap, 
-                fwhm=self.resolution.to(u.rad).value*3
-            )
+        if self._smooth:
+            with HiddenPrints():
+                self.skymap = smoothing(
+                    self.skymap, 
+                    fwhm=self.resolution.to(u.rad).value*3
+                )
         return
 # ============================================================= #
 

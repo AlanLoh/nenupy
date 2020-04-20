@@ -432,6 +432,11 @@ class HpxSky(object):
             :param figsize:
                 Figure size in inches. Default is ``(15, 10)``.
             :type figsize: `tuple`
+            :param scatter:
+                Default is ``None``. If not, a scatter plot is
+                made on the desired HEALPix indices:
+                ``(indices, size, color)``.
+            :type scatter: `tuple`
 
         """
         # Lot of imports for this one...
@@ -519,6 +524,8 @@ class HpxSky(object):
             kwargs['grid'] = True
         if 'figsize' not in kwargs.keys():
             kwargs['figsize'] = (15, 10)
+        if 'scatter' not in kwargs.keys():
+            kwargs['scatter'] = None
 
         # Initialize figure
         fig = plt.figure(figsize=kwargs['figsize'])
@@ -556,6 +563,17 @@ class HpxSky(object):
             axdec.set_ticks_visible(False)
             axra.set_ticklabel_visible(False)
             axdec.set_ticklabel_visible(False)
+
+        # Scatter overplot
+        if kwargs['scatter'] is not None:
+            ax.scatter(
+                x=self.eq_coords[kwargs['scatter'][0]].ra.deg,
+                y=self.eq_coords[kwargs['scatter'][0]].dec.deg,
+                s=[kwargs['scatter'][1]]*len(kwargs['scatter'][0]),
+                color=kwargs['scatter'][2],
+                transform=ax.get_transform('world')
+            )
+
         im.set_clip_path(ax.coords.frame.patch)
         ax.set_title(kwargs['title'], pad=25)
 

@@ -1,3 +1,5 @@
+.. _tuto_beam_ref:
+
 Beam simulation
 ===============
 

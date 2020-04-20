@@ -2,10 +2,41 @@
 # -*- coding: utf-8 -*-
 
 
-"""
+r"""
     ************
     HEALPix Beam
     ************
+
+    NenuFAR beam simulations are required for many applications:
+    observation simulations, calibration, imaging process... It
+    is a critical step done in stages, while trying to match as
+    much as possible the NenuFAR instrument specifications.
+
+    NenuFAR antenna (see individual response 
+    :func:`~nenupy.instru.instru.nenufar_ant_gain`) are
+    analogically phased, thanks to cable delays switches, by
+    group of 19 called Mini-Arrays.
+    The (up-to 96) Mini-Arrays are then digitally phased to get
+    the beamformed NenuFAR data.
+    These two types of beam (analog or digital) are described by
+    the two classes :class:`~nenupy.beam.hpxbeam.HpxABeam` and
+    :class:`~nenupy.beam.hpxbeam.HpxDBeam` respectively. They
+    both inherit from the base class 
+    :class:`~nenupy.beam.hpxbeam.HpxBeam` which is also a
+    :class:`~nenupy.astro.hpxsky.HpxSky` enabling full HEALPix
+    representation and functionalities.
+
+    .. math::
+        \mathcal{M}_g (\mathbf{r}, \nu, p) = \mathcal{A}_g (\nu, p) \sum_{n_{\scriptscriptstyle \rm ant}} e^{2 \pi i \frac{\nu}{c} \mathbf{r}_c (\mathbf{r}) \cdot \mathbf{r}_{n_{\scriptscriptstyle \rm ant}}}
+
+    .. math::
+        \mathcal{N}_g (\mathbf{r}, \nu, p) = \sum_{\rm{MA}_i}  \mathcal{M}_{g,\, \rm{MA}_i} (\mathbf{r}, \nu, p) e^{2 \pi i \frac{\nu}{c} \mathbf{r} \cdot \mathbf{r}_{\rm{MA}_{\scriptscriptstyle i}}}
+
+    :math:`\mathcal{M}_g (\mathbf{r}, \nu, p)` :math:`\mathcal{N}_g (\mathbf{r}, \nu, p)` :math:`\mathcal{A}_g (\nu, p)` :math:`\mathbf{r}` :math:`\mathbf{r}_c` :math:`\mathbf{r}_{n_{\scriptscriptstyle \rm ant}}` :math:`\mathbf{r}_{\rm{MA}_{\scriptscriptstyle i}}`
+    :math:`p` :math:`\nu`
+
+    .. seealso::
+        :ref:`tuto_beam_ref` tutorial.
 """
 
 
@@ -32,7 +63,8 @@ from nenupy.beam import ma_antpos, ma_info, ma_pos
 from nenupy.instru import (
     desquint_elevation,
     analog_pointing,
-    nenufar_ant_gain
+    nenufar_ant_gain,
+    resolution
 )
 
 import numpy as np
@@ -155,7 +187,7 @@ class HpxBeam(HpxSky):
             pass
         elif e is None:
             raise ValuError(
-                'azana should not be None'
+                'elana should not be None'
             )
         else:
             e *= u.deg
@@ -203,8 +235,9 @@ class HpxBeam(HpxSky):
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def array_factor(self, az, el, antpos, freq):
-        r""" Computation of the array factor :math:`\mathcal{A}`
-            is done as follows:
+        r""" Computes the array factor :math:`\mathcal{A}` (i.e.
+            the far-field radiation pattern obtained for an array
+            of :math:`n_{\rm ant}` radiators).
 
             .. math::
                 \mathcal{A} = \left| \sum_{n_{\scriptscriptstyle \rm ant}} e^{2 \pi i \frac{\nu}{c} (\varphi_0 - \varphi)} \right|^2
@@ -231,19 +264,25 @@ class HpxBeam(HpxSky):
             direction in local coordinates.
 
             :param az:
-            :type az:
+                Pointing azimuth (in degrees if `float`)
+            :type az: `float` or :class:`~astropy.units.Quantity`
             :param el:
-            :type el:
+                Pointing elevation (in degrees if `float`)
+            :type el: `float` or :class:`~astropy.units.Quantity`
             :param antpos:
-            :type antpos:
+                Antenna positions shaped as (n_ant, 3)
+            :type antpos: :class:`~numpy.ndarray`
             :param freq:
-            :type freq:
+                Frequency (in MHz if `float`)
+            :type freq: `float` or :class:`~astropy.units.Quantity`
 
-            :returns:
+            :returns: Array factor
             :rtype: :class:`~numpy.ndarray`
 
         """
         def get_phi(az, el, antpos):
+            """ az, el in radians
+            """
             xyz_proj = np.array(
                 [
                     np.cos(az) * np.cos(el),
@@ -255,10 +294,15 @@ class HpxBeam(HpxSky):
             phi = antennas * xyz_proj
             return phi
 
+        if not isinstance(az, u.Quantity):
+            az *= u.deg
+        if not isinstance(el, u.Quantity):
+            el *= u.deg
+
         self.phase_center = to_radec(
             ho_coord(
-                az=az.value,
-                alt=el.value,
+                az=az,
+                alt=el,
                 time=self.time
             )
         )
@@ -291,11 +335,42 @@ class HpxBeam(HpxSky):
 
 
     def radial_profile(self, da=1.):
-        """
+        """ Computes the beam radial profile from the center
+            defined by the pointing direction while computing
+            :func:`~nenupy.beam.hpxbeam.HpxBeam.array_factor`.
+            This is done by averaging concentric rings of width 
+            ``da``.
+            
+            :param da:
+                Width of the concentric rings to be averaged from
+                the center.
+            :type da: `float` or :class:`~astropy.units.Quantity`
+
+            :returns:
+                (separation,  radial profile)
+            :rtype: `tuple` of (:class:`~astropy.units.Quantity`, :class:`~numpy.ndarray`)
+            
+            :Example:
+                >>> from nenupy.beam import HpxABeam
+                >>> import astropy.units as u
+                >>> ana = HpxABeam(resolution=1)
+                >>> ana.beam(
+                    freq=80*u.MHz,
+                    azana=180*u.deg,
+                    elana=90*u.deg,
+                    time='2020-04-01 12:00:00'
+                    )
+                >>> separation, profile = ana.radial_profile(da=0.5)
+                
+                .. image:: ./_images/beam_profile.png
+                    :width: 600
+                
         """
         sep = self.phase_center.separation(
             self._eq_coords[self._is_visible]
         ).deg
+        if isinstance(da, u.Quantity):
+            da = da.to(u.deg).value
         min_seps = np.arange(
             sep.min(),
             sep.max(),
@@ -308,7 +383,7 @@ class HpxBeam(HpxSky):
             mask = (sep >= min_s) & (sep < max_s)
             separations[i] = np.mean([min_s, max_s])
             profile[i] = np.mean(self.skymap[self._is_visible][mask])
-        return separations, profile
+        return separations*u.deg, profile
 
 # ============================================================= #
 
@@ -325,6 +400,7 @@ class HpxABeam(HpxBeam):
             resolution=resolution
         )
         self._fill_attr(kwargs)
+        self._correct_beamsquint = True
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
@@ -338,10 +414,13 @@ class HpxABeam(HpxBeam):
         self._fill_attr(kwargs)
 
         # Compensate beam squint
-        el = desquint_elevation(
-            elevation=self.elana,
-            opt_freq=self.squintfreq
-        )
+        if self._correct_beamsquint:
+            el = desquint_elevation(
+                elevation=self.elana,
+                opt_freq=self.squintfreq
+            )
+        else:
+            el = self.elana.copy()
         # Real pointing
         az, el = analog_pointing(self.azana, el)
         log.debug(
@@ -374,6 +453,45 @@ class HpxABeam(HpxBeam):
         # Udpate the pixels that can be seen
         self.skymap[self._is_visible] = arrfac * antgain
         return
+
+
+    def grating_lobes(self):
+        """
+        """
+        af = self.array_factor(
+            az=self.azana,
+            el=self.elana,
+            antpos=ma_antpos(
+                rot=ma_info['rot'][ma_info['ma'] == self.ma][0]
+            ),
+            freq=self.freq
+        )
+        pix_idx = np.arange(af.size)
+        mask = np.isclose(
+            af,
+            af.max(),
+            rtol=3e-1,
+            atol=3e-01,
+            equal_nan=False
+        )
+        gl_indices = []
+        while np.any(mask):
+            altaz_sel = self.ho_coords[mask]
+            seps = altaz_sel[0].separation(altaz_sel).deg
+            beamwidth = resolution(
+                freq=self.freq,
+                miniarrays=0
+            ).to(u.deg).value * 3
+            cluster_mask = seps < beamwidth
+            max_id = np.argmax(af[mask][cluster_mask])
+            gl_indices.append(
+                pix_idx[mask][cluster_mask][max_id]
+            )
+            # radec.append(
+            #     self.eq_coords[mask][cluster_mask][max_id]
+            # )
+            mask[pix_idx[mask][cluster_mask]] = False
+        return gl_indices#altaz, radec
 
 
     # --------------------------------------------------------- #

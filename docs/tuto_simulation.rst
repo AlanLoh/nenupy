@@ -52,7 +52,7 @@ Transit observation simulations can imitate NenuFAR array pointing towards a loc
 Setting up NenuFAR array with only one Mini-Array (namely 00), to simulate a SST obervation at 40 MHz with a sky resolution of 1deg and other keywords passed to :class:`~nenupy.simulation.hpxsimu.HpxSimu`:
 
 >>> simu = HpxSimu(
-        freq=40*uMHz,
+        freq=40*u.MHz,
         resolution=1*u.deg,
         ma=0,
         polar='NW'
