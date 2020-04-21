@@ -47,7 +47,9 @@ from healpy.pixelfunc import (
     nside2npix
 )
 from healpy.rotator import Rotator
+from healpy.fitsfunc import write_map
 
+import nenupy
 from nenupy.instru import nenufar_loc, HiddenPrints
 
 
@@ -432,11 +434,21 @@ class HpxSky(object):
             :param figsize:
                 Figure size in inches. Default is ``(15, 10)``.
             :type figsize: `tuple`
-            :param scatter:
+            :param indices:
                 Default is ``None``. If not, a scatter plot is
                 made on the desired HEALPix indices:
                 ``(indices, size, color)``.
+            :type indices: `tuple`
+            :param scatter:
+                Default is ``None``. If not, a scatter plot is
+                made on the desired equatorial coordinates:
+                ``(ra (deg), dec (deg), size, color)``.
             :type scatter: `tuple`
+            :param curve:
+                Default is ``None``. If not, a curve plot is
+                made on the desired equatorial coordinates:
+                ``(ra (deg), dec (deg), linestyle, color)``.
+            :type curve: `tuple`
 
         """
         # Lot of imports for this one...
@@ -524,8 +536,12 @@ class HpxSky(object):
             kwargs['grid'] = True
         if 'figsize' not in kwargs.keys():
             kwargs['figsize'] = (15, 10)
+        if 'indices' not in kwargs.keys():
+            kwargs['indices'] = None
         if 'scatter' not in kwargs.keys():
             kwargs['scatter'] = None
+        if 'curve' not in kwargs.keys():
+            kwargs['curve'] = None
 
         # Initialize figure
         fig = plt.figure(figsize=kwargs['figsize'])
@@ -564,13 +580,29 @@ class HpxSky(object):
             axra.set_ticklabel_visible(False)
             axdec.set_ticklabel_visible(False)
 
-        # Scatter overplot
+        # Overplot
+        if kwargs['indices'] is not None:
+            ax.scatter(
+                x=self.eq_coords[kwargs['indices'][0]].ra.deg,
+                y=self.eq_coords[kwargs['indices'][0]].dec.deg,
+                s=[kwargs['indices'][1]]*len(kwargs['indices'][0]),
+                color=kwargs['indices'][2],
+                transform=ax.get_transform('world')
+            )
         if kwargs['scatter'] is not None:
             ax.scatter(
-                x=self.eq_coords[kwargs['scatter'][0]].ra.deg,
-                y=self.eq_coords[kwargs['scatter'][0]].dec.deg,
-                s=[kwargs['scatter'][1]]*len(kwargs['scatter'][0]),
-                color=kwargs['scatter'][2],
+                x=kwargs['scatter'][0],
+                y=kwargs['scatter'][1],
+                s=[kwargs['scatter'][2]]*len(kwargs['scatter'][0]),
+                color=kwargs['scatter'][3],
+                transform=ax.get_transform('world')
+            )
+        if kwargs['curve'] is not None:
+            ax.plot(
+                kwargs['curve'][0],
+                kwargs['curve'][1],
+                linestyle=kwargs['curve'][2],
+                color=kwargs['curve'][3],
                 transform=ax.get_transform('world')
             )
 
@@ -611,6 +643,61 @@ class HpxSky(object):
                 bbox_inches='tight'
             )
         plt.close('all')
+        return
+
+
+    def save(self, filename, header=None):
+        """ Save the :attr:`~nenupy.astro.hpxsky.HpxSky.skymap`
+            to a FITS file, using
+            :func:`~healpy.fitsfunc.write_map`. The masked values
+            of :attr:`~nenupy.astro.hpxsky.HpxSky.skymap` (i.e.,
+            below horizon pixels) are converted to NaN values.
+
+            :param filename:
+                Name of the FITS file to save. If the name
+                already exists, the file is overwritten.
+            :type filename: `str`
+            :param header:
+                Extra records to add the the FITS header. The
+                syntax is ``[('rec1', 10), ('rec2', 'test')]``. 
+            :type header: `list`
+        """
+        hd = [
+            #('fillval', self.skymap.fill_value),
+            ('software', 'nenupy'),
+            ('version', nenupy.__version__),
+            ('contact', nenupy.__email__)
+        ]
+        if header is not None:
+            if not isinstance(header, list):
+                raise TypeError(
+                    'header must be a list'
+                )
+            for hd_i in header:
+                if not isinstance(hd_i, tuple):
+                    raise TypeError(
+                        'header element should be tuple'
+                    )
+                if len(hd_i) != 2:
+                    raise IndexError(
+                        'header element should be of length 2'
+                    )
+                if not isinstance(hd_i[0], str):
+                    raise TypeError(
+                        'First value of header element should be string'
+                    )
+                hd.append(hd_i)
+        map2write = self.skymap.data.copy()
+        map2write[~self._is_visible] = np.nan
+        write_map(
+            filename=filename,
+            m=map2write,
+            nest=False,
+            coord='C',
+            overwrite=True,
+            dtype=self.skymap.dtype,
+            extra_header=hd
+        )
         return
 
 
