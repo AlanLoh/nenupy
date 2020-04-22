@@ -135,6 +135,8 @@ class HpxSky(object):
             
             :type: :class:`~astropy.time.Time`
         """
+        if not hasattr(self, '_time'):
+            self._time = Time.now()
         return self._time
     @time.setter
     def time(self, t):
