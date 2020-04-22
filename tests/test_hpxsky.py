@@ -30,6 +30,10 @@ def test_hpxsky_resolution():
     assert sky.nside == 4
     assert isinstance(sky.resolution, Angle)
     assert sky.resolution.deg == 20.
+    # Astropy Angle input
+    sky = HpxSky(
+        resolution=Angle(20, unit='deg')
+    )
     # Astropy Quantity input
     sky = HpxSky(
         resolution=20*u.deg
@@ -47,6 +51,9 @@ def test_hpxsky_time():
     sky = HpxSky(
         resolution=20
     )
+    assert isinstance(sky.time, Time) # now
+    sky.time = None
+    assert isinstance(sky.time, Time) # now
     # String input
     sky.time = '2020-04-01 12:00:00'
     assert isinstance(sky.time, Time)
@@ -208,6 +215,7 @@ def test_hpxsky_radec():
     assert all(vals == np.array([4., 4., 0., 0., 0.]))
     assert sky.radec_value(ra=180, dec=-45) == 10.
     vals = sky.radec_value(dec=45, n=5)
+    vals = sky.radec_value(dec=45*u.deg, n=5)
     assert all(vals == np.array([0., 1., 2., 3., 0.]))
 # ============================================================= #
 
@@ -229,6 +237,7 @@ def test_hpxsky_azel():
     assert all(vals == np.array([2., 2., 2., 0., 0.]))
     assert sky.azel_value(az=0, el=-90) == 10.
     vals = sky.azel_value(el=0, n=5)
+    vals = sky.azel_value(el=0*u.deg, n=5)
     assert all(vals == np.array([2., 5., 8., 7., 2.]))
 # ============================================================= #
 
@@ -264,6 +273,15 @@ def test_hpxsky_plot():
         figname='return',
         db=True,
         grid=True,
+    )
+    sky.visible_sky = True
+    fig, ax = sky.plot(
+        figname='return',
+        db=True,
+        size=50*u.deg,
+        grid=False,
+        vmin=None,
+        vmax=None
     )
 # ============================================================= #
 
