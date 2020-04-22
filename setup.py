@@ -21,7 +21,7 @@ setup(
         'numexpr',
         'pyproj'
     ],
-    python_requires='>=3.5',
+    python_requires='>=3.7',
     # scripts=[],
     version=nenupy.__version__,
     description='NenuFAR Python package',
