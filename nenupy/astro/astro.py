@@ -122,12 +122,12 @@ def lha(time, ra):
         :param time: Time
         :type time: :class:`~astropy.time.Time`
         :param ra: Right Ascension
-        :type ra: `float` or :class:`~astropy.coordinates.Angle`
+        :type ra: `float` or :class:`~astropy.coordinates.Angle` or :class:`~astropy.coordinates.Quantity`
 
         :returns: LHA time
         :rtype: :class:`~astropy.coordinates.Angle`
     """
-    if not isinstance(ra, Angle):
+    if not isinstance(ra, (u.Quantity, Angle)):
         ra = Angle(ra * u.deg)
     ha = lst(time) - ra
     twopi = Angle(360. * u.deg)
@@ -331,6 +331,8 @@ def ho_zenith(time):
             >>> from nenupysim.astro import ho_zenith
             >>> zen_altaz = ho_zenith(time='2020-01-01 12:00:00')
     """
+    if not isinstance(time, Time):
+        time = Time(time)
     if time.isscalar:
         return ho_coord(
             az=0.,

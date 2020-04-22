@@ -155,3 +155,115 @@ def test_hpxsky_hocoord():
     assert sky.ho_coords.alt.deg == pytest.approx(compalt, tol)
 # ============================================================= #
 
+
+# ============================================================= #
+# ---------------------- test_hpxsky_lmn ---------------------- #
+# ============================================================= #
+def test_hpxsky_lmn():
+    sky = HpxSky(
+        resolution=50
+    )
+    center = SkyCoord(
+        ra=0.*u.deg,
+        dec=0.*u.deg
+    )
+    l, m, n = sky.lmn(phase_center=center)
+    assert isinstance(l, np.ndarray)
+    assert isinstance(m, np.ndarray)
+    assert isinstance(n, np.ndarray)
+    assert l.size == 12
+    assert m.size == 12
+    assert n.size == 12
+    tol = 1e-2
+    lcomp = np.array([
+        0.53, 0.53, -0.53, -0.53, 0.00, 1.00,
+        0.00, -1.00, 0.53, 0.53, -0.53, -0.53,
+    ])
+    mcomp = np.array([
+        0.67, 0.67, 0.67, 0.67, 0.00, 0.00,
+        0.00, 0.00, -0.67, -0.67, -0.67, -0.67
+    ])
+    ncomp = np.array([
+        0.53, 0.53, 0.53, 0.53, 1.00, 0.00,
+        1.00, 0.00, 0.53, 0.53, 0.53, 0.53,
+    ])
+    assert l == pytest.approx(lcomp, tol)
+    assert m == pytest.approx(mcomp, tol)
+    assert n == pytest.approx(ncomp, tol)
+# ============================================================= #
+
+
+# ============================================================= #
+# --------------------- test_hpxsky_radec --------------------- #
+# ============================================================= #
+def test_hpxsky_radec():
+    sky = HpxSky(
+        resolution=50
+    )
+    sky.skymap[:] = np.arange(sky.skymap.size)
+    # Float input
+    vals = sky.radec_value(ra=0, n=5)
+    # Astropy Quantity input
+    vals = sky.radec_value(ra=0*u.deg, n=5)
+    assert all(vals == np.array([4., 4., 0., 0., 0.]))
+    assert sky.radec_value(ra=180, dec=-45) == 10.
+    vals = sky.radec_value(dec=45, n=5)
+    assert all(vals == np.array([0., 1., 2., 3., 0.]))
+# ============================================================= #
+
+
+# ============================================================= #
+# --------------------- test_hpxsky_azel ---------------------- #
+# ============================================================= #
+def test_hpxsky_azel():
+    sky = HpxSky(
+        resolution=50
+    )
+    sky.time = '2020-04-01 12:00:00'
+    sky.visible_sky = False
+    sky.skymap[:] = np.arange(sky.skymap.size)
+    # Float input
+    vals = sky.azel_value(az=0, n=5)
+    # Astropy Quantity input
+    vals = sky.azel_value(az=0*u.deg, n=5)
+    assert all(vals == np.array([2., 2., 2., 0., 0.]))
+    assert sky.azel_value(az=0, el=-90) == 10.
+    vals = sky.azel_value(el=0, n=5)
+    assert all(vals == np.array([2., 5., 8., 7., 2.]))
+# ============================================================= #
+
+
+# ============================================================= #
+# --------------------- test_hpxsky_plot ---------------------- #
+# ============================================================= #
+def test_hpxsky_plot():
+    sky = HpxSky(
+        resolution=50
+    )
+    sky.time = '2020-04-01 12:00:00'
+    sky.visible_sky = False
+    sky.skymap[:] = np.arange(sky.skymap.size)
+    fig, ax = sky.plot(
+        figname='return',
+        db=False,
+        figsize=(10, 10),
+        center=SkyCoord(ra=0*u.deg, dec=0*u.deg),
+        size=50,
+        cblabel='test',
+        title='title',
+        cmap='viridis',
+        vmin=0,
+        vmax=9,
+        tickscol='white',
+        grid=True,
+        indices=(np.arange(12), 20, 'black'),
+        scatter=([0, 10], [0, 10], 10, 'tab:red'),
+        curve=([0, 10], [0, 10], (':'), 'tab:red'),
+    )
+    fig, ax = sky.plot(
+        figname='return',
+        db=True,
+        grid=True,
+    )
+# ============================================================= #
+

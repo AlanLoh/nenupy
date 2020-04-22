@@ -556,6 +556,7 @@ class HpxSky(object):
         im = ax.imshow(
             data,
             origin='lower',
+            interpolation='none',
             cmap=kwargs['cmap'],
             vmin=kwargs['vmin'],
             vmax=kwargs['vmax']
@@ -637,6 +638,8 @@ class HpxSky(object):
         # Save or show
         if figname is None:
             plt.show()
+        elif figname.lower() == 'return':
+            return fig, ax
         else:
             fig.savefig(
                 figname,

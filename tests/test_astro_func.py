@@ -12,6 +12,13 @@ __status__ = 'Production'
 
 import numpy as np
 import astropy.units as u
+from astropy.coordinates import (
+    EarthLocation,
+    Angle,
+    AltAz,
+    ICRS
+)
+from astropy.time import Time, TimeDelta
 import pytest
 
 from nenupy.astro import (
@@ -26,6 +33,63 @@ from nenupy.astro import (
     ho_zenith,
     eq_zenith
 )
+
+
+# ============================================================= #
+# ---------------------- test_nenufarloc ---------------------- #
+# ============================================================= #
+def test_nenufarloc():
+    loc = nenufar_loc()
+    assert isinstance(loc, EarthLocation)
+    assert loc.lon.deg == pytest.approx(2.19, 1e-2)
+    assert loc.lat.deg == pytest.approx(47.38, 1e-2)
+    assert loc.height.to(u.m).value == pytest.approx(150.00, 1e-2)
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------- test_lst -------------------------- #
+# ============================================================= #
+def test_lst():
+    with pytest.raises(TypeError):
+        lst_time = lst(
+            time='2020-04-01 12:00:00'
+        )
+    lst_time = lst(
+        time=Time('2020-04-01 12:00:00')
+    )
+    assert isinstance(lst_time, Angle)
+    assert lst_time.deg == pytest.approx(12.50, 1e-2)
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------- test_lha -------------------------- #
+# ============================================================= #
+def test_lha():
+    with pytest.raises(TypeError):
+        hour_angle = lha(
+            time='2020-04-01 12:00:00',
+            ra=0
+        )
+    # Float input
+    hour_angle = lha(
+        time=Time('2020-04-01 12:00:00'),
+        ra=0*u.deg
+    )
+    # Angle input
+    hour_angle = lha(
+        time=Time('2020-04-01 12:00:00'),
+        ra=Angle(0, unit='deg')
+    )
+    # Quantity input
+    hour_angle = lha(
+        time=Time('2020-04-01 12:00:00'),
+        ra=0*u.deg
+    )
+    assert isinstance(hour_angle, Angle)
+    assert hour_angle.deg == pytest.approx(12.50, 1e-2)
+# ============================================================= #
 
 
 # ============================================================= #
@@ -52,4 +116,141 @@ def test_wavelength():
     assert wl.to(u.m).value == pytest.approx(wavel, 1e-2)
 # ============================================================= #
 
+
+# ============================================================= #
+# ----------------------- test_hocoord ------------------------ #
+# ============================================================= #
+def test_hocoord():
+    # Float and string inputs
+    altaz = ho_coord(
+        alt=90,
+        az=180,
+        time='2020-04-01 12:00:00'
+    )
+    # Quantity and Time inputs
+    altaz = ho_coord(
+        alt=90*u.deg,
+        az=180*u.deg,
+        time=Time('2020-04-01 12:00:00')
+    )
+    assert isinstance(altaz, AltAz)
+    assert altaz.az.deg == 180.0
+    assert altaz.alt.deg == 90.0
+# ============================================================= #
+
+
+# ============================================================= #
+# ----------------------- test_eqcoord ------------------------ #
+# ============================================================= #
+def test_eqcoord():
+    # Float inputs
+    radec = eq_coord(
+        ra=180,
+        dec=45
+    )
+    # Quantity inputs
+    radec = eq_coord(
+        ra=180*u.deg,
+        dec=45*u.deg
+    )
+    assert isinstance(radec, ICRS)
+    assert radec.ra.deg == 180.0
+    assert radec.dec.deg == 45.0
+# ============================================================= #
+
+
+# ============================================================= #
+# ----------------------- test_toradec ------------------------ #
+# ============================================================= #
+def test_toradec():
+    with pytest.raises(TypeError):
+        radec = to_radec(1.)
+    altaz = ho_coord(
+        alt=90,
+        az=180,
+        time='2020-04-01 12:00:00'
+    )
+    radec = to_radec(altaz)
+    assert isinstance(radec, ICRS)
+    assert radec.ra.deg == pytest.approx(12.22, 1e-2)
+    assert radec.dec.deg == pytest.approx(47.27, 1e-2)
+# ============================================================= #
+
+
+# ============================================================= #
+# ----------------------- test_toaltaz ------------------------ #
+# ============================================================= #
+def test_toaltaz():
+    with pytest.raises(TypeError):
+        altaz = to_altaz(1., '2020-04-01 12:00:00')
+    radec = eq_coord(
+        ra=180,
+        dec=45
+    )
+    altaz = to_altaz(radec, Time('2020-04-01 12:00:00'))
+    assert isinstance(altaz, AltAz)
+    assert altaz.az.deg == pytest.approx(8.64, 1e-2)
+    assert altaz.alt.deg == pytest.approx(2.89, 1e-2)
+# ============================================================= #
+
+
+# ============================================================= #
+# ----------------------- test_hozenith ----------------------- #
+# ============================================================= #
+def test_hozenith():
+    # String input
+    zen = ho_zenith(
+        time='2020-04-01 12:00:00'
+    )
+    assert isinstance(zen, AltAz)
+    assert zen.az.deg == 0.
+    assert zen.alt.deg == 90.
+    # Time input
+    zen = ho_zenith(
+        time=Time('2020-04-01 12:00:00')
+    )
+    assert isinstance(zen, AltAz)
+    assert zen.az.deg == 0.
+    assert zen.alt.deg == 90.
+    # Non scalar time input
+    dts = TimeDelta(np.arange(2), format='sec')
+    zen = ho_zenith(
+        time=Time('2020-04-01 12:00:00') + dts
+    )
+    assert isinstance(zen, AltAz)
+    assert all(zen.az.deg == np.array([0., 0.]))
+    assert all(zen.alt.deg == np.array([90., 90.]))
+# ============================================================= #
+
+
+# ============================================================= #
+# ----------------------- test_eqzenith ----------------------- #
+# ============================================================= #
+def test_eqzenith():
+    tol = 1e-2
+    # String input
+    zen = eq_zenith(
+        time='2020-04-01 12:00:00'
+    )
+    assert isinstance(zen, ICRS)
+    assert zen.ra.deg == pytest.approx(12.22, tol)
+    assert zen.dec.deg == pytest.approx(47.27, tol)
+    # Time input
+    zen = eq_zenith(
+        time=Time('2020-04-01 12:00:00')
+    )
+    assert isinstance(zen, ICRS)
+    assert zen.ra.deg == pytest.approx(12.22, tol)
+    assert zen.dec.deg == pytest.approx(47.27, tol)
+    # Non scalar time input
+    dts = TimeDelta(np.arange(2), format='sec')
+    zen = eq_zenith(
+        time=Time('2020-04-01 12:00:00') + dts
+    )
+    assert isinstance(zen, ICRS)
+    ras = np.array([12.2226, 12.2268])
+    assert zen.ra.deg == pytest.approx(ras, 1e-4)
+    decs = np.array([47.269802, 47.269804])
+    assert zen.dec.deg == pytest.approx(decs, 1e-6)
+# ============================================================= #
 
