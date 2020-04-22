@@ -153,7 +153,7 @@ class HpxBeam(HpxSky):
         super().__init__(
             resolution=resolution
         )
-
+        self.ncpus = 1
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
@@ -366,6 +366,8 @@ class HpxBeam(HpxSky):
                     :width: 600
                 
         """
+        if not hasattr(self, 'phase_center'):
+            raise Exception('run array_factor first')
         sep = self.phase_center.separation(
             self._eq_coords[self._is_visible]
         ).deg

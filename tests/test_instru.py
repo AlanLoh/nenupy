@@ -34,37 +34,38 @@ from nenupy.instru import (
 # ============================================================= #
 # Cannot CI test this function because the NenuFAR_thph.fits file
 # is not hosted on github
-# def test_instru_analog():
-#     tol = 1e-2
-#     # Float inputs
-#     az, el = analog_pointing(
-#         azimuth=180,
-#         elevation=45
-#     )
-#     assert isinstance(az, u.Quantity)
-#     assert isinstance(el, u.Quantity)
-#     assert az.to(u.deg).value == pytest.approx(180.00, tol)
-#     assert el.to(u.deg).value == pytest.approx(45.17, tol)
-#     # Quantity inputs
-#     az, el = analog_pointing(
-#         azimuth=180*u.deg,
-#         elevation=45*u.deg
-#     )
-#     assert isinstance(az, u.Quantity)
-#     assert isinstance(el, u.Quantity)
-#     assert az.to(u.deg).value == pytest.approx(180.00, tol)
-#     assert el.to(u.deg).value == pytest.approx(45.17, tol)
-#     # Non scalar inputs
-#     az, el = analog_pointing(
-#         azimuth=np.array([0, 180]),
-#         elevation=np.array([20, 45])
-#     )
-#     assert isinstance(az, u.Quantity)
-#     assert isinstance(el, u.Quantity)
-#     azs = np.array([0., 180.])
-#     els = np.array([19.09, 45.17])
-#     assert all(az.to(u.deg).value == azs)
-#     assert el.to(u.deg).value == pytest.approx(els, tol)
+@pytest.mark.skip
+def test_instru_analog():
+    tol = 1e-2
+    # Float inputs
+    az, el = analog_pointing(
+        azimuth=180,
+        elevation=45
+    )
+    assert isinstance(az, u.Quantity)
+    assert isinstance(el, u.Quantity)
+    assert az.to(u.deg).value == pytest.approx(180.00, tol)
+    assert el.to(u.deg).value == pytest.approx(45.17, tol)
+    # Quantity inputs
+    az, el = analog_pointing(
+        azimuth=180*u.deg,
+        elevation=45*u.deg
+    )
+    assert isinstance(az, u.Quantity)
+    assert isinstance(el, u.Quantity)
+    assert az.to(u.deg).value == pytest.approx(180.00, tol)
+    assert el.to(u.deg).value == pytest.approx(45.17, tol)
+    # Non scalar inputs
+    az, el = analog_pointing(
+        azimuth=np.array([0, 180]),
+        elevation=np.array([20, 45])
+    )
+    assert isinstance(az, u.Quantity)
+    assert isinstance(el, u.Quantity)
+    azs = np.array([0., 180.])
+    els = np.array([19.09, 45.17])
+    assert all(az.to(u.deg).value == azs)
+    assert el.to(u.deg).value == pytest.approx(els, tol)
 # ============================================================= #
 
 
@@ -75,11 +76,11 @@ def test_instru_desquint():
     tol = 1e-2
     # Float inputs
     el = desquint_elevation(
-        elevation=45,
+        elevation=20,
         opt_freq=80
     )
     assert isinstance(el, u.Quantity)
-    assert el.to(u.deg).value == pytest.approx(44.36, tol)
+    assert el.to(u.deg).value == pytest.approx(20.00, tol)
     # Quantity inputs
     el = desquint_elevation(
         elevation=45*u.deg,
@@ -250,6 +251,15 @@ def test_instru_sensitivity():
             dt=10,
             df=3
         )
+    with pytest.raises(ValueError):
+        sens = sensitivity(
+            mode='beamforming',
+            freq=50,
+            antennas=None,
+            miniarrays=np.arange(200),
+            dt=10,
+            df=3
+        )
     sens = sensitivity(
         mode='imaging',
         freq=50,
@@ -289,6 +299,11 @@ def test_instru_resolution():
             freq=50,
             miniarrays=np.arange(200),
         )
+    res = resolution(
+        freq=50,
+        miniarrays=None
+    )
+    assert isinstance(res, u.Quantity)
     res = resolution(
         freq=50,
         miniarrays=[0, 1]
