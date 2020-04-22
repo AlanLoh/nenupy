@@ -20,7 +20,7 @@
     * :func:`~nenupy.astro.astro.to_altaz`: Convert :class:`~astropy.coordinates.ICRS` to :class:`~astropy.coordinates.AltAz`
     * :func:`~nenupy.astro.astro.ho_zenith`: Get the local zenith in :class:`~astropy.coordinates.AltAz` coordinates
     * :func:`~nenupy.astro.astro.eq_zenith`: Get the local zenith in :class:`~astropy.coordinates.ICRS` coordinates
-    * :func:`~nenupy.astro.astro.radio_sources`: Get main radio sources
+    * :func:`~nenupy.astro.astro.radio_sources`: Get main radio source poisitons
 
 """
 
@@ -360,6 +360,9 @@ def eq_zenith(time):
             :class:`~astropy.time.Time` object or a string in ISO
             or ISOT format.
         :type time: `str`, :class:`~astropy.time.Time`
+        
+        :returns: :class:`~astropy.coordinates.ICRS` object
+        :rtype: :class:`~astropy.coordinates.ICRS`
 
         :Example:
             >>> from nenupysim.astro import ho_zenith
@@ -376,10 +379,26 @@ def eq_zenith(time):
 # ----------------------- radio_sources ----------------------- #
 # ============================================================= #
 def radio_sources(time):
-    """
+    """ Main low-frequency radio source position in local
+        coordinates frame at time ``time``.
+
+        :param time:
+            Time at which the local zenith coordinates should be 
+            computed. It can either be provided as an 
+            :class:`~astropy.time.Time` object or a string in ISO
+            or ISOT format.
+        :type time: `str`, :class:`~astropy.time.Time`
+
+        :returns:
+            Dictionnary of radio source positions.
+        :rtype: `dict`
     """
     if not isinstance(time, Time):
         time = Time(time)
+    if not time.isscalar:
+        raise ValueError(
+            'Only scalar time allowed.'
+        )
 
     def solarsyst_eq(src, time):
         src = get_body(

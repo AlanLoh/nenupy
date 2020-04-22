@@ -31,7 +31,8 @@ from nenupy.astro import (
     to_radec,
     to_altaz,
     ho_zenith,
-    eq_zenith
+    eq_zenith,
+    radio_sources
 )
 
 
@@ -89,6 +90,22 @@ def test_lha():
     )
     assert isinstance(hour_angle, Angle)
     assert hour_angle.deg == pytest.approx(12.50, 1e-2)
+    # Negative hourangle
+    hour_angle = lha(
+        time=Time('2020-04-01 12:00:00'),
+        ra=300*u.deg
+    )
+    # > 360 hourangle
+    hour_angle = lha(
+        time=Time('2020-04-01 12:00:00'),
+        ra=-360*u.deg
+    )
+    # Non scalar object
+    dts = TimeDelta(np.arange(2), format='sec')
+    hour_angle = lha(
+        time=Time('2020-04-01 12:00:00') + dts,
+        ra=100*u.deg
+    )
 # ============================================================= #
 
 
@@ -252,5 +269,31 @@ def test_eqzenith():
     assert zen.ra.deg == pytest.approx(ras, 1e-4)
     decs = np.array([47.269802, 47.269804])
     assert zen.dec.deg == pytest.approx(decs, 1e-6)
+# ============================================================= #
+
+
+# ============================================================= #
+# --------------------- test_radiosources --------------------- #
+# ============================================================= #
+def test_radiosources():
+    with pytest.raises(ValueError):
+        dts = TimeDelta(np.arange(2), format='sec')
+        srcs = radio_sources(
+            time=Time('2020-04-01 12:00:00') + dts
+        )
+    # String input
+    srcs = radio_sources(
+        time='2020-04-01 12:00:00'
+    )
+    # Time input
+    srcs = radio_sources(
+        time=Time('2020-04-01 12:00:00')
+    )
+    src_list = [
+        'vira', 'cyga', 'casa', 'hera', 'hyda',
+        'taua', 'sun', 'moon', 'jupiter'
+    ]
+    assert all(np.isin(list(srcs.keys()), src_list))
+    assert isinstance(srcs['vira'], AltAz)
 # ============================================================= #
 
