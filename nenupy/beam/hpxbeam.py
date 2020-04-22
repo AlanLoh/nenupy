@@ -167,7 +167,7 @@ class HpxBeam(HpxSky):
         if isinstance(a, u.Quantity):
             pass
         elif a is None:
-            raise ValuError(
+            raise ValueError(
                 'azana should not be None'
             )
         else:
@@ -186,7 +186,7 @@ class HpxBeam(HpxSky):
         if isinstance(e, u.Quantity):
             pass
         elif e is None:
-            raise ValuError(
+            raise ValueError(
                 'elana should not be None'
             )
         else:

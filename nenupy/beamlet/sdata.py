@@ -116,7 +116,7 @@ class SData(object):
             data=self.amp + add,
             time=self.time,
             freq=self.freq,
-            stokes=polar
+            stokes=self.polar
             )
 
 
@@ -134,7 +134,7 @@ class SData(object):
             data=self.amp - sub,
             time=self.time,
             freq=self.freq,
-            stokes=polar
+            stokes=self.polar
             )
 
 
@@ -152,7 +152,7 @@ class SData(object):
             data=self.amp * mul,
             time=self.time,
             freq=self.freq,
-            stokes=polar
+            stokes=self.polar
             )
 
 
@@ -170,7 +170,7 @@ class SData(object):
             data=self.amp / div,
             time=self.time,
             freq=self.freq,
-            stokes=polar
+            stokes=self.polar
             )
 
 
