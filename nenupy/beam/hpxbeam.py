@@ -290,8 +290,10 @@ class HpxBeam(HpxSky):
                     np.sin(el)
                 ]
             )
-            antennas = np.matrix(antpos)
-            phi = antennas * xyz_proj
+            # antennas = np.matrix(antpos)
+            antennas = np.array(antpos)
+            # phi = antennas * xyz_proj
+            phi = np.dot(antennas, xyz_proj)
             return phi
 
         if not isinstance(az, u.Quantity):

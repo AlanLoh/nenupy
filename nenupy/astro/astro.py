@@ -21,6 +21,7 @@
     * :func:`~nenupy.astro.astro.ho_zenith`: Get the local zenith in :class:`~astropy.coordinates.AltAz` coordinates
     * :func:`~nenupy.astro.astro.eq_zenith`: Get the local zenith in :class:`~astropy.coordinates.ICRS` coordinates
     * :func:`~nenupy.astro.astro.radio_sources`: Get main radio source poisitons
+    * :func:`~nenupy.astro.astro.meridian_transit`: Next meridian transit time
 
 """
 
@@ -42,7 +43,8 @@ __all__ = [
     'to_altaz',
     'ho_zenith',
     'eq_zenith',
-    'radio_sources'
+    'radio_sources',
+    'meridian_transit'
     ]
 
 
@@ -423,5 +425,55 @@ def radio_sources(time):
     return {
         key: to_altaz(src_radec[key], time=time) for key in src_radec.keys()
     }
+# ============================================================= #
+
+
+# ============================================================= #
+# ----------------------- radio_sources ----------------------- #
+# ============================================================= #
+def meridian_transit(source, from_time, npoints=400):
+    """ Find the next ``source``meridian transit time after the
+        time ``from_time`` at NenuFAR location. This is a wrapper
+        around the `astroplan` package and the dedicated function
+        `target_meridian_transit_time()`.
+
+        :param source:
+            The fixed source instance to look for the transit.
+            See also :func:`~nenupy.astro.astro.eq_coord` or 
+            :meth:`~astropy.coordinates.SkyCoord.from_name`.
+        :type source: :class:`~astropy.coordinates.SkyCoord`
+        :param from_time:
+            Time from which the next transit should be found.
+        :type from_time: :class:`~astropy.time.Time`
+        :param npoints:
+            Number of points to look for the transit, the higher
+            the more precise (but longer). ``400`` is a nice
+            compromise.
+        :type npoints: `int`
+        
+        :returns:
+            Next meridian transit time of ``source``.
+        :rtype: :class:`~astropy.time.Time`
+    """
+    from astroplan import Observer
+    if not isinstance(source, SkyCoord):
+        raise TypeError(
+            'source must be a SkyCoord object'
+        )
+    if not isinstance(from_time, Time):
+        raise TypeError(
+            'from_time must be a Time object'
+        )
+    nenufar = Observer(
+        name='NenuFAR',
+        location=nenufar_loc()
+    )
+    transit = nenufar.target_meridian_transit_time(
+        time=from_time,
+        target=source,
+        which='next',
+        n_grid_points=npoints
+    )
+    return transit
 # ============================================================= #
 

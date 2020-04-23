@@ -21,6 +21,9 @@ setup(
         'numexpr',
         'pyproj'
     ],
+    extras_require={
+        'astroplan': 'astroplan'
+    },
     python_requires='>=3.7',
     # scripts=[],
     version=nenupy.__version__,

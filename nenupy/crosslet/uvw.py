@@ -126,19 +126,25 @@ class UVW(object):
                 3
             )
         )
-        xyz = np.matrix(self.bsl).T
+        #xyz = np.matrix(self.bsl).T
+        xyz = np.array(self.bsl).T
         for i in range(self.times.size):
             sr = np.sin(ha[i].rad)
             cr = np.cos(ha[i].rad)
             sd = np.sin(phase_center.dec[i].rad)
             cd = np.cos(phase_center.dec[i].rad)
-            rot_uvw = np.matrix([
+            # rot_uvw = np.matrix([
+            #     [    sr,     cr,  0],
+            #     [-sd*cr,  sd*sr, cd],
+            #     [ cd*cr, -cd*sr, sd]
+            # ])
+            rot_uvw = np.array([
                 [    sr,     cr,  0],
                 [-sd*cr,  sd*sr, cd],
                 [ cd*cr, -cd*sr, sd]
             ])
-            #self.uvw[i, ...] = - (rot_uvw * xyz).T
-            self.uvw[i, ...] = (rot_uvw * xyz).T
+            #self.uvw[i, ...] = (rot_uvw * xyz).T
+            self.uvw[i, ...] = np.dot(rot_uvw, xyz).T
         return
 
 

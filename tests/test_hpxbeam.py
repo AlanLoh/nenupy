@@ -92,16 +92,7 @@ def test_arrayfactor(lowresbeam):
     assert isinstance(af, np.ndarray)
     assert af.size == 96
     assert af[48] == pytest.approx(0.397, 1e-3)
-    # Quanity input
-    af = lowresbeam.array_factor(
-        az=0*u.deg,
-        el=90*u.deg,
-        antpos=positions,
-        freq=50*u.MHz
-    )
-    assert af.size == 96
-    assert af[48] == pytest.approx(0.397, 1e-3)
-    # Multi-process
+    # Multi-process and Quanity inputs
     lowresbeam.ncpus = 2
     af = lowresbeam.array_factor(
         az=0*u.deg,

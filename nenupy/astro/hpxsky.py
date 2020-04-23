@@ -501,7 +501,7 @@ class HpxSky(object):
             (skymap, ICRS()),
             wcs,
             nested=False,
-            shape_out=(ndec, nra)            
+            shape_out=(ndec, nra)
         )
 
         # Decibel or linear?
@@ -564,7 +564,7 @@ class HpxSky(object):
         axra = ax.coords[0]
         axdec = ax.coords[1]
         if kwargs['grid']:
-            ax.coords.grid(color=kwargs['tickscol'], alpha=0.5)    
+            ax.coords.grid(color=kwargs['tickscol'], alpha=0.5)
             axra.set_ticks_visible(False)
             axra.set_ticklabel(color=kwargs['tickscol'])
             axra.set_axislabel('RA', color=kwargs['tickscol'])
@@ -613,14 +613,15 @@ class HpxSky(object):
         ax.set_title(kwargs['title'], pad=25)
 
         # Colorbar
-        cax = inset_axes(ax,
-           width='3%',
-           height='100%',
-           loc='lower left',
-           bbox_to_anchor=(1.05, 0., 1, 1),
-           bbox_transform=ax.transAxes,
-           borderpad=0,
-           )
+        cax = inset_axes(
+            ax,
+            width='3%',
+            height='100%',
+            loc='lower left',
+            bbox_to_anchor=(1.05, 0., 1, 1),
+            bbox_transform=ax.transAxes,
+            borderpad=0,
+        )
         cb = ColorbarBase(
             cax,
             cmap=get_cmap(name=kwargs['cmap']),
@@ -668,7 +669,7 @@ class HpxSky(object):
             :type header: `list`
         """
         hd = [
-            #('fillval', self.skymap.fill_value),
+            # ('fillval', self.skymap.fill_value),
             ('software', 'nenupy'),
             ('version', nenupy.__version__),
             ('contact', nenupy.__email__)
@@ -710,7 +711,7 @@ class HpxSky(object):
     # ----------------------- Internal ------------------------ #
     def _get_nside(self):
         """ Compute the nearest HEALPix nside given an angular
-            resolution.
+            resolution
         """
         orders = np.arange(30)
         nsides = order2nside(orders)
@@ -721,7 +722,7 @@ class HpxSky(object):
             ),
             unit=u.arcmin
         )
-        order_idx = np.argmin( np.abs(resols - self._resolution))
+        order_idx = np.argmin(np.abs(resols - self._resolution))
         self.nside = nsides[order_idx]
         self.pixidx = np.arange(nside2npix(self.nside))
         return
@@ -729,7 +730,7 @@ class HpxSky(object):
 
     def _get_eq_coords(self):
         """ Compute the equatorial and horizontal coordinates
-            for the HEALPix sky 
+            for the HEALPix sky
         """
         ra, dec = pix2ang(
             nside=self.nside,

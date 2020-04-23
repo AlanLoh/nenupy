@@ -16,7 +16,8 @@ from astropy.coordinates import (
     EarthLocation,
     Angle,
     AltAz,
-    ICRS
+    ICRS,
+    SkyCoord
 )
 from astropy.time import Time, TimeDelta
 import pytest
@@ -32,7 +33,8 @@ from nenupy.astro import (
     to_altaz,
     ho_zenith,
     eq_zenith,
-    radio_sources
+    radio_sources,
+    meridian_transit
 )
 
 
@@ -295,5 +297,31 @@ def test_radiosources():
     ]
     assert all(np.isin(list(srcs.keys()), src_list))
     assert isinstance(srcs['vira'], AltAz)
+# ============================================================= #
+
+
+# ============================================================= #
+# -------------------- test_meridiantransit ------------------- #
+# ============================================================= #
+def test_meridiantransit():
+    with pytest.raises(TypeError):
+        transit = meridian_transit(
+            source='wrong format',
+            from_time=Time('2020-04-01 12:00:00'),
+            npoints=10
+        )
+    with pytest.raises(TypeError):
+        transit = meridian_transit(
+            source=SkyCoord(ra=299.86*u.deg, dec=40.73*u.deg),
+            from_time='wrong format',
+            npoints=10
+        )
+    transit = meridian_transit(
+        source=SkyCoord(ra=299.86*u.deg, dec=40.73*u.deg),
+        from_time=Time('2020-04-01 12:00:00'),
+        npoints=100
+    )
+    assert isinstance(transit, Time)
+    assert transit.isot == '2020-04-02T07:07:03.968'
 # ============================================================= #
 
