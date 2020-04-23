@@ -61,7 +61,11 @@ class Beamlet(object):
     def f_min(self):
         """ Observation freq min
         """
-        freqs = np.unique(self.meta['bea']['freqList'])
+        try:
+            freqs = np.unique(self.meta['bea']['freqList'])
+        except KeyError:
+            # Observation is probably a SST
+            freqs = self.meta['ins']['frq'].squeeze()
         freqs = freqs[freqs != 0.]
         return np.min(freqs)
 
@@ -70,7 +74,11 @@ class Beamlet(object):
     def f_max(self):
         """ Observation freq max
         """
-        freqs = np.unique(self.meta['bea']['freqList'])
+        try:
+            freqs = np.unique(self.meta['bea']['freqList'])
+        except KeyError:
+            # Observation is probably a SST
+            freqs = self.meta['ins']['frq'].squeeze()
         freqs = freqs[freqs != 0.]
         return np.max(freqs)
     
