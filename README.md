@@ -2,13 +2,14 @@
 
 [![nenupy](https://img.shields.io/pypi/v/nenupy.svg)](
     https://pypi.python.org/pypi/nenupy)
-[![PyPI download month](https://img.shields.io/pypi/dm/nenupy.svg)](
-    https://pypi.python.org/pypi/nenupy/)
+<!--[![PyPI download month](https://img.shields.io/pypi/dm/nenupy.svg)](
+    https://pypi.python.org/pypi/nenupy/) -->
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/nenupy.svg)](
     https://pypi.python.org/pypi/nenupy/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3667816.svg)](https://doi.org/10.5281/zenodo.3667816)
 [![Documentation Status](https://readthedocs.org/projects/nenupy/badge/?version=latest)](https://nenupy.readthedocs.io/en/latest/?badge=latest)
 [![codecov](https://codecov.io/gh/AlanLoh/nenupy/branch/master/graph/badge.svg)](https://codecov.io/gh/AlanLoh/nenupy)
+![Python package](https://github.com/AlanLoh/nenupy/workflows/Python%20package/badge.svg)
 [![astropy](http://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat)](http://www.astropy.org/)
 
 <!-- ![Alt text](./Logo-NenuFAR-noir.svg) -->
