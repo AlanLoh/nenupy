@@ -28,7 +28,7 @@ import astropy.units as u
 from astropy.table import Table
 
 from nenupy.astro import HpxSky
-from nenupy.instru import HiddenPrints
+from nenupy.instru import _HiddenPrints
 
 
 # ============================================================= #
@@ -129,7 +129,7 @@ class HpxLOFAR(HpxSky):
             index=self.model_table['index']
         )
         if self._smooth:
-            with HiddenPrints():
+            with _HiddenPrints():
                 self.skymap = smoothing(
                     self.skymap, 
                     fwhm=self.resolution.to(u.rad).value*3

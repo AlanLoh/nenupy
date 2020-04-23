@@ -1,6 +1,7 @@
 numpy
 scipy
 astropy
+astroplan
 matplotlib
 healpy
 reproject

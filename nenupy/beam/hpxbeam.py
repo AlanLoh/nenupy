@@ -59,8 +59,10 @@ from nenupy.astro import (
     to_radec,
     ho_coord
 )
-from nenupy.beam import ma_antpos, ma_info, ma_pos
 from nenupy.instru import (
+    ma_antpos,
+    ma_info,
+    ma_pos,
     desquint_elevation,
     analog_pointing,
     nenufar_ant_gain,
@@ -290,9 +292,7 @@ class HpxBeam(HpxSky):
                     np.sin(el)
                 ]
             )
-            # antennas = np.matrix(antpos)
             antennas = np.array(antpos)
-            # phi = antennas * xyz_proj
             phi = np.dot(antennas, xyz_proj)
             return phi
 

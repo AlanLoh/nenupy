@@ -32,7 +32,10 @@ __maintainer__ = 'Alan'
 __email__ = 'alan.loh@obspm.fr'
 __status__ = 'Production'
 __all__ = [
-    'HiddenPrints',
+    'ma_antpos',
+    'ma_info',
+    'ma_pos',
+    '_HiddenPrints',
     'nenufar_loc',
     'analog_pointing',
     'desquint_elevation',
@@ -212,7 +215,7 @@ ma_pos = np.dot(
 # ============================================================= #
 # ----------------------- HiddenPrints ------------------------ #
 # ============================================================= #
-class HiddenPrints:
+class _HiddenPrints:
     def __enter__(self):
         self._original_stdout = sys.stdout
         sys.stdout = open(os.devnull, 'w')
@@ -486,7 +489,7 @@ def nenufar_ant_gain(freq, polar='NW', nside=64, time=None):
             coord=['C', 'C'],
             inv=True
         )
-        with HiddenPrints():
+        with _HiddenPrints():
             gain = rot.rotate_map_alms(gain)
     # Convert HEALPix map to required nside
     gain = ud_grade(gain, nside_out=nside)

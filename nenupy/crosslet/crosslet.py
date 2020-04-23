@@ -44,8 +44,7 @@ except ModuleNotFoundError:
         return func
 
 from nenupy.astro import wavelength, HpxSky, eq_zenith
-from nenupy.instru import nenufar_loc, read_cal_table
-from nenupy.beam import ma_pos
+from nenupy.instru import nenufar_loc, read_cal_table, ma_pos
 from nenupy.crosslet import UVW
 from nenupy.beamlet.sdata import SData
 

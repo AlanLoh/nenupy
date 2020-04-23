@@ -78,7 +78,7 @@ from healpy.rotator import Rotator
 from healpy.pixelfunc import ud_grade
 
 from nenupy.astro import HpxSky
-from nenupy.instru import HiddenPrints
+from nenupy.instru import _HiddenPrints
 
 
 # ============================================================= #
@@ -142,7 +142,7 @@ class HpxGSM(HpxSky):
             rot=[0, 0],
             coord=['G', 'C']
         )
-        with HiddenPrints():
+        with _HiddenPrints():
             sky = rot.rotate_map_alms(sky)
         return sky
 

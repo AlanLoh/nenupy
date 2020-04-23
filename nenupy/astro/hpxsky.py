@@ -50,7 +50,7 @@ from healpy.rotator import Rotator
 from healpy.fitsfunc import write_map
 
 import nenupy
-from nenupy.instru import nenufar_loc, HiddenPrints
+from nenupy.instru import nenufar_loc
 
 
 # ============================================================= #
