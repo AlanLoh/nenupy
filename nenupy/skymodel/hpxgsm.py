@@ -76,6 +76,7 @@ __all__ = [
 from pygsm import GlobalSkyModel
 from healpy.rotator import Rotator
 from healpy.pixelfunc import ud_grade
+import astropy.units as u
 
 from nenupy.astro import HpxSky
 from nenupy.instru import _HiddenPrints
@@ -85,7 +86,7 @@ from nenupy.instru import _HiddenPrints
 # -------------------------- HpxGSM --------------------------- #
 # ============================================================= #
 class HpxGSM(HpxSky):
-    """ This class inherits from :class:`~nenupy.astro.hpxsky.HpxSky`
+    r""" This class inherits from :class:`~nenupy.astro.hpxsky.HpxSky`
         and aims at wrapping around pygsm to display the
         low-frequency sky model in HEALPix representation in sky
         coordinates relevant to the NenuFAR array.
@@ -96,12 +97,22 @@ class HpxGSM(HpxSky):
         :type freq: `float` or :class:`~astropy.units.Quantity`
         :param resolution:
             Desired sky model resolution. The best matching
-            available HEALPix angular resolution is set.
+            available HEALPix angular resolution is set. Due to
+            weight files availability (e.g. 
+            `healpy weights <https://healpy.github.io/healpy-data/>`_),
+            only ``resolution`` :math:`\leq` 1.8323 degrees (or
+            nside :math:`\geq` 32) are allowed).
         :type resolution: `float` or :class:`~astropy.units.Quantity`
 
     """
 
     def __init__(self, freq=50, resolution=1):
+        if isinstance(resolution, u.Quantity):
+            resolution = resolution.to(u.deg).value
+        if resolution > 1.9:
+            raise ValueError(
+                'resolution must be <= 1.83 deg'
+            )
         super().__init__(
             resolution=resolution
         )
