@@ -69,6 +69,57 @@ class XST_Data(Crosslet):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+    def time_split_file(self, newname, start_idx=0, stop_idx=-1):
+        """
+        """
+        hdus = fits.open(self.xstfile, memmap=True)
+        newtimes = hdus[7].data['jd'][start_idx:stop_idx]
+        newdata = hdus[7].data['DATA'][start_idx:stop_idx, :, :]
+        log.info(
+            'Time splitting {} from {} to {} time steps.'.format(
+                self.xstfile,
+                hdus[7].data['jd'].size,
+                newtimes.size
+            )
+        )
+        metadata_hdus = hdus[:-1]
+        newrec = fits.FITS_rec.from_columns(
+            [
+                fits.Column(
+                    name='jd',
+                    array=newtimes,
+                    format='1D'
+                ),
+                fits.Column(
+                    name='xstSubband',
+                    array=hdus[7].data['xstSubband'],
+                    format='16I'
+                ),
+                fits.Column(
+                    name='DATA',
+                    array=newdata,
+                    format='97680C',
+                    dim='(6105, 16)'
+                ),
+            ],
+            nrows=newtimes.size
+        )
+        newheader = hdus[7].header.copy()
+        newheader['NAXIS2'] = newtimes.size
+        new_hdu7 = fits.BinTableHDU(
+            data=newrec,
+            header=newheader,
+            name='XST'
+        )
+        new_hdu = fits.HDUList(
+            metadata_hdus + [new_hdu7]
+        )
+        new_hdu.writeto(newname, overwrite=True)
+        log.info(
+            'File {} created.'.format(newname)
+        )
+        return
+
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #

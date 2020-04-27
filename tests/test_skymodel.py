@@ -20,6 +20,8 @@ from nenupy.skymodel import HpxGSM, HpxLOFAR
 # ============================================================= #
 # ------------------------- test_gsm -------------------------- #
 # ============================================================= #
+# Need pygsm to test, impossible remotley on CI
+@pytest.mark.skip
 def test_gsm():
     # Fail because too high resolution
     with pytest.raises(ValueError):

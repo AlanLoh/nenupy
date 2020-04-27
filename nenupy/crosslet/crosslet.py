@@ -430,7 +430,7 @@ class Crosslet(object):
         for fi in range(c.shape[1]):
             cal_i = np.expand_dims(cal[fi], axis=1)
             cal_i_h = np.expand_dims(cal[fi].T.conj(), axis=0)
-            mul = np.matrix(cal_i) * np.matrix(cal_i_h)
+            mul = np.dot(cal_i, cal_i_h)
             c[:, fi, :, :] *= mul[np.newaxis, :, :]
         # Phase the Xcorr
         dphi = np.dot(
