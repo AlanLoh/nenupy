@@ -75,7 +75,7 @@ def test_sdata_attr():
         data=np.ones((2, 3, 1)),
         time=Time('2020-04-01 12:00:00') + dts,
         freq=np.arange(3) * u.MHz,
-        polar=['NE']
+        polar='NE'
     )
     assert s1.amp.shape == (2, 3)
     assert (s1.amp == 1.).all()
@@ -231,4 +231,87 @@ def test_sdata_div():
     (s.data == 0.5).all()
 # ============================================================= #
 
+
+# ============================================================= #
+# -------------------- test_sdata_concat_t -------------------- #
+# ============================================================= #
+def test_sdata_concat_t():
+    dts = TimeDelta(np.arange(2), format='sec')
+    s1 = SData(
+        data=np.ones((2, 3, 1)),
+        time=Time('2020-04-01 12:00:00') + dts,
+        freq=np.arange(3) * u.MHz,
+        polar=['NE']
+    )
+    with pytest.raises(TypeError):
+        s = s1 | 'other'
+    with pytest.raises(ValueError):
+        s2 = SData(
+            data=np.ones((2, 3, 1)),
+            time=Time('2020-04-01 13:00:00') + dts,
+            freq=np.arange(3) * u.MHz,
+            polar=['NW']
+        )
+        # Different polars
+        s = s1 | s2
+    with pytest.raises(ValueError):
+        s2 = SData(
+            data=np.ones((2, 3, 1)),
+            time=Time('2020-04-01 13:00:00') + dts,
+            freq=(1 + np.arange(3)) * u.MHz,
+            polar=['NE']
+        )
+        # Different frequencies
+        s = s1 | s2
+    s2 = SData(
+        data=np.ones((2, 3, 1)),
+        time=Time('2020-04-01 13:00:00') + dts,
+        freq=np.arange(3) * u.MHz,
+        polar=['NE']
+    )
+    s = s1 | s2
+    assert s.data.shape == (4, 3, 1)
+# ============================================================= #
+
+
+# ============================================================= #
+# -------------------- test_sdata_concat_f -------------------- #
+# ============================================================= #
+def test_sdata_concat_f():
+    dts = TimeDelta(np.arange(2), format='sec')
+    s1 = SData(
+        data=np.ones((2, 3, 1)),
+        time=Time('2020-04-01 12:00:00') + dts,
+        freq=np.arange(3) * u.MHz,
+        polar=['NE']
+    )
+    with pytest.raises(TypeError):
+        s = s1 & 'other'
+    with pytest.raises(ValueError):
+        s2 = SData(
+            data=np.ones((2, 3, 1)),
+            time=Time('2020-04-01 12:00:00') + dts,
+            freq=(1 + np.arange(3)) * u.MHz,
+            polar=['NW']
+        )
+        # Different polars
+        s = s1 & s2
+    with pytest.raises(ValueError):
+        s2 = SData(
+            data=np.ones((2, 3, 1)),
+            time=Time('2020-04-01 13:00:00') + dts,
+            freq=(1 + np.arange(3)) * u.MHz,
+            polar=['NE']
+        )
+        # Different times
+        s = s1 & s2
+    s2 = SData(
+        data=np.ones((2, 3, 1)),
+        time=Time('2020-04-01 12:00:00') + dts,
+        freq=(1 + np.arange(3)) * u.MHz,
+        polar=['NE']
+    )
+    s = s1 & s2
+    assert s.data.shape == (2, 6, 1)
+# ============================================================= #
 
