@@ -301,7 +301,11 @@ def to_altaz(radec, time):
                     dec=39,
                 )
     """
-    if not isinstance(radec, ICRS):
+    if isinstance(radec, ICRS):
+        pass
+    elif isinstance(radec.frame, ICRS):
+        pass
+    else:
         raise TypeError(
             'ICRS object expected.'
         )

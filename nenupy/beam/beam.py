@@ -24,7 +24,7 @@ __all__ = [
 
 import numpy as np
 import astropy.units as u
-from astropy.coordinates import ICRS
+from astropy.coordinates import ICRS, SkyCoord
 from astropy.time import Time
 from healpy.pixelfunc import get_interp_val
 
@@ -109,7 +109,8 @@ class Beam(object):
             coordinates ``coords`` at time ``time``.
 
             :param coords:
-            :type coords: :class:`~astropy.coordinates.ICRS`
+            :type coords: :type coords: :class:`~astropy.coordinates.ICRS` or 
+                :class:`~astropy.coordinates.SkyCoord`
             :param time:
             :type time: :class:`~astropy.time.Time`
 
@@ -146,9 +147,9 @@ class Beam(object):
                 >>> mollview(gain)
 
         """
-        if not isinstance(coords, ICRS):
+        if not isinstance(coords, (ICRS, SkyCoord)):
             raise TypeError(
-                'coords should be ICRS object'
+                'coords should be ICRS or SkyCoord object'
             )
         if not isinstance(time, Time):
             raise TypeError(
@@ -244,7 +245,7 @@ class ABeam(Beam):
             a *= u.deg
         self._azana = a
         log.info(
-            'Desired azimuth: {}'.format(self._azana)
+            'Desired analog azimuth: {}'.format(self._azana)
         )
         return
 
@@ -260,7 +261,35 @@ class ABeam(Beam):
             e *= u.deg
         self._elana = e
         log.info(
-            'Desired elevation: {}'.format(self._elana)
+            'Desired analog elevation: {}'.format(self._elana)
+        )
+        return
+
+
+    @property
+    def ma(self):
+        return self._ma
+    @ma.setter
+    def ma(self, m):
+        if not isinstance(m, (int, np.integer)):
+            print('PROBLEM', m, type(m))
+            raise TypeError(
+                'ma should be integer'
+            )
+        max_ma_name = ma_info['ma'].size - 1
+        if m > max_ma_name:
+            raise ValueError(
+                'select a MA name <= {}'.format(
+                    max_ma_name
+                )
+            )
+        self._ma = m
+        self._rot = ma_info['rot'][ma_info['ma'] == m][0]
+        log.info(
+            'MA {} selected (rotation {} mod 60 deg)'.format(
+                m,
+                self._rot%60
+            )
         )
         return
 
@@ -308,13 +337,14 @@ class ABeam(Beam):
     def beam_values(self, coords, time):
         """
             :param coords:
-            :type coords: :class:`~astropy.coordinates.ICRS`
+            :type coords: :class:`~astropy.coordinates.ICRS` or 
+                :class:`~astropy.coordinates.SkyCoord`
             :param time:
             :type time: :class:`~astropy.time.Time`
         """
-        if not isinstance(coords, ICRS):
+        if not isinstance(coords, (ICRS, SkyCoord)):
             raise TypeError(
-                'coords should be ICRS object'
+                'coords should be ICRS or SkyCoord object'
             )
         if not isinstance(time, Time):
             raise TypeError(
@@ -330,7 +360,7 @@ class ABeam(Beam):
             el = self.elana.copy()
         az, el = analog_pointing(self.azana, el)
         log.info(
-            'Effective pointing=({}, {})'.format(
+            'Effective analog pointing=({}, {})'.format(
                 az,
                 el
             )
@@ -349,7 +379,7 @@ class ABeam(Beam):
             phase_center=phase_center,
             coords=altazcoords,
             antpos=ma_antpos(
-                rot=ma_info['rot'][ma_info['ma'] == self.ma][0]
+                rot=self._rot
             )
         )
         # Antenna Gain
@@ -359,16 +389,12 @@ class ABeam(Beam):
         )
         anagain = arrfac * antgain
         log.info(
-            'Anabeam computed for {} pixels.'.format(
+            'Anabeam (rot {}) computed for {} pixels.'.format(
+                self._rot%60,
                 anagain.size
             )
         )
         return anagain
-
-    # --------------------------------------------------------- #
-    # ----------------------- Internal ------------------------ #
-
-
 # ============================================================= #
 
 
@@ -379,17 +405,144 @@ class DBeam(Beam):
     """
     """
 
-    def __init__(self, freq, polar, azana, elana, azdig, eldig):
+    def __init__(self, freq, polar, azdig, eldig, ma,
+        azana=None, elana=None, squint_freq=30, beamsquint=True):
         super().__init__(
             freq=freq,
             polar=polar
         )
+        self.azdig = azdig
+        self.eldig = eldig
+        self.ma = ma
+        self.azana = azdig if azana is None else azana
+        self.elana = eldig if elana is None else elana
+        self.squint_freq = squint_freq
+        self.beamsquint = beamsquint
+
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
+    @property
+    def azdig(self):
+        """
+        """
+        return self._azdig
+    @azdig.setter
+    def azdig(self, a):
+        if not isinstance(a, u.Quantity):
+            a *= u.deg
+        self._azdig = a
+        log.info(
+            'Digital azimuth: {}'.format(self._azdig)
+        )
+        return
+
+
+    @property
+    def eldig(self):
+        """
+        """
+        return self._eldig
+    @eldig.setter
+    def eldig(self, e):
+        if not isinstance(e, u.Quantity):
+            e *= u.deg
+        self._eldig = e
+        log.info(
+            'Digital elevation: {}'.format(self._eldig)
+        )
+        return
+
+
+    @property
+    def ma(self):
+        return self._ma
+    @ma.setter
+    def ma(self, m):
+        if isinstance(m, list):
+            m = np.array(m)
+        if np.isscalar(m):
+            raise ValueError(
+                'ma should at list be of length 2'
+            )
+        if not np.isin(m, ma_info['ma']).all():
+            raise ValueError(
+                'Some MA names are > {}'.format(
+                    ma_info['ma'].max()
+                )
+            )
+        self._ma = m.astype(int)
+        log.info(
+            'MAs {} selected for digital beam.'.format(
+                self._ma
+            )
+        )
+        return
+
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+    def beam_values(self, coords, time):
+        """
+            :param coords:
+            :type coords: :class:`~astropy.coordinates.ICRS` or 
+                :class:`~astropy.coordinates.SkyCoord`
+            :param time:
+            :type time: :class:`~astropy.time.Time`
+        """
+        if not isinstance(coords, (ICRS, SkyCoord)):
+            raise TypeError(
+                'coords should be ICRS or SkyCoord object'
+            )
+        if not isinstance(time, Time):
+            raise TypeError(
+                'time should be Time object'
+            )
+
+        # Build the Mini-Array 'summed' response
+        abeams = {}
+        for ma in self.ma:
+            rot = ma_info['rot'][ma_info['ma'] == ma][0]
+            if str(rot%60) not in abeams.keys():
+                ana = ABeam(
+                    freq=self.freq,
+                    polar=self.polar,
+                    azana=self.azana,
+                    elana=self.elana,
+                    ma=ma
+                )
+                anavals = ana.beam_values(
+                    coords=coords,
+                    time=time
+                )
+                abeams[str(rot%60)] = anavals.copy()
+            if not 'summa' in locals():
+                summa = abeams[str(rot%60)]
+            else:
+                summa += abeams[str(rot%60)]
+         # Array factor
+        phase_center = ho_coord(
+                az=self.azdig,
+                alt=self.eldig,
+                time=time
+        )
+        altazcoords = to_altaz(
+            radec=coords,
+            time=time
+        )  
+        arrfac = self.array_factor(
+            phase_center=phase_center,
+            coords=altazcoords,
+            antpos=ma_pos[np.isin(ma_info['ma'], self.ma)]
+        )
+        # Arrayfactor * summed MA response
+        digigain = arrfac * summa
+        log.info(
+            'Digibeam computed for {} pixels.'.format(
+                digigain.size
+            )
+        )
+        return digigain
 
 
     # --------------------------------------------------------- #
