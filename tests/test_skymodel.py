@@ -14,28 +14,28 @@ import numpy as np
 import astropy.units as u
 import pytest
 
-from nenupy.skymodel import HpxLOFAR #HpxGSM
+from nenupy.skymodel import HpxLOFAR
 
 
 # ============================================================= #
 # ------------------------- test_gsm -------------------------- #
 # ============================================================= #
 # Need pygsm to test, impossible remotley on CI
-@pytest.mark.skip
-def test_gsm():
-    # Fail because too high resolution
-    with pytest.raises(ValueError):
-        gsm = HpxGSM(
-            freq=55*u.MHz,
-            resolution=10*u.deg
-        )
-    gsm = HpxGSM(
-        freq=55*u.MHz,
-        resolution=1.8*u.deg
-    )
-    assert isinstance(gsm.skymap, np.ma.core.MaskedArray)
-    assert gsm.skymap.size == 12288
-    assert gsm.skymap[6000] == pytest.approx(1793.298, 1e-3)
+# @pytest.mark.skip
+# def test_gsm():
+#     # Fail because too high resolution
+#     with pytest.raises(ValueError):
+#         gsm = HpxGSM(
+#             freq=55*u.MHz,
+#             resolution=10*u.deg
+#         )
+#     gsm = HpxGSM(
+#         freq=55*u.MHz,
+#         resolution=1.8*u.deg
+#     )
+#     assert isinstance(gsm.skymap, np.ma.core.MaskedArray)
+#     assert gsm.skymap.size == 12288
+#     assert gsm.skymap[6000] == pytest.approx(1793.298, 1e-3)
 # ============================================================= #
 
 
