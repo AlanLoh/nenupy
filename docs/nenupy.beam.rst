@@ -6,7 +6,6 @@ nenupy.beam
 .. toctree::
 
    nenupy.beam.hpxbeam
-   nenupy.beam.hpxbeam_utils
 
 
 

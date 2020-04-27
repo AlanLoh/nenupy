@@ -14,7 +14,7 @@ import numpy as np
 import astropy.units as u
 import pytest
 
-from nenupy.skymodel import HpxGSM, HpxLOFAR
+from nenupy.skymodel import HpxLOFAR #HpxGSM
 
 
 # ============================================================= #
