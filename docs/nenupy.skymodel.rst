@@ -7,6 +7,7 @@ nenupy.skymodel
 
    nenupy.skymodel.hpxgsm
    nenupy.skymodel.hpxlofar
+   nenupy.skymodel.pointsource
 
 
 

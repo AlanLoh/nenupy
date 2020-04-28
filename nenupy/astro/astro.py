@@ -301,13 +301,16 @@ def to_altaz(radec, time):
                     dec=39,
                 )
     """
-    if isinstance(radec, ICRS):
-        pass
-    elif isinstance(radec.frame, ICRS):
+    if isinstance(radec, (ICRS, SkyCoord)):
+        if isinstance(radec, SkyCoord):
+            if not isinstance(radec.frame, ICRS):
+                raise TypeError(
+                    'frame should be ICRS'
+                )
         pass
     else:
         raise TypeError(
-            'ICRS object expected.'
+            'ICRS or SkyCoord object expected.'
         )
     altaz_frame = AltAz(
         obstime=time,

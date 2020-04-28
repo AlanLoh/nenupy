@@ -109,7 +109,7 @@ class Beam(object):
             coordinates ``coords`` at time ``time``.
 
             :param coords:
-            :type coords: :type coords: :class:`~astropy.coordinates.ICRS` or 
+            :type coords: :class:`~astropy.coordinates.ICRS` or 
                 :class:`~astropy.coordinates.SkyCoord`
             :param time:
             :type time: :class:`~astropy.time.Time`
@@ -543,11 +543,5 @@ class DBeam(Beam):
             )
         )
         return digigain
-
-
-    # --------------------------------------------------------- #
-    # ----------------------- Internal ------------------------ #
-
-
 # ============================================================= #
 

@@ -4,4 +4,5 @@
 
 from .hpxgsm import HpxGSM
 from .hpxlofar import HpxLOFAR
+from .pointsource import *
 

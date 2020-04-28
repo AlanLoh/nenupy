@@ -47,6 +47,7 @@ Finally, observations can then be simulated using the simulated beam and a sky m
    
    tuto_bst
    tuto_beam_simulation
+   tuto_beam
    tuto_simulation
    tuto_xst2bst
    tuto_tv
