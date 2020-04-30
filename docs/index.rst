@@ -26,7 +26,7 @@ Finally, observations can then be simulated using the simulated beam and a sky m
    `Github issue <https://github.com/AlanLoh/nenupy/issues/new/>`_.
 
 .. note::
-   DOI for the `nenupy` package: `10.5281/zenodo.3667815 <https://zenodo.org/record/3667816/>`_.
+   DOI for the `nenupy` package: `10.5281/zenodo.3775196 <https://zenodo.org/record/3775196/>`_.
 
 .. seealso::
    `nenupytf <https://nenupytf.readthedocs.io/en/latest/>`_, the Python package to read high-rate time-frequency data from the *UnDySPuTeD* NenuFAR backend.

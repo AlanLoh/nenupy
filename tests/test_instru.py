@@ -105,7 +105,7 @@ def test_instru_desquint():
 def test_instru_antgain():
     with pytest.raises(ValueError):
         antgain = nenufar_ant_gain(
-            freq=150, # wrong frequency
+            freq=5, # too low frequency
             polar='NW',
             nside=4,
             time=None
@@ -133,6 +133,14 @@ def test_instru_antgain():
         time='2020-04-01 12:00:00'
     )
     assert antgain[10] == pytest.approx(0.56, 1e-2)
+    # Above 80 MHz
+    antgain = nenufar_ant_gain(
+        freq=90,
+        polar='NW',
+        nside=4,
+        time='2020-04-01 12:00:00'
+    )
+    assert antgain[10] == pytest.approx(0.68, 1e-2)
 # ============================================================= #
 
 

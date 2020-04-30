@@ -378,7 +378,8 @@ def nenufar_ant_gain(freq, polar='NW', nside=64, time=None):
             Frequency of the returned antenna gain. Its value
             must be comprised between 10 and 80 MHz, because
             available antenna models are constrained to these
-            frequencies.
+            frequencies. If the frequency value exceeds 80 MHz,
+            an extrapolation is made using polynomial fits.
         :type freq: `float` or :class:`~astropy.units.Quantity`
         :param polar:
             Antenna polarization to take into account (either
@@ -430,10 +431,6 @@ def nenufar_ant_gain(freq, polar='NW', nside=64, time=None):
         raise ValueError(
             'Polar should be either NW or NE'
         )
-    if (freq < 10) or (freq > 80):
-        raise ValueError(
-            'frequency should be set between 10 and 80 MHz.'
-        )
     polar = polar.upper()
     # Correspondance between polar/freq and field index in FITS
     gain_freqs = np.arange(10, 90, 10, dtype=int)
@@ -443,35 +440,69 @@ def nenufar_ant_gain(freq, polar='NW', nside=64, time=None):
         for f in gain_freqs:
             cols['{}_{}'.format(p, f)] = count
             count += 1
-    # Get Low and High ant gain bounding freq
-    f_low = gain_freqs[gain_freqs <= freq].max()
-    f_high = gain_freqs[gain_freqs >= freq].min()
     antgain_file = join(
         dirname(__file__),
         'NenuFAR_Ant_Hpx.fits',
     )
-    gain_low = read_map(
-        filename=antgain_file,
-        hdu=1,
-        field=cols['{}_{}'.format(polar, f_low)],
-        verbose=False,
-        memmap=True,
-        dtype=float
-    )
-    gain_high = read_map(
-        filename=antgain_file,
-        hdu=1,
-        field=cols['{}_{}'.format(polar, f_high)],
-        verbose=False,
-        memmap=True,
-        dtype=float
-    )
-    # Make interpolation
-    if f_low != f_high:
-        gain = gain_low * (f_high - freq)/10. +\
-            gain_high * (freq - f_low)/10.
+    if freq < 10:
+        raise ValueError(
+            'No antenna model < 10 MHz.'
+        )
+    elif freq > 80:
+        log.warning(
+            'NenuFAR antenna response is extrapolated > 80 MHz.'
+        )
+        # Will fit a polynomial along the high end of frequencies
+        freq_to_fit = np.arange(20, 90, 10, dtype=int)
+        gains = np.zeros((freq_to_fit.size, nside2npix(64)))
+        # Construct the gain map (freqs, npix)
+        for i, f in enumerate(freq_to_fit):
+            gains[i, :] = read_map(
+                filename=antgain_file,
+                hdu=1,
+                field=cols['{}_{}'.format(polar, f)],
+                verbose=False,
+                memmap=True,
+                dtype=float
+            )
+        # Get the polynomial coefficients
+        coeffs = np.polyfit(freq_to_fit, gains, 3)
+        def poly(x, coeffs):
+            """ Retrieve the polynomial from coefficients
+            """
+            na = np.newaxis
+            order = coeffs.shape[0]
+            poly = np.zeros((x.size, coeffs.shape[1]))
+            for deg in range(order):
+                poly += (x**deg)[:, na] * coeffs[order-deg-1, :][na, :]
+            return poly
+        gain = poly(np.array([freq]), coeffs).ravel()
     else:
-        gain = gain_low
+        # Get Low and High ant gain bounding freq
+        f_low = gain_freqs[gain_freqs <= freq].max()
+        f_high = gain_freqs[gain_freqs >= freq].min()
+        gain_low = read_map(
+            filename=antgain_file,
+            hdu=1,
+            field=cols['{}_{}'.format(polar, f_low)],
+            verbose=False,
+            memmap=True,
+            dtype=float
+        )
+        gain_high = read_map(
+            filename=antgain_file,
+            hdu=1,
+            field=cols['{}_{}'.format(polar, f_high)],
+            verbose=False,
+            memmap=True,
+            dtype=float
+        )
+        # Make interpolation
+        if f_low != f_high:
+            gain = gain_low * (f_high - freq)/10. +\
+                gain_high * (freq - f_low)/10.
+        else:
+            gain = gain_low
     # Rotate the map to equatorial coordinates
     if time is not None:
         if not isinstance(time, Time):
