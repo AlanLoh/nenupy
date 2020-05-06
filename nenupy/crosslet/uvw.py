@@ -73,9 +73,9 @@ class UVW(object):
 
         xyz = antpos[..., None]
         xyz = xyz[:, :, 0][:, None]
-        #xyz = xyz - xyz.transpose(1, 0, 2)
+        # xyz = xyz - xyz.transpose(1, 0, 2)
         xyz = xyz.transpose(1, 0, 2) - xyz
-        #self.bsl = xyz[np.triu_indices(m.size)]
+        # self.bsl = xyz[np.triu_indices(m.size)]
         self.bsl = xyz[np.tril_indices(m.size)]
         self._mas = m
         return
@@ -84,7 +84,26 @@ class UVW(object):
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def compute(self, phase_center=None):
-        """
+        r"""
+            UVW are computed such as:
+
+            .. math::
+                \pmatrix{
+                    u \\
+                    v \\
+                    w
+                } =
+                \pmatrix{
+                    \sin(h) & \cos(h) & 0\\
+                    -\sin(\delta) \cos(h) & \sin(\delta) \sin(h) & \cos(\delta)\\
+                    \cos(\delta)\cos(h) & -\cos(\delta) \sin(h) & \sin(\delta)
+                }
+                \pmatrix{
+                    \Delta x\\
+                    \Delta y\\
+                    \Delta z
+                }
+
         """
         # Phase center
         if phase_center is None:
@@ -127,6 +146,14 @@ class UVW(object):
             )
         )
         xyz = np.array(self.bsl).T
+        rot = np.radians(-90) # x to the south, y to the east
+        rotation = np.array(
+            [
+                [ np.cos(rot), np.sin(rot), 0],
+                [-np.sin(rot), np.cos(rot), 0],
+                [ 0,           0,           1]
+            ]
+        )
         for i in range(self.times.size):
             sr = np.sin(ha[i].rad)
             cr = np.cos(ha[i].rad)
@@ -137,7 +164,11 @@ class UVW(object):
                 [-sd*cr,  sd*sr, cd],
                 [ cd*cr, -cd*sr, sd]
             ])
-            self.uvw[i, ...] = np.dot(rot_uvw, xyz).T
+            self.uvw[i, ...] = - np.dot(
+                np.dot(rot_uvw, xyz).T,
+                rotation
+            )
+            # self.uvw[i, ...] = np.dot(rot_uvw, xyz).T
         return
 
 

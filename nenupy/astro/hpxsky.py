@@ -282,7 +282,8 @@ class HpxSky(object):
         dec = self.eq_coords.dec.rad
         ra_0 = phase_center.ra.rad
         dec_0 = phase_center.dec.rad
-        ra_delta = ra - ra_0
+        # ra_delta = ra - ra_0
+        ra_delta = ra_0 - ra
         l = np.cos(dec)*np.sin(ra_delta)
         m = np.sin(dec)*np.cos(dec_0) -\
             np.cos(dec)*np.sin(dec_0)*np.cos(ra_delta)
@@ -446,6 +447,11 @@ class HpxSky(object):
                 made on the desired equatorial coordinates:
                 ``(ra (deg), dec (deg), size, color)``.
             :type scatter: `tuple`
+            :param text:
+                Default is ``None``. If not, text is overplotted
+                on the desired equatorial coordinates:
+                ``(ra (deg), dec (deg), text, color)``.
+            :type text: `tuple`
             :param curve:
                 Default is ``None``. If not, a curve plot is
                 made on the desired equatorial coordinates:
@@ -544,6 +550,9 @@ class HpxSky(object):
             kwargs['scatter'] = None
         if 'curve' not in kwargs.keys():
             kwargs['curve'] = None
+        if 'text' not in kwargs.keys():
+            kwargs['text'] = None
+
 
         # Initialize figure
         fig = plt.figure(figsize=kwargs['figsize'])
@@ -608,6 +617,15 @@ class HpxSky(object):
                 color=kwargs['curve'][3],
                 transform=ax.get_transform('world')
             )
+        if kwargs['text'] is not None:
+            for i in range(len(kwargs['text'][0])):
+                ax.text(
+                    x=kwargs['text'][0][i],
+                    y=kwargs['text'][1][i],
+                    s=kwargs['text'][2][i],
+                    color=kwargs['text'][3],
+                    transform=ax.get_transform('world')
+                )
 
         im.set_clip_path(ax.coords.frame.patch)
         ax.set_title(kwargs['title'], pad=25)
