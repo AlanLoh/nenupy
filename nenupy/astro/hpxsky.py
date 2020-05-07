@@ -282,8 +282,8 @@ class HpxSky(object):
         dec = self.eq_coords.dec.rad
         ra_0 = phase_center.ra.rad
         dec_0 = phase_center.dec.rad
-        # ra_delta = ra - ra_0
-        ra_delta = ra_0 - ra
+        ra_delta = ra - ra_0
+        # ra_delta = ra_0 - ra
         l = np.cos(dec)*np.sin(ra_delta)
         m = np.sin(dec)*np.cos(dec_0) -\
             np.cos(dec)*np.sin(dec_0)*np.cos(ra_delta)

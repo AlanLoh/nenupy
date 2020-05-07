@@ -84,7 +84,15 @@ class UVW(object):
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def compute(self, phase_center=None):
-        r"""
+        r""" Compute the UVW at a given ``phase_center`` for all
+            the :attr:`~nenupy.crosslet.uvw.UVW.times` and baselines
+            formed by :attr:`~nenupy.crosslet.uvw.UVW.mas`.
+
+            :param phase_center: Observation phase center. If
+                ``None``, local zenith is considered as phase
+                center for all :attr:`~nenupy.crosslet.uvw.UVW.times`.
+            :type phase_center: :class:`~astropy.coordinates.SkyCoord`
+
             UVW are computed such as:
 
             .. math::
@@ -104,7 +112,18 @@ class UVW(object):
                     \Delta z
                 }
 
-        """
+            :math:`u`, :math:`v`, :math:`w` are in meters. :math:`h`
+            is the hour angle (see :func:`~nenupy.astro.astro.lha`)
+            at which the phase center is observed, :math:`\delta`
+            is the phase center's declination, :math:`(\Delta x,
+            \Delta y, \Delta z)` are the baselines projections
+            with the convention of :math:`x` to the South, :math:`y`
+            to the East and :math:`z` to :math:`\delta = 90` deg.
+
+            Result of the computation are stored as a :class:`~numpy.ndarray`
+            in :attr:`~nenupy.crosslet.uvw.UVW.uvw` whose shape is
+            (times, cross-correlations, 3), 3 being :math:`(u, v, w)`.
+            """
         # Phase center
         if phase_center is None:
             log.info(
@@ -164,11 +183,11 @@ class UVW(object):
                 [-sd*cr,  sd*sr, cd],
                 [ cd*cr, -cd*sr, sd]
             ])
-            self.uvw[i, ...] = - np.dot(
-                np.dot(rot_uvw, xyz).T,
-                rotation
-            )
-            # self.uvw[i, ...] = np.dot(rot_uvw, xyz).T
+            # self.uvw[i, ...] = - np.dot(
+            #     np.dot(rot_uvw, xyz).T,
+            #     rotation
+            # )
+            self.uvw[i, ...] = - np.dot(rot_uvw, xyz).T
         return
 
 

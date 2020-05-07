@@ -532,22 +532,22 @@ class Crosslet(object):
             axis=0
         )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
         # Mulitply (u, v) by (l, m) and compute FT exp
-        # ul = ft_mul(
-        #     x=np.tile(u, (l.size, 1)).T,
-        #     y= np.tile(l, (u.size, 1))
-        # )
-        # vm = ft_mul(
-        #     x=np.tile(v, (m.size, 1)).T,
-        #     y=np.tile(m, (v.size, 1))
-        # )
         ul = ft_mul(
-            x=np.tile(u, (m.size, 1)).T,
-            y= np.tile(m, (u.size, 1))
+            x=np.tile(u, (l.size, 1)).T,
+            y= np.tile(l, (u.size, 1))
         )
         vm = ft_mul(
-            x=np.tile(v, (l.size, 1)).T,
-            y=np.tile(l, (v.size, 1))
+            x=np.tile(v, (m.size, 1)).T,
+            y=np.tile(m, (v.size, 1))
         )
+        # ul = ft_mul(
+        #     x=np.tile(u, (m.size, 1)).T,
+        #     y= np.tile(m, (u.size, 1))
+        # )
+        # vm = ft_mul(
+        #     x=np.tile(v, (l.size, 1)).T,
+        #     y=np.tile(l, (v.size, 1))
+        # )
         phase = ft_phase(ul, vm)
         # Phase visibilities
         vis = np.mean( # Mean in time
