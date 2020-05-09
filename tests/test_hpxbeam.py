@@ -133,14 +133,15 @@ def test_radialprofile(lowresbeam):
 # ---------------------- test_hpxanabeam ---------------------- #
 # ============================================================= #
 def test_hpxanabeam():
-    with patch('nenupy.instru.analog_pointing') as mock_anapoint:
+    with patch('nenupy.beam.hpxbeam.analog_pointing') as mock_anapoint:
         mock_anapoint.return_value = (180*u.deg, 90*u.deg)
         ana = HpxABeam(resolution=5)
         ana.beam(
-            azana=180,
-            elana=90,
+            azana=0,
+            elana=45,
             time=Time('2020-04-01 12:00:00')
         )
         assert ana.skymap.size == 3072
         assert ana.skymap[1000] == pytest.approx(6.288, 1e-3)
 # ============================================================= #
+
