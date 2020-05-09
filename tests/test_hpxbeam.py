@@ -13,6 +13,8 @@ __status__ = 'Production'
 import pytest
 import numpy as np
 import astropy.units as u
+from astropy.time import Time
+from unittest.mock import patch
 
 from nenupy.beam.hpxbeam import HpxBeam
 from nenupy.beam import HpxABeam, HpxDBeam
@@ -126,3 +128,19 @@ def test_radialprofile(lowresbeam):
         sep, profile = lowresbeam.radial_profile()
 # ============================================================= #
 
+
+# ============================================================= #
+# ---------------------- test_hpxanabeam ---------------------- #
+# ============================================================= #
+def test_hpxanabeam():
+    with patch('nenupy.instru.analog_pointing') as mock_anapoint:
+        mock_anapoint.return_value = (180*u.deg, 90*u.deg)
+        ana = HpxABeam(resolution=5)
+        ana.beam(
+            azana=180,
+            elana=90,
+            time=Time('2020-04-01 12:00:00')
+        )
+        assert ana.skymap.size == 3072
+        assert ana.skymap[1000] == pytest.approx(6.288, 1e-3)
+# ============================================================= #

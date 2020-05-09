@@ -8,3 +8,5 @@ reproject
 numba
 numexpr
 pyproj
+mocpy
+pyvo

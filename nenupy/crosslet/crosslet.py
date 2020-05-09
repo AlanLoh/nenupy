@@ -540,14 +540,6 @@ class Crosslet(object):
             x=np.tile(v, (m.size, 1)).T,
             y=np.tile(m, (v.size, 1))
         )
-        # ul = ft_mul(
-        #     x=np.tile(u, (m.size, 1)).T,
-        #     y= np.tile(m, (u.size, 1))
-        # )
-        # vm = ft_mul(
-        #     x=np.tile(v, (l.size, 1)).T,
-        #     y=np.tile(l, (v.size, 1))
-        # )
         phase = ft_phase(ul, vm)
         # Phase visibilities
         vis = np.mean( # Mean in time

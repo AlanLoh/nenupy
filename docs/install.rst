@@ -6,7 +6,7 @@ Installing with pip
 
 These instructions cover installation with the Python package
 management tool `PyPI <https://pypi.org/project/nenupytf/>`_.
-``Python3`` is required and no support will be provided for ``Python2``.
+``Python3.7`` or higher is required and no support will be provided for ``Python2``.
 
 .. code-block:: bash
 

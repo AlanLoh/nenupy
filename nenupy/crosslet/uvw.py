@@ -22,10 +22,12 @@ __all__ = [
 
 import numpy as np
 from astropy.coordinates import SkyCoord
+import astropy.units as u
+from astropy.time import Time
 from pyproj import Transformer
 
 from nenupy.instru import ma_info
-from nenupy.astro import lha, eq_zenith, nenufar_loc
+from nenupy.astro import lha, eq_zenith, nenufar_loc, wavelength
 
 import logging
 log = logging.getLogger(__name__)
@@ -38,7 +40,7 @@ class UVW(object):
     """
     """
 
-    def __init__(self, times, freqs, mas):
+    def __init__(self, times, mas, freqs=None):
         self.bsl_xyz = None
         self.times = times
         self.freqs = freqs
@@ -54,7 +56,7 @@ class UVW(object):
     def mas(self, m):
         if not isinstance(m, np.ndarray):
             raise TypeError(
-                '`mas should be a numpy array.'
+                'mas should be a numpy array.'
             )
         ma_pos = np.array([a.tolist() for a in ma_info['pos']])
         available_mas = np.arange(ma_pos.shape[0])
@@ -79,6 +81,79 @@ class UVW(object):
         self.bsl = xyz[np.tril_indices(m.size)]
         self._mas = m
         return
+
+
+    @property
+    def times(self):
+        """ Times at which the UVW must be computed.
+
+            :setter: Times
+            
+            :getter: Times
+            
+            :type: :class:`~astropy.time.Time`
+        """
+        return self._times
+    @times.setter
+    def times(self, t):
+        if not isinstance(t, Time):
+            raise TypeError(
+                'times must be a Time instance.'
+            )
+        self._times = t
+        return    
+
+
+    @property
+    def freqs(self):
+        return self._freqs
+    @freqs.setter
+    def freqs(self, f):
+        if f is None:
+            self._freqs = None
+        else:
+            if not isinstance(f, u.Quantity):
+                f *= u.MHz
+            if f.isscalar:
+                f = np.array([f.value]) * u.MHz
+            self._freqs = f
+        return
+
+
+    @property
+    def uvw(self):
+        """ UVW in meters.
+
+            :getter: (times, baselines, UVW)
+            
+            :type: :class:`~numpy.ndarray`
+        """
+        if not hasattr(self, '_uvw'):
+            raise Exception(
+                'Run .compute() first.'
+            )
+        return self._uvw
+
+
+    @property
+    def uvw_wave(self):
+        """ UVW in lambdas.
+
+            :getter: (times, freqs, baselines, UVW)
+            
+            :type: :class:`~numpy.ndarray`
+        """
+        if not hasattr(self, '_uvw'):
+            raise Exception(
+                'Run .compute() first.'
+            )
+        if self.freqs is None:
+            raise ValueError(
+                'No frequency input, fill self.freqs.'
+            )
+        lamb = wavelength(self.freqs).value
+        na = np.newaxis
+        return self._uvw[:, na, :, :]/lamb[na, :, na, na]
 
 
     # --------------------------------------------------------- #
@@ -157,7 +232,7 @@ class UVW(object):
             ra=phase_center.ra.deg
         )
         # Transformations
-        self.uvw = np.zeros(
+        self._uvw = np.zeros(
             (
                 self.times.size,
                 self.bsl.shape[0],
@@ -165,14 +240,14 @@ class UVW(object):
             )
         )
         xyz = np.array(self.bsl).T
-        rot = np.radians(-90) # x to the south, y to the east
-        rotation = np.array(
-            [
-                [ np.cos(rot), np.sin(rot), 0],
-                [-np.sin(rot), np.cos(rot), 0],
-                [ 0,           0,           1]
-            ]
-        )
+        # rot = np.radians(-90) # x to the south, y to the east
+        # rotation = np.array(
+        #     [
+        #         [ np.cos(rot), np.sin(rot), 0],
+        #         [-np.sin(rot), np.cos(rot), 0],
+        #         [ 0,           0,           1]
+        #     ]
+        # )
         for i in range(self.times.size):
             sr = np.sin(ha[i].rad)
             cr = np.cos(ha[i].rad)
@@ -187,7 +262,7 @@ class UVW(object):
             #     np.dot(rot_uvw, xyz).T,
             #     rotation
             # )
-            self.uvw[i, ...] = - np.dot(rot_uvw, xyz).T
+            self._uvw[i, ...] = - np.dot(rot_uvw, xyz).T
         return
 
 
@@ -204,6 +279,28 @@ class UVW(object):
             times=tvdata.times,
             freqs=tvdata.freqs,
             mas=tvdata.mas
+        )
+        uvw.compute()
+        return uvw
+
+
+    @classmethod
+    def from_xstdata(cls, xstdata):
+        """
+        """
+        from nenupy.crosslet import XST_Data
+        if isinstance(xstdata, XST_Data):
+            pass
+        elif isinstance(xstdata, str):
+            xstdata = XST_Data(xstdata)
+        else:
+            raise TypeError(
+                'xstdata must be a XST_Data instance or XST file.'
+            )
+        uvw = cls(
+            times=xstdata.times,
+            freqs=xstdata.freqs,
+            mas=xstdata.mas
         )
         uvw.compute()
         return uvw

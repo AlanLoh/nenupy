@@ -22,7 +22,9 @@ setup(
         'pyproj'
     ],
     extras_require={
-        'astroplan': 'astroplan'
+        'astroplan': 'astroplan',
+        'mocpy': 'mocpy',
+        'pyvo': 'pyvo'
     },
     python_requires='>=3.7',
     # scripts=[],
