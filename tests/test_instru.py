@@ -398,5 +398,8 @@ def test_instru_datarate():
     assert rate.value == 393216.0
     assert (rate*3600*u.s).to(u.Gibyte).value == pytest.approx(1.32, 1e-2)
     # waveform
+    assert data_rate(mode='waveform').value == 3.e8
+    # tbb
+    assert data_rate(mode='tbb').value == 7.68e10
 # ============================================================= #
 

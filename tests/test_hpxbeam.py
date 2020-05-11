@@ -138,10 +138,47 @@ def test_hpxanabeam():
         ana = HpxABeam(resolution=5)
         ana.beam(
             azana=0,
-            elana=45,
+            elana=45, # will be taken as 180, 90
             time=Time('2020-04-01 12:00:00')
         )
         assert ana.skymap.size == 3072
         assert ana.skymap[1000] == pytest.approx(6.288, 1e-3)
+# ============================================================= #
+
+
+# ============================================================= #
+# -------------------- test_grating_lobes --------------------- #
+# ============================================================= #
+def test_grating_lobes():
+    with patch('nenupy.beam.hpxbeam.analog_pointing') as mock_anapoint:
+        mock_anapoint.return_value = (180*u.deg, 90*u.deg)
+        ana = HpxABeam(resolution=5)
+        ana.beam(
+            azana=180,
+            elana=90,
+            time=Time('2020-04-01 12:00:00')
+        )
+        gl = ana.grating_lobes()
+        assert isinstance(gl, list)
+        assert len(gl) == 1
+        assert gl[0] == 365
+# ============================================================= #
+
+
+# ============================================================= #
+# --------------------- test_hpxdigibeam ---------------------- #
+# ============================================================= #
+def test_hpxdigibeam():
+    with patch('nenupy.beam.hpxbeam.analog_pointing') as mock_anapoint:
+        mock_anapoint.return_value = (180*u.deg, 90*u.deg)
+        digi = HpxDBeam(resolution=5)
+        digi.beam(
+            ma=np.arange(20),
+            azana=0,
+            elana=45, # will be taken as 180, 90
+            time=Time('2020-04-01 12:00:00')
+        )
+        assert digi.skymap.size == 3072
+        assert digi.skymap[100] == pytest.approx(3358.7, 1e-1)
 # ============================================================= #
 

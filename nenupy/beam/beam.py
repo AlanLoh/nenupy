@@ -24,7 +24,7 @@ __all__ = [
 
 import numpy as np
 import astropy.units as u
-from astropy.coordinates import ICRS, SkyCoord
+from astropy.coordinates import ICRS, SkyCoord, AltAz
 from astropy.time import Time
 from healpy.pixelfunc import get_interp_val
 
@@ -120,7 +120,7 @@ class Beam(object):
             :Example:
                 To get back the HEALPix ant gain:
                 
-                >>> from nenupy.beam import ABeam
+                >>> from nenupy.beam import Beam
                 >>> import numpy as np
                 >>> import astropy.units as u
                 >>> from astropy.coordinates import ICRS
@@ -179,6 +179,22 @@ class Beam(object):
     def array_factor(self, phase_center, coords, antpos):
         """
         """
+        if not (isinstance(phase_center, AltAz) or hasattr(phase_center, 'altaz')):
+            raise TypeError(
+                'phase_center should be an AltAz instance'
+            )
+        if not (isinstance(coords, AltAz) or hasattr(coords, 'altaz')):
+            raise TypeError(
+                'coords should be an AltAz instance'
+            )
+        if not isinstance(antpos, np.ndarray):
+            raise TypeError(
+                'antpos should be an np.ndarray instance'
+            )
+        if antpos.shape[1] != 3:
+            raise IndexError(
+                'antpos should have 2nd dimension = 3 (x, y, z)'
+            )
         def get_phi(az, el, antpos):
             """ az, el in radians
             """
@@ -272,7 +288,6 @@ class ABeam(Beam):
     @ma.setter
     def ma(self, m):
         if not isinstance(m, (int, np.integer)):
-            print('PROBLEM', m, type(m))
             raise TypeError(
                 'ma should be integer'
             )

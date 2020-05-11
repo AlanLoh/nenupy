@@ -1041,7 +1041,7 @@ def confusion_noise(freq=50, miniarrays=None):
 # ============================================================= #
 # ------------------------- data_rate ------------------------- #
 # ============================================================= #
-def data_rate(mode='imaging', mas=96, dt=1, nchan=64, bandwidth=75):
+def data_rate(mode='imaging', mas=96, dt=1, nchan=64, bandwidth=75, nb=1):
     r""" Estimates the NenuFAR data rate product. To get the total
         observation size, a simple multiplication with a
         :class:`~astropy.units.Quantity` time instance,
@@ -1055,17 +1055,19 @@ def data_rate(mode='imaging', mas=96, dt=1, nchan=64, bandwidth=75):
 
         * Imaging mode (*NICKEL* correlator): :math:`r_{\rm im} = n_{\rm correlations} d_{\rm complex\, 64\, bits} n_{\rm channels} n_{\rm baselines} n_{\rm subbands} / \delta t`;
         * Beamforming mode (*UnDySPuTeD* backend): :math:`r_{\rm bf} = n_{\rm correlations} d_{\rm float\, 32\, bits} n_{\rm channels} n_{\rm subbands} / \delta t`;
-        * Waveform mode (*LaNewBa* backend): ...;
+        * Waveform mode (*LaNewBa* backend): :math:`r_{\rm wf} = 195312.5 \times n_{\rm raw} n_{\rm b} n_{\rm subbands}`;
+        * Transient Buffer mode (*LaNewBa* backend): :math:`r_{\rm tbb} = 195312.5 \times 1024 \times n_{\rm raw} n_{\rm b} n_{\rm mas}`;
         
         where :math:`n_{\rm correlations} = 4` (XX, XY, YX, YY),
         :math:`n_{\rm baselines} = n_{\rm mas}*(n_{\rm mas}-1)/2 + n_{\rm mas}`,
         :math:`n_{\rm subbands} = \Delta \nu / 195.3125\, \rm{kHz}`,
-        :math:`d_{\rm complex\, 64\, bits}` and :math:`d_{\rm float\, 32\, bits}
+        :math:`n_{\rm raw} = 4` (Re(X), Im(X), Re(Y), Im(Y)),
+        :math:`d_{\rm complex\, 64\, bits}` and :math:`d_{\rm float\, 32\, bits}`
         are data sizes in bytes.
         
         :param mode:
             Observation mode (either ``'imaging'`` or
-            ``'beamforming'`` or ``'waveform'``).
+            ``'beamforming'`` or ``'waveform'`` or ``'tbb'``).
         :type mode: `str`
         :param mas: Number of Mini-Arrays to take into account
             :math:`n_{\rm mas}`. Default is ``96``.
@@ -1079,6 +1081,9 @@ def data_rate(mode='imaging', mas=96, dt=1, nchan=64, bandwidth=75):
         :param bandwidth: Observation bandwidth :math:`\Delta \nu`
             (in MHz if no unit is provided). Default is ``75 MHz``.
         :type bandwidth: `float` or :class:`~astropy.units.Quantity`
+        :param nb: Number of bytes of raw data samples :math:`n_{\rm b}`
+            (``1 = 8 bits``, ``2 = 16 bits``).
+        :type nb: `int`
 
         :returns: Data rate in bytes/s.
         :rtype: :class:`~astropy.units.Quantity`
@@ -1113,7 +1118,7 @@ def data_rate(mode='imaging', mas=96, dt=1, nchan=64, bandwidth=75):
 
     """
     # Input checks
-    available_modes = ['imaging', 'beamforming', 'waveform']
+    available_modes = ['imaging', 'beamforming', 'waveform', 'tbb']
     if not mode in available_modes:
         raise ValueError(
             'mode should be one of {}'.format(available_modes)
@@ -1159,8 +1164,10 @@ def data_rate(mode='imaging', mas=96, dt=1, nchan=64, bandwidth=75):
         rate_sb = n_corr*nenufloat*nchan/dt
         rate = rate_sb * n_sb
     elif mode == 'waveform':
-        # rate = 2.*2.*2e8*mas
-        rate = 2 * 2 * sb_width.to(u.Hz) * 1024 * mas
+        rate_sb = 4*nb*sb_width.to(u.Hz).value
+        rate = rate_sb * n_sb * u.byte / u.s
+    elif mode == 'tbb':
+        rate = 4*nb*sb_width.to(u.Hz).value*1024*mas  * u.byte / u.s
 
     return rate
 # ============================================================= #
