@@ -25,7 +25,8 @@ from nenupy.instru import (
     sefd,
     sensitivity,
     resolution,
-    confusion_noise
+    confusion_noise,
+    data_rate
 )
 
 
@@ -343,5 +344,59 @@ def test_instru_confusion():
     )
     assert isinstance(conf, u.Quantity)
     assert conf.to(u.Jy).value == pytest.approx(3.09, 1e-2)
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------- test_instru_datarate -------------------- #
+# ============================================================= #
+def test_instru_datarate():
+    # errors
+    with pytest.raises(ValueError):
+        rate = data_rate(
+            mode='unkown_mode',
+        )
+    with pytest.raises(TypeError):
+        rate = data_rate(
+            mode='imaging',
+            mas='wrong type'
+        )
+    with pytest.raises(TypeError):
+        rate = data_rate(
+            mode='imaging',
+            nchan='wrong type'
+        )
+    with pytest.raises(ValueError):
+        rate = data_rate(
+            mode='imaging',
+            nchan=100
+        )
+    with pytest.raises(ValueError):
+        rate = data_rate(
+            mode='imaging',
+            bandwidth=1000
+        )
+    # imaging
+    rate = data_rate(
+        mode='imaging',
+        mas=96,
+        dt=1,
+        nchan=64,
+        bandwidth=75
+    )
+    assert isinstance(rate, u.Quantity)
+    assert rate.value == 3661627392.0
+    assert (rate*3600*u.s).to(u.Tibyte).value == pytest.approx(11.99, 1e-2)
+    # beamformed
+    rate = data_rate(
+        mode='beamforming',
+        dt=1*u.s,
+        nchan=64,
+        bandwidth=75*u.MHz
+    )
+    assert isinstance(rate, u.Quantity)
+    assert rate.value == 393216.0
+    assert (rate*3600*u.s).to(u.Gibyte).value == pytest.approx(1.32, 1e-2)
+    # waveform
 # ============================================================= #
 

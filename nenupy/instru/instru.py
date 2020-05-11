@@ -21,6 +21,7 @@
     * :func:`~nenupy.instru.instru.sensitivity`: NenuFAR sensitivity
     * :func:`~nenupy.instru.instru.resolution`: NenuFAR resolution
     * :func:`~nenupy.instru.instru.confusion_noise`: NenuFAR confusion noise
+    * :func:`~nenupy.instru.instru.data_rate`: NenuFAR data rate estimation
 
 """
 
@@ -47,7 +48,8 @@ __all__ = [
     'sefd',
     'sensitivity',
     'resolution',
-    'confusion_noise'
+    'confusion_noise',
+    'data_rate'
 ]
 
 
@@ -1035,89 +1037,131 @@ def confusion_noise(freq=50, miniarrays=None):
     return conf * u.mJy # mJy/beam
 # ============================================================= #
 
-def KMGT_Bytes(B):
-#-----------------------------------------------------------
-# B = data volume or rate in Bytes
-# XB = data volume or rate in K/M/G/TBytes
-# Unit = KB, MB, GB, TB
 
-    Unit='B' ; XB=B
-    k=1024.
+# ============================================================= #
+# ------------------------- data_rate ------------------------- #
+# ============================================================= #
+def data_rate(mode='imaging', mas=96, dt=1, nchan=64, bandwidth=75):
+    r""" Estimates the NenuFAR data rate product. To get the total
+        observation size, a simple multiplication with a
+        :class:`~astropy.units.Quantity` time instance,
+        corresponding to total exposure time, is needed. To convert
+        bytes in binary base (i.e. 1 kB = 1024 B), use `astropy`
+        unit conversions (with prefixes ``Ki``, ``Mi``, ``Gi`` or
+        ``Ti`` for KiloBytes MegaBytes, GigaBytes and TeraBytes,
+        see `astropy unit prefixes <https://docs.astropy.org/en/stable/units/standard_units.html#prefixes>`_).
 
-    if B >= k and B < k**2:
-        XB=B/k ; Unit='KB'
+        Data rates (in bytes/s) are computed as follows:
 
-    if B >= k**2 and B < k**3:
-        XB=B/k**2 ; Unit='MB'
-
-    if B >= k**3 and B < k**4:
-        XB=B/k**3 ; Unit='GB'
-
-    if B >= k**4:
-        XB=B/k**4 ; Unit='TB'
-
-    return XB,Unit
-
-def data_rate_vol(Nma=96,Nch=64,dt=1,Df=75,Tobs=3600,mode="BF",Sum=False):
-    """
-    IDL original version v1, PZ, 20190319
-    PYTHON transcript v1, JG, 20200509
-
-    Computes and displays NenuFAR data rates and volumes
-
-    INPUTS
-    Nma  = number of Mini-Arrays involved
-    Nch  = number of channels / 195.3125 kHz subband
-    dt   = integration time of spectra / of visibility sets (sec)
-    Df   = total bandwidth (MHz)
-    Tobs = total observation time (sec)
-
-    KEYWORDS
-    mode = "BF"  => Beamformer mode	(uses Nch, dt, Df)
-           "IM"  => Imager mode		(uses Nma, Nch, dt, Df)
-           "WF"  => Waveform mode	(uses Nma)
-    Sum  = 1 line SUMMARY
-    
-    """
-    
-
-    Nsb=min(round(Df/0.1953125),768)
-
-    D_bf_sb=4.*4.*Nch/dt ;  D_bf=D_bf_sb*Nsb ; D_bf_n = D_bf/2 #2 UnDySPuTeD nodes 
-    D_im_sb = 8.*4.*Nch*(Nma*(Nma-1)*1./2+Nma)/dt ; D_im = D_im_sb*Nsb ; D_im_n = D_im/4 #4 correlator nodes
-    D_wf_sb = 0. ; D_wf = 2.*2.*2e8*Nma ; D_wf_n = D_wf; #1 Waveform node NB0
-    
-    if mode == "BF":
-        D_sb=D_bf_sb ; D_tot=D_bf ; D_n=D_bf_n ; IM=0 ; WF=0
-    elif mode == "IM":
-        D_sb=D_im_sb ; D_tot=D_im ; D_n=D_im_n ; WF=0
-    elif mode == "WF":
-        D_sb=D_wf_sb ; D_tot=D_wf ; D_n=D_wf_n
-    elif mode == None:
-        print("Choose a mode=BF or IM or WF")
-
-    # data rates / sec : /sb, total, /node
-
-    XD_sb,U_sb=KMGT_Bytes(D_sb)
-    if not(Sum) and mode!="WF":
-        print("Rate=  "+"%8.1f %s/s/SB"%(XD_sb,U_sb)) #,format='(",f8.1,2x,a2,"/s/SB")'
-
-    XD_tot, U_tot=KMGT_Bytes(D_tot) 
-    if not(Sum):
-        print("Rate=  "+"%8.1f %s/s"%(XD_tot,U_tot)) #,format='("Rate=  ",f8.1,2x,a2,"/s")'
-
-    XD_n, U_n=KMGT_Bytes(D_n)
-    if not(Sum):
-        print("Rate=  "+"%8.1f %s/s/node"%(XD_n,U_n)) #,format='("Rate=  ",f8.1,2x,a2,"/s/node")
+        * Imaging mode (*NICKEL* correlator): :math:`r_{\rm im} = n_{\rm correlations} d_{\rm complex\, 64\, bits} n_{\rm channels} n_{\rm baselines} n_{\rm subbands} / \delta t`;
+        * Beamforming mode (*UnDySPuTeD* backend): :math:`r_{\rm bf} = n_{\rm correlations} d_{\rm float\, 32\, bits} n_{\rm channels} n_{\rm subbands} / \delta t`;
+        * Waveform mode (*LaNewBa* backend): ...;
         
+        where :math:`n_{\rm correlations} = 4` (XX, XY, YX, YY),
+        :math:`n_{\rm baselines} = n_{\rm mas}*(n_{\rm mas}-1)/2 + n_{\rm mas}`,
+        :math:`n_{\rm subbands} = \Delta \nu / 195.3125\, \rm{kHz}`,
+        :math:`d_{\rm complex\, 64\, bits}` and :math:`d_{\rm float\, 32\, bits}
+        are data sizes in bytes.
         
-    # data volumes total for Tobs
+        :param mode:
+            Observation mode (either ``'imaging'`` or
+            ``'beamforming'`` or ``'waveform'``).
+        :type mode: `str`
+        :param mas: Number of Mini-Arrays to take into account
+            :math:`n_{\rm mas}`. Default is ``96``.
+        :type mas: `int`
+        :param dt: Observation time step :math:`\delta t` (in
+            seconds if no unit is provided). Default is ``1 sec``.
+        :type dt: `float` or :class:`~astropy.units.Quantity`
+        :param nchan: Number of channels per subband :math:`n_{\rm channels}`.
+            Each subband is 195.3125 kHz. Default is ``64``.
+        :type nchan: `int`
+        :param bandwidth: Observation bandwidth :math:`\Delta \nu`
+            (in MHz if no unit is provided). Default is ``75 MHz``.
+        :type bandwidth: `float` or :class:`~astropy.units.Quantity`
 
-    V_tot = D_tot*Tobs
-    XV_tot, UV_tot=KMGT_Bytes(V_tot)
-    if not(Sum):
-        print("Volume= ",'%8.1f  %s'%(XV_tot,UV_tot),"in ",'%7.0f sec'%Tobs)
+        :returns: Data rate in bytes/s.
+        :rtype: :class:`~astropy.units.Quantity`
 
-    if Sum:
-        print("%d MA %d ch/SB %7.3f sec %5.1f MHz %6.0f sec :\n Rate = %6.1f %s /s/SB %6.1f %s /s %6.1f %s /s/node :\n Volume = %6.1f %s)"%(Nma,Nch,dt,Df,Tobs, XD_sb,U_sb,XD_tot,U_tot,XD_n,U_n,XV_tot,UV_tot))
-  #format='(i3," MA ",i3," ch/SB ",f7.3," sec ",f5.1," MHz ",f6.0," sec : Rate =",f6.1,1x,a2,"/s/SB ",f6.1,1x,a2,"/s ",f6.1,1x,a2,"/s/node : Volume =",f6.1,1x,a2)'
+        :example:
+            Imaging data rate and total size for a 1h exposure, converted in TB:
+
+            >>> from nenupy.instru import data_rate
+            >>> import astropy.units as u
+            >>> rate = data_rate(
+                    mode='imaging',
+                    mas=96,
+                    dt=1*u.s,
+                    nchan=64,
+                    bandwidth=75*u.MHz
+                )
+            >>> print(rate)
+            3.6616274×10^9 byte/s
+            >>> exposure = 3600*u.s
+            >>> size = rate * exposure
+            >>> print(size)
+            1.3181859×10^13 byte
+            >>> print(size.to(u.Tibyte))
+            11.988831 Tibyte
+
+        .. note::
+            IDL original version v1, PZ, 2019-03-19
+            
+            PYTHON transcript v1, JG, 2020-05-09
+            
+            Pythonized for `nenupy`, AL, 2020-05-11
+
+    """
+    # Input checks
+    available_modes = ['imaging', 'beamforming', 'waveform']
+    if not mode in available_modes:
+        raise ValueError(
+            'mode should be one of {}'.format(available_modes)
+        )
+    if not isinstance(mas, int):
+        raise TypeError(
+            'mas should be an integer'
+        )
+    if not isinstance(dt, u.Quantity):
+        dt *= u.s
+    if not isinstance(nchan, int):
+        raise TypeError(
+            'nchan should be an integer'
+        )
+    if nchan > 64:
+        raise ValueError(
+            'NenuFAR maximal number of channels per subband is 64'
+        )
+    if not isinstance(bandwidth, u.Quantity):
+        bandwidth *= u.MHz
+    if bandwidth > 150*u.MHz:
+        raise ValueError(
+            'NenuFAR maximal bandwidth is 150 MHz.'
+        )
+
+    # NenuFAR backend properties
+    sb_width = 195.3125*u.kHz # subband bandwidth
+    n_sb_max = 768 # maximal number of subbands
+    n_corr = 4 # XX, XY, YX, YY 
+
+    # Number of sub-bands involved
+    n_sb = int(np.round(bandwidth.to(u.kHz)/sb_width))
+
+    if mode == 'imaging':
+        # Complex in bytes
+        nenucomplex = np.complex64().itemsize * u.byte
+        n_baselines = mas*(mas - 1)/2 + mas
+        rate_sb = n_corr*nenucomplex*nchan*n_baselines/dt
+        rate = rate_sb * n_sb
+    elif mode == 'beamforming':
+        # Floats as bytes in NenuFAR calculators
+        nenufloat = np.float32().itemsize * u.byte
+        rate_sb = n_corr*nenufloat*nchan/dt
+        rate = rate_sb * n_sb
+    elif mode == 'waveform':
+        # rate = 2.*2.*2e8*mas
+        rate = 2 * 2 * sb_width.to(u.Hz) * 1024 * mas
+
+    return rate
+# ============================================================= #
+
