@@ -28,6 +28,22 @@ Finally, observations can then be simulated using the simulated beam and a sky m
 .. note::
    DOI for the `nenupy` package: `10.5281/zenodo.3775196 <https://zenodo.org/record/3775196/>`_.
 
+   BibTeX citation:
+
+   .. code-block:: bash
+   
+      @software{alan_loh_2020_3775196,
+         author       = {Alan Loh and the NenuFAR team},
+         title        = {nenupy: a Python package for the low-frequency radio telescope NenuFAR},
+         month        = apr,
+         year         = 2020,
+         publisher    = {Zenodo},
+         version      = {v1.0.0},
+         doi          = {10.5281/zenodo.3775196},
+         url          = {https://doi.org/10.5281/zenodo.3775196}
+      }
+
+
 .. seealso::
    `nenupytf <https://nenupytf.readthedocs.io/en/latest/>`_, the Python package to read high-rate time-frequency data from the *UnDySPuTeD* NenuFAR backend.
 
@@ -79,7 +95,14 @@ Finally, observations can then be simulated using the simulated beam and a sky m
 
    nenupy.astro
    nenupy.instru
+   nenupy.observation
 
+
+.. toctree::
+   :caption: Changelog
+   :maxdepth: 1
+
+   changelog
 
 *****
 Index

@@ -9,7 +9,7 @@ When NenuFAR does not observe in XST mode, the cross-correlations are saved with
 
 TV image production requires loading of the :class:`~nenupy.crosslet.tvdata.TV_Data` class, which inherits from :class:`~nenupy.crosslet.crosslet.Crosslet`:
 
->>> from nenupyst.crosslet import TV_Data
+>>> from nenupy.crosslet import TV_Data
 
 An instance of :class:`~nenupy.crosslet.tvdata.TV_Data` is made by simply giving the path to the NenuFAR-TV data file:
 
