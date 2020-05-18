@@ -32,6 +32,8 @@
         +--------------------------------------+------------------------------------------------+------------------------------------------------------+
         |                                      | :func:`~nenupy.astro.astro.radio_sources`      | Main radio source positions                          |
         +--------------------------------------+------------------------------------------------+------------------------------------------------------+
+        |                                      | :func:`~nenupy.astro.astro.dispersion_delay`   | Dispersion delay from electron plasma propagation    |
+        +--------------------------------------+------------------------------------------------+------------------------------------------------------+
         | :class:`~nenupy.astro.hpxsky.HpxSky` |                                 **HEALPix sky representation wrapper**                                |
         |                                      +------------------------------------------------+------------------------------------------------------+
         |                                      | :attr:`~nenupy.astro.hpxsky.HpxSky.resolution` | Angular resolution of the HEALPix grid               |

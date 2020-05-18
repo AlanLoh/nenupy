@@ -76,6 +76,7 @@ Finally, observations can then be simulated using the simulated beam and a sky m
 
    nenupy.beamlet
    nenupy.crosslet
+   nenupy.undysputed
 
 .. _data-analysis:
 

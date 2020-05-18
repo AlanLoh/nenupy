@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.x.x (unreleased)
+1.1.0 (unreleased)
 ^^^^^^^^^^^^^^^^^^
 
 * Extrapolation of NenuFAR antenna model (:func:`~nenupy.instru.instru.nenufar_ant_gain`) above 80 MHz [`#22 <https://github.com/AlanLoh/nenupy/issues/22>`_].
@@ -9,8 +9,10 @@ Changelog
 * Addition of a ``text`` option to :meth:`~nenupy.astro.hpxsky.HpxSky.plot` aiming at overplotting text (such as source names) at some given equatorial positions.
 * UVW computation corrected (sign convention in order to call imaging TF as :math:`\int V e^{-2\pi i (ul + vm)}\, du\, dv`) [`#23 <https://github.com/AlanLoh/nenupy/issues/23>`_].
 * NenuFAR data rate estimation implemented (:func:`~nenupy.instru.instru.data_rate`).
+* Dispersion delay added (:func:`~nenupy.astro.astro.dispersion_delay`).
 * Implementation of :class:`~nenupy.undysputed.dynspec.Dynspec` to read/de-disperse/rebin (in time and/or frequency) high-rate UnDySPuTeD time-frequency data (or `DynSpec data <https://nenufar.obs-nancay.fr/en/astronomer/#data-products>`_) [`#30 <https://github.com/AlanLoh/nenupy/issues/30>`_].
-
+# Correct for 6 min jumps in Undysputed DynSpec data [`#32 <https://github.com/AlanLoh/nenupy/issues/32>`_].
+ 
 
 1.0.0 (2020-04-29)
 ^^^^^^^^^^^^^^^^^^

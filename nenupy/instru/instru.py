@@ -1116,6 +1116,7 @@ def data_rate(mode='imaging', mas=96, dt=1, nchan=64, bandwidth=75, nb=1):
             
             Pythonized for `nenupy`, AL, 2020-05-11
 
+        .. versionadded:: 1.1.0
     """
     # Input checks
     available_modes = ['imaging', 'beamforming', 'waveform', 'tbb']

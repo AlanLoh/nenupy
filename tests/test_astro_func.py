@@ -34,7 +34,8 @@ from nenupy.astro import (
     ho_zenith,
     eq_zenith,
     radio_sources,
-    meridian_transit
+    meridian_transit,
+    dispersion_delay
 )
 
 
@@ -323,5 +324,24 @@ def test_meridiantransit():
     )
     assert isinstance(transit, Time)
     assert transit.isot == '2020-04-02T07:07:03.968'
+# ============================================================= #
+
+
+# ============================================================= #
+# -------------------- test_dispersiondelay ------------------- #
+# ============================================================= #
+def test_dispersiondelay():
+    delay = dispersion_delay(
+        freq=50,
+        dm=12.4
+    )
+    assert isinstance(delay, u.Quantity)
+    assert delay.value == pytest.approx(20.53, 1e-2)
+    delay = dispersion_delay(
+        freq=50*u.MHz,
+        dm=12.4*u.pc/(u.cm**3)
+    )
+    assert isinstance(delay, u.Quantity)
+    assert delay.value == pytest.approx(20.53, 1e-2)
 # ============================================================= #
 

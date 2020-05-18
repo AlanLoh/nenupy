@@ -22,6 +22,7 @@
     * :func:`~nenupy.astro.astro.eq_zenith`: Get the local zenith in :class:`~astropy.coordinates.ICRS` coordinates
     * :func:`~nenupy.astro.astro.radio_sources`: Get main radio source poisitons
     * :func:`~nenupy.astro.astro.meridian_transit`: Next meridian transit time
+    * :func:`~nenupy.astro.astro.dispersion_delay`: Dispersion delay induced by wave propagation through an electron plasma
 
 """
 
@@ -44,7 +45,8 @@ __all__ = [
     'ho_zenith',
     'eq_zenith',
     'radio_sources',
-    'meridian_transit'
+    'meridian_transit',
+    'dispersion_delay'
     ]
 
 
@@ -484,3 +486,68 @@ def meridian_transit(source, from_time, npoints=400):
     return transit
 # ============================================================= #
 
+
+# ============================================================= #
+# --------------------- dispersion_delay ---------------------- #
+# ============================================================= #
+def dispersion_delay(freq, dm):
+    r""" Dispersion delay induced to a radio wave of frequency
+        ``freq`` (:math:`\nu`) propagating through an electron
+        plasma of uniform density :math:`n_e`.
+        
+        The pulse travel time :math:`\Delta t_p` emitted at a
+        distance :math:`d` is:
+
+        .. math::
+            \Delta t_p = \frac{d}{c} + \frac{e^2}{2\pi m_e c} \frac{\int_0^d n_e\, dl}{\nu^2}
+    
+        where :math:`\mathcal{D}\mathcal{M} = \int_0^d n_e\, dl`
+        is the *Dispersion Measure*.
+
+        Therefore, the time delay :math:`\Delta t_d` due to the
+        dispersion is:
+
+        .. math::
+            \Delta t_d = \frac{e^2}{2 \pi m_e c} \frac{\mathcal{D}\mathcal{M}}{\nu^2} 
+
+        and computed as:
+
+        .. math::
+            \Delta t_d = 4140 \left( \frac{\mathcal{D}\mathcal{M}}{\rm{pc}\,\rm{cm}^{-3}} \right) \left( \frac{\nu}{1\, \rm{MHz}} \right)^{-2}\, \rm{sec}
+
+        :param freq:
+            Observation frequency (assumed to be in MHz if no
+            unit is provided).
+        :type freq: `float` or :class:`~numpy.ndarray` or :class:`~astropy.units.Quantity`
+        :param dm:
+            Dispersion Measure (assumed to be in pc/cm^-3 if no
+            unit is provided.
+        :type dm: `float` or :class:`~astropy.units.Quantity`
+
+        :returns: Dispersion delay in seconds.
+        :rtype: :class:`~astropy.units.Quantity`
+
+        :Example:
+            >>> from nenupy.astro import dispersion_delay
+            >>> import astropy.units as u
+            >>> dispersion_delay(
+                    freq=50*u.MHz,
+                    dm=12.4*u.pc/(u.cm**3)
+                )
+            20.5344 s
+
+        .. versionadded:: 1.1.0
+    """
+    if not isinstance(dm, u.Quantity):
+        dm *= u.pc / (u.cm**3)
+    else:
+        dm = dm.to(u.pc / (u.cm**3))
+    if not isinstance(freq, u.Quantity):
+        freq *= u.MHz
+    else:
+        freq = freq.to(u.MHz)
+    dm_ref = 1. * u.pc / (u.cm**3)
+    freq_ref = 1. * u.MHz
+    delay = 4140. * (dm/dm_ref) / ((freq/freq_ref)**2) * u.s
+    return delay
+# ============================================================= #
