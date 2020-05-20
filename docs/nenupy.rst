@@ -11,8 +11,10 @@ Subpackages
    nenupy.beamlet
    nenupy.crosslet
    nenupy.instru
+   nenupy.observation
    nenupy.simulation
    nenupy.skymodel
+   nenupy.undysputed
 
 
 
