@@ -19,7 +19,8 @@ setup(
         'reproject',
         'numba',
         'numexpr',
-        'pyproj'
+        'pyproj',
+        'dask'
     ],
     extras_require={
         'astroplan': 'astroplan',
