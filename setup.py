@@ -20,7 +20,7 @@ setup(
         'numba',
         'numexpr',
         'pyproj',
-        'dask'
+        'dask[array]'
     ],
     extras_require={
         'astroplan': 'astroplan',
