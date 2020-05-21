@@ -11,7 +11,7 @@ Changelog
 * NenuFAR data rate estimation implemented (:func:`~nenupy.instru.instru.data_rate`).
 * Dispersion delay added (:func:`~nenupy.astro.astro.dispersion_delay`).
 * Implementation of :class:`~nenupy.undysputed.dynspec.Dynspec` to read/de-disperse/rebin (in time and/or frequency) high-rate UnDySPuTeD time-frequency data (or `DynSpec data <https://nenufar.obs-nancay.fr/en/astronomer/#data-products>`_) [`#30 <https://github.com/AlanLoh/nenupy/issues/30>`_].
-# Correct for 6 min jumps in Undysputed DynSpec data [`#32 <https://github.com/AlanLoh/nenupy/issues/32>`_].
+* Correct for 6 min jumps in Undysputed DynSpec data [`#32 <https://github.com/AlanLoh/nenupy/issues/32>`_].
  
 
 1.0.0 (2020-04-29)
