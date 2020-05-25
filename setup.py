@@ -20,6 +20,7 @@ setup(
         'numba',
         'numexpr',
         'pyproj',
+        'pyvo',
         'dask[array]'
     ],
     extras_require={
