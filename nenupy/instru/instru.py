@@ -22,6 +22,8 @@
     * :func:`~nenupy.instru.instru.resolution`: NenuFAR resolution
     * :func:`~nenupy.instru.instru.confusion_noise`: NenuFAR confusion noise
     * :func:`~nenupy.instru.instru.data_rate`: NenuFAR data rate estimation
+    * :func:`~nenupy.instru.instru.freq2sb`: Conversion from frequency to sub-band index
+    * :func:`~nenupy.instru.instru.sb2freq`: Conversion sub-band index to sub-band start frequency
 
 """
 
@@ -49,7 +51,9 @@ __all__ = [
     'sensitivity',
     'resolution',
     'confusion_noise',
-    'data_rate'
+    'data_rate',
+    'freq2sb',
+    'sb2freq'
 ]
 
 
@@ -1171,5 +1175,99 @@ def data_rate(mode='imaging', mas=96, dt=1, nchan=64, bandwidth=75, nb=1):
         rate = 4*nb*sb_width.to(u.Hz).value*1024*mas  * u.byte / u.s
 
     return rate
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------- freq2sb --------------------------- #
+# ============================================================= #
+def freq2sb(freq):
+    r""" Conversion between the frequency :math:`\nu` and the
+        NenuFAR sub-band index :math:`n_{\rm SB}`.
+        Each NenuFAR sub-band has a bandwidth of
+        :math:`\Delta \nu = 195.3125\, \rm{kHz}`:
+
+        .. math::
+            n_{\rm SB} = \frac{512 \times \nu}{\Delta \nu}
+
+        :param freq:
+            Frequency to convert in sub-band index (assumed in
+            MHz if no unit is provided).
+        :type freq:
+            `float`, :class:`~numpy.ndarray` or :class:`~astropy.units.Quantity`
+
+        :returns:
+            Sub-band index, same dimension as ``freq``.
+        :rtype: `int` or :class:`~numpy.ndarray`
+
+        :example:
+            >>> from nenupy.instru import freq2sb
+            >>> freq2sb(freq=50.5)
+            258
+            >>> freq2sb(freq=[50.5, 51])
+            array([258, 261])
+
+        .. versionadded:: 1.1.0
+    """
+    if not isinstance(freq, u.Quantity):
+        freq *= u.MHz
+    if (freq.min() < 0 * u.MHz) or (freq.max() > 100 * u.MHz):
+        raise ValueError(
+            'freq should be between 0 and 100 MHz.'
+        )
+    freq = freq.to(u.MHz)
+    sb_width = 100. * u.MHz
+    sb_idx = np.floor((freq * 512) / sb_width)
+    return sb_idx.astype(int).value
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------- freq2sb --------------------------- #
+# ============================================================= #
+def sb2freq(sb):
+    r""" Conversion between NenuFAR sub-band index :math:`n_{\rm SB}`
+        to sub-band starting frequency :math:`\nu_{\rm start}`:
+
+        .. math::
+            \nu_{\rm start} = \frac{n_{\rm SB} \times \Delta \nu}{512}
+
+        Each NenuFAR sub-band has a bandwidth of
+        :math:`\Delta \nu = 195.3125\, \rm{kHz}`, therefore, the
+        sub-band :math:`n_{\rm SB}` goes from :math:`\nu_{\rm start}`
+        to :math:`\nu_{\rm stop} = \nu_{\rm start} + \Delta \nu`.
+
+        :param sb:
+            Sub-band index (from 0 to 511).
+        :type sb: `int` or :class:`~numpy.ndarray` of `int`
+
+        :returns:
+            Sub-band start frequency :math:`\nu_{\rm start}` in MHz.
+        :rtype: :class:`~astropy.units.Quantity`
+
+        :example:
+            >>> from nenupy.instru import sb2freq
+            >>> sb2freq(sb=1)
+            [0.1953125] MHz
+            >>> sb2freq(sb=[1, 2, 3, 4])
+            [0.1953125, 0.390625, 0.5859375, 0.78125] MHz
+
+        .. versionadded:: 1.1.0
+    """
+    if np.isscalar(sb):
+        sb = np.array([sb])
+    else:
+        sb = np.array(sb)
+    if sb.dtype.name != 'int64':
+        raise TypeError(
+            'sb should be integers.'
+        )
+    if (sb.min() < 0) or (sb.max() > 511):
+        raise ValueError(
+            'sb should be between 0 and 511.'
+        )
+    sb_width = 100. * u.MHz
+    freq_start = (sb * sb_width) / 512
+    return freq_start
 # ============================================================= #
 

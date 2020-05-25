@@ -26,7 +26,9 @@ from nenupy.instru import (
     sensitivity,
     resolution,
     confusion_noise,
-    data_rate
+    data_rate,
+    sb2freq,
+    freq2sb
 )
 
 
@@ -401,5 +403,42 @@ def test_instru_datarate():
     assert data_rate(mode='waveform').value == 3.e8
     # tbb
     assert data_rate(mode='tbb').value == 7.68e10
+# ============================================================= #
+
+
+# ============================================================= #
+# -------------------- test_instru_freq2sb -------------------- #
+# ============================================================= #
+def test_instru_freq2sb():
+    with pytest.raises(ValueError):
+        sb = freq2sb(-1)
+    with pytest.raises(ValueError):
+        sb = freq2sb(101)
+    sb = freq2sb(50.1)
+    assert isinstance(sb, np.integer)
+    assert sb == 256
+    sb = freq2sb([50.1*u.MHz, 54*u.MHz])
+    assert sb.dtype.type == np.int64
+    assert all(sb == np.array([256, 276]))
+# ============================================================= #
+
+
+# ============================================================= #
+# -------------------- test_instru_sb2freq -------------------- #
+# ============================================================= #
+def test_instru_sb2freq():
+    with pytest.raises(TypeError):
+        freq = sb2freq(1.1)
+    with pytest.raises(ValueError):
+        freq = sb2freq(-1)
+    with pytest.raises(ValueError):
+        freq = sb2freq(512)
+    freq = sb2freq(1)
+    assert isinstance(freq, u.Quantity)
+    assert freq.to(u.kHz).value[0] == 195.3125
+    freq = sb2freq([50, 51])
+    assert freq.size == 2
+    expected = np.array([9765.625 , 9960.937])
+    assert freq.to(u.kHz).value == pytest.approx(expected, 1e-3)
 # ============================================================= #
 
