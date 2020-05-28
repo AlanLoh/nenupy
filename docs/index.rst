@@ -44,9 +44,6 @@ Finally, observations can then be simulated using the simulated beam and a sky m
       }
 
 
-.. seealso::
-   `nenupytf <https://nenupytf.readthedocs.io/en/latest/>`_, the Python package to read high-rate time-frequency data from the *UnDySPuTeD* NenuFAR backend.
-
 .. _getting-started:
 
 .. toctree::

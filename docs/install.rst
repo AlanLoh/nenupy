@@ -6,7 +6,7 @@ Installing with pip
 
 These instructions cover installation with the Python package
 management tool `PyPI <https://pypi.org/project/nenupytf/>`_.
-``Python3.7`` or higher is required and no support will be provided for ``Python2``.
+``Python3.6`` or higher is required and no support will be provided for ``Python2``.
 
 .. code-block:: bash
 
@@ -23,6 +23,31 @@ Updates need to be regularly check for while this package is still in developpme
     There is no support for a ``conda`` insatallation yet.
 
 
+Installation on nancep
+----------------------
+
+Only ``nancep5`` has the minimal required Python version to support `nenupy`. You can install the latest stable release:
+
+.. code-block:: bash
+
+   $ pip3 install --user --upgrade nenupy
+
+or the current 'beta' version hosted on `GitHub <https://github.com/AlanLoh/nenupy>`_:
+
+.. code-block:: bash
+
+   $ pip3 install --user --upgrade https://github.com/AlanLoh/nenupy/tarball/master
+
+.. note::
+    
+    You would probably have to update `astropy`:
+        
+        .. code-block:: bash
+
+           $ pip3 install --user --upgrade astropy
+
+
+
 Dependencies
 ------------
 
@@ -36,6 +61,11 @@ Dependencies
 * `numexpr <https://numexpr.readthedocs.io/projects/NumExpr3/en/latest/index.html>`_
 * `pyproj <https://pyproj4.github.io/pyproj/stable/index.html>`_
 * `pygsm <https://github.com/telegraphic/PyGSM>`_
+* `dask <https://dask.org/>`_
+* `astroplan <https://astroplan.readthedocs.io/en/latest/>`_
+* `mocpy <https://cds-astro.github.io/mocpy/>`_
+* `pyvo <https://pyvo.readthedocs.io/en/latest/>`_
+
 
 .. note::
     To install PyGSM, follow the project instruction on their `github page <https://github.com/telegraphic/PyGSM>`_.
