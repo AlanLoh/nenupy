@@ -20,7 +20,6 @@ setup(
         'numba',
         'numexpr',
         'pyproj',
-        'pyvo',
         'dask[array]'
     ],
     extras_require={
@@ -28,7 +27,7 @@ setup(
         'mocpy': 'mocpy',
         'pyvo': 'pyvo'
     },
-    python_requires='>=3.7',
+    python_requires='>=3.6',
     # scripts=[],
     version=nenupy.__version__,
     description='NenuFAR Python package',

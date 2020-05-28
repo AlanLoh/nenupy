@@ -402,7 +402,7 @@ class ObsDatabase(object):
     # ------------------------ Methods ------------------------ #
     def search(self):
         """ Run the TAP :attr:`~nenupy.observation.database.ObsDatabase.query`
-            on the `NenuFAR BST service <http://vogate.obs-nancay.fr/tap'>`_.
+            on the `NenuFAR BST service <http://vogate.obs-nancay.fr/tap>`_.
 
             :returns:
                 NenuFAR observation properties resulting from the

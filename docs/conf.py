@@ -55,7 +55,11 @@ intersphinx_mapping = {
     # 'nenupy': ('https://nenupy.readthedocs.io/en/latest/', None),
 }
 
-autodoc_mock_imports = ['pygsm']
+autodoc_mock_imports = [
+    'pygsm',
+    'pyvo',
+    'astroplan'
+]
 
 default_role = 'obj'
 
