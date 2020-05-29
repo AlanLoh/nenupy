@@ -9,10 +9,11 @@ Changelog
 * Addition of a ``text`` option to :meth:`~nenupy.astro.hpxsky.HpxSky.plot` aiming at overplotting text (such as source names) at some given equatorial positions.
 * UVW computation corrected (sign convention in order to call imaging TF as :math:`\int V e^{-2\pi i (ul + vm)}\, du\, dv`) [`#23 <https://github.com/AlanLoh/nenupy/issues/23>`_].
 * NenuFAR data rate estimation implemented (:func:`~nenupy.instru.instru.data_rate`).
-# Conversion between frequencies and subband indices :func:`~nenupy.instru.instru.freq2sb` and :func:`~nenupy.instru.instru.sb2freq`.
+* Conversion between frequencies and subband indices :func:`~nenupy.instru.instru.freq2sb` and :func:`~nenupy.instru.instru.sb2freq`.
 * Dispersion delay added (:func:`~nenupy.astro.astro.dispersion_delay`).
 * Implementation of :class:`~nenupy.undysputed.dynspec.Dynspec` to read/de-disperse/rebin (in time and/or frequency) high-rate UnDySPuTeD time-frequency data (or `DynSpec data <https://nenufar.obs-nancay.fr/en/astronomer/#data-products>`_) [`#30 <https://github.com/AlanLoh/nenupy/issues/30>`_].
 * Correct for 6 min jumps in Undysputed DynSpec data [`#32 <https://github.com/AlanLoh/nenupy/issues/32>`_].
+* Implemented background computation for :class:`~nenupy.beamlet.sdata.SData` objects (:attr:`~nenupy.beamlet.sdata.SData.background` and :attr:`~nenupy.beamlet.sdata.SData.fbackground`) as well as a plotting method :meth:`~nenupy.beamlet.sdata.SData.plot`.
  
 
 1.0.0 (2020-04-29)

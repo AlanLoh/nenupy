@@ -422,6 +422,7 @@ from nenupy.astro import dispersion_delay
 
 import logging
 log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
 
 
 # ============================================================= #
@@ -578,7 +579,7 @@ class _Lane(object):
         self.dt = 5.12e-6 * self.fftlen * self.nfft2int * u.s
         self.block_dt = self.dt * self.nffte
         self.df = (1.0 / 5.12e-6 / self.fftlen) * u.Hz
-        log.info(
+        log.debug(
             f'Header of {self._lanefile} correctly parsed.'
         )
         # Read data
@@ -608,7 +609,7 @@ class _Lane(object):
         # self.unix = np.arange(ntb, dtype='float64')
         # self.unix *= self.block_dt.to(u.s).value
         # self.unix += self.timestamp # Maybe I dont need .unix...
-        log.info(
+        log.debug(
             f'Data of {self._lanefile} correctly parsed.'
         )
         # Time array
@@ -742,11 +743,18 @@ class Dynspec(object):
     def __init__(self, lanefiles=[]):
         self.lanes = []
         self.lanefiles = lanefiles
+        log.info(
+            'Observation properties:'\
+            f'\n\tTime : {self.tmin.isot} --> {self.tmax.isot}'\
+            f'\n\tFrequency : {self.fmin} --> {self.fmax}'\
+            f'\n\tTime step : {self.dt}'\
+            f'\n\tFrequency step : {self.df}'
+        )
         self.beam = 0
         self.dispersion_measure = None
         self.rebin_dt = None
         self.rebin_df = None
-        self.jump_correction = True
+        self.jump_correction = False
         self.bp_correction = 'none'
 
 
@@ -805,7 +813,7 @@ class Dynspec(object):
                     f'{li} not found.'
                 )
             else:
-                log.info(f'Found {li}')
+                log.debug(f'Found {li}')
                 self.lanes.append(
                     _Lane(li)
                 )
@@ -1536,6 +1544,53 @@ class Dynspec(object):
         return data, times, freqs
 
 
+    # def _correct_jumps(self, data, dt):
+    #     """ Dask version
+    #     """
+    #     if not self.jump_correction:
+    #         return data
+    #     log.info(
+    #         'Correcting for 6 min pointing jumps...'
+    #     )
+    #     # Work on cleanest profile
+    #     profile = np.median(data, axis=1).compute()
+    #     # detect jumps
+    #     dt = dt.to(u.s).value
+    #     deriv = np.gradient(profile, dt)
+    #     low_threshold = np.nanmedian(deriv) - 8 * np.nanstd(deriv)
+    #     lower_thr_indices = np.where(deriv < low_threshold)[0] # detection
+    #     # Sort jump indices
+    #     jump_idx = [0]
+    #     for idx in lower_thr_indices:
+    #         if idx > jump_idx[-1] + 10:
+    #             jump_idx.append(idx)
+    #     jump_idx.append(data.shape[0] - 1)
+    #     # Make sure there are no > 6min gaps
+    #     sixmin = 6*60.000000 + dt
+    #     for idx in range(1, len(jump_idx)):
+    #         delta_t = dt * (jump_idx[idx] - jump_idx[idx-1])
+    #         if delta_t > sixmin:
+    #             missing_idx = int(np.round(sixmin/dt))
+    #             jump_idx.insert(idx, missing_idx + jump_idx[idx-1])
+    #     # flatten
+    #     boundaries = list(map(list, zip(jump_idx, jump_idx[1:])))
+    #     previous_endpoint = 1.
+    #     flattening = np.ones(data.shape[0])
+    #     for i, boundary in enumerate(boundaries):
+    #         idi, idf = boundary
+    #         med_data_freq = profile[idi:idf]
+    #         flattening[idi:idf] /= med_data_freq
+    #         if i == 0:
+    #             flattening[idi:idf] *= np.median(med_data_freq)
+    #         else:
+    #             flattening[idi:idf] *= previous_endpoint
+    #         previous_endpoint = profile[idf-1] * flattening[idf-1]
+    #     log.info(
+    #         f'Found and corrected {i+1} jump(s).'
+    #     )
+    #     return data*flattening[:, np.newaxis]
+
+
     def _correct_jumps(self, data, dt):
         """ Dask version
         """
@@ -1544,39 +1599,47 @@ class Dynspec(object):
         log.info(
             'Correcting for 6 min pointing jumps...'
         )
-        # Work on cleanest profile
-        profile = np.median(data, axis=1).compute()
-        # detect jumps
-        dt = dt.to(u.s).value
-        deriv = np.gradient(profile, dt)
-        low_threshold = np.nanmedian(deriv) - 8 * np.nanstd(deriv)
-        lower_thr_indices = np.where(deriv < low_threshold)[0] # detection
-        # Sort jump indices
-        jump_idx = [0]
-        for idx in lower_thr_indices:
-            if idx > jump_idx[-1] + 10:
-                jump_idx.append(idx)
+        six_min = 6*60.000000 * u.s
+        seven_min = 7*60.000000 * u.s
+        # Find first jump
+        log.info(
+            'Computing median time-profile...'
+        )
+        with ProgressBar():
+            tprofile = np.median(
+                data,
+                axis=1
+            ).compute()
+        from scipy.signal import savgol_filter
+        tprofile_smoothed = savgol_filter(
+            x=tprofile[:int(seven_min/dt)],
+            window_length=11,
+            polyorder=2,
+            deriv=0
+        )
+        deriv = np.gradient(tprofile_smoothed, dt.value)
+        jump_idx = [0] # start of the time
+        jump_idx.append(np.argmin(deriv)) # first jump
+        # Deduce next jump indices
+        while True:
+            next_jump_idx = jump_idx[-1] + int(six_min/dt)
+            if next_jump_idx >= data.shape[0]:
+                break
+            jump_idx.append(next_jump_idx)
         jump_idx.append(data.shape[0] - 1)
-        # Make sure there are no > 6min gaps
-        sixmin = 6*60.000000 + dt
-        for idx in range(1, len(jump_idx)):
-            delta_t = dt * (jump_idx[idx] - jump_idx[idx-1])
-            if delta_t > sixmin:
-                missing_idx = int(np.round(sixmin/dt))
-                jump_idx.insert(idx, missing_idx + jump_idx[idx-1])
         # flatten
         boundaries = list(map(list, zip(jump_idx, jump_idx[1:])))
         previous_endpoint = 1.
         flattening = np.ones(data.shape[0])
         for i, boundary in enumerate(boundaries):
             idi, idf = boundary
-            med_data_freq = profile[idi:idf]
+            med_data_freq = tprofile[idi:idf]
             flattening[idi:idf] /= med_data_freq
             if i == 0:
                 flattening[idi:idf] *= np.median(med_data_freq)
             else:
                 flattening[idi:idf] *= previous_endpoint
-            previous_endpoint = profile[idf-1] * flattening[idf-1]
+            previous_endpoint = tprofile[idf-1] * flattening[idf-1]
         log.info(
             f'Found and corrected {i+1} jump(s).'
         )

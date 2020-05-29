@@ -210,7 +210,7 @@ class SData(object):
             time=new_time,
             freq=new_freq,
             polar=self.polar
-            )
+        )
 
 
     def __or__(self, other):
@@ -243,7 +243,7 @@ class SData(object):
             time=new_time,
             freq=new_freq,
             polar=self.polar
-            )
+        )
 
 
     def __add__(self, other):
@@ -261,7 +261,7 @@ class SData(object):
             time=self.time,
             freq=self.freq,
             polar=self.polar
-            )
+        )
 
 
     def __sub__(self, other):
@@ -279,7 +279,7 @@ class SData(object):
             time=self.time,
             freq=self.freq,
             polar=self.polar
-            )
+        )
 
 
     def __mul__(self, other):
@@ -297,7 +297,7 @@ class SData(object):
             time=self.time,
             freq=self.freq,
             polar=self.polar
-            )
+        )
 
 
     def __truediv__(self, other):
@@ -315,7 +315,7 @@ class SData(object):
             time=self.time,
             freq=self.freq,
             polar=self.polar
-            )
+        )
 
 
     # --------------------------------------------------------- #
@@ -426,9 +426,119 @@ class SData(object):
         return 10 * np.log10(self.data.squeeze())
 
 
+    @property
+    def background(self):
+        """
+        """
+        med_spec = np.nanmedian(self.data, axis=0)
+        med_prof = np.nanmedian(self.data, axis=1)
+        
+        # med_prof is affected by nanmedian while dedispersing
+        # because signal and dispersion delay are frequency-dependent
+        # the median is thus artificially decreasing with time
+        nans = np.isnan(self.data[:, 0, 0]) # lowest frequency is the most affected
+        if any(nans):
+            prof_nans = np.isnan(med_prof[:, 0])
+            x_tot = np.arange(med_prof.size)
+            max_id = np.argmax(nans)
+            fit = np.polyfit(
+                x_tot[~prof_nans][max_id:],
+                med_prof[~prof_nans][max_id:, 0],
+                3
+            )
+            lastpart = np.poly1d(fit)
+            med_prof[max_id:, :] /= lastpart(x_tot[max_id:])[:, np.newaxis]
+            med_prof[nans, :] *= np.median(med_prof[~nans])
+
+        bg = np.ones_like(self.data)
+        bg *= med_spec[np.newaxis, :, :]
+        bg *= med_prof[:, np.newaxis, :] / np.nanmax(med_prof)
+        return SData(
+            data=bg,
+            time=self.time,
+            freq=self.freq,
+            polar=self.polar
+        )
+
+
+    @property
+    def fbackground(self):
+        """
+        """
+        med_spec = np.nanmedian(self.data, axis=0)
+        bg = np.ones_like(self.data)
+        bg *= med_spec[np.newaxis, :, :]
+        return SData(
+            data=bg,
+            time=self.time,
+            freq=self.freq,
+            polar=self.polar
+        )
+
+
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    
+    def plot(self, figname=None, db=True, **kwargs):
+        """
+        """
+        import matplotlib.pyplot as plt
+
+        dynspec = self.db.T if db else self.amp.T
+
+        # Make sure everything is correctly set up
+        if 'cmap' not in kwargs.keys():
+            kwargs['cmap'] = 'YlGnBu_r'
+        if 'vmin' not in kwargs.keys():
+            kwargs['vmin'] = np.nanpercentile(dynspec, 5)
+        elif kwargs['vmin'] is None:
+            kwargs['vmin'] = np.nanpercentile(dynspec, 5)
+        else:
+            pass
+        if 'vmax' not in kwargs.keys():
+            kwargs['vmax'] = np.nanpercentile(dynspec, 95)
+        elif kwargs['vmax'] is None:
+            kwargs['vmax'] = np.nanpercentile(dynspec, 95)
+        else:
+            pass
+        if 'title' not in kwargs.keys():
+            kwargs['title'] = None
+        if 'cblabel' not in kwargs.keys():
+            kwargs['cblabel'] = 'dB' if db else 'Amplitude' 
+        if 'figsize' not in kwargs.keys():
+            kwargs['figsize'] = (15, 10)
+        
+        fig = plt.figure(figsize=kwargs['figsize'])
+        plt.pcolormesh(
+            self.datetime,
+            self.freq.to(u.MHz).value,
+            dynspec,
+            cmap=kwargs['cmap'],
+            vmin=kwargs['vmin'],
+            vmax=kwargs['vmax']
+        )
+        cbar = plt.colorbar(format='%.1e')
+        cbar.set_label(kwargs['cblabel'])
+        plt.xlabel(
+            f'Time (since {self.time[0].isot})'
+        )
+        plt.ylabel('Frequency (MHz)')
+        plt.title(kwargs['title'])
+        
+        # Save or show
+        if figname is None:
+            plt.show()
+        elif figname.lower() == 'return':
+            return fig
+        else:
+            fig.savefig(
+                figname,
+                dpi=300,
+                transparent=True,
+                bbox_inches='tight'
+            )
+        plt.close('all')
+        return
+
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
