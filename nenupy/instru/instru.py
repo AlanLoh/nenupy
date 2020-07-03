@@ -371,7 +371,7 @@ def desquint_elevation(elevation, opt_freq=30):
 # ============================================================= #
 # --------------------- nenufar_ant_gain ---------------------- #
 # ============================================================= #
-def nenufar_ant_gain(freq, polar='NW', nside=64, time=None):
+def nenufar_ant_gain(freq, polar='NW', nside=64, time=None, normalize=True):
     """ Get NenuFAR elementary antenna gain with respect to the
         frequency ``freq``, the polarization ``polar`` and
         convert it to HEALPix representation with a given
@@ -402,6 +402,9 @@ def nenufar_ant_gain(freq, polar='NW', nside=64, time=None):
             NenuFAR. If ``None`` the map is not rotated to 
             equatorial coordinates.
         :type time: `str` or :class:`~astropy.time.Time`
+        :param normalize:
+            Returns the normalized gain or not.
+        :type normalize: `bool`
 
         :returns:
             Sky map in HEALPix representation of normalized
@@ -459,7 +462,7 @@ def nenufar_ant_gain(freq, polar='NW', nside=64, time=None):
             'NenuFAR antenna response is extrapolated > 80 MHz.'
         )
         # Will fit a polynomial along the high end of frequencies
-        freq_to_fit = np.arange(20, 90, 10, dtype=int)
+        freq_to_fit = np.arange(40, 90, 10, dtype=int)
         gains = np.zeros((freq_to_fit.size, nside2npix(64)))
         # Construct the gain map (freqs, npix)
         for i, f in enumerate(freq_to_fit):
@@ -530,7 +533,7 @@ def nenufar_ant_gain(freq, polar='NW', nside=64, time=None):
             gain = rot.rotate_map_alms(gain)
     # Convert HEALPix map to required nside
     gain = ud_grade(gain, nside_out=nside)
-    return gain / gain.max()
+    return gain / gain.max() if normalize else gain
 # ============================================================= #
 
 
@@ -1258,7 +1261,7 @@ def sb2freq(sb):
         sb = np.array([sb])
     else:
         sb = np.array(sb)
-    if sb.dtype.name != 'int64':
+    if sb.dtype.name not in ['int32', 'int64']:
         raise TypeError(
             'sb should be integers.'
         )

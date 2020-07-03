@@ -183,7 +183,7 @@ class ObsDatabase(object):
     @property
     def meta_names(self):
         """ Column names (observation properties) to return using
-            :meth:`~nenupy.observation.database.ObsDatabase.search`.
+            :meth:`~nenupy.observation.tapdatabase.ObsDatabase.search`.
 
             :setter: `list` of column names.
 
@@ -219,7 +219,7 @@ class ObsDatabase(object):
     @property
     def time_range(self):
         """ Time range selection for the ADQL query using
-            :meth:`~nenupy.observation.database.ObsDatabase.search`.
+            :meth:`~nenupy.observation.tapdatabase.ObsDatabase.search`.
             Default is ``[None, None]`` which means that no
             condition based on observation time will be applied.
 
@@ -258,7 +258,7 @@ class ObsDatabase(object):
     @property
     def freq_range(self):
         """ Frequency range selection for the ADQL query using
-            :meth:`~nenupy.observation.database.ObsDatabase.search`.
+            :meth:`~nenupy.observation.tapdatabase.ObsDatabase.search`.
             Default is ``[None, None]`` which means that no
             condition based on observation frequencies will be applied.
 
@@ -300,7 +300,7 @@ class ObsDatabase(object):
     @property
     def fov_radius(self):
         """ Radius of the query, in combination with the query
-            center :attr:`~nenupy.observation.database.ObsDatabase.fov_center`.
+            center :attr:`~nenupy.observation.tapdatabase.ObsDatabase.fov_center`.
     
             :setter: Radius (in degrees if no unit is provided). Default is ``180 deg``.
 
@@ -310,7 +310,7 @@ class ObsDatabase(object):
 
             .. warning::
                 Must be set **before**
-                :attr:`~nenupy.observation.database.ObsDatabase.fov_center`.
+                :attr:`~nenupy.observation.tapdatabase.ObsDatabase.fov_center`.
         """
         return self._fov_radius
     @fov_radius.setter
@@ -330,7 +330,7 @@ class ObsDatabase(object):
     @property
     def fov_center(self):
         """ Center of the field of view queried, in comination
-            with the radius :attr:`~nenupy.observation.database.ObsDatabase.fov_radius`.
+            with the radius :attr:`~nenupy.observation.tapdatabase.ObsDatabase.fov_radius`.
 
             :setter: Center of the field of view.
             
@@ -340,7 +340,7 @@ class ObsDatabase(object):
 
             .. warning::
                 Must be set **after**
-                :attr:`~nenupy.observation.database.ObsDatabase.fov_radius`.
+                :attr:`~nenupy.observation.tapdatabase.ObsDatabase.fov_radius`.
         """
         return self._fov_center
     @fov_center.setter
@@ -385,9 +385,9 @@ class ObsDatabase(object):
     @property
     def query(self):
         """ Full query, combining returned parameteres
-            :attr:`~nenupy.observation.database.ObsDatabase.meta_names`
+            :attr:`~nenupy.observation.tapdatabase.ObsDatabase.meta_names`
             and the conditions
-            :attr:`~nenupy.observation.database.ObsDatabase.conditions`.
+            :attr:`~nenupy.observation.tapdatabase.ObsDatabase.conditions`.
 
             :getter: Query.
 
@@ -401,7 +401,7 @@ class ObsDatabase(object):
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def search(self):
-        """ Run the TAP :attr:`~nenupy.observation.database.ObsDatabase.query`
+        """ Run the TAP :attr:`~nenupy.observation.tapdatabase.ObsDatabase.query`
             on the `NenuFAR BST service <http://vogate.obs-nancay.fr/tap>`_.
 
             :returns:
@@ -451,3 +451,5 @@ class ObsDatabase(object):
 
 
 # ============================================================= #
+# ============================================================= #
+

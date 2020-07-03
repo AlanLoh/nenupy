@@ -756,6 +756,7 @@ class Dynspec(object):
         self.rebin_df = None
         self.jump_correction = False
         self.bp_correction = 'none'
+        self.clean_rfi = False
 
 
     # --------------------------------------------------------- #
@@ -1399,6 +1400,8 @@ class Dynspec(object):
     def _clean(self, data):
         """
         """
+        if self.clean_rfi:
+            pass
         return data
 
 

@@ -646,7 +646,7 @@ class BST_Data(Beamlet):
             )
         ]
         return SData(
-            data=data,
+            data=np.swapaxes(data, 1, 2),
             time=self.time,
             freq=self.freq,
             polar=self.polar
