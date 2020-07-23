@@ -143,7 +143,7 @@ def test_instru_antgain():
         nside=4,
         time='2020-04-01 12:00:00'
     )
-    assert antgain[10] == pytest.approx(0.68, 1e-2)
+    assert antgain[10] == pytest.approx(0.72, 1e-2)
 # ============================================================= #
 
 

@@ -1,7 +1,7 @@
- nenupy.observation.database
+ nenupy.observation.pointing
 ============================
 
-.. automodule:: nenupy.observation.database
+.. automodule:: nenupy.observation.pointing
    :members:
    :undoc-members:
    :show-inheritance:

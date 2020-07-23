@@ -427,6 +427,9 @@ class HpxSky(object):
             :param grid:
                 Show the equatorial grid.
             :type grid: `bool`
+            :param cbar:
+                Plot a colorbar.
+            :type cbar: `bool`
             :param center:
                 Center of the plot. Default is
                 ``SkyCoord(0.*u.deg, 0.*u.deg)``.
@@ -542,6 +545,8 @@ class HpxSky(object):
             kwargs['cblabel'] = cblabel
         if 'grid' not in kwargs.keys():
             kwargs['grid'] = True
+        if 'cbar' not in kwargs.keys():
+            kwargs['cbar'] = True
         if 'figsize' not in kwargs.keys():
             kwargs['figsize'] = (15, 10)
         if 'indices' not in kwargs.keys():
@@ -631,28 +636,29 @@ class HpxSky(object):
         ax.set_title(kwargs['title'], pad=25)
 
         # Colorbar
-        cax = inset_axes(
-            ax,
-            width='3%',
-            height='100%',
-            loc='lower left',
-            bbox_to_anchor=(1.05, 0., 1, 1),
-            bbox_transform=ax.transAxes,
-            borderpad=0,
-        )
-        cb = ColorbarBase(
-            cax,
-            cmap=get_cmap(name=kwargs['cmap']),
-            orientation='vertical',
-            norm=Normalize(
-                vmin=kwargs['vmin'],
-                vmax=kwargs['vmax']
-            ),
-            ticks=LinearLocator()
-        )
-        cb.solids.set_edgecolor('face')
-        cb.set_label(kwargs['cblabel'])
-        cb.formatter.set_powerlimits((0, 0))
+        if kwargs['cbar']:
+            cax = inset_axes(
+                ax,
+                width='3%',
+                height='100%',
+                loc='lower left',
+                bbox_to_anchor=(1.05, 0., 1, 1),
+                bbox_transform=ax.transAxes,
+                borderpad=0,
+            )
+            cb = ColorbarBase(
+                cax,
+                cmap=get_cmap(name=kwargs['cmap']),
+                orientation='vertical',
+                norm=Normalize(
+                    vmin=kwargs['vmin'],
+                    vmax=kwargs['vmax']
+                ),
+                ticks=LinearLocator()
+            )
+            cb.solids.set_edgecolor('face')
+            cb.set_label(kwargs['cblabel'])
+            cb.formatter.set_powerlimits((0, 0))
 
         # Save or show
         if figname is None:

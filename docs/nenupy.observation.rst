@@ -5,7 +5,10 @@ nenupy.observation
 
 .. toctree::
 
-   nenupy.observation.database
+   nenupy.observation.parset
+   nenupy.observation.pointing
+   nenupy.observation.sqldatabase
+   nenupy.observation.tapdatabase
 
 
 

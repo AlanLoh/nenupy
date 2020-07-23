@@ -20,7 +20,8 @@ setup(
         'numba',
         'numexpr',
         'pyproj',
-        'dask[array]'
+        'dask[array]',
+        'sqlalchemy'
     ],
     extras_require={
         'astroplan': 'astroplan',

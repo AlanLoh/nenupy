@@ -11,3 +11,4 @@ pyproj
 mocpy
 pyvo
 dask
+sqlalchemy

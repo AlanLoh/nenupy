@@ -36,7 +36,7 @@
     (Astronomical Data Query Language ADQL ) language.
 
 
-    The class :class:`~nenupy.observation.database.ObsDatabase`
+    The class :class:`~nenupy.observation.tapdatabase.ObsDatabase`
     is designed to ease such queries. It uses the TAP access
     capabilities of `PyVO <https://pyvo.readthedocs.io/en/latest/>`_
     to search and return NenuFAR BST observation queries as 
@@ -45,10 +45,10 @@
     the class is flexible enough to eventually accepts more
     parameters. Those are:
 
-    * :attr:`~nenupy.observation.database.ObsDatabase.time_range`: Query NenuFAR observations made within a time period.
-    * :attr:`~nenupy.observation.database.ObsDatabase.freq_range`: Query NenuFAR observations made within a frequency range.
-    * :attr:`~nenupy.observation.database.ObsDatabase.fov_radius`: Angular radius used to search for observations around specific sky coordinates.
-    * :attr:`~nenupy.observation.database.ObsDatabase.fov_center`: Center (in sky coordinates) of the search for NenuFAR observation targetting coordinates within :attr:`~nenupy.observation.database.ObsDatabase.fov_radius`.
+    * :attr:`~nenupy.observation.tapdatabase.ObsDatabase.time_range`: Query NenuFAR observations made within a time period.
+    * :attr:`~nenupy.observation.tapdatabase.ObsDatabase.freq_range`: Query NenuFAR observations made within a frequency range.
+    * :attr:`~nenupy.observation.tapdatabase.ObsDatabase.fov_radius`: Angular radius used to search for observations around specific sky coordinates.
+    * :attr:`~nenupy.observation.tapdatabase.ObsDatabase.fov_center`: Center (in sky coordinates) of the search for NenuFAR observation targetting coordinates within :attr:`~nenupy.observation.tapdatabase.ObsDatabase.fov_radius`.
     
     The logger may help following building up of the query.
 
