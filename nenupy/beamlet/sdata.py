@@ -516,7 +516,7 @@ class SData(object):
             vmin=kwargs['vmin'],
             vmax=kwargs['vmax']
         )
-        cbar = plt.colorbar(format='%.1e')
+        cbar = plt.colorbar()#format='%.1e')
         cbar.set_label(kwargs['cblabel'])
         plt.xlabel(
             f'Time (since {self.time[0].isot})'

@@ -414,6 +414,8 @@ from os.path import isfile, abspath, join, dirname, basename
 import numpy as np
 import astropy.units as u
 from astropy.time import Time
+from astropy.modeling import models, fitting
+from astropy.modeling.models import custom_model
 import dask.array as da
 from dask.diagnostics import ProgressBar
 
@@ -1594,58 +1596,109 @@ class Dynspec(object):
     #     return data*flattening[:, np.newaxis]
 
 
+    # def _correct_jumps_v0(self, data, dt):
+    #     """ Dask version
+    #     """
+    #     if not self.jump_correction:
+    #         return data
+    #     log.info(
+    #         'Correcting for 6 min pointing jumps...'
+    #     )
+    #     six_min = 6*60.000000 * u.s
+    #     seven_min = 7*60.000000 * u.s
+    #     # Find first jump
+    #     log.info(
+    #         'Computing median time-profile...'
+    #     )
+    #     with ProgressBar():
+    #         tprofile = np.median(
+    #             data,
+    #             axis=1
+    #         ).compute()
+    #     from scipy.signal import savgol_filter
+    #     tprofile_smoothed = savgol_filter(
+    #         x=tprofile[:int(seven_min/dt)],
+    #         window_length=11,
+    #         polyorder=2,
+    #         deriv=0
+    #     )
+    #     deriv = np.gradient(tprofile_smoothed, dt.value)
+    #     jump_idx = [0] # start of the time
+    #     jump_idx.append(np.argmin(deriv)) # first jump
+    #     # Deduce next jump indices
+    #     while True:
+    #         next_jump_idx = jump_idx[-1] + int(six_min/dt)
+    #         if next_jump_idx >= data.shape[0]:
+    #             break
+    #         jump_idx.append(next_jump_idx)
+    #     jump_idx.append(data.shape[0] - 1)
+    #     # flatten
+    #     boundaries = list(map(list, zip(jump_idx, jump_idx[1:])))
+    #     previous_endpoint = 1.
+    #     flattening = np.ones(data.shape[0])
+    #     for i, boundary in enumerate(boundaries):
+    #         idi, idf = boundary
+    #         med_data_freq = tprofile[idi:idf]
+    #         flattening[idi:idf] /= med_data_freq
+    #         if i == 0:
+    #             flattening[idi:idf] *= np.median(med_data_freq)
+    #         else:
+    #             flattening[idi:idf] *= previous_endpoint
+    #         previous_endpoint = tprofile[idf-1] * flattening[idf-1]
+    #     log.info(
+    #         f'Found and corrected {i+1} jump(s).'
+    #     )
+    #     return data*flattening[:, np.newaxis]
+
+
     def _correct_jumps(self, data, dt):
         """ Dask version
         """
         if not self.jump_correction:
             return data
-        log.info(
-            'Correcting for 6 min pointing jumps...'
-        )
-        six_min = 6*60.000000 * u.s
-        seven_min = 7*60.000000 * u.s
-        # Find first jump
-        log.info(
-            'Computing median time-profile...'
-        )
-        with ProgressBar():
-            tprofile = np.median(
-                data,
-                axis=1
-            ).compute()
-        from scipy.signal import savgol_filter
-        tprofile_smoothed = savgol_filter(
-            x=tprofile[:int(seven_min/dt)],
-            window_length=11,
-            polyorder=2,
-            deriv=0
-        )
-        deriv = np.gradient(tprofile_smoothed, dt.value)
-        jump_idx = [0] # start of the time
-        jump_idx.append(np.argmin(deriv)) # first jump
-        # Deduce next jump indices
-        while True:
-            next_jump_idx = jump_idx[-1] + int(six_min/dt)
-            if next_jump_idx >= data.shape[0]:
-                break
-            jump_idx.append(next_jump_idx)
-        jump_idx.append(data.shape[0] - 1)
-        # flatten
-        boundaries = list(map(list, zip(jump_idx, jump_idx[1:])))
-        previous_endpoint = 1.
-        flattening = np.ones(data.shape[0])
-        for i, boundary in enumerate(boundaries):
-            idi, idf = boundary
-            med_data_freq = tprofile[idi:idf]
-            flattening[idi:idf] /= med_data_freq
-            if i == 0:
-                flattening[idi:idf] *= np.median(med_data_freq)
-            else:
-                flattening[idi:idf] *= previous_endpoint
-            previous_endpoint = tprofile[idf-1] * flattening[idf-1]
-        log.info(
-            f'Found and corrected {i+1} jump(s).'
-        )
-        return data*flattening[:, np.newaxis]
+
+        freqProfile = np.median(
+            data,
+            axis=0
+        ).compute()
+        timeProfile = np.median(
+            data / freqProfile[None, :],
+            axis=1
+        ).compute()
+
+        duration = timeProfile.size * dt.value
+        sixMin = 6*60.000000
+        nIntervals = int(np.ceil(duration / sixMin))
+        nJumps = nIntervals - 1
+        nPointsJump = int(sixMin / dt.value)
+        nPointsTotal = timeProfile.size
+
+        # Finding interval indices
+        derivativeTProfile = np.gradient(timeProfile)
+        jumpIndex = np.argmin(derivativeTProfile)
+        firstJumpIndex = jumpIndex%nPointsJump
+        jumpIndices = firstJumpIndex + np.arange(nJumps) * nPointsJump
+        intervalEdges = np.insert(jumpIndices, 0, 0)
+        intervalEdges = np.append(intervalEdges, nPointsTotal - 1)
+
+        # Model fitting for each interval
+        @custom_model
+        def switchLoadFunc(t, a=1., b=1.):
+            """
+                f(t) = a log_10(t) + b
+            """
+            return a*np.log10(t) + b
+        jumpsFitted = np.ones(timeProfile.size)
+        for i in range(intervalEdges.size - 1):
+            lowEdge = intervalEdges[i]
+            highEdge = intervalEdges[i+1]
+            intervalProfile = timeProfile[lowEdge:highEdge+1]
+            switchModel = switchLoadFunc(1e4, np.mean(intervalProfile))
+            fitter = fitting.LevMarLSQFitter()
+            times = 1 + np.arange(intervalProfile.size)
+            switchModel_fit = fitter(switchModel, times, intervalProfile)
+            jumpsFitted[lowEdge:highEdge+1] *= switchModel_fit(times)
+
+        return data / jumpsFitted[:, None]
 # ============================================================= #
 
