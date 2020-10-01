@@ -9,6 +9,6 @@ numba
 numexpr
 pyproj
 mocpy
-pyvo
+-e git+https://github.com/astropy/pyvo.git@cfbd8f6a24d83f0ae9b0b6a61c30c66bf5d09d7e#egg=pyvo
 dask
 sqlalchemy
