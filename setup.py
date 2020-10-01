@@ -14,8 +14,8 @@ setup(
         'numpy',
         'scipy',
         'astropy',
-        'matplotlib',
-        'healpy',
+        'matplotlib', 
+        'healpy', #==1.13.0
         'reproject',
         'numba',
         'numexpr',
@@ -26,7 +26,7 @@ setup(
     extras_require={
         'astroplan': 'astroplan',
         'mocpy': 'mocpy',
-        'pyvo': 'pyvo==1.0'
+        'pyvo': 'pyvo'
     },
     python_requires='>=3.6',
     scripts=[
