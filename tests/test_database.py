@@ -15,12 +15,13 @@ from astropy.table import Table
 import astropy.units as u
 import pytest
 
-from nenupy.observation import ObsDatabase
+# from nenupy.observation import ObsDatabase
 
 
 # ============================================================= #
 # ------------------ test_database_attribute ------------------ #
 # ============================================================= #
+@pytest.mark.skip
 def test_database_attribute():
     db = ObsDatabase()
     # meta_names
@@ -70,6 +71,7 @@ def test_database_attribute():
 # ============================================================= #
 # -------------------- test_database_query -------------------- #
 # ============================================================= #
+@pytest.mark.skip
 def test_database_query():
     db = ObsDatabase()
     with pytest.raises(ValueError):

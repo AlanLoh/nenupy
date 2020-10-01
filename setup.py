@@ -25,8 +25,7 @@ setup(
     ],
     extras_require={
         'astroplan': 'astroplan',
-        'mocpy': 'mocpy',
-        'pyvo': 'pyvo'
+        'mocpy': 'mocpy'
     },
     python_requires='>=3.6',
     scripts=[
