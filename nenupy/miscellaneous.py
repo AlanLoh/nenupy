@@ -20,6 +20,9 @@ __all__ = [
 ]
 
 
+import functools
+
+
 # ============================================================= #
 # -------------------------- accepts -------------------------- #
 # ============================================================= #
@@ -33,7 +36,8 @@ def accepts(*types):
             'Number of types does not match argument number.'
         argnames = func.__code__.co_varnames
         
-        def newFunc(*args, **kwargs):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
             newKwargs = {}
             newArgs = []
             for (arg, typ) in zip(argnames, types):
@@ -73,8 +77,9 @@ def accepts(*types):
                     newArgs.append(newArg)
             return func(*newArgs, **newKwargs)
 
-        newFunc.__name__ = func.__name__
-        return newFunc
+        wrapper.__name__ = func.__name__
+        wrapper.__doc__ = func.__doc__
+        return wrapper
 
     return decorator
 
