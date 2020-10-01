@@ -15,6 +15,7 @@ import astropy.units as u
 from astropy.coordinates import (
     EarthLocation,
     Angle,
+    Longitude,
     AltAz,
     ICRS,
     SkyCoord
@@ -23,9 +24,9 @@ from astropy.time import Time, TimeDelta
 import pytest
 
 from nenupy.astro import (
-    nenufar_loc,
     lst,
     lha,
+    toFK5,
     wavelength,
     ho_coord,
     eq_coord,
@@ -34,36 +35,64 @@ from nenupy.astro import (
     ho_zenith,
     eq_zenith,
     radio_sources,
-    meridian_transit,
+    meridianTransit,
     dispersion_delay
 )
-
-
-# ============================================================= #
-# ---------------------- test_nenufarloc ---------------------- #
-# ============================================================= #
-def test_nenufarloc():
-    loc = nenufar_loc()
-    assert isinstance(loc, EarthLocation)
-    assert loc.lon.deg == pytest.approx(2.19, 1e-2)
-    assert loc.lat.deg == pytest.approx(47.38, 1e-2)
-    assert loc.height.to(u.m).value == pytest.approx(150.00, 1e-2)
-# ============================================================= #
 
 
 # ============================================================= #
 # ------------------------- test_lst -------------------------- #
 # ============================================================= #
 def test_lst():
+    with pytest.raises(ValueError):
+        lst_time = lst(
+            time='2020-04-01 12:00:00',
+            kind=1
+        )
     with pytest.raises(TypeError):
         lst_time = lst(
-            time='2020-04-01 12:00:00'
+            time='2020-24-01 12:00:00',
+            kind='fast'
         )
     lst_time = lst(
-        time=Time('2020-04-01 12:00:00')
+        time=Time('2020-04-01 12:00:00'),
+        kind='fast'
     )
-    assert isinstance(lst_time, Angle)
+    assert isinstance(lst_time, Longitude)
     assert lst_time.deg == pytest.approx(12.50, 1e-2)
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------- test_tofk5 ------------------------ #
+# ============================================================= #
+def test_tofk5():
+    casa_icrs = SkyCoord(
+        350.850000,
+        +58.815000,
+        unit='deg',
+        frame='icrs'
+    )
+    time = Time('2020-04-01 12:00:00')
+    with pytest.raises(TypeError):
+        srcfk5 = toFK5(
+            skycoord=1,
+            time=time
+        )
+    with pytest.raises(TypeError):
+        srcfk5 = toFK5(
+            skycoord=casa_icrs,
+            time=1
+        )
+    srcfk5 = toFK5(
+        skycoord=casa_icrs,
+        time=time
+    )
+    assert isinstance(srcfk5, SkyCoord)
+    assert isinstance(srcfk5.equinox, Time)
+    assert srcfk5.equinox.jd == 2458941.0
+    assert srcfk5.ra.deg == pytest.approx(351.0801, 1e-4)
+    assert srcfk5.dec.deg == pytest.approx(58.9263, 1e-4)
 # ============================================================= #
 
 
@@ -71,44 +100,61 @@ def test_lst():
 # ------------------------- test_lha -------------------------- #
 # ============================================================= #
 def test_lha():
+    time = Time('2020-04-01 12:00:00')
+    lstTime = lst(
+        time=time,
+        kind='apparent'
+    )
+    src1 = SkyCoord(
+        0.0,
+        +45.0,
+        unit='deg',
+        frame='icrs'
+    )
+    src2 = SkyCoord(
+        300.0,
+        +45.0,
+        unit='deg',
+        frame='icrs'
+    )
+    src1fk5 = toFK5(src1, time)
+    src2fk5 = toFK5(src2, time)
     with pytest.raises(TypeError):
         hour_angle = lha(
-            time='2020-04-01 12:00:00',
-            ra=0
+            lst=1,
+            skycoord=src1
         )
-    # Float input
+    with pytest.raises(TypeError):
+        hour_angle = lha(
+            lst=lstTime,
+            skycoord=1
+        )
+
     hour_angle = lha(
-        time=Time('2020-04-01 12:00:00'),
-        ra=0*u.deg
-    )
-    # Angle input
-    hour_angle = lha(
-        time=Time('2020-04-01 12:00:00'),
-        ra=Angle(0, unit='deg')
-    )
-    # Quantity input
-    hour_angle = lha(
-        time=Time('2020-04-01 12:00:00'),
-        ra=0*u.deg
+        lst=lstTime,
+        skycoord=src1fk5
     )
     assert isinstance(hour_angle, Angle)
-    assert hour_angle.deg == pytest.approx(12.50, 1e-2)
+    assert hour_angle.deg == pytest.approx(12.2358, 1e-4)
     # Negative hourangle
     hour_angle = lha(
-        time=Time('2020-04-01 12:00:00'),
-        ra=300*u.deg
+        lst=lstTime,
+        skycoord=src2fk5
     )
-    # > 360 hourangle
-    hour_angle = lha(
-        time=Time('2020-04-01 12:00:00'),
-        ra=-360*u.deg
-    )
+    assert hour_angle.deg == pytest.approx(72.3337, 1e-4)
     # Non scalar object
-    dts = TimeDelta(np.arange(2), format='sec')
-    hour_angle = lha(
-        time=Time('2020-04-01 12:00:00') + dts,
-        ra=100*u.deg
+    dts = TimeDelta(np.arange(0, 180, 60), format='sec')
+    lstTime = lst(
+        time=time + dts,
+        kind='apparent'
     )
+    src1fk5 = toFK5(src1, time + dts)
+    hour_angle = lha(
+        lst=lstTime,
+        skycoord=src1fk5
+    )
+    ha = np.array([12.2358, 12.4865, 12.7372])
+    assert hour_angle.deg == pytest.approx(ha, 1e-4)
 # ============================================================= #
 
 
@@ -305,25 +351,37 @@ def test_radiosources():
 # -------------------- test_meridiantransit ------------------- #
 # ============================================================= #
 def test_meridiantransit():
+    src = SkyCoord.from_name('3C 274')
+    time = Time('2020-09-10')
     with pytest.raises(TypeError):
-        transit = meridian_transit(
-            source='wrong format',
-            from_time=Time('2020-04-01 12:00:00'),
-            npoints=10
-        )
+        meridianTransit(source=1)
     with pytest.raises(TypeError):
-        transit = meridian_transit(
-            source=SkyCoord(ra=299.86*u.deg, dec=40.73*u.deg),
-            from_time='wrong format',
-            npoints=10
-        )
-    transit = meridian_transit(
-        source=SkyCoord(ra=299.86*u.deg, dec=40.73*u.deg),
-        from_time=Time('2020-04-01 12:00:00'),
-        npoints=100
+        meridianTransit(fromTime=1)
+    with pytest.raises(TypeError):
+        meridianTransit(duration=1)
+    with pytest.raises(TypeError):
+        meridianTransit(kind=1)
+    transits = meridianTransit(
+        source=src,
+        fromTime=time,
+        duration=TimeDelta(1),
+        kind='apparent'
     )
-    assert isinstance(transit, Time)
-    assert transit.isot == '2020-04-02T07:07:03.968'
+    assert isinstance(transits, Time)
+    assert transits.size == 1
+    assert transits[0].isot == '2020-09-10T13:03:00.500'
+    # Double transit
+    casa = SkyCoord.from_name('Cas A')
+    time = Time('2020-09-09')
+    transits = meridianTransit(
+        source=casa,
+        fromTime=time,
+        duration=TimeDelta(1),
+        kind='apparent'
+    )
+    assert transits.size == 2
+    assert transits[0].isot == '2020-09-09T00:01:34.500'
+    assert transits[1].isot == '2020-09-09T23:57:38.500'
 # ============================================================= #
 
 

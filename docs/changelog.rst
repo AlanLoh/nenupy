@@ -17,6 +17,7 @@ Changelog
 * SQL database
 * Add functions to get a source coordinates and compute the horizontal coordinates versus time (:func:`~nenupy.astro.astro.getSource` and :func:`~nenupy.astro.astro.altazProfile`).
 * Plot of observation pointing files ``alatazA`` and ``altazB`` (:func:`~~nenupy.observation.pointing.plotPointing`)
+* Correction of bugs and improvement of the ``astro`` module [`#38 <https://github.com/AlanLoh/nenupy/issues/38>`_]
  
 
 1.0.0 (2020-04-29)

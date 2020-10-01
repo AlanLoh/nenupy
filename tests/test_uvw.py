@@ -36,7 +36,7 @@ def test_uvwcompute():
     )
     assert isinstance(uvw.uvw, np.ndarray)
     assert uvw.uvw.shape == (2, 15, 3)
-    assert uvw.uvw[0, 7, 0] == pytest.approx(-55.39, 1e-2)
+    assert uvw.uvw[0, 7, 0] == pytest.approx(-55.49, 1e-2)
     # Bad phase_center
     with pytest.raises(TypeError):
         uvw.compute(
@@ -52,7 +52,7 @@ def test_uvwcompute():
     )
     assert isinstance(uvw.uvw, np.ndarray)
     assert uvw.uvw.shape == (2, 15, 3)
-    assert uvw.uvw[0, 7, 0] == pytest.approx(-49.64, 1e-2)
+    assert uvw.uvw[0, 7, 0] == pytest.approx(49.71, 1e-2)
     # SkyCoord non-scalar input
     ncp = SkyCoord(
         ra=np.array([0, 0])*u.deg,
@@ -63,8 +63,8 @@ def test_uvwcompute():
     )
     assert isinstance(uvw.uvw, np.ndarray)
     assert uvw.uvw.shape == (2, 15, 3)
-    assert uvw.uvw[0, 7, 0] == pytest.approx(-49.641, 1e-3)
-    assert uvw.uvw[0, 7, 0] == pytest.approx(-49.638, 1e-3)
+    assert uvw.uvw[0, 7, 0] == pytest.approx(49.712, 1e-3)
+    assert uvw.uvw[1, 7, 0] == pytest.approx(49.710, 1e-3)
     # SkyCoord non-scalar wrong size input
     with pytest.raises(ValueError):
         ncp = SkyCoord(

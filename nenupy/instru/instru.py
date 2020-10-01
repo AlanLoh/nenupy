@@ -237,14 +237,9 @@ class _HiddenPrints:
 # ============================================================= #
 nenufar_loc = EarthLocation(
     lat=47.376511 * u.deg,
-    lon=2.192400 * u.deg,
-    height=150 * u.m
+    lon=2.1924002 * u.deg,
+    height=135.834 * u.m
 )
-# nenufar_loc = EarthLocation( # old
-#     lat=47.375944 * u.deg,
-#     lon=2.193361 * u.deg,
-#     height=136.195 * u.m
-# )
 # ============================================================= #
 
 

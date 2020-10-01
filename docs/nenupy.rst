@@ -18,6 +18,12 @@ Subpackages
 
 
 
+.. toctree::
+
+   nenupy.miscellaneous
+
+
+
 .. automodule:: nenupy
    :members:
    :undoc-members:

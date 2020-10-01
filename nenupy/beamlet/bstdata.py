@@ -7,7 +7,7 @@
     BST_Data
     ********
 
-    Object class :class:`.BST_Data` (from the :mod:`ñenupy.beamlet` module) 
+    Object class :class:`.BST_Data` (from the :mod:`~nenupy.beamlet` module) 
     inherits from :class:`.Beamlet`.
     It is designed to read the so called *Beamformed Statistics Data* 
     or `BST <https://nenufar.obs-nancay.fr/en/astronomer/>`_ from the

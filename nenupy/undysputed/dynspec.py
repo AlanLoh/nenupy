@@ -219,6 +219,14 @@ r"""
 
     >>> ds.jump_correction = True
 
+    The jumps are fitted with a function of the form:
+    
+    .. math::
+        f(t) = a \log_{10} (t) + b
+
+    .. image:: ./_images/jumps.png
+        :width: 800
+
     Dedispersion
     ^^^^^^^^^^^^
     
@@ -758,6 +766,7 @@ class Dynspec(object):
         self.rebin_df = None
         self.jump_correction = False
         self.bp_correction = 'none'
+        self.freq_flat = False
         self.clean_rfi = False
 
 
@@ -927,9 +936,10 @@ class Dynspec(object):
                 'beam should be an integer.'
             )
         if b not in self.beams:
-            raise ValueError(
-                f'Available beam indices are {self.beams}.'
+            log.warning(
+                f'Available beam indices are {self.beams}. Setting default to {self.beams[0]}'
             )
+            b = self.beams[0]
         self._beam = b
         log.info(
             f'Beam index set: {b}.'
@@ -1050,7 +1060,7 @@ class Dynspec(object):
         return self._bp_correction
     @bp_correction.setter
     def bp_correction(self, b):
-        available = ['standard', 'median', 'none']
+        available = ['standard', 'median', 'none', 'adjusted']
         if not isinstance(b, str):
             raise TypeError(
                 'bp_correction must be a string.'
@@ -1395,8 +1405,29 @@ class Dynspec(object):
             )
             data *= broadband[np.newaxis, :, np.newaxis]
             return data.reshape((ntimes, nfreqs)) / spectrum
+        elif self.bp_correction == 'adjusted':
+            ntimes, nfreqs = data.shape
+            data = data.reshape(
+                (
+                    ntimes,
+                    int(nfreqs/fftlen),
+                    fftlen
+                )
+            )
+            freqProfile = np.median(data, axis=0)
+            medianPerSubband = np.median(freqProfile, axis=1)
+            subbandProfileNormalized = freqProfile / medianPerSubband[:, None]
+            subbandProfile = np.median(subbandProfileNormalized, axis=0)
+            data /= subbandProfile[None, None, :]
+            return data.reshape((ntimes, nfreqs))
         elif self.bp_correction == 'none':
-            return data 
+            return data
+
+
+    def _freqFlattening(self, data):
+        """ Flatten the sub-band response
+        """
+        return data
 
 
     def _clean(self, data):
@@ -1656,6 +1687,9 @@ class Dynspec(object):
         """
         if not self.jump_correction:
             return data
+        log.info(
+            'Correcting for 6 min pointing jumps...'
+        )
 
         freqProfile = np.median(
             data,
@@ -1674,6 +1708,9 @@ class Dynspec(object):
         nPointsTotal = timeProfile.size
 
         # Finding interval indices
+        meanTProfile = np.mean(timeProfile)
+        stdTProfile = np.std(timeProfile)
+        timeProfile[timeProfile > meanTProfile + 4*stdTProfile] = meanTProfile # Get rid of strong RFI
         derivativeTProfile = np.gradient(timeProfile)
         jumpIndex = np.argmin(derivativeTProfile)
         firstJumpIndex = jumpIndex%nPointsJump
@@ -1698,6 +1735,25 @@ class Dynspec(object):
             times = 1 + np.arange(intervalProfile.size)
             switchModel_fit = fitter(switchModel, times, intervalProfile)
             jumpsFitted[lowEdge:highEdge+1] *= switchModel_fit(times)
+
+        # Model fitting for each interval
+        # @custom_model
+        # def switchLoadFunc(t, a=1., b=1., c=1., d=1., e=1.):
+        #     """
+        #         f(t) = a log_10(t) + b
+        #     """
+        #     return (a*np.log10(t) + b) * (d * t**2 + c * t + e)
+        # jumpsFitted = np.ones(timeProfile.size)
+        # for i in range(intervalEdges.size - 1):
+        #     lowEdge = intervalEdges[i]
+        #     highEdge = intervalEdges[i+1]
+        #     intervalProfile = timeProfile[lowEdge:highEdge+1]
+        #     switchModel = switchLoadFunc(1e4, np.mean(intervalProfile), (intervalProfile[-1]-intervalProfile[0])/sixMin**2, (intervalProfile[-1]-intervalProfile[0])/sixMin, np.mean(intervalProfile))
+        #     fitter = fitting.LevMarLSQFitter()
+        #     times = 1 + np.arange(intervalProfile.size)
+        #     switchModel_fit = fitter(switchModel, times, intervalProfile)
+        #     jumpsFitted[lowEdge:highEdge+1] = switchModel_fit.a.value * np.log10(times) + switchModel_fit.b.value
+        #     jumpsFitted[lowEdge:highEdge+1] /= switchModel_fit.a.value * np.log10(times[-1]) + switchModel_fit.b.value
 
         return data / jumpsFitted[:, None]
 # ============================================================= #

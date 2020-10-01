@@ -9,6 +9,6 @@ numba
 numexpr
 pyproj
 mocpy
-pyvo
+pyvo==1.0
 dask
 sqlalchemy

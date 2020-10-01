@@ -16,81 +16,67 @@ __maintainer__ = 'Alan'
 __email__ = 'alan.loh@obspm.fr'
 __status__ = 'Production'
 __all__ = [
-    'check_type',
-    'time_args'
+    'accepts'
 ]
 
 
-from functools import wraps
-import inspect
-from astropy.time import Time
-
-# def wrapped_decorator(func):
-#     """wrapped decorator docstring"""
-#     @wraps(func)
-#     def inner_function(*args, **kwargs):
-#         """inner function docstring """
-#         print func.__name__ + "was called"
-#         return func(*args, **kwargs)
-#     return inner_function
-
-
-# def decorator(arg1, arg2):
-#     def inner_function(function):
-#         @wraps(function)
-#         def wrapper(*args, **kwargs):
-#             print "Arguements passed to decorator %s and %s" % (arg1, arg2)
-#             function(*args, **kwargs)
-#         return wrapper
-#     return inner_function
-
 # ============================================================= #
-# ------------------------ check_type ------------------------- #
+# -------------------------- accepts -------------------------- #
 # ============================================================= #
-def check_type(variable, value, typeof):
-    """
-    """
-    if not isinstance(value, typeof):
-        raise TypeError(
-            f'`{variable}` should be a `{typeof}` object.'
-        )
-# ============================================================= #
-
-
-# ============================================================= #
-# ------------------------- time_args ------------------------- #
-# ============================================================= #
-def time_args(*t_args):
-    """ Decorator to check for a correct time argument.
+def accepts(*types):
+    """ Decorator
     """
 
-    def inner_function(func):
-        """ Inner function that needd to be returned after check
-        """
-
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            arg_names = inspect.getfullargspec(func).args
-            for t_arg in t_args:
-                if t_arg in arg_names:
+    def decorator(func):
+        # Check that all the types are set
+        assert len(types) == func.__code__.co_argcount,\
+            'Number of types does not match argument number.'
+        argnames = func.__code__.co_varnames
+        
+        def newFunc(*args, **kwargs):
+            newKwargs = {}
+            newArgs = []
+            for (arg, typ) in zip(argnames, types):
+                if arg in kwargs.keys():
                     # Check if kwargs have been filled
-                    if t_arg in kwargs.keys():
-                        check_type(t_arg, kwargs[t_arg], Time)
-
-                    # Check if args have been filled
-                    else:
-                        index = arg_names.index(t_arg)
-                        check_type(t_arg, args[index], Time)
-
+                    if not isinstance(kwargs[arg], typ):
+                        if isinstance(typ, tuple):
+                            if len(typ) > 1:
+                                typ = typ[0] 
+                        try:
+                            # Try to convert to correct type 
+                            kwargs[arg] = typ(kwargs[arg])
+                        except:
+                            raise TypeError(
+                                f'`{arg}` should be a `{typ}` object.'
+                            )
+                    newKwargs[arg] = kwargs[arg]
                 else:
-                    raise ValueError(
-                        f'{t_arg} not in {arg_names}!'
-                    )
+                    # Check if args have been filled
+                    index = argnames.index(arg)
+                    if index >= len(args):
+                        # Default value written in the function
+                        continue
+                    if not isinstance(args[index], typ):
+                        if isinstance(typ, tuple):
+                            if len(typ) > 1:
+                                typ = typ[0] 
+                        try:
+                            # Try to convert to correct type 
+                            newArg = typ(args[index])
+                        except:
+                            raise TypeError(
+                                f'`{args[index]}` should be a `{typ}` object.'
+                            )
+                    else:
+                        newArg = args[index]
+                    newArgs.append(newArg)
+            return func(*newArgs, **newKwargs)
 
-            return func(*args, **kwargs)
+        newFunc.__name__ = func.__name__
+        return newFunc
 
-        return wrapper
+    return decorator
 
-    return inner_function
 # ============================================================= #
 

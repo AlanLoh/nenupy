@@ -27,7 +27,13 @@ from astropy.time import Time
 from pyproj import Transformer
 
 from nenupy.instru import ma_info
-from nenupy.astro import lha, eq_zenith, nenufar_loc, wavelength
+from nenupy.astro import (
+    lst,
+    lha,
+    toFK5,
+    eq_zenith,
+    wavelength
+)
 
 import logging
 log = logging.getLogger(__name__)
@@ -227,10 +233,19 @@ class UVW(object):
                 )
             )
         # Hour angles
-        ha = lha(
+        lstTime = lst(
             time=self.times,
-            ra=phase_center.ra.deg
+            kind='apparent'
         )
+        phase_center = toFK5(
+            skycoord=phase_center,
+            time=self.times
+        )
+        ha = lha(
+            lst=lstTime,
+            skycoord=phase_center
+        )
+
         # Transformations
         self._uvw = np.zeros(
             (
@@ -306,6 +321,10 @@ class UVW(object):
         return uvw
 
 
+    # def rephase(self, ra, dec):
+    #     """
+    #     """
+    #     self._uvw
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
 

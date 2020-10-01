@@ -10,7 +10,6 @@
     Below are defined a set of useful astronomical functions
     summarized as:
     
-    * :func:`~nenupy.astro.astro.nenufar_loc`: NenuFAR Earth coordinates
     * :func:`~nenupy.astro.astro.lst`: Sidereal time
     * :func:`~nenupy.astro.astro.lha`: Local hour angle
     * :func:`~nenupy.astro.astro.wavelength`: Convert frequency to wavelength
@@ -23,7 +22,7 @@
     * :func:`~nenupy.astro.astro.radio_sources`: Get main radio source positions
     * :func:`~nenupy.astro.astro.getSource`: Get a particular source coordinates
     * :func:`~nenupy.astro.astro.altazProfile`: Retrieve horizontal coordinates versus time
-    * :func:`~nenupy.astro.astro.meridian_transit`: Next meridian transit time
+    * :func:`~nenupy.astro.astro.meridianTransit`: Next meridian transit time
     * :func:`~nenupy.astro.astro.dispersion_delay`: Dispersion delay induced by wave propagation through an electron plasma
 
 """
@@ -36,9 +35,9 @@ __maintainer__ = 'Alan'
 __email__ = 'alan.loh@obspm.fr'
 __status__ = 'Production'
 __all__ = [
-    'nenufar_loc',
     'lst',
     'lha',
+    'toFK5',
     'wavelength',
     'ho_coord',
     'eq_coord',
@@ -49,7 +48,7 @@ __all__ = [
     'radio_sources',
     'getSource',
     'altazProfile',
-    'meridian_transit',
+    'meridianTransit',
     'dispersion_delay',
     '_pos2ecef',
     '_ecef2enu'
@@ -62,10 +61,12 @@ from astropy import units as u
 from astropy.coordinates import (
     EarthLocation,
     Angle,
+    Longitude,
     SkyCoord,
     AltAz,
     Galactic,
     ICRS,
+    FK5,
     solar_system_ephemeris,
     get_body
 )
@@ -81,71 +82,78 @@ log = logging.getLogger(__name__)
 
 
 # ============================================================= #
-# ------------------------ nenufar_loc ------------------------ #
-# ============================================================= #
-def nenufar_loc():
-    """ Returns the coordinate of NenuFAR array
-
-        :returns: :class:`~astropy.coordinates.EarthLocation`
-            object
-        :rtype: :class:`~astropy.coordinates.EarthLocation`
-
-        :Example:
-            >>> from nenupysim.astro import nenufar_loc
-            >>> location = nenufar_loc()
-    """
-    # return EarthLocation( # old
-    #     lat=47.375944 * u.deg,
-    #     lon=2.193361 * u.deg,
-    #     height=136.195 * u.m
-    # )
-    return EarthLocation(
-        lat=47.376511 * u.deg,
-        lon=2.192400 * u.deg,
-        height=150 * u.m
-    )
-
-# ============================================================= #
-
-
-# ============================================================= #
 # ---------------------------- lst ---------------------------- #
 # ============================================================= #
-@misc.time_args('time')
-def lst(time):
+@misc.accepts(Time, str)
+def lst(time, kind):
     """ Local sidereal time
 
-        :param time: Time
+        :param time:
+            Time
         :type time: :class:`~astropy.time.Time`
+        :param kind:
+            ``'fast'`` computes an approximation of local sidereal
+            time, ``'mean'`` accounts for precession and ``'apparent'``
+            accounts for precession and nutation.
+        :type kind: str
 
         :returns: LST time
-        :rtype: :class:`~astropy.coordinates.Angle`
+        :rtype: :class:`~astropy.coordinates.Longitude`
     """
-    location = nenufar_loc()
-    lon = location.to_geodetic().lon
-    lst = time.sidereal_time('apparent', lon)
-    return lst
+    if kind.lower() == 'fast':
+        # http://www.roma1.infn.it/~frasca/snag/GeneralRules.pdf
+        # Number of days since 2000 January 1, 12h UT
+        nDays = time.jd - 2451545.
+        # Greenwich mean sidereal time
+        gmst = 18.697374558 + 24.06570982441908 * nDays
+        gmst %= 24.
+        # Local Sidereal Time
+        lst = gmst + nenufar_loc.lon.hour
+        if np.isscalar(lst):
+            if lst < 0:
+                lst += 24
+        else:
+            lst[lst < 0] += 24.   
+        return Longitude(lst, 'hour')
+    else:
+        location = nenufar_loc
+        lon = location.to_geodetic().lon
+        lst = time.sidereal_time(kind, lon)
+        return lst
 # ============================================================= #
 
 
 # ============================================================= #
 # ---------------------------- lha ---------------------------- #
 # ============================================================= #
-def lha(time, ra):
-    """ Local hour angle of an object in the observer's sky
+@misc.accepts(Longitude, SkyCoord)
+def lha(lst, skycoord):
+    """ Local Hour Angle of an object in the observer's sky
         
-        :param time: Time
-        :type time: :class:`~astropy.time.Time`
-        :param ra: Right Ascension
-        :type ra: `float` or :class:`~astropy.coordinates.Angle` or :class:`~astropy.coordinates.Quantity`
+        :param lst:
+            Local Sidereal Time, such as returned by
+            :func:`~nenupy.astro.astro.lst` for instance.
+        :type lst: :class:`~astropy.coordinates.Longitude`
+        :param skycoord:
+            Sky coordinates to convert to Local Hour Angles. This
+            must be converted to FK5 coordinates with the
+            corresponding equinox in order to give accurate
+            results (see :func:`~nenupy.astro.astro.toFK5`).
+        :type skycoord: :class:`~astropy.coordinates.SkyCoord`
 
         :returns: LHA time
         :rtype: :class:`~astropy.coordinates.Angle`
     """
-    if not isinstance(ra, (u.Quantity, Angle)):
-        ra = Angle(ra * u.deg)
-    ha = lst(time) - ra
-    twopi = Angle(360. * u.deg)
+    if skycoord.equinox is None:
+        log.warning(
+            (
+                'Given skycoord for LHA computation does not '
+                'have an equinox attribute, make sure the '
+                'precession is taken into account.'
+            )
+        )
+    ha = lst - skycoord.ra
+    twopi = Angle(360.000000 * u.deg)
     if ha.isscalar:
         if ha.deg < 0:
             ha += twopi
@@ -155,6 +163,31 @@ def lha(time, ra):
         ha[ha.deg < 0] += twopi
         ha[ha.deg > 360] -= twopi
     return ha
+
+# ============================================================= #
+
+
+# ============================================================= #
+# --------------------------- toFK5 --------------------------- #
+# ============================================================= #
+@misc.accepts(SkyCoord, Time)
+def toFK5(skycoord, time):
+    """ Converts sky coordinates ``skycoord`` to FK5 system with
+        equinox given by ``time``.
+
+        :param skycoord:
+            Sky Coordinates to be converted to FK5 system.
+        :type skycoord: :class:`~astropy.coordinates.SkyCoord`
+        :param time:
+            Time that defines the equinox to be accounted for.
+        :type time: :class:`~astropy.time.Time`
+
+        :returns: FK5 sky coordinates
+        :rtype: :class:`~astropy.coordinates.SkyCoord`
+    """
+    return skycoord.transform_to(
+        FK5(equinox=time)
+    )
 # ============================================================= #
 
 
@@ -220,7 +253,7 @@ def ho_coord(alt, az, time):
     return AltAz(
         az=az,
         alt=alt,
-        location=nenufar_loc(),
+        location=nenufar_loc,
         obstime=time
     )
 # ============================================================= #
@@ -327,7 +360,7 @@ def to_altaz(radec, time):
         )
     altaz_frame = AltAz(
         obstime=time,
-        location=nenufar_loc()
+        location=nenufar_loc
     )
     return radec.transform_to(altaz_frame)
 # ============================================================= #
@@ -426,7 +459,7 @@ def radio_sources(time):
         src = get_body(
             src,
             time,
-            nenufar_loc()
+            nenufar_loc
         )
         return eq_coord(src.ra.deg, src.dec.deg)
 
@@ -516,7 +549,8 @@ def getSource(name, time=None):
         src = sources[name.upper()]
         src = SkyCoord(
             ra=[src['ra']] * nTime * u.deg,
-            dec=[src['dec']] * nTime * u.deg
+            dec=[src['dec']] * nTime * u.deg,
+            frame='icrs'
         )
         log.info(
             f'Source {name} found in {sourceJson}.'
@@ -527,7 +561,7 @@ def getSource(name, time=None):
                 'time should be a Time object'
             )
         with solar_system_ephemeris.set('builtin'):
-            src = get_body(name, time, nenufar_loc())
+            src = get_body(name, time, nenufar_loc)
         log.info(
             f'Source {name} found in Solar System Ephemeris.'
         )
@@ -537,7 +571,7 @@ def getSource(name, time=None):
                 nTime = time.size
             else:
                 nTime = 1
-        src = SkyCoord.from_name(name)
+        src = SkyCoord.from_name(name) # ICRS
         if time is not None:
             if not time.isscalar:
                 nTime = time.size
@@ -545,7 +579,8 @@ def getSource(name, time=None):
             nTime = 1
         src = SkyCoord(
             ra=[src.ra.deg] * nTime * u.deg,
-            dec=[src.dec.deg] * nTime * u.deg
+            dec=[src.dec.deg] * nTime * u.deg,
+            frame='icrs'
         )
         log.info(
             f'Source {name} found in Simbad.'
@@ -617,49 +652,120 @@ def altazProfile(sourceName, tMin=None, tMax=None, dt=None):
 
 
 # ============================================================= #
-# --------------------- meridian_transit ---------------------- #
+# ---------------------- meridianTransit ---------------------- #
 # ============================================================= #
-@misc.time_args('from_time')
-def meridian_transit(source, from_time, npoints=400):
-    """ Find the next ``source``meridian transit time after the
-        time ``from_time`` at NenuFAR location. This is a wrapper
-        around the `astroplan` package and the dedicated function
-        `target_meridian_transit_time()`.
+@misc.accepts(SkyCoord, Time, TimeDelta, str)
+def meridianTransit(source, fromTime, duration=TimeDelta(1), kind='fast'):
+    """ Find the ``source`` meridian transit time(s) since the
+        time ``fromTime`` at NenuFAR location within a time period
+        ``duration``.
 
         :param source:
-            The fixed source instance to look for the transit.
+            The source instance to look for the transit.
             See also :func:`~nenupy.astro.astro.eq_coord` or 
             :meth:`~astropy.coordinates.SkyCoord.from_name`.
         :type source: :class:`~astropy.coordinates.SkyCoord`
-        :param from_time:
+        :param fromTime:
             Time from which the next transit should be found.
-        :type from_time: :class:`~astropy.time.Time`
-        :param npoints:
-            Number of points to look for the transit, the higher
-            the more precise (but longer). ``400`` is a nice
-            compromise.
-        :type npoints: `int`
+        :type fromTime: :class:`~astropy.time.Time`
+        :param duration:
+            Duration to check transits since ``fromTime``
+        :type duration: :class:`~astropy.time.TimeDelta`
+        :param kind:
+            Manner to compute the Local Sidereal Time, allowed
+            values are ``'fast'``, ``'mean'`` and ``'apparent'``,
+            see :func:`~nenupy.astro.astro.lst`.
+        :type kind: str
         
         :returns:
             Next meridian transit time of ``source``.
         :rtype: :class:`~astropy.time.Time`
     """
-    from astroplan import Observer
-    if not isinstance(source, SkyCoord):
-        raise TypeError(
-            'source must be a SkyCoord object'
+    def _timeRange(tMin, tMax, dt):
+        """
+        """
+        if not (isinstance(tMin, Time) and isinstance(tMax, Time)):
+            raise TypeError(
+                'tMin and tMax should be astropy.Time instances.'
+            )
+        if not isinstance(dt, TimeDelta):
+            raise TypeError(
+                'dt should be an astropy.TimeDelta instance.'
+            )
+        nTimes = (tMax - tMin) / dt
+        times = tMin + np.arange(nTimes + 1) * dt
+        return times
+
+    def _jumpIndices(angleArray):
+        """ ``angleArray`` is expected to contain increasing
+            angular values.
+            This function enables to detect the jumps between 360
+            and 0 deg for instance (or 180 and -180 deg).
+        """
+        indices = np.where(
+            (np.roll(angleArray, -1) - angleArray)[:-1] < 0
+        )[0]
+        return indices
+
+    def _getLHA(times, source, kind):
+        """
+        """
+        sourcefk5 = toFK5(
+            skycoord=source,
+            time=times
         )
-    nenufar = Observer(
-        name='NenuFAR',
-        location=nenufar_loc()
+        lstTime = lst(
+            time=times,
+            kind=kind
+        )
+        hourAngles = lha(
+            lst=lstTime,
+            skycoord=sourcefk5
+        )
+        return hourAngles
+
+    transitTimes = []
+
+    extDuration = TimeDelta(3600, format='sec')
+    largeDt = TimeDelta(1800, format='sec')
+    mediumDt = TimeDelta(60, format='sec')
+    smallDt = TimeDelta(1, format='sec')
+
+    # Broad search
+    times = _timeRange(
+        tMin=fromTime - extDuration,
+        tMax=fromTime + duration + extDuration,
+        dt=largeDt
     )
-    transit = nenufar.target_meridian_transit_time(
-        time=from_time,
-        target=source,
-        which='next',
-        n_grid_points=npoints
-    )
-    return transit
+    hourAngles = _getLHA(times, source, kind)
+    indices = _jumpIndices(hourAngles)
+    
+    # Iterate over the transit(s)
+    for index in indices:
+        # Medium search
+        medTimes = _timeRange(
+            tMin=times[index],
+            tMax=times[index + 1],
+            dt=mediumDt
+        )
+        hourAngles = _getLHA(medTimes, source, kind)
+        medIndices = _jumpIndices(hourAngles)
+        medIndex = medIndices[0]
+
+        # Finest search
+        smallTimes = _timeRange(
+            tMin=medTimes[medIndex],
+            tMax=medTimes[medIndex + 1],
+            dt=smallDt
+        )
+        hourAngles = _getLHA(smallTimes, source, kind)
+        smallIndices = _jumpIndices(hourAngles)
+
+        transitTimes.append(
+            (smallTimes[smallIndices[0]] + smallDt/2.).isot
+        )
+
+    return Time(transitTimes)
 # ============================================================= #
 
 

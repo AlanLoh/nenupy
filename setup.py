@@ -26,10 +26,12 @@ setup(
     extras_require={
         'astroplan': 'astroplan',
         'mocpy': 'mocpy',
-        'pyvo': 'pyvo'
+        'pyvo': 'pyvo==1.0'
     },
     python_requires='>=3.6',
-    # scripts=[],
+    scripts=[
+        'bin/nenupy_vcr_coordinates'
+    ],
     version=nenupy.__version__,
     description='NenuFAR Python package',
     url='https://github.com/AlanLoh/nenupy.git',
