@@ -26,56 +26,50 @@ import functools
 # ============================================================= #
 # -------------------------- accepts -------------------------- #
 # ============================================================= #
-def accepts(*types):
+def accepts(*types, strict=True):
     """ Decorator
     """
 
-    def decorator(func):
+    def decorator(func, strict=strict):
         # Check that all the types are set
         assert len(types) == func.__code__.co_argcount,\
             'Number of types does not match argument number.'
         argnames = func.__code__.co_varnames
+        if not isinstance(strict, tuple):
+            strict = (strict, )*func.__code__.co_argcount
         
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            # Make everything kwargs, including defaults
             newKwargs = {}
-            newArgs = []
-            for (arg, typ) in zip(argnames, types):
-                if arg in kwargs.keys():
-                    # Check if kwargs have been filled
-                    if not isinstance(kwargs[arg], typ):
-                        if isinstance(typ, tuple):
-                            if len(typ) > 1:
-                                typ = typ[0] 
-                        try:
-                            # Try to convert to correct type 
-                            kwargs[arg] = typ(kwargs[arg])
-                        except:
-                            raise TypeError(
-                                f'`{arg}` should be a `{typ}` object.'
-                            )
-                    newKwargs[arg] = kwargs[arg]
+            nFilled = len(args) + len(kwargs)
+            for i in range(func.__code__.co_argcount):
+                if i < len(args):
+                    newKwargs[argnames[i]] = args[i]
+                elif i >= nFilled:
+                    newKwargs[argnames[i]] = func.__defaults__[i - nFilled]
                 else:
-                    # Check if args have been filled
-                    index = argnames.index(arg)
-                    if index >= len(args):
-                        # Default value written in the function
-                        continue
-                    if not isinstance(args[index], typ):
-                        if isinstance(typ, tuple):
-                            if len(typ) > 1:
-                                typ = typ[0] 
-                        try:
-                            # Try to convert to correct type 
-                            newArg = typ(args[index])
-                        except:
-                            raise TypeError(
-                                f'`{args[index]}` should be a `{typ}` object.'
-                            )
-                    else:
-                        newArg = args[index]
-                    newArgs.append(newArg)
-            return func(*newArgs, **newKwargs)
+                    newKwargs[argnames[i]] = kwargs[argnames[i]]
+
+            for index, (arg, typ) in enumerate(zip(argnames, types)):
+                # Check if kwargs have been filled
+                if not isinstance(newKwargs[arg], typ):
+                    if strict[index]:
+                        raise TypeError(
+                            f'`{arg}` of type `{type(newKwargs[arg])}` should be a `{typ}` object.'
+                        )
+                    if isinstance(typ, tuple):
+                        if len(typ) > 1:
+                            typ = typ[0] 
+                    try:
+                        # Try to convert to correct type 
+                        newKwargs[arg] = typ(newKwargs[arg])
+                    except:
+                        raise TypeError(
+                            f'`{arg}` of type `{type(newKwargs[arg])}` should be a `{typ}` object.'
+                        )
+
+            return func(**newKwargs)
 
         wrapper.__name__ = func.__name__
         wrapper.__doc__ = func.__doc__

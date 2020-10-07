@@ -20,7 +20,7 @@
         +--------------------------------------+------------------------------------------------+------------------------------------------------------+
         |                                      | :func:`~nenupy.astro.astro.to_radec`           | From horizontal to equatorial coordinates conversion |
         +--------------------------------------+------------------------------------------------+------------------------------------------------------+
-        |                                      | :func:`~nenupy.astro.astro.to_altaz`           | From equatorial to horizontal corodinates conversion |
+        |                                      | :func:`~nenupy.astro.astro.toAltaz`            | From equatorial to horizontal coordinates conversion |
         +--------------------------------------+------------------------------------------------+------------------------------------------------------+
         |                                      | :func:`~nenupy.astro.astro.ho_zenith`          | NenuFAR's zenith in horizontal coordinates           |
         +--------------------------------------+------------------------------------------------+------------------------------------------------------+

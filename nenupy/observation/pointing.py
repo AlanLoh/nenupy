@@ -26,7 +26,7 @@ from astropy.time import Time, TimeDelta
 import matplotlib.pyplot as plt
 from os.path import basename, isfile
 
-from nenupy.astro import altazProfile, ho_coord, getSource, to_altaz
+from nenupy.astro import altazProfile, ho_coord, getSource, toAltaz
 
 
 # ============================================================= #
@@ -232,8 +232,8 @@ def plotPointing(altaza=None, altazb=None, sourceName=None):
                     az=aza['az_cor'][mask][:-1],
                     time=azaTime[mask][:-1]
                 )
-                source = to_altaz(
-                    radec=getSource(
+                source = toAltaz(
+                    skycoord=getSource(
                         name=sourceName,
                         time=azaTime[mask][:-1]
                     ),
@@ -263,8 +263,8 @@ def plotPointing(altaza=None, altazb=None, sourceName=None):
                     az=azb['az'][mask],
                     time=azbTime[mask]
                 )
-                source = to_altaz(
-                    radec=getSource(
+                source = toAltaz(
+                    skycoord=getSource(
                         name=sourceName,
                         time=azbTime[mask]
                     ),

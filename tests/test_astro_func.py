@@ -31,7 +31,7 @@ from nenupy.astro import (
     ho_coord,
     eq_coord,
     to_radec,
-    to_altaz,
+    toAltaz,
     ho_zenith,
     eq_zenith,
     radio_sources,
@@ -44,7 +44,7 @@ from nenupy.astro import (
 # ------------------------- test_lst -------------------------- #
 # ============================================================= #
 def test_lst():
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         lst_time = lst(
             time='2020-04-01 12:00:00',
             kind=1
@@ -247,16 +247,40 @@ def test_toradec():
 # ----------------------- test_toaltaz ------------------------ #
 # ============================================================= #
 def test_toaltaz():
+    source = SkyCoord(180, 45, unit='deg')
+    time = Time('2020-04-01 12:00:00')
     with pytest.raises(TypeError):
-        altaz = to_altaz(1., '2020-04-01 12:00:00')
-    radec = eq_coord(
-        ra=180,
-        dec=45
+        altaz = toAltaz(
+            skycoord=1,
+            time=Time.now()
+        )
+    with pytest.raises(TypeError):
+        altaz = toAltaz(
+            skycoord=source,
+            time=1
+        )
+    with pytest.raises(TypeError):
+        altaz = toAltaz(
+            skycoord=source,
+            time=time,
+            kind=source
+        )
+    altaz = toAltaz(
+        skycoord=source,
+        time=time,
+        kind='fast'
     )
-    altaz = to_altaz(radec, Time('2020-04-01 12:00:00'))
-    assert isinstance(altaz, AltAz)
-    assert altaz.az.deg == pytest.approx(8.64, 1e-2)
-    assert altaz.alt.deg == pytest.approx(2.89, 1e-2)
+    assert isinstance(altaz, SkyCoord)
+    assert altaz.az.deg == pytest.approx(8.651, 1e-3)
+    assert altaz.alt.deg == pytest.approx(2.8895, 1e-4)
+    altaz = toAltaz(
+        skycoord=source,
+        time=time,
+        kind='normal'
+    )
+    assert isinstance(altaz, SkyCoord)
+    assert altaz.az.deg == pytest.approx(8.645, 1e-3)
+    assert altaz.alt.deg == pytest.approx(2.8898, 1e-4)
 # ============================================================= #
 
 
@@ -354,13 +378,30 @@ def test_meridiantransit():
     src = SkyCoord.from_name('3C 274')
     time = Time('2020-09-10')
     with pytest.raises(TypeError):
-        meridianTransit(source=1)
+        meridianTransit(
+            source=1,
+            fromTime=time,
+            duration=TimeDelta(1)
+        )
     with pytest.raises(TypeError):
-        meridianTransit(fromTime=1)
+        meridianTransit(
+            source=src,
+            fromTime=1,
+            duration=TimeDelta(1)
+        )
     with pytest.raises(TypeError):
-        meridianTransit(duration=1)
+        meridianTransit(
+            source=src,
+            fromTime=time,
+            duration=1
+        )
     with pytest.raises(TypeError):
-        meridianTransit(kind=1)
+        meridianTransit(
+            source=src,
+            fromTime=time,
+            duration=TimeDelta(1),
+            kind=1
+        )
     transits = meridianTransit(
         source=src,
         fromTime=time,

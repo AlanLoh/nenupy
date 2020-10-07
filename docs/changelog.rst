@@ -16,8 +16,9 @@ Changelog
 * Implemented background computation for :class:`~nenupy.beamlet.sdata.SData` objects (:attr:`~nenupy.beamlet.sdata.SData.background` and :attr:`~nenupy.beamlet.sdata.SData.fbackground`) as well as a plotting method :meth:`~nenupy.beamlet.sdata.SData.plot`.
 * SQL database
 * Add functions to get a source coordinates and compute the horizontal coordinates versus time (:func:`~nenupy.astro.astro.getSource` and :func:`~nenupy.astro.astro.altazProfile`).
-* Plot of observation pointing files ``alatazA`` and ``altazB`` (:func:`~~nenupy.observation.pointing.plotPointing`)
+* Plot of observation pointing files ``alatazA`` and ``altazB`` (:func:`~nenupy.observation.pointing.plotPointing`)
 * Correction of bugs and improvement of the ``astro`` module [`#38 <https://github.com/AlanLoh/nenupy/issues/38>`_]
+* Faster version of equatorial/horizontal coordinates conversion (:func:`~nenupy.astro.astro.toAltaz`)
  
 
 1.0.0 (2020-04-29)

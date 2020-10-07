@@ -16,7 +16,7 @@
     * :func:`~nenupy.astro.astro.ho_coord`: Define a :class:`~astropy.coordinates.AltAz` object
     * :func:`~nenupy.astro.astro.eq_coord`: Define a :class:`~astropy.coordinates.ICRS` object
     * :func:`~nenupy.astro.astro.to_radec`: Convert :class:`~astropy.coordinates.AltAz` to :class:`~astropy.coordinates.ICRS`
-    * :func:`~nenupy.astro.astro.to_altaz`: Convert :class:`~astropy.coordinates.ICRS` to :class:`~astropy.coordinates.AltAz`
+    * :func:`~nenupy.astro.astro.toAltaz`: Convert equatorial coordinates to horizontal coordinates
     * :func:`~nenupy.astro.astro.ho_zenith`: Get the local zenith in :class:`~astropy.coordinates.AltAz` coordinates
     * :func:`~nenupy.astro.astro.eq_zenith`: Get the local zenith in :class:`~astropy.coordinates.ICRS` coordinates
     * :func:`~nenupy.astro.astro.radio_sources`: Get main radio source positions
@@ -42,7 +42,7 @@ __all__ = [
     'ho_coord',
     'eq_coord',
     'to_radec',
-    'to_altaz',
+    'toAltaz',
     'ho_zenith',
     'eq_zenith',
     'radio_sources',
@@ -84,12 +84,18 @@ log = logging.getLogger(__name__)
 # ============================================================= #
 # ---------------------------- lst ---------------------------- #
 # ============================================================= #
-@misc.accepts(Time, str)
-def lst(time, kind):
-    """ Local sidereal time
+@misc.accepts(Time, str, strict=(False, True))
+def lst(time, kind='fast'):
+    """ Computes the Local Sidereal Time at the longitude of the
+        NenuFAR radio telescope.
+        Viewed from NenuFAR, a fixed celestial object seen at one
+        position in the sky will be seen at the same position on
+        another night at the same sidereal time. LST angle
+        indicates the Right Ascension on the sky that is
+        currently crossing the Local Meridian.
 
         :param time:
-            Time
+            UT Time to be converted
         :type time: :class:`~astropy.time.Time`
         :param kind:
             ``'fast'`` computes an approximation of local sidereal
@@ -97,8 +103,19 @@ def lst(time, kind):
             accounts for precession and nutation.
         :type kind: str
 
-        :returns: LST time
+        :returns: Local Sidereal Time angle
         :rtype: :class:`~astropy.coordinates.Longitude`
+
+        :Example:
+            >>> from nenupy.astro import lst
+            >>> from astropy.time import Time
+            >>> lst(time=Time('2020-01-01 12:00:00'), kind='fast')
+            <Longitude 18.85380195 hourangle>
+            >>> lst(time=Time('2020-01-01 12:00:00'), kind='mean')
+            <Longitude 18.85375283 hourangle>
+            >>> lst(time=Time('2020-01-01 12:00:00'), kind='apparent')
+            <Longitude 18.85347225 hourangle>
+
     """
     if kind.lower() == 'fast':
         # http://www.roma1.infn.it/~frasca/snag/GeneralRules.pdf
@@ -126,9 +143,24 @@ def lst(time, kind):
 # ============================================================= #
 # ---------------------------- lha ---------------------------- #
 # ============================================================= #
-@misc.accepts(Longitude, SkyCoord)
+@misc.accepts(Longitude, (ICRS, SkyCoord, FK5), strict=True)
 def lha(lst, skycoord):
-    """ Local Hour Angle of an object in the observer's sky
+    r""" Local Hour Angle of an object in the observer's sky. It
+        is defined as the angular distance on the celestial
+        sphere measured westward along the celestial equator from
+        the meridian to the hour circle passing through a point.
+
+        The local hour angle :math:`h` is computed with respect
+        to the local sidereal time ``lst`` :math:`t_{\rm LST}`
+        and the ``skycoord`` astronomical source's right 
+        ascension :math:`\alpha`:
+
+        .. math::
+            h = t_{\rm LST} - \alpha
+
+        with the rule that if :math:`h < 0`, a :math:`2\pi` angle
+        is added or if :math:`h > 2\pi`, a :math:`2\pi` angle
+        is subtracted.
         
         :param lst:
             Local Sidereal Time, such as returned by
@@ -143,6 +175,28 @@ def lha(lst, skycoord):
 
         :returns: LHA time
         :rtype: :class:`~astropy.coordinates.Angle`
+
+        :Example:
+            >>> from nenupy.astro import lst, lha, toFK5
+            >>> from astropy.time import Time
+            >>> from astropy.coordinates import SkyCoord
+            >>> utcTime = Time(['2020-01-01 12:00:00', '2020-01-01 13:00:00'])
+            >>> lstTime = lst(
+                    time=utcTime,
+                    kind='apparent'
+                )
+            >>> casA = SkyCoord.from_name('Cas A')
+            >>> casA_2020 = toFK5(
+                    skycoord=casA,
+                    time=utcTime
+                )
+            >>> lHA = lha(
+                    lst=lstTime,
+                    skycoord=casA_2020
+                )
+            >>> lHA
+            [19h26m53.9458s 20h27m03.8018s]
+
     """
     if skycoord.equinox is None:
         log.warning(
@@ -170,7 +224,7 @@ def lha(lst, skycoord):
 # ============================================================= #
 # --------------------------- toFK5 --------------------------- #
 # ============================================================= #
-@misc.accepts(SkyCoord, Time)
+@misc.accepts((ICRS, SkyCoord, FK5), Time, strict=(True, False))
 def toFK5(skycoord, time):
     """ Converts sky coordinates ``skycoord`` to FK5 system with
         equinox given by ``time``.
@@ -322,47 +376,131 @@ def to_radec(altaz):
 
 
 # ============================================================= #
-# ------------------------- to_altaz -------------------------- #
+# -------------------------- toAltaz -------------------------- #
 # ============================================================= #
-def to_altaz(radec, time):
-    """ Transform altaz coordinates to ICRS equatorial system
-        
-        :param radec:
-            Equatorial coordinates
-        :type altaz: :class:`~astropy.coordinates.ICRS`
-        :param time:
-            Time at which the local coordinates should be 
-            computed. It can either be provided as an 
-            :class:`~astropy.time.Time` object or a string in ISO
-            or ISOT format.
-        :type time: `str`, :class:`~astropy.time.Time`
+@misc.accepts((SkyCoord, ICRS), Time, str, strict=(True, False, True))
+def toAltaz(skycoord, time, kind='normal'):
+    r""" Convert a celestial object equatorial coordinates
+        ``skycoord`` to horizontal coordinates as seen from
+        NenuFAR's location at a given ``time``.
 
-        :returns: :class:`~astropy.coordinates.AltAz` object
-        :rtype: :class:`~astropy.coordinates.AltAz`
+        If ``kind='fast'`` is selected the computation is
+        accelerated using Local Sidereal Time approximation
+        (see :func:`~nenupy.astro.astro.lst`). The altitude
+        :math:`\theta` and azimuth :math:`\varphi` are computed
+        as follows:
+
+        .. math::
+            \cases{
+                \sin(\theta) = \sin(\delta) \sin(l) + \cos(\delta) \cos(l) \cos(h)\\
+                \cos(\varphi) = \frac{\sin(\delta) - \sin(l) \sin(\theta)}{\cos(l)\cos(\varphi)}
+            }
+
+        with :math:`\delta` the object's declination, :math:`l`
+        the NenuFAR's latitude and :math:`h` the Local Hour Angle
+        (see :func:`~nenupy.astro.astro.lha`).
+        If :math:`\sin(h) \geq 0`, then :math:`\varphi = 2 \pi - \varphi`.
+        Otherwise, :meth:`~astropy.coordinates.SkyCoord.transform_to`
+        is used.
+
+        :param skycoord:
+            Celestial object equatorial coordinates
+        :type skycoord: :class:`~astropy.coordinates.SkyCoord`
+        :param time:
+            Coordinated universal time
+        :type time: :class:`~astropy.time.Time`
+        :param kind:
+            ``'fast'`` enables faster computation time for the
+            conversion, mainly relying on an approximation of the
+            local sidereal time. All other values would lead to
+            accurate coordinates computation. Differences in
+            coordinates values are of the order of :math:`10^{-2}`
+            degrees or less.
+        :type kind: `str`
+
+        :returns:
+            Celestial object's horizontal coordinates
+        :rtype: :class:`~astropy.coordinates.SkyCoord`
 
         :Example:
-            >>> from nenupysim.astro import eq_coord
-            >>> radec = eq_coord(
-                    ra=51,
-                    dec=39,
+            >>> from nenupy.astro import toAltaz
+            >>> from astropy.time import Time
+            >>> from astropy.coordinates import SkyCoord
+
+            >>> utcTime = Time('2020-10-07 11:16:49')
+            >>> casA_radec = SkyCoord.from_name('Cas A')
+            >>> casA_altaz = toAltaz(
+                    skycoord=casA_radec,
+                    time=utcTime,
+                    kind='fast'
                 )
+            >>> print(casA_altaz.az.deg, casA_altaz.alt.deg)
+            9.024164094317975 17.2063660579154
+
+            >>> casA_altaz = toAltaz(
+                    skycoord=casA_radec,
+                    time=utcTime
+                )
+            >>> print(casA_altaz.az.deg, casA_altaz.alt.deg)
+            9.018801267468616 17.206414428075465
+
+            >>> utcTime = Time(['2020-01-01', '2020-01-02'])
+            >>> casA_altaz = toAltaz(casA_radec, utcTime, 'fast')
+            >>> print(casA_altaz.az.deg, casA_altaz.alt.deg)
+            [326.15940811 326.56313916] [30.23939922 29.86967785]
+
     """
-    if isinstance(radec, (ICRS, SkyCoord)):
-        # if isinstance(radec, SkyCoord):
-        #     if not isinstance(radec.frame, ICRS):
-        #         raise TypeError(
-        #             'frame should be ICRS'
-        #         )
-        pass
-    else:
-        raise TypeError(
-            'ICRS or SkyCoord object expected.'
-        )
-    altaz_frame = AltAz(
+    altazFrame = AltAz(
         obstime=time,
         location=nenufar_loc
     )
-    return radec.transform_to(altaz_frame)
+    if kind.lower() == 'fast':
+        lstTime = lst(
+            time=time,
+            kind='fast'
+        )
+        skycoord = toFK5(
+            skycoord=skycoord,
+            time=time
+        )
+        lHA = lha(
+            lst=lstTime,
+            skycoord=skycoord
+        )
+
+        decRad = skycoord.dec.rad
+        haRad = lHA.rad
+        latRad = nenufar_loc.lat.rad
+
+        sinDec = np.sin(decRad)
+        cosDec = np.cos(decRad)
+        sinLat = np.sin(latRad)
+        cosLat = np.cos(latRad)
+        sinHa = np.sin(haRad)
+        cosHa = np.cos(haRad)
+
+        # Elevation
+        sinAlt = sinDec * sinLat + cosDec * cosLat * cosHa
+        altRad = np.arcsin(sinAlt)
+
+        # Azimuth
+        cosAz = (sinDec - sinLat * np.sin(altRad))/\
+                (cosLat * np.cos(altRad))
+        azRad = np.arccos(cosAz)
+        if np.isscalar(altRad):
+            if sinHa >= 0.:
+                azRad = 2*np.pi - azRad
+        else:
+            posMask = sinHa >= 0.
+            azRad[posMask] = 2*np.pi - azRad[posMask]
+
+        return SkyCoord(
+            azRad * u.rad,
+            altRad * u.rad,
+            frame=altazFrame
+        )
+    else:
+        return skycoord.transform_to(altazFrame)
 # ============================================================= #
 
 
@@ -476,7 +614,7 @@ def radio_sources(time):
             'jupiter': solarsyst_eq('jupiter', time),
         }
     return {
-        key: to_altaz(src_radec[key], time=time) for key in src_radec.keys()
+        key: toAltaz(src_radec[key], time=time) for key in src_radec.keys()
     }
 # ============================================================= #
 
@@ -511,10 +649,14 @@ def getSource(name, time=None):
             >>> getSource('Sun', Time(['2020-04-01 12:00:00', '2020-04-01 14:00:00']))
                 <SkyCoord (GCRS:
                     obstime=['2020-04-01 12:00:00.000' '2020-04-01 14:00:00.000'],
-                    obsgeoloc=[(4237729.57730929,  917401.20083485, 4662142.24721379),
-                    (3208307.85440129, 2913433.12950414, 4664141.44068417)] m,
-                    obsgeovel=[( -66.89938865, 308.36222659, 0.13071683),
-                    (-212.45197538, 233.29547849, 0.41179784)] m / s): (ra, dec, distance) in (deg, deg, AU)
+                    obsgeoloc=[
+                        (4237729.57730929,  917401.20083485, 4662142.24721379),
+                        (3208307.85440129, 2913433.12950414, 4664141.44068417)
+                    ] m,
+                    obsgeovel=[
+                        ( -66.89938865, 308.36222659, 0.13071683),
+                        (-212.45197538, 233.29547849, 0.41179784)
+                    ] m / s): (ra, dec, distance) in (deg, deg, AU)
                     [(10.983783  , 4.71984404, 0.99938543),
                      (11.05889498, 4.75192569, 0.99941305)]>
 
@@ -637,8 +779,8 @@ def altazProfile(sourceName, tMin=None, tMax=None, dt=None):
             # Do not ask again for same source
             pass
 
-        srcAltAz = to_altaz(
-            radec=srcRaDec,
+        srcAltAz = toAltaz(
+            skycoord=srcRaDec,
             time=tCurrent
         )
 
@@ -654,7 +796,7 @@ def altazProfile(sourceName, tMin=None, tMax=None, dt=None):
 # ============================================================= #
 # ---------------------- meridianTransit ---------------------- #
 # ============================================================= #
-@misc.accepts(SkyCoord, Time, TimeDelta, str)
+@misc.accepts(SkyCoord, Time, TimeDelta, str, strict=(True, False, False, True))
 def meridianTransit(source, fromTime, duration=TimeDelta(1), kind='fast'):
     """ Find the ``source`` meridian transit time(s) since the
         time ``fromTime`` at NenuFAR location within a time period

@@ -109,7 +109,7 @@ A typical use-case of such discrete NenuFAR beam model computation is the direct
 
 >>> from nenupy.beam import ABeam
 >>> from nenupy.skymodel import extrapol_flux, get_point_sources
->>> from nenupy.astro import to_altaz
+>>> from nenupy.astro import toAltaz
 
 The sources are looked for within a 30 degree ``radius`` around the North Celestial Pole position (``ncp``) at a given time (``obst``) and frequency ``freq``:
 
@@ -129,10 +129,10 @@ They are retrieved using the LOFAR `Global SkyModel creator <https://lcs165.lofa
         radius=radius
     )
 
-The function :func:`~nenupy.astro.astro.to_altaz` is used to convert the equatorial coordinates of ``ncp`` in local coordinates at the observation time ``obst``:
+The function :func:`~nenupy.astro.astro.toAltaz` is used to convert the equatorial coordinates of ``ncp`` in local coordinates at the observation time ``obst``:
 
->>> ncp_altaz = to_altaz(
-        radec=ncp,
+>>> ncp_altaz = toAltaz(
+        skycoord=ncp,
         time=obst
     )
 

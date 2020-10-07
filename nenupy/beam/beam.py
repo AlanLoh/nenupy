@@ -38,7 +38,7 @@ from nenupy.instru import (
 )
 from nenupy.astro import (
     wavelength,
-    to_altaz,
+    toAltaz,
     ho_coord
 )
 
@@ -386,8 +386,8 @@ class ABeam(Beam):
                 alt=el,
                 time=time
         )
-        altazcoords = to_altaz(
-            radec=coords,
+        altazcoords = toAltaz(
+            skycoord=coords,
             time=time
         )  
         arrfac = self.array_factor(
@@ -541,8 +541,8 @@ class DBeam(Beam):
                 alt=self.eldig,
                 time=time
         )
-        altazcoords = to_altaz(
-            radec=coords,
+        altazcoords = toAltaz(
+            skycoord=coords,
             time=time
         )  
         arrfac = self.array_factor(

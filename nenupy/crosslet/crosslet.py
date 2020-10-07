@@ -555,6 +555,12 @@ class Crosslet(object):
         return sky
 
 
+    def nearfield(self, resolution):
+        """
+        """
+        return
+
+
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     def _get_cross_idx(self, c1='X', c2='X'):
