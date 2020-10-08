@@ -50,8 +50,9 @@ __all__ = [
     'altazProfile',
     'meridianTransit',
     'dispersion_delay',
-    '_pos2ecef',
-    '_ecef2enu'
+    '_l93_to_etrs',
+    '_geo_to_etrs',
+    '_etrs_to_enu'
     ]
 
 
@@ -978,161 +979,71 @@ def dispersion_delay(freq, dm):
 
 
 # ============================================================= #
-# ------------------------- _pos2ecef ------------------------- #
+# ----------------------- _l93_to_etrs ------------------------ #
 # ============================================================= #
-def _pos2ecef(earthLocation=None):
+def _l93_to_etrs(positions):
     """
     """
-    return
-#     if earthLocation is None:
-#         earthLocation = nenufar_loc
-#     if not isinstance(earthLocation, EarthLocation):
-#         raise TypeError(
-#             'earthLocation should be a EarthLocation instance.'
-#         )
-#     lon = earthLocation.lon.rad
-#     lat = earthLocation.lat.rad, 
-#     alt = earthLocation.height.value
-#     gps_b = 6356752.31424518
-#     gps_a = 6378137
-#     e_squared = 6.69437999014e-3
-#     gps_n = gps_a / np.sqrt(1 - e_squared * np.sin(lat)**2)
-#     xyz = np.zeros((3))
-#     xyz[0] = (gps_n + alt) * np.cos(lat) * np.cos(lon)
-#     xyz[1] = (gps_n + alt) * np.cos(lat) * np.sin(lon)
-#     xyz[2] = (gps_b**2 / gps_a**2 * gps_n + alt) * np.sin(lat)
-#     return xyz
+    from pyproj import Transformer
+    t = Transformer.from_crs(
+        crs_from='EPSG:2154', # RGF93
+        crs_to='EPSG:4896'# ITRF2005 / ETRS used in MS
+    )
+    positions[:, 0], positions[:, 1], positions[:, 2] = t.transform(
+        xx=positions[:, 0],
+        yy=positions[:, 1],
+        zz=positions[:, 2]
+    )
+    return positions
 # ============================================================= #
 
 
 # ============================================================= #
-# ------------------------- _ecef2enu ------------------------- #
+# ------------------------ _geo_to_xyz ------------------------ #
 # ============================================================= #
-def _ecef2enu(ecef, earthLocation=None):
+@misc.accepts(EarthLocation, strict=True)
+def _geo_to_etrs(earthlocation=nenufar_loc):
     """
     """
-    return
-#     xyz = np.array(xyz)
-#     if xyz.ndim > 1 and xyz.shape[1] != 3:
-#         raise ValueError("The expected shape of ECEF xyz array is (Npts, 3).")
-#     xyz_in = xyz
-
-#     if xyz_in.ndim == 1:
-#         xyz_in = xyz_in[np.newaxis, :]
+    gps_b = 6356752.31424518
+    gps_a = 6378137
+    e_squared = 6.69437999014e-3
+    latRad = earthlocation.lat.rad
+    lonRad = earthlocation.lon.rad
+    alt = earthlocation.height.value
+    if earthlocation.isscalar:
+        xyz = np.zeros((1, 3))
+    else:
+        xyz = np.zeros((earthlocation.size, 3))
+    gps_n = gps_a / np.sqrt(1 - e_squared * np.sin(latRad) ** 2)
+    xyz[:, 0] = (gps_n + alt) * np.cos(latRad) * np.cos(lonRad)
+    xyz[:, 1] = (gps_n + alt) * np.cos(latRad) * np.sin(lonRad)
+    xyz[:, 2] = (gps_b**2/gps_a**2*gps_n + alt) * np.sin(latRad)
+    return xyz
 # ============================================================= #
 
 
-# gps_b = 6356752.31424518
-# gps_a = 6378137
-# e_squared = 6.69437999014e-3
+# ============================================================= #
+# ----------------------- _etrs_to_enu ------------------------ #
+# ============================================================= #
+def _etrs_to_enu(positions, earthlocation=nenufar_loc):
+    """ Local east, north, up (ENU) coordinates centered on the 
+        position ``earthlocation``.
+    """
+    xyz = positions.copy()
+    xyzCenter = _geo_to_etrs(earthlocation)
+    xyz -= xyzCenter
+    cosLat = np.cos(earthlocation.lat.rad)
+    sinLat = np.sin(earthlocation.lat.rad)
+    cosLon = np.cos(earthlocation.lon.rad)
+    sinLon = np.sin(earthlocation.lon.rad)
 
-# def XYZ_from_LatLonAlt(latitude, longitude, altitude):
-#     """
-#     from pyuvdata
-#     Calculate ECEF x,y,z from lat/lon/alt values.
+    transformation = np.array([
+        [       -sinLon,          cosLon,      0],
+        [-sinLat*cosLon, - sinLat*sinLon, cosLat],
+        [ cosLat*cosLon,   cosLat*sinLon, sinLat]
+    ])
 
-#     Parameters
-#     ----------
-#     latitude :  ndarray or float
-#         latitude, numpy array (if Npts > 1) or value (if Npts = 1) in radians
-#     longitude :  ndarray or float
-#         longitude, numpy array (if Npts > 1) or value (if Npts = 1) in radians
-#     altitude :  ndarray or float
-#         altitude, numpy array (if Npts > 1) or value (if Npts = 1) in meters
+    return np.matmul(xyz, transformation.T)
+# ============================================================= #
 
-#     Returns
-#     -------
-#     xyz : ndarray of float
-#         numpy array, shape (Npts, 3), with ECEF x,y,z coordinates.
-
-#     """
-#     latitude = np.array(latitude)
-#     longitude = np.array(longitude)
-#     altitude = np.array(altitude)
-#     n_pts = latitude.size
-#     if longitude.size != n_pts:
-#         raise ValueError(
-#             "latitude, longitude and altitude must all have the same length"
-#         )
-#     if altitude.size != n_pts:
-#         raise ValueError(
-#             "latitude, longitude and altitude must all have the same length"
-#         )
-
-#     # see wikipedia geodetic_datum and Datum transformations of
-#     # GPS positions PDF in docs/references folder
-#     gps_n = gps_a / np.sqrt(1 - e_squared * np.sin(latitude) ** 2)
-#     xyz = np.zeros((n_pts, 3))
-#     xyz[:, 0] = (gps_n + altitude) * np.cos(latitude) * np.cos(longitude)
-#     xyz[:, 1] = (gps_n + altitude) * np.cos(latitude) * np.sin(longitude)
-#     xyz[:, 2] = (gps_b ** 2 / gps_a ** 2 * gps_n + altitude) * np.sin(latitude)
-
-#     xyz = np.squeeze(xyz)
-#     return xyz
-
-
-# def ENU_from_ECEF(xyz, latitude, longitude, altitude):
-#     """
-#     from pyuvdata
-#     Calculate local ENU (east, north, up) coordinates from ECEF coordinates.
-
-#     Parameters
-#     ----------
-#     xyz : ndarray of float
-#         numpy array, shape (Npts, 3), with ECEF x,y,z coordinates.
-#     latitude : float
-#         Latitude of center of ENU coordinates in radians.
-#     longitude : float
-#         Longitude of center of ENU coordinates in radians.
-#     altitude : float
-#         Altitude of center of ENU coordinates in radians.
-
-#     Returns
-#     -------
-#     ndarray of float
-#         numpy array, shape (Npts, 3), with local ENU coordinates
-
-#     """
-#     xyz = np.array(xyz)
-#     if xyz.ndim > 1 and xyz.shape[1] != 3:
-#         raise ValueError("The expected shape of ECEF xyz array is (Npts, 3).")
-
-#     xyz_in = xyz
-
-#     if xyz_in.ndim == 1:
-#         xyz_in = xyz_in[np.newaxis, :]
-
-#     # check that these are sensible ECEF values -- their magnitudes need to be
-#     # on the order of Earth's radius
-#     ecef_magnitudes = np.linalg.norm(xyz_in, axis=1)
-#     sensible_radius_range = (6.35e6, 6.39e6)
-#     if np.any(ecef_magnitudes <= sensible_radius_range[0]) or np.any(
-#         ecef_magnitudes >= sensible_radius_range[1]
-#     ):
-#         raise ValueError(
-#             "ECEF vector magnitudes must be on the order of the radius of the earth"
-#         )
-
-#     xyz_center = XYZ_from_LatLonAlt(latitude, longitude, altitude)
-
-#     xyz_use = np.zeros_like(xyz_in)
-#     xyz_use[:, 0] = xyz_in[:, 0] - xyz_center[0]
-#     xyz_use[:, 1] = xyz_in[:, 1] - xyz_center[1]
-#     xyz_use[:, 2] = xyz_in[:, 2] - xyz_center[2]
-
-#     enu = np.zeros_like(xyz_use)
-#     enu[:, 0] = -np.sin(longitude) * xyz_use[:, 0] + np.cos(longitude) * xyz_use[:, 1]
-#     enu[:, 1] = (
-#         -np.sin(latitude) * np.cos(longitude) * xyz_use[:, 0]
-#         - np.sin(latitude) * np.sin(longitude) * xyz_use[:, 1]
-#         + np.cos(latitude) * xyz_use[:, 2]
-#     )
-#     enu[:, 2] = (
-#         np.cos(latitude) * np.cos(longitude) * xyz_use[:, 0]
-#         + np.cos(latitude) * np.sin(longitude) * xyz_use[:, 1]
-#         + np.sin(latitude) * xyz_use[:, 2]
-#     )
-#     if len(xyz.shape) == 1:
-#         enu = np.squeeze(enu)
-
-#     return enu

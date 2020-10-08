@@ -139,18 +139,11 @@ class Parset(object):
     """
     """
 
-
-    # observation = _ParsetProperty()
-    # output = _ParsetProperty()
-    # anabeams = {}
-    # digibeams = {}
-
-
     def __init__(self, parset):
         self.observation = _ParsetProperty()
         self.output = _ParsetProperty()
-        self.anabeams = {}
-        self.digibeams = {}
+        self.anabeams = {} # dict of _ParsetProperty
+        self.digibeams = {} # dict of _ParsetProperty
         self.parset = parset
 
 

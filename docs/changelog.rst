@@ -19,6 +19,7 @@ Changelog
 * Plot of observation pointing files ``alatazA`` and ``altazB`` (:func:`~nenupy.observation.pointing.plotPointing`)
 * Correction of bugs and improvement of the ``astro`` module [`#38 <https://github.com/AlanLoh/nenupy/issues/38>`_]
 * Faster version of equatorial/horizontal coordinates conversion (:func:`~nenupy.astro.astro.toAltaz`)
+* Addition of Earth coordinates converters (:mod:`~nenupy.astro.astro`)
  
 
 1.0.0 (2020-04-29)
