@@ -39,6 +39,7 @@ __all__ = [
     'ma_info',
     'ma_pos',
     '_HiddenPrints',
+    'getMAL93',
     'nenufar_loc',
     'analog_pointing',
     'desquint_elevation',
@@ -240,6 +241,19 @@ nenufar_loc = EarthLocation(
     lon=2.1924002 * u.deg,
     height=135.834 * u.m
 )
+# ============================================================= #
+
+
+# ============================================================= #
+# -------------------------- getMAL93 ------------------------- #
+# ============================================================= #
+def getMAL93(m):
+    """
+    """
+    ma_pos = np.array([a.tolist() for a in ma_info['pos']])
+    available_mas = np.arange(ma_pos.shape[0])
+    antpos = ma_pos[np.isin(available_mas, m)]
+    return antpos
 # ============================================================= #
 
 

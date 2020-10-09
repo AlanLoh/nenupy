@@ -50,9 +50,12 @@ __all__ = [
     'altazProfile',
     'meridianTransit',
     'dispersion_delay',
-    '_l93_to_etrs',
-    '_geo_to_etrs',
-    '_etrs_to_enu'
+    '_normalizeEarthRadius',
+    'l93_to_etrs',
+    'geo_to_etrs',
+    'etrs_to_geo',
+    'etrs_to_enu',
+    'enu_to_etrs'
     ]
 
 
@@ -979,9 +982,9 @@ def dispersion_delay(freq, dm):
 
 
 # ============================================================= #
-# ----------------------- _l93_to_etrs ------------------------ #
+# ------------------------ l93_to_etrs ------------------------ #
 # ============================================================= #
-def _l93_to_etrs(positions):
+def l93_to_etrs(positions):
     """
     """
     from pyproj import Transformer
@@ -999,10 +1002,25 @@ def _l93_to_etrs(positions):
 
 
 # ============================================================= #
-# ------------------------ _geo_to_xyz ------------------------ #
+# ------------------- _normalizeEarthRadius ------------------- #
+# ============================================================= #
+def _normalizeEarthRadius(lat):
+    """ Normalized radius of the WGS84 ellipsoid at a given latitude
+        From https://github.com/brentjens/lofar-antenna-positions/blob/master/lofarantpos/geo.py
+        lat in radians
+    """
+    wgs84_f = 1./298.257223563
+    cosLat = np.cos(lat)
+    sinlat = np.sin(lat)
+    return 1./np.sqrt(cosLat**2 + ((1. - wgs84_f)**2) * (sinlat**2))
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------ geo_to_xyz ------------------------- #
 # ============================================================= #
 @misc.accepts(EarthLocation, strict=True)
-def _geo_to_etrs(earthlocation=nenufar_loc):
+def geo_to_etrs(earthlocation=nenufar_loc):
     """
     """
     gps_b = 6356752.31424518
@@ -1024,20 +1042,90 @@ def _geo_to_etrs(earthlocation=nenufar_loc):
 
 
 # ============================================================= #
-# ----------------------- _etrs_to_enu ------------------------ #
+# ------------------------ etrs_to_geo ------------------------ #
 # ============================================================= #
-def _etrs_to_enu(positions, earthlocation=nenufar_loc):
-    """ Local east, north, up (ENU) coordinates centered on the 
-        position ``earthlocation``.
+@misc.accepts(np.ndarray, strict=True)
+def etrs_to_geo(positions):
     """
+    """
+    assert (len(positions.shape)==2) and positions.shape[1]==3,\
+        'positions should be an array of shape (n, 3)'
+
+    wgs84_a = 6378137.0
+    wgs84_f = 1./298.257223563
+    wgs84_e2 = wgs84_f*(2.0 - wgs84_f)
+    
+    x, y, z = np.transpose(positions)
+    lonRad = np.arctan2(y, x)
+    r = np.sqrt(x**2 + y**2)
+    # Iterate to latitude solution
+    phi_previous = 1e4
+    phi = np.arctan2(z, r)
+    while (np.abs(phi - phi_previous) > 1.6e-12).any():
+        phi_previous = phi
+        earthRadius = _normalizeEarthRadius(phi)
+        sinPhi = np.sin(phi)
+        phi = np.arctan2(
+            z + wgs84_e2*wgs84_a*earthRadius*sinPhi,
+            r
+        )
+    latRad = phi
+    cosLat = np.cos(latRad)
+    sinLat = np.sin(latRad)
+    heightM = r*cosLat + z*sinLat - wgs84_a*np.sqrt(1. - wgs84_e2*sinLat**2)
+
+    return EarthLocation(
+        lon=lonRad*u.rad,
+        lat=latRad*u.rad,
+        height=heightM*u.m
+    )
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------ etrs_to_enu ------------------------ #
+# ============================================================= #
+@misc.accepts(np.ndarray, EarthLocation, strict=True)
+def etrs_to_enu(positions, earthlocation=nenufar_loc):
+    r""" Local east, north, up (ENU) coordinates centered on the 
+        position ``earthlocation`` (default is at the location of
+        NenuFAR).
+
+        The conversion from cartesian coordinates :math:`(x, y, z)`
+        to ENU :math:`(e, n, u)` is done as follows:
+
+        .. math::
+                \pmatrix{
+                    e \\
+                    n \\
+                    u
+                } =
+                \pmatrix{
+                    -\sin(b) & \cos(l) & 0\\
+                    -\sin(l) \cos(b) & -\sin(l) \sin(b) & \cos(l)\\
+                    \cos(l)\cos(b) & \cos(l) \sin(b) & \sin(l)
+                }
+                \pmatrix{
+                    \delta x\\
+                    \delta y\\
+                    \delta z
+                }
+
+        where :math:`b` is the longitude, :math:`l` is the
+        latitude and :math:`(\delta x, \delta y, \delta z)` are
+        the cartesian coordinates with respect to the center
+        ``earthlocation``.
+    """
+    assert (len(positions.shape)==2) and positions.shape[1]==3,\
+        'positions should be an array of shape (n, 3)'
     xyz = positions.copy()
-    xyzCenter = _geo_to_etrs(earthlocation)
+    xyzCenter = geo_to_etrs(earthlocation)
     xyz -= xyzCenter
+
     cosLat = np.cos(earthlocation.lat.rad)
     sinLat = np.sin(earthlocation.lat.rad)
     cosLon = np.cos(earthlocation.lon.rad)
     sinLon = np.sin(earthlocation.lon.rad)
-
     transformation = np.array([
         [       -sinLon,          cosLon,      0],
         [-sinLat*cosLon, - sinLat*sinLon, cosLat],
@@ -1045,5 +1133,34 @@ def _etrs_to_enu(positions, earthlocation=nenufar_loc):
     ])
 
     return np.matmul(xyz, transformation.T)
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------ enu_to_etrs ------------------------ #
+# ============================================================= #
+@misc.accepts(np.ndarray, EarthLocation, strict=True)
+def enu_to_etrs(positions, earthlocation=nenufar_loc):
+    """
+    """
+    assert (len(positions.shape)==2) and positions.shape[1]==3,\
+        'positions should be an array of shape (n, 3)'
+    enu = positions.copy()
+
+    cosLat = np.cos(earthlocation.lat.rad)
+    sinLat = np.sin(earthlocation.lat.rad)
+    cosLon = np.cos(earthlocation.lon.rad)
+    sinLon = np.sin(earthlocation.lon.rad)
+    transformation = np.array([
+        [       -sinLon,          cosLon,      0],
+        [-sinLat*cosLon, - sinLat*sinLon, cosLat],
+        [ cosLat*cosLon,   cosLat*sinLon, sinLat]
+    ])
+
+    xyz = np.matmul(enu, np.linalg.inv(transformation).T)
+    xyzCenter = geo_to_etrs(earthlocation)
+    xyz += xyzCenter
+
+    return xyz
 # ============================================================= #
 
