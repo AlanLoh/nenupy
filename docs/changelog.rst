@@ -19,8 +19,9 @@ Changelog
 * Plot of observation pointing files ``alatazA`` and ``altazB`` (:func:`~nenupy.observation.pointing.plotPointing`)
 * Correction of bugs and improvement of the ``astro`` module [`#38 <https://github.com/AlanLoh/nenupy/issues/38>`_]
 * Faster version of equatorial/horizontal coordinates conversion (:func:`~nenupy.astro.astro.toAltaz`)
-* Addition of Earth coordinates converters (:mod:`~nenupy.astro.astro`)
- 
+* Addition of Earth coordinates converters (:mod:`~nenupy.astro.astro`: :func:`~nenupy.astro.astro.l93_to_etrs`, :func:`~nenupy.astro.astro.geo_to_etrs`, :func:`~nenupy.astro.astro.etrs_to_geo`, :func:`~nenupy.astro.astro.etrs_to_enu`, :func:`~nenupy.astro.astro.enu_to_etrs`)
+* Near-field computation added for Cross-Correlation Statistics data (:meth:`~nenupy.crosslet.crosslet.Crosslet.nearfield`)
+
 
 1.0.0 (2020-04-29)
 ^^^^^^^^^^^^^^^^^^

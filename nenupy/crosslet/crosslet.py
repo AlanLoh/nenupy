@@ -43,8 +43,16 @@ except ModuleNotFoundError:
         """
         return func
 
-from nenupy.astro import wavelength, HpxSky, eq_zenith
-from nenupy.instru import nenufar_loc, read_cal_table, ma_pos
+from nenupy.astro import (
+    wavelength,
+    HpxSky,
+    eq_zenith,
+    toAltaz,
+    l93_to_etrs,
+    etrs_to_enu,
+    getSource
+)
+from nenupy.instru import nenufar_loc, read_cal_table, ma_pos, getMAL93
 from nenupy.crosslet import UVW
 from nenupy.beamlet.sdata import SData
 
@@ -88,6 +96,12 @@ def ft_phase(ul, vm):
 def ft_sum(vis, exptf):
     return np.mean(
         vis * exptf,
+    )
+
+@jit(nopython=True, parallel=True, fastmath=True)
+def ft_delay(delaylamb):
+    return np.exp(
+        2.j * np.pi * (delaylamb)
     )
 # ============================================================= #
 
@@ -555,9 +569,163 @@ class Crosslet(object):
         return sky
 
 
-    def nearfield(self, resolution):
+    def nearfield(self, radius=400, npix=64, sources=[], figname=''):
         """
         """
+        import matplotlib.pyplot as plt
+        from matplotlib.colorbar import ColorbarBase
+        from matplotlib.ticker import LinearLocator
+        from matplotlib.colors import Normalize
+        from matplotlib.cm import get_cmap
+        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+        # Mini-Array positions in ENU coordinates
+        mapos_l93 = getMAL93(self.mas)
+        mapos_etrs = l93_to_etrs(mapos_l93)
+        maposENU = etrs_to_enu(mapos_etrs)
+
+        # Nancay buildings in ENU
+        buildingsENU = np.array([
+            [27.75451691, -51.40993459, 7.99973228],
+            [20.5648047, -59.79299576, 7.99968629],
+            [167.86485612, 177.89170175, 7.99531119]
+        ])
+
+        # Mean time of observation
+        obsTime = self.times[0] + (self.times[-1] - self.times[0])/2.
+
+        # Delays at the ground
+        groundGranularity = np.linspace(-radius, radius, npix)
+        posx, posy = np.meshgrid(groundGranularity, groundGranularity)
+        posz = np.ones_like(posx) * (np.average(maposENU[:, 2]) + 1)
+        groundGrid = np.stack((posx, posy, posz), axis=2)
+        groundDistances = np.sqrt(
+            np.sum(
+                (maposENU[:, None, None, :] - groundGrid[None])**2,
+                axis=-1
+            )
+        )
+        gridDelays = groundDistances[self._ant1] - groundDistances[self._ant2]
+
+        # Compute the near-field image
+        visData = np.mean(self.stokes_i, axis=0) # mean in time
+        nfImage = self._nearFieldImage(visData, gridDelays)
+
+        # Simulate sources to get their imprint
+        simuSources = {}
+        for src in sources:
+            radecSrc = getSource(src, time=obsTime)
+            altazSrc = toAltaz(
+                skycoord=radecSrc,
+                time=obsTime,
+                kind='fast'
+            )
+            # Projection from AltAz to ENU vector
+            cosAz = np.cos(altazSrc.az.rad)
+            sinAz = np.sin(altazSrc.az.rad)
+            cosEl = np.cos(altazSrc.alt.rad)
+            sinEl = np.sin(altazSrc.alt.rad)
+            toENU = np.array(
+                [cosEl*sinAz, cosEl*cosAz, sinEl]
+            )
+            srcDelays = np.matmul(
+                maposENU[self._ant1] - maposENU[self._ant2],
+                toENU
+            )
+            # Simulate visibilities
+            lamb = wavelength(self.freqs).value
+            srcVis = ft_delay(srcDelays/lamb)
+            srcVis = np.swapaxes(srcVis, 1, 0)
+            simuSources[src] = self._nearFieldImage(srcVis, gridDelays)
+
+        # Display
+        fig, ax = plt.subplots(figsize=(10, 10))
+        # Plot the image of the near-field dB scaled
+        nfImage_db = 10*np.log10(nfImage)
+        ax.imshow(
+            np.flipud(nfImage_db), # This needs to be understood...
+            cmap='YlGnBu_r',
+            extent=[-radius, radius, -radius, radius]
+        )
+        # Show the contour of the simulated source imprints
+        for src in simuSources.keys():
+            srcImprint = simuSources[src]
+            srcImprint /= srcImprint.max()
+            ax.contour(
+                srcImprint,
+                np.arange(0.8, 1, 0.04),
+                colors='black',
+                alpha=0.5,
+                extent=[-radius, radius, -radius, radius]
+            )
+            maxY, maxX = np.unravel_index(
+                srcImprint.argmax(),
+                srcImprint.shape
+            )
+            ax.text(
+                groundGranularity[maxX],
+                groundGranularity[maxY],
+                ' {}'.format(src),
+                color='black',
+                fontweight='bold'
+            )
+        # Colorbar
+        cax = inset_axes(ax,
+           width='5%',
+           height='100%',
+           loc='lower left',
+           bbox_to_anchor=(1.05, 0., 1, 1),
+           bbox_transform=ax.transAxes,
+           borderpad=0,
+           )
+        cb = ColorbarBase(
+            cax,
+            cmap=get_cmap(name='YlGnBu_r'),
+            orientation='vertical',
+            norm=Normalize(
+                vmin=np.min(nfImage_db),
+                vmax=np.max(nfImage_db)
+            ),
+            ticks=LinearLocator()
+        )
+        cb.solids.set_edgecolor('face')
+        cb.set_label('dB')
+        # NenuFAR array info
+        ax.scatter(
+            maposENU[:, 0],
+            maposENU[:, 1],
+            20,
+            color='tab:red'
+        )
+        for i in range(maposENU.shape[0]):
+            ax.text(
+                maposENU[i, 0],
+                maposENU[i, 1],
+                ' {}'.format(self.mas[i]),
+                color='tab:red'
+            )
+        ax.scatter(
+            buildingsENU[:, 0],
+            buildingsENU[:, 1],
+            20,
+            color='tab:orange'
+        )
+        # Plot axis labels       
+        ax.set_xlabel(r'$\Delta x$ (m)')
+        ax.set_ylabel(r'$\Delta y$ (m)')
+        ax.set_title('{} MHz -- {}'.format(np.mean(self.freqs), obsTime.isot))
+
+        # Save or not the plot
+        if figname == '':
+            plt.show()
+        else:
+            fig.savefig(
+                figname,
+                dpi=300,
+                transparent=True,
+                bbox_inches='tight'
+            )
+        plt.close('all')
         return
 
 
@@ -571,5 +739,20 @@ class Crosslet(object):
         corr_mask = (corr[i_ant1] == c1) & (corr[i_ant2] == c2)
         indices = np.arange(i_ant1.size)[corr_mask]
         return indices
+
+
+    def _nearFieldImage(self, vis, delays):
+        """ vis = [freq, nant, nant]
+        """
+        assert self.freqs.size == vis.shape[0],\
+            'Problem in visibility dimension {}'.format(vis.shape)
+        nearfield = 0
+        for i in range(self.freqs.size):    
+            vi = vis[i][:, None, None]
+            lamb = wavelength(self.freqs[i])
+            nearfield += vi * ft_delay(delays/lamb)
+        nearfield /= self.freqs.size
+        nearfield = np.nanmean(np.abs(nearfield), axis=0)
+        return nearfield
 # ============================================================= #
 
