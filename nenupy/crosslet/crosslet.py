@@ -53,7 +53,7 @@ from nenupy.astro import (
     getSource
 )
 from nenupy.instru import nenufar_loc, read_cal_table, ma_pos, getMAL93
-from nenupy.crosslet import UVW
+from nenupy.crosslet import UVW, NearField
 from nenupy.beamlet.sdata import SData
 
 import logging
@@ -569,27 +569,13 @@ class Crosslet(object):
         return sky
 
 
-    def nearfield(self, radius=400, npix=64, sources=[], figname=''):
+    def nearfield(self, radius=400, npix=64, sources=[]):
         """
         """
-        import matplotlib.pyplot as plt
-        from matplotlib.colorbar import ColorbarBase
-        from matplotlib.ticker import LinearLocator
-        from matplotlib.colors import Normalize
-        from matplotlib.cm import get_cmap
-        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-
         # Mini-Array positions in ENU coordinates
         mapos_l93 = getMAL93(self.mas)
         mapos_etrs = l93_to_etrs(mapos_l93)
         maposENU = etrs_to_enu(mapos_etrs)
-
-        # Nancay buildings in ENU
-        buildingsENU = np.array([
-            [27.75451691, -51.40993459, 7.99973228],
-            [20.5648047, -59.79299576, 7.99968629],
-            [167.86485612, 177.89170175, 7.99531119]
-        ])
 
         # Mean time of observation
         obsTime = self.times[0] + (self.times[-1] - self.times[0])/2.
@@ -620,6 +606,9 @@ class Crosslet(object):
                 time=obsTime,
                 kind='fast'
             )
+            if altazSrc.alt.deg <= 10:
+                # Don't take into account sources too low
+                continue
             # Projection from AltAz to ENU vector
             cosAz = np.cos(altazSrc.az.rad)
             sinAz = np.sin(altazSrc.az.rad)
@@ -638,95 +627,14 @@ class Crosslet(object):
             srcVis = np.swapaxes(srcVis, 1, 0)
             simuSources[src] = self._nearFieldImage(srcVis, gridDelays)
 
-        # Display
-        fig, ax = plt.subplots(figsize=(10, 10))
-        # Plot the image of the near-field dB scaled
-        nfImage_db = 10*np.log10(nfImage)
-        ax.imshow(
-            np.flipud(nfImage_db), # This needs to be understood...
-            cmap='YlGnBu_r',
-            extent=[-radius, radius, -radius, radius]
+        return NearField(
+            nfImage=nfImage,
+            antNames=self.mas,
+            meanFreq=np.mean(self.freqs)*un.MHz,
+            obsTime=obsTime,
+            simuSources=simuSources,
+            radius=radius*un.m
         )
-        # Show the contour of the simulated source imprints
-        for src in simuSources.keys():
-            srcImprint = simuSources[src]
-            srcImprint /= srcImprint.max()
-            ax.contour(
-                srcImprint,
-                np.arange(0.8, 1, 0.04),
-                colors='black',
-                alpha=0.5,
-                extent=[-radius, radius, -radius, radius]
-            )
-            maxY, maxX = np.unravel_index(
-                srcImprint.argmax(),
-                srcImprint.shape
-            )
-            ax.text(
-                groundGranularity[maxX],
-                groundGranularity[maxY],
-                ' {}'.format(src),
-                color='black',
-                fontweight='bold'
-            )
-        # Colorbar
-        cax = inset_axes(ax,
-           width='5%',
-           height='100%',
-           loc='lower left',
-           bbox_to_anchor=(1.05, 0., 1, 1),
-           bbox_transform=ax.transAxes,
-           borderpad=0,
-           )
-        cb = ColorbarBase(
-            cax,
-            cmap=get_cmap(name='YlGnBu_r'),
-            orientation='vertical',
-            norm=Normalize(
-                vmin=np.min(nfImage_db),
-                vmax=np.max(nfImage_db)
-            ),
-            ticks=LinearLocator()
-        )
-        cb.solids.set_edgecolor('face')
-        cb.set_label('dB')
-        # NenuFAR array info
-        ax.scatter(
-            maposENU[:, 0],
-            maposENU[:, 1],
-            20,
-            color='tab:red'
-        )
-        for i in range(maposENU.shape[0]):
-            ax.text(
-                maposENU[i, 0],
-                maposENU[i, 1],
-                ' {}'.format(self.mas[i]),
-                color='tab:red'
-            )
-        ax.scatter(
-            buildingsENU[:, 0],
-            buildingsENU[:, 1],
-            20,
-            color='tab:orange'
-        )
-        # Plot axis labels       
-        ax.set_xlabel(r'$\Delta x$ (m)')
-        ax.set_ylabel(r'$\Delta y$ (m)')
-        ax.set_title('{} MHz -- {}'.format(np.mean(self.freqs), obsTime.isot))
-
-        # Save or not the plot
-        if figname == '':
-            plt.show()
-        else:
-            fig.savefig(
-                figname,
-                dpi=300,
-                transparent=True,
-                bbox_inches='tight'
-            )
-        plt.close('all')
-        return
 
 
     # --------------------------------------------------------- #
