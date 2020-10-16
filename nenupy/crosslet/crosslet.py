@@ -35,6 +35,7 @@ __all__ = [
 
 import numpy as np
 import astropy.units as un
+from astropy.coordinates import SkyCoord
 try:
     from tqdm import tqdm
 except ModuleNotFoundError:
@@ -87,9 +88,9 @@ def ft_mul(x, y):
     return x * y
 
 @jit(nopython=True, parallel=True, fastmath=True)
-def ft_phase(ul, vm):
+def ft_phase(ul, vm, wn):
     return np.exp(
-        - 2.j * np.pi * (ul + vm)
+        - 2.j * np.pi * (ul + vm + wn)
     )
 
 @jit(nopython=True, parallel=True, fastmath=True)
@@ -119,11 +120,13 @@ class Crosslet(object):
     """
 
     def __init__(self):
+        self._uvw = None
         self.freqs = None
         self.mas = None
         self.dt = None
         self.times = None
         self.vis = None
+        self.phaseCenter = None
 
 
     # --------------------------------------------------------- #
@@ -147,6 +150,24 @@ class Crosslet(object):
             self._ant1, self._ant2 = np.tril_indices(m.size, 0)
         self._mas = m
         return
+
+
+    @property
+    def phaseCenter(self):
+        """
+        """
+        if self._phaseCenter is None:
+            return eq_zenith(self.times)
+        else:
+            return self._phaseCenter
+    @phaseCenter.setter
+    def phaseCenter(self, pc):
+        if pc is not None:
+            if not isinstance(pc, SkyCoord):
+                raise TypeError(
+                    'phaseCenter should ba an astropy SkyCoord instance.'
+                )
+        self._phaseCenter = pc
 
 
     @property
@@ -468,7 +489,7 @@ class Crosslet(object):
         )
 
 
-    def image(self, resolution=1, fov=50):
+    def image(self, resolution=1, fov=50, center=None):
         r""" Converts NenuFAR-TV-like data sets containing
             visibilities (:math:`V(u,v,\nu , t)`) into images
             :math:`I(l, m, \nu)` phase-centered at the local
@@ -524,25 +545,41 @@ class Crosslet(object):
         if not isinstance(fov, un.Quantity):
             fov *= un.deg
         f_idx = 0 # Frequency index
+        
         # Sky preparation
         sky = HpxSky(resolution=resolution)
         exposure = self.times[-1] - self.times[0]
         sky.time = self.times[0] + exposure/2.
-        sky._is_visible = sky._ho_coords.alt >= 90*un.deg - fov/2.
-        phase_center = eq_zenith(sky.time)
-        l, m, n = sky.lmn(phase_center=phase_center)
+
+        if self._uvw is None:
+            uvw = UVW.from_tvdata(self)
+            uvw = uvw.uvw
+            self._uvw = uvw
+        else:
+            uvw = self._uvw
+
+        if center is None:
+            center = eq_zenith(sky.time)
+            rotVis = 1
+        else:
+            rotVis, uvw = self._rephase(center, uvw)
+            self._uvw = uvw
+
+        # sky._is_visible = sky._ho_coords.alt >= 90*un.deg - fov/2.
+        sky._is_visible *= sky._eq_coords.separation(center) <= fov/2.
+
+        l, m, n = sky.lmn(phase_center=center)
         # UVW coordinates
-        uvw = UVW.from_tvdata(self)
         u = np.mean( # Mean in time
-            uvw.uvw[:, :, 0],
+            uvw[:, :, 0],
             axis=0
         )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
         v = np.mean(
-            uvw.uvw[:, :, 1],
+            uvw[:, :, 1],
             axis=0
         )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
         w = np.mean( # Mean in time
-            uvw.uvw[:, :, 2],
+            uvw[:, :, 2],
             axis=0
         )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
         # Mulitply (u, v) by (l, m) and compute FT exp
@@ -554,10 +591,14 @@ class Crosslet(object):
             x=np.tile(v, (m.size, 1)).T,
             y=np.tile(m, (v.size, 1))
         )
-        phase = ft_phase(ul, vm)
+        wn = ft_mul(
+            x=np.tile(w, (n.size, 1)).T,
+            y=np.tile(n-1, (w.size, 1))
+        )
+        phase = ft_phase(ul, vm, wn)
         # Phase visibilities
         vis = np.mean( # Mean in time
-            self.stokes_i,
+            self.stokes_i * rotVis,
             axis=0
         )[f_idx, :][self.mask_auto]
         im = np.zeros(l.size)
@@ -649,13 +690,78 @@ class Crosslet(object):
         return indices
 
 
+    def _rephase(self, newPhaseCenter, oldUVW):
+        """
+        """
+
+        def rotMatrix(skycoord):
+            """
+            """
+            raRad = skycoord.ra.rad
+            decRad = skycoord.dec.rad
+
+            if np.isscalar(raRad):
+                raRad = np.array([raRad])
+                decRad = np.array([decRad])
+
+            cosRa = np.cos(raRad)
+            sinRa = np.sin(raRad)
+            cosDec = np.cos(decRad)
+            sinDec = np.sin(decRad)
+
+            return np.array([
+                [cosRa, -sinRa, np.zeros(raRad.size)],
+                [-sinRa*sinDec, -cosRa*sinDec, cosDec],
+                [sinRa*cosDec, cosRa*cosDec, sinDec],
+            ])
+
+        # Transformation matrices
+        phaseCenter2Origin = rotMatrix(self.phaseCenter) # (3, 3, ntimes)
+        origin2NewPhaseCenter = rotMatrix(newPhaseCenter) # (3, 3, 1)
+        totalTrans = np.matmul(
+            np.transpose(
+                origin2NewPhaseCenter,
+                (2, 0, 1)
+            ),
+            phaseCenter2Origin
+        ) # (3, 3, ntimes)
+        self.phaseCenter = SkyCoord(
+            ra=np.ones(self.times.size) * newPhaseCenter.ra,
+            dec=np.ones(self.times.size) * newPhaseCenter.dec
+        )
+        rotUVW = np.matmul(
+            np.expand_dims(
+                (phaseCenter2Origin[2, :] - origin2NewPhaseCenter[2, :]).T,
+                axis=1
+            ),
+            np.transpose(
+                phaseCenter2Origin,
+                (2, 1, 0)
+            )
+        ) # (ntimes, 1, 3)
+        phase = np.matmul(
+            rotUVW,
+            np.transpose(oldUVW, (0, 2, 1))
+        ) # (ntimes, 1, nvis)
+        rotVis = np.exp(
+            2.j * np.pi * phase / wavelength(self.freqs).value[None, :, None]
+        ) # (ntimes, nfreqs, nvis)
+
+        newUVW = np.matmul(
+            oldUVW, # (ntimes, nvis, 3)
+            np.transpose(totalTrans, (2, 0, 1))
+        )
+
+        return rotVis, newUVW
+
+
     def _nearFieldImage(self, vis, delays):
         """ vis = [freq, nant, nant]
         """
         assert self.freqs.size == vis.shape[0],\
             'Problem in visibility dimension {}'.format(vis.shape)
         nearfield = 0
-        for i in range(self.freqs.size):    
+        for i in range(self.freqs.size): 
             vi = vis[i][:, None, None]
             lamb = wavelength(self.freqs[i])
             nearfield += vi * ft_delay(delays/lamb)

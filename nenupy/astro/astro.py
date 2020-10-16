@@ -708,6 +708,16 @@ def getSource(name, time=None):
             )
         with solar_system_ephemeris.set('builtin'):
             src = get_body(name, time, nenufar_loc)
+            if src.ra.isscalar:
+                src = SkyCoord(
+                    ra=[src.ra.deg] * u.deg,
+                    dec=[src.dec.deg] * u.deg
+                )
+            else:
+                src = SkyCoord(
+                    ra=src.ra,
+                    dec=src.dec
+                )
         log.info(
             f'Source {name} found in Solar System Ephemeris.'
         )
