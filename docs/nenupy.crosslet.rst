@@ -6,7 +6,7 @@ nenupy.crosslet
 .. toctree::
 
    nenupy.crosslet.crosslet
-   nenupy.crosslet.nearfield
+   nenupy.crosslet.imageprod
    nenupy.crosslet.tvdata
    nenupy.crosslet.uvw
    nenupy.crosslet.xstdata

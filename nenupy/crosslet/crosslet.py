@@ -556,7 +556,7 @@ class Crosslet(object):
             uvw = self._uvw
 
         if center is None:
-            center = eq_zenith(sky.time)
+            center = eq_zenith(self.times[0] + exposure/2.)
             rotVis = 1
         else:
             rotVis, uvw = self._rephase(center, uvw)
