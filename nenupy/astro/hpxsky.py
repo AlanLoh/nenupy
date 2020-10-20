@@ -460,6 +460,8 @@ class HpxSky(object):
                 made on the desired equatorial coordinates:
                 ``(ra (deg), dec (deg), linestyle, color)``.
             :type curve: `tuple`
+            :param contour: ...
+            :type contour: ...
 
         """
         # Lot of imports for this one...
@@ -555,6 +557,8 @@ class HpxSky(object):
             kwargs['scatter'] = None
         if 'curve' not in kwargs.keys():
             kwargs['curve'] = None
+        if 'contour' not in kwargs.keys():
+            kwargs['contour'] = None
         if 'text' not in kwargs.keys():
             kwargs['text'] = None
 
@@ -631,6 +635,18 @@ class HpxSky(object):
                     color=kwargs['text'][3],
                     transform=ax.get_transform('world')
                 )
+        if kwargs['contour'] is not None:
+            contour, fp = reproject_from_healpix(
+                (kwargs['contour'][0], ICRS()),
+                wcs,
+                nested=False,
+                shape_out=(ndec, nra)
+            )
+            ax.contour(
+                contour,
+                levels=kwargs['contour'][1],
+                cmap=kwargs['contour'][2],
+            )
 
         im.set_clip_path(ax.coords.frame.patch)
         ax.set_title(kwargs['title'], pad=25)

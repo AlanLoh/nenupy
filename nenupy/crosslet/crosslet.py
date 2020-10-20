@@ -54,7 +54,7 @@ from nenupy.astro import (
     getSource
 )
 from nenupy.instru import nenufar_loc, read_cal_table, ma_pos, getMAL93
-from nenupy.crosslet import UVW, NearField
+from nenupy.crosslet import UVW, NearField, NenuFarTV
 from nenupy.beamlet.sdata import SData
 
 import logging
@@ -546,10 +546,7 @@ class Crosslet(object):
             fov *= un.deg
         f_idx = 0 # Frequency index
         
-        # Sky preparation
-        sky = HpxSky(resolution=resolution)
         exposure = self.times[-1] - self.times[0]
-        sky.time = self.times[0] + exposure/2.
 
         if self._uvw is None:
             uvw = UVW.from_tvdata(self)
@@ -565,7 +562,18 @@ class Crosslet(object):
             rotVis, uvw = self._rephase(center, uvw)
             self._uvw = uvw
 
-        # sky._is_visible = sky._ho_coords.alt >= 90*un.deg - fov/2.
+        # Sky preparation
+        # sky = HpxSky(resolution=resolution)
+        # sky.time = self.times[0] + exposure/2.
+        sky = NenuFarTV(
+            resolution=resolution,
+            time=self.times[0] + exposure/2.,
+            stokes='I',
+            meanFreq=np.mean(self.freqs)*un.MHz,
+            phaseCenter=center,
+            fov=fov
+        )
+
         sky._is_visible *= sky._eq_coords.separation(center) <= fov/2.
 
         l, m, n = sky.lmn(phase_center=center)

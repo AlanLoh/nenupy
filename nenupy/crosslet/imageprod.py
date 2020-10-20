@@ -3,9 +3,9 @@
 
 
 """
-    **********
-    Near-Field
-    **********
+    *********************
+    XST Imageing products
+    *********************
 """
 
 
@@ -16,6 +16,7 @@ __maintainer__ = 'Alan'
 __email__ = 'alan.loh@obspm.fr'
 __status__ = 'Production'
 __all__ = [
+    'NenuFarTV',
     'NearField'
 ]
 
@@ -26,17 +27,25 @@ from matplotlib.ticker import LinearLocator
 from matplotlib.colors import Normalize
 from matplotlib.cm import get_cmap
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
 import numpy as np
 from astropy.time import Time
 import astropy.units as u
 from astropy.io import fits
+from astropy.coordinates import SkyCoord, AltAz, Angle
+from healpy import nside2resol, read_map
+from os.path import abspath
 
 import nenupy
 from nenupy.astro import (
     l93_to_etrs,
-    etrs_to_enu
+    etrs_to_enu,
+    HpxSky,
+    eq_zenith,
+    getSource
 )
-from nenupy.instru import getMAL93
+from nenupy.instru import getMAL93, nenufar_loc
+from nenupy.beam import HpxABeam
 
 import logging
 log = logging.getLogger(__name__)
@@ -48,6 +57,291 @@ buildingsENU = np.array([
     [20.5648047, -59.79299576, 7.99968629],
     [167.86485612, 177.89170175, 7.99531119]
 ])
+
+
+# ============================================================= #
+# ------------------------- NenuFarTV ------------------------- #
+# ============================================================= #
+class NenuFarTV(HpxSky):
+    """
+    """
+
+    def __init__(
+        self,
+        resolution=1,
+        time=None,
+        stokes='I',
+        meanFreq=None,
+        phaseCenter=None,
+        fov=None,
+        analogPointing=None
+        ):
+
+        super().__init__(
+            resolution=resolution
+        )
+
+        self.plotBeamContours = True
+        self.plotStrongSources = True
+
+        self.time = time
+        self.stokes = stokes
+        self.meanFreq = meanFreq
+        self.phaseCenter = phaseCenter
+        self.fov = fov
+        self.analogPointing = analogPointing
+
+
+    # --------------------------------------------------------- #
+    # --------------------- Getter/Setter --------------------- #
+    @property
+    def meanFreq(self):
+        """
+        """
+        return self._meanFreq
+    @meanFreq.setter
+    def meanFreq(self, freq):
+        if freq is None:
+            pass
+        elif not isinstance(freq, u.Quantity):
+            raise TypeError(
+                'freq should be an astropy quantity.'
+            )
+            if not freq.isscalar:
+                raise ValueError(
+                    'freq should be scalar.'
+                )
+        self._meanFreq = freq
+
+
+    @property
+    def phaseCenter(self):
+        """
+        """
+        return self._phaseCenter
+    @phaseCenter.setter
+    def phaseCenter(self, pc):
+        if pc is None:
+            pc = eq_zenith(self.time)
+            pc = SkyCoord(
+                ra=pc.ra,
+                dec=pc.dec
+            )
+        elif not isinstance(pc, SkyCoord):
+            raise TypeError(
+                'phaseCenter should be a SkyCoord instance.'
+            )
+        self._phaseCenter = pc
+
+
+    @property
+    def fov(self):
+        """
+        """
+        return self._fov
+    @fov.setter
+    def fov(self, f):
+        if f is None:
+            pass
+        elif not isinstance(f, u.Quantity):
+            raise TypeError(
+                'fov should be an astropy Quantity instance.'
+            )
+        self._fov = f
+
+
+    @property
+    def analogPointing(self):
+        """
+        """
+        return self._analogPointing
+    @analogPointing.setter
+    def analogPointing(self, apoint):
+        if apoint is None:
+            # Zenith by default
+            apoint = AltAz(
+                az=0*u.deg,
+                alt=90*u.deg,
+                obstime=self.time,
+                location=nenufar_loc
+            )
+        elif not isinstance(apoint, AltAz):
+            raise TypeError(
+                'analogPointing is not an astropy AltAz instance.'
+            )
+        self._analogPointing = apoint
+
+
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+    @classmethod
+    def fromFile(cls, filename):
+        """
+        """
+        log.info(
+            'Reading TV data from file `{}`.'.format(
+                abspath(filename)
+            )
+        )
+        hdus = fits.open(filename)
+        header = hdus[1].header
+
+        resolution = Angle(
+            angle=nside2resol(
+                header['NSIDE'],
+                arcmin=True
+            ),
+            unit=u.arcmin
+        )
+
+        obsTime = Time(header['OBSTIME'])
+
+        phaseCenter = SkyCoord(
+            ra=header['PC_RA']*u.deg,
+            dec=header['PC_DEC']*u.deg
+        )
+
+        tv = cls(
+            resolution=resolution,
+            time=obsTime,
+            stokes=header['STOKES'],
+            meanFreq = header['FREQ']*u.MHz,
+            phaseCenter = phaseCenter,
+            fov = header['FOV']*u.deg,
+            analogPointing = AltAz(
+                az=header['AZANA']*u.deg,
+                alt=header['ELANA']*u.deg,
+                obstime=obsTime,
+                location=nenufar_loc
+            )
+        )
+        tv.skymap[:] = read_map(
+            filename,
+            dtype=None,
+            verbose=False
+        )
+        
+        return tv
+
+
+    def saveFits(self, filename):
+        """
+        """
+        header = [
+            ('azana', self.analogPointing.az.deg),
+            ('elana', self.analogPointing.alt.deg),
+            ('freq', self.meanFreq.to(u.MHz).value),
+            ('obstime', self.time.isot),
+            ('fov', self.fov.to(u.deg).value),
+            ('pc_ra', self.phaseCenter.ra.deg),
+            ('pc_dec', self.phaseCenter.dec.deg),
+            ('stokes', self.stokes)
+        ]
+        self.save(
+            filename=filename,
+            header=header
+        )
+
+
+    def savePng(self, figname=''):
+        """
+        """
+        if not figname.endswith('.png'):
+            raise ValueError(
+                'figname name should be a png file.'
+            )
+
+        contours = None
+        if self.plotBeamContours:
+            contours = (
+                self._createABeamModel(),
+                np.arange(0.5, 1, 0.1),
+                'copper'
+            )
+
+        srcText = None
+        if self.plotStrongSources:
+            srcNames, srcRas, srcDecs = self._src2Display()
+            srcText = (srcRas, srcDecs, srcNames, 'white')
+
+        self.plot(
+            db=False,
+            center=self.phaseCenter,
+            size=self.fov - self.resolution*2,
+            tickscol='gray',
+            title='{0} MHz -- {1} -- FoV$= {2}\\degree$'.format(
+                self.meanFreq.to(u.MHz).value,
+                self.time.isot,
+                self.fov.to(u.deg).value
+            ),
+            cblabel='Stokes {}'.format(self.stokes),
+            contour=contours,
+            text=srcText,
+            figname=figname
+        )
+
+
+    # --------------------------------------------------------- #
+    # ----------------------- Internal ------------------------ #
+    def _createABeamModel(self):
+        """
+        """
+        if None in [
+                self.nside,
+                self.analogPointing,
+                self.meanFreq,
+                self.time
+            ]:
+            raise ValueError(
+                'Unsufficient attributes to build an ABeam.'
+            )
+
+        anabeam = HpxABeam(
+            resolution=self.resolution,
+            squintfreq=50*u.MHz,
+        )
+        anabeam.beam(
+            freq=self.meanFreq,
+            azana=self.analogPointing.az,
+            elana=self.analogPointing.alt,
+            ma=0,
+            time=self.time
+        )
+        return anabeam.skymap/anabeam.skymap.max()
+
+
+    def _src2Display(self):
+        """
+        """
+        log.info(
+            'Strong source positions will be overplotted.'
+        )
+        src2display = [
+            'Cas A',
+            'Cyg A',
+            'Vir A',
+            'Tau A',
+            'Her A',
+            'Hya A',
+            'Sun',
+            'Moon',
+            'Jupiter'
+        ]
+        srcCoords = [getSource(src, self.time) for src in src2display]
+        ras = []
+        decs = []
+        names = []
+        for src, name in zip(srcCoords, src2display):
+            if src.separation(self.phaseCenter) <= self.fov/2 - 0.2*self.fov:
+                ras.append(src.ra.deg)
+                decs.append(src.dec.deg)
+                names.append(name)
+        log.info(
+            'Celestial sources within Field of View: {}'.format(names)
+        )
+        return names, ras, decs
+
+# ============================================================= #
 
 
 # ============================================================= #
