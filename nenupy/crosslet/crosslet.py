@@ -120,7 +120,6 @@ class Crosslet(object):
     """
 
     def __init__(self):
-        self._uvw = None
         self.freqs = None
         self.mas = None
         self.dt = None
@@ -489,7 +488,7 @@ class Crosslet(object):
         )
 
 
-    def image(self, resolution=1, fov=50, center=None):
+    def image(self, resolution=1, fov=50, center=None, fIndices=None):
         r""" Converts NenuFAR-TV-like data sets containing
             visibilities (:math:`V(u,v,\nu , t)`) into images
             :math:`I(l, m, \nu)` phase-centered at the local
@@ -544,23 +543,36 @@ class Crosslet(object):
         """
         if not isinstance(fov, un.Quantity):
             fov *= un.deg
-        f_idx = 0 # Frequency index
+        
+        # f_idx = 0 # Frequency index
+        if fIndices is None:
+            fIndices = np.arange(self.freqs.size)
+        else:
+            if not isinstance(fIndices, np.ndarray):
+                raise TypeError(
+                    'fIndices sould be a numpy array'
+                )
+            if any(fIndices > 15):
+                raise IndexError(
+                    'Maximal authorized frequency index is 15'
+                )
+            if fIndices.size > 16:
+                raise IndexError(
+                    'Number of subbands is 16'
+                )
         
         exposure = self.times[-1] - self.times[0]
 
-        if self._uvw is None:
-            uvw = UVW.from_tvdata(self)
-            uvw = uvw.uvw
-            self._uvw = uvw
-        else:
-            uvw = self._uvw
-
+        uvw = UVW.from_tvdata(self)
+        uvw = uvw.uvw
+        
         if center is None:
             center = eq_zenith(self.times[0] + exposure/2.)
-            rotVis = 1
+            # center = SkyCoord([center.ra], [center.dec])
+            center = SkyCoord(center.ra, center.dec)
+            rotVis = np.ones((1, 16, 1))
         else:
             rotVis, uvw = self._rephase(center, uvw)
-            self._uvw = uvw
 
         # Sky preparation
         # sky = HpxSky(resolution=resolution)
@@ -569,7 +581,7 @@ class Crosslet(object):
             resolution=resolution,
             time=self.times[0] + exposure/2.,
             stokes='I',
-            meanFreq=np.mean(self.freqs)*un.MHz,
+            meanFreq=np.mean(self.freqs[fIndices])*un.MHz,
             phaseCenter=center,
             fov=fov
         )
@@ -577,50 +589,120 @@ class Crosslet(object):
         sky._is_visible *= sky._eq_coords.separation(center) <= fov/2.
 
         l, m, n = sky.lmn(phase_center=center)
+        # # UVW coordinates
+        # u = np.mean( # Mean in time
+        #     uvw[:, :, 0],
+        #     axis=0
+        # )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
+        # v = np.mean(
+        #     uvw[:, :, 1],
+        #     axis=0
+        # )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
+        # w = np.mean( # Mean in time
+        #     uvw[:, :, 2],
+        #     axis=0
+        # )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
+        # # Mulitply (u, v) by (l, m) and compute FT exp
+        # # ul = ft_mul(
+        # #     x=np.tile(u, (l.size, 1)).T,
+        # #     y= np.tile(l, (u.size, 1))
+        # # )
+        # # vm = ft_mul(
+        # #     x=np.tile(v, (m.size, 1)).T,
+        # #     y=np.tile(m, (v.size, 1))
+        # # )
+        # # wn = ft_mul(
+        # #     x=np.tile(w, (n.size, 1)).T,
+        # #     y=np.tile(n-1, (w.size, 1))
+        # # )
+        # ul = u[:, None] * l[None, :]
+        # vm = v[:, None] * m[None, :]
+        # wn = w[:, None] * (n - 1)[None, :]
+        # phase = ft_phase(ul, vm, wn)
+        # # Phase visibilities
+        # vis = np.mean( # Mean in time
+        #     self.stokes_i * rotVis,
+        #     axis=0
+        # )[f_idx, :][self.mask_auto]
+        # im = np.zeros(l.size)
+        # for i in tqdm(range(l.size)):
+        #     im[i] = np.real(
+        #         ft_sum(vis, phase[:, i])
+        #     )
+        # sky.skymap[sky._is_visible] = im
+        # return sky
+
+        import dask.array as da
+        from dask.diagnostics import ProgressBar
         # UVW coordinates
+        
+        l = da.from_array(l.astype(np.float32))
+        m = da.from_array(m.astype(np.float32))
+        n = da.from_array(n.astype(np.float32))
+        uvw = da.from_array(uvw.astype(np.float32))
+        uvw = uvw[:, None, :, :]/wavelength(self.freqs[fIndices]).value[None, :, None, None]
         u = np.mean( # Mean in time
-            uvw[:, :, 0],
+            uvw[..., 0],
             axis=0
-        )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
+        )[:, self.mask_auto]
         v = np.mean(
-            uvw[:, :, 1],
+            uvw[..., 1],
             axis=0
-        )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
+        )[:, self.mask_auto]
         w = np.mean( # Mean in time
-            uvw[:, :, 2],
+            uvw[..., 2],
             axis=0
-        )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
-        # Mulitply (u, v) by (l, m) and compute FT exp
-        ul = ft_mul(
-            x=np.tile(u, (l.size, 1)).T,
-            y= np.tile(l, (u.size, 1))
-        )
-        vm = ft_mul(
-            x=np.tile(v, (m.size, 1)).T,
-            y=np.tile(m, (v.size, 1))
-        )
-        wn = ft_mul(
-            x=np.tile(w, (n.size, 1)).T,
-            y=np.tile(n-1, (w.size, 1))
-        )
-        phase = ft_phase(ul, vm, wn)
+        )[:, self.mask_auto]
+
+        ul = u[:, :, None] * l[None, None, :]
+        vm = v[:, :, None] * m[None, None, :]
+        wn = w[:, :, None] * (n - 1)[None, None, :]
+
+        phase = np.exp(
+            - 2.j * np.pi * (ul + vm + wn)
+        ) # (nfreqs, nvis, npix)
+
         # Phase visibilities
         vis = np.mean( # Mean in time
-            self.stokes_i * rotVis,
+            da.from_array(self.stokes_i[:, fIndices, :].astype(np.complex64)) * da.from_array(rotVis[:, fIndices, :].astype(np.complex64)),
             axis=0
-        )[f_idx, :][self.mask_auto]
-        im = np.zeros(l.size)
-        for i in tqdm(range(l.size)):
-            im[i] = np.real(
-                ft_sum(vis, phase[:, i])
-            )
-        sky.skymap[sky._is_visible] = im
+        )[:, self.mask_auto] # (nfreqs, nvis)
+        
+        # Make dirty image
+        dirtyImage = np.nanmean(
+            np.real(
+                np.mean(
+                    vis[:, :, None] * phase,
+                    axis=0
+                )
+            ),
+            axis=0
+        )
+        with ProgressBar():
+            sky.skymap[sky._is_visible] = dirtyImage.compute()
         return sky
 
 
-    def nearfield(self, radius=400, npix=64, sources=[]):
+    def nearfield(self, radius=400, npix=64, sources=[], fIndices=None):
         """
         """
+        # Frequency indices
+        if fIndices is None:
+            fIndices = np.arange(self.freqs.size)
+        else:
+            if not isinstance(fIndices, np.ndarray):
+                raise TypeError(
+                    'fIndices sould be a numpy array'
+                )
+            if any(fIndices > 15):
+                raise IndexError(
+                    'Maximal authorized frequency index is 15'
+                )
+            if fIndices.size > 16:
+                raise IndexError(
+                    'Number of subbands is 16'
+                )
+
         # Mini-Array positions in ENU coordinates
         mapos_l93 = getMAL93(self.mas)
         mapos_etrs = l93_to_etrs(mapos_l93)
@@ -643,8 +725,12 @@ class Crosslet(object):
         gridDelays = groundDistances[self._ant1] - groundDistances[self._ant2]
 
         # Compute the near-field image
-        visData = np.mean(self.stokes_i, axis=0) # mean in time
-        nfImage = self._nearFieldImage(visData, gridDelays)
+        visData = np.mean(self.stokes_i[:, fIndices, :], axis=0) # mean in time
+        nfImage = self._nearFieldImage(
+            visData,
+            gridDelays,
+            fIndices
+        )
 
         # Simulate sources to get their imprint
         simuSources = {}
@@ -671,15 +757,19 @@ class Crosslet(object):
                 toENU
             )
             # Simulate visibilities
-            lamb = wavelength(self.freqs).value
+            lamb = wavelength(self.freqs[fIndices]).value
             srcVis = ft_delay(srcDelays/lamb)
             srcVis = np.swapaxes(srcVis, 1, 0)
-            simuSources[src] = self._nearFieldImage(srcVis, gridDelays)
+            simuSources[src] = self._nearFieldImage(
+                srcVis,
+                gridDelays,
+                fIndices
+            )
 
         return NearField(
             nfImage=nfImage,
             antNames=self.mas,
-            meanFreq=np.mean(self.freqs)*un.MHz,
+            meanFreq=np.mean(self.freqs[fIndices])*un.MHz,
             obsTime=obsTime,
             simuSources=simuSources,
             radius=radius*un.m
@@ -733,10 +823,10 @@ class Crosslet(object):
             ),
             phaseCenter2Origin
         ) # (3, 3, ntimes)
-        self.phaseCenter = SkyCoord(
-            ra=np.ones(self.times.size) * newPhaseCenter.ra,
-            dec=np.ones(self.times.size) * newPhaseCenter.dec
-        )
+        # self.phaseCenter = SkyCoord(
+        #     ra=np.ones(self.times.size) * newPhaseCenter.ra,
+        #     dec=np.ones(self.times.size) * newPhaseCenter.dec
+        # )
         rotUVW = np.matmul(
             np.expand_dims(
                 (phaseCenter2Origin[2, :] - origin2NewPhaseCenter[2, :]).T,
@@ -763,17 +853,17 @@ class Crosslet(object):
         return rotVis, newUVW
 
 
-    def _nearFieldImage(self, vis, delays):
+    def _nearFieldImage(self, vis, delays, fIndices):
         """ vis = [freq, nant, nant]
         """
-        assert self.freqs.size == vis.shape[0],\
+        assert self.freqs[fIndices].size == vis.shape[0],\
             'Problem in visibility dimension {}'.format(vis.shape)
         nearfield = 0
-        for i in range(self.freqs.size): 
+        for i in range(self.freqs[fIndices].size): 
             vi = vis[i][:, None, None]
-            lamb = wavelength(self.freqs[i])
+            lamb = wavelength(self.freqs[fIndices][i])
             nearfield += vi * ft_delay(delays/lamb)
-        nearfield /= self.freqs.size
+        nearfield /= self.freqs[fIndices].size
         nearfield = np.nanmean(np.abs(nearfield), axis=0)
         return nearfield
 # ============================================================= #

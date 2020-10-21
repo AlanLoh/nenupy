@@ -42,7 +42,9 @@ from nenupy.astro import (
     etrs_to_enu,
     HpxSky,
     eq_zenith,
-    getSource
+    getSource,
+    etrs_to_geo,
+    enu_to_etrs
 )
 from nenupy.instru import getMAL93, nenufar_loc
 from nenupy.beam import HpxABeam
@@ -246,7 +248,7 @@ class NenuFarTV(HpxSky):
     def savePng(self, figname=''):
         """
         """
-        if not figname.endswith('.png'):
+        if (figname != '') and (not figname.endswith('.png')):
             raise ValueError(
                 'figname name should be a png file.'
             )
@@ -269,7 +271,7 @@ class NenuFarTV(HpxSky):
             center=self.phaseCenter,
             size=self.fov - self.resolution*2,
             tickscol='gray',
-            title='{0} MHz -- {1} -- FoV$= {2}\\degree$'.format(
+            title='{0:.3f} MHz -- {1} -- FoV$= {2}\\degree$'.format(
                 self.meanFreq.to(u.MHz).value,
                 self.time.isot,
                 self.fov.to(u.deg).value
@@ -494,7 +496,32 @@ class NearField(object):
         """
         """
         return self.nfImage.shape[0]
-    
+
+
+    @property
+    def maxPosition(self):
+        """
+        """
+        maxIndex = np.unravel_index(
+            self.nfImage.argmax(),
+            self.nfImage.shape
+        )
+        groundGranularity = np.linspace(
+            -self.radius.value,
+            self.radius.value,
+            self.nPix
+        )
+        coord = etrs_to_geo(
+            enu_to_etrs(
+                np.array(
+                    [
+                        [groundGranularity[maxIndex[1]], groundGranularity[maxIndex[0]], 150]
+                    ]
+                )
+            )
+        )
+        return coord
+
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -725,7 +752,7 @@ class NearField(object):
         # Plot axis labels       
         ax.set_xlabel(r'$\Delta x$ (m)')
         ax.set_ylabel(r'$\Delta y$ (m)')
-        ax.set_title('{} MHz -- {}'.format(
+        ax.set_title('{0:.3f} MHz -- {1}'.format(
             self.meanFreq.to(u.MHz).value,
             self.obsTime.isot)
         )
