@@ -23,10 +23,11 @@ __all__ = [
 
 
 from os.path import dirname, abspath, join
-from astropy.table import Table
+from astropy.table import Table, QTable
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 import urllib
+import numpy as np
 
 import logging
 log = logging.getLogger(__name__)
