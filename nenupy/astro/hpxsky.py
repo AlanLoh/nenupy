@@ -692,7 +692,7 @@ class HpxSky(object):
         return
 
 
-    def save(self, filename, header=None):
+    def save(self, filename, header=None, partial=False):
         """ Save the :attr:`~nenupy.astro.hpxsky.HpxSky.skymap`
             to a FITS file, using
             :func:`~healpy.fitsfunc.write_map`. The masked values
@@ -742,7 +742,8 @@ class HpxSky(object):
             coord='C',
             overwrite=True,
             dtype=self.skymap.dtype,
-            extra_header=hd
+            extra_header=hd,
+            partial=partial
         )
         return
 

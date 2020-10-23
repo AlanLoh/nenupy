@@ -34,6 +34,7 @@ import astropy.units as u
 from astropy.io import fits
 from astropy.coordinates import SkyCoord, AltAz, Angle
 from healpy import nside2resol, read_map
+import healpy.pixelfunc as hppix
 from os.path import abspath
 
 import nenupy
@@ -220,13 +221,16 @@ class NenuFarTV(HpxSky):
         tv.skymap[:] = read_map(
             filename,
             dtype=None,
-            verbose=False
+            verbose=False,
+            partial='PARTIAL' in header['OBJECT']
         )
+        if 'PARTIAL' in header['OBJECT']:
+            tv.skymap[hppix.mask_bad(tv.skymap)] = np.nan
         
         return tv
 
 
-    def saveFits(self, filename):
+    def saveFits(self, filename, partial):
         """
         """
         header = [
@@ -241,7 +245,8 @@ class NenuFarTV(HpxSky):
         ]
         self.save(
             filename=filename,
-            header=header
+            header=header,
+            partial=partial
         )
 
 

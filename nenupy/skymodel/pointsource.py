@@ -17,7 +17,8 @@ __email__ = 'alan.loh@obspm.fr'
 __status__ = 'Production'
 __all__ = [
     'extrapol_flux',
-    'get_point_sources'
+    'get_point_sources',
+    'LofarSkymodel'
 ]
 
 
@@ -25,6 +26,7 @@ from os.path import dirname, abspath, join
 from astropy.table import Table
 import astropy.units as u
 from astropy.coordinates import SkyCoord
+import urllib
 
 import logging
 log = logging.getLogger(__name__)
@@ -130,5 +132,165 @@ def get_point_sources(freq, center, radius):
         index=model_table[srcmask]['index']
     )
     return pointsrc[srcmask], fluxes
+# ============================================================= #
+
+
+# ============================================================= #
+# ----------------------- LofarSkymodel ----------------------- #
+# ============================================================= #
+class LofarSkymodel(object):
+    """
+    """
+
+    def __init__(self, center, radius, cutoff):
+        self.center = center
+        self.radius = radius
+        self.cutoff = cutoff
+        self.table = None
+
+
+    # --------------------------------------------------------- #
+    # --------------------- Getter/Setter --------------------- #
+    @property
+    def center(self):
+        """ Sky coordinates center of the search field.
+        """
+        return self._center
+    @center.setter
+    def center(self, cen):
+        if not isinstance(cen, SkyCoord):
+            raise TypeError(
+                'center should be an astropy SkyCoord instance'
+            )
+        self._center = cen
+
+
+    @property
+    def radius(self):
+        """ Search radius
+        """
+        return self._radius.to(u.deg)
+    @radius.setter
+    def radius(self, r):
+        if not isinstance(r, u.Quantity):
+            raise TypeError(
+                'radius should be an astropy Quantity (deg or equivalent) instance'
+            )
+        self._radius = r
+
+
+    @property
+    def cutoff(self):
+        """
+        """
+        return self._cutoff.to(u.Jy)
+    @cutoff.setter
+    def cutoff(self, cut):
+        if not isinstance(cut, u.Quantity):
+            raise TypeError(
+                'cutoff should be an astropy Quantity (Jy or equivalent) instance'
+            )
+        self._cutoff = cut
+
+
+    @property
+    def gsmURL(self):
+        """ URL to query
+        """
+        return (
+            'https://lcs165.lofar.eu/cgi-bin/gsmv1.cgi?'
+            'coord={},{}&'
+            'radius={}&'
+            'unit=deg&'
+            'cutoff={}'.format(
+                self.center.ra.deg,
+                self.center.dec.deg,
+                self.radius.value,
+                self.cutoff.value
+            )
+        )
+
+
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+    def getTable(self):
+        """
+        """
+        self._buildTable()
+
+
+    def getSkymodel(self, filename):
+        """
+        """
+        with open(filename, 'w') as wfile:
+            for line in self._getUrlResult():
+                wfile.write(line + '\n')
+
+
+    # --------------------------------------------------------- #
+    # ----------------------- Internal ------------------------ #
+    def _buildTable(self):
+        """
+        """
+        skymodel = self._getUrlResult()
+        rows = []
+        for srcModel in self._parseUrlResult(skymodel):
+            rows.append(
+                self._parseSourceModel(srcModel)
+            )
+        self.table = QTable(
+            rows=rows,
+            names=(
+                'name',
+                'position',
+                'i',
+                'q',
+                'u',
+                'v',
+                'sindex'
+            )
+        )
+
+
+    @staticmethod
+    def _parseSourceModel(sourceModel):
+        """
+        """
+        name, typ, ra, dec, i, q, su, v, reff, sidx = sourceModel
+        return (
+            name,
+            SkyCoord(
+                ra + dec.replace('.', ':', 2),
+                unit=(u.hourangle, u.deg)
+            ),
+            float(i if i.strip() else '0') * u.Jy,
+            float(q if q.strip() else '0') * u.Jy,
+            float(su if su.strip() else '0') * u.Jy,
+            float(v if v.strip() else '0') * u.Jy,
+            np.array(
+                sidx.split('[')[1].split(']')[0].split(',')
+            ).astype(np.float32)
+        )
+
+
+    @staticmethod
+    def _parseUrlResult(lines):
+        """
+        """
+        for line in lines:
+            if line.startswith(('FORMAT', '#')):
+                continue
+            if ('POINT' in line) or ('GAUSSIAN' in line):
+                yield line.split(',', 9)
+            else:
+                continue
+
+
+    def _getUrlResult(self):
+        """
+        """
+        urlOpen = urllib.request.urlopen(self.gsmURL)
+        lines = urlOpen.read().decode('utf-8').split('\n')
+        return lines
 # ============================================================= #
 
