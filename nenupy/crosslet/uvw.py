@@ -282,40 +282,25 @@ class UVW(object):
 
 
     @classmethod
-    def from_tvdata(cls, tvdata):
+    def fromCrosslets(cls, crosslet):
         """
         """
-        from nenupy.crosslet import TV_Data
-        if not isinstance(tvdata, TV_Data):
-            raise TypeError(
-                'tvdata must be a TV_Data instance'
-            )
-        uvw = cls(
-            times=tvdata.times,
-            freqs=tvdata.freqs,
-            mas=tvdata.mas
-        )
-        uvw.compute()
-        return uvw
-
-
-    @classmethod
-    def from_xstdata(cls, xstdata):
-        """
-        """
-        from nenupy.crosslet import XST_Data
-        if isinstance(xstdata, XST_Data):
+        from nenupy.crosslet import XST_Data, TV_Data
+        if isinstance(crosslet, (XST_Data, TV_Data)):
             pass
-        elif isinstance(xstdata, str):
-            xstdata = XST_Data(xstdata)
+        elif isinstance(crosslet, str):
+            if crosslet.endswith('.fits'):
+                crosslet = XST_Data(crosslet)
+            elif crosslet.endswith('.dat'):
+                crosslet = TV_Data(crosslet)
         else:
             raise TypeError(
-                'xstdata must be a XST_Data instance or XST file.'
+                'crosslet must be a XST_Data/TV_Data instance or XST/dat file.'
             )
         uvw = cls(
-            times=xstdata.times,
-            freqs=xstdata.freqs,
-            mas=xstdata.mas
+            times=crosslet.times,
+            freqs=crosslet.freqs,
+            mas=crosslet.mas
         )
         uvw.compute()
         return uvw

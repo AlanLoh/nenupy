@@ -532,7 +532,7 @@ class Crosslet(object):
             .. seealso::
                 :class:`~nenupy.astro.hpxsky.HpxSky`,
                 :meth:`~nenupy.astro.hpxsky.HpxSky.lmn`,
-                :meth:`~nenupy.crosslet.uvw.UVW.from_tvdata`
+                :meth:`~nenupy.crosslet.uvw.UVW.fromCrosslets`
 
             .. warning::
                 This method is intended to be used for NenuFAR-TV
@@ -563,7 +563,7 @@ class Crosslet(object):
         
         exposure = self.times[-1] - self.times[0]
 
-        uvw = UVW.from_tvdata(self)
+        uvw = UVW.fromCrosslets(self)
         uvw = uvw.uvw
         
         if center is None:
@@ -581,7 +581,7 @@ class Crosslet(object):
             resolution=resolution,
             time=self.times[0] + exposure/2.,
             stokes='I',
-            meanFreq=np.mean(self.freqs[fIndices])*un.MHz,
+            meanFreq=np.mean(self.freqs[fIndices]),
             phaseCenter=center,
             fov=fov
         )
@@ -769,7 +769,7 @@ class Crosslet(object):
         return NearField(
             nfImage=nfImage,
             antNames=self.mas,
-            meanFreq=np.mean(self.freqs[fIndices])*un.MHz,
+            meanFreq=np.mean(self.freqs[fIndices]),
             obsTime=obsTime,
             simuSources=simuSources,
             radius=radius*un.m

@@ -18,14 +18,14 @@ An instance of :class:`~nenupy.crosslet.tvdata.TV_Data` is made by simply giving
 As the object ``tv`` is also of type :class:`~nenupy.crosslet.crosslet.Crosslet`, it has access to the :class:`~nenupy.crosslet.crosslet.Crosslet.image` method which performs imaging of the cross-correlation data in a few steps:
 
 * Initialize a :class:`~nenupy.astro.hpxsky.HpxSky` object, allowing for a `HEALPix <https://healpix.jpl.nasa.gov/>`_ sky representation and accessing methods such as :meth:`~nenupy.astro.hpxsky.HpxSky.lmn` in order to convert sky equatorial coordinates in image domain coordinates.
-* Compute UVW coordinates associated with the NenuFAR configuration corresponding to the data file with :meth:`~nenupy.crosslet.uvw.UVW.from_tvdata` classmethod.
+* Compute UVW coordinates associated with the NenuFAR configuration corresponding to the data file with :meth:`~nenupy.crosslet.uvw.UVW.fromCrosslets` classmethod.
 
 .. note::
-    UV coverage plot can be achieved in a straightforward manner with :meth:`~nenupy.crosslet.uvw.UVW.from_tvdata`:
+    UV coverage plot can be achieved in a straightforward manner with :meth:`~nenupy.crosslet.uvw.UVW.fromCrosslets`:
 
     >>> from nenupy.crosslet import UVW
     >>> import matplotlib.pyplot as plt
-    >>> uvw = UVW.from_tvdata(tv)
+    >>> uvw = UVW.fromCrosslets(tv)
     >>> plt.plot(
             uvw.uvw[0, :, 0],
             uvw.uvw[0, :, 1],
