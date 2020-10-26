@@ -120,7 +120,7 @@ def test_xstimage(mock_show):
         center=image.phaseCenter,
         size=5
     )
-    image.savePng()
+    # image.savePng()
 # ============================================================= #
 
 
