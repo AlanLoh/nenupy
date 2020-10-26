@@ -24,6 +24,7 @@ import numpy as np
 from os.path import abspath, isfile
 from itertools import islice
 from astropy.time import Time, TimeDelta
+import astropy.units as u
 
 from nenupy.crosslet import Crosslet
 
@@ -96,6 +97,7 @@ class TV_Data(Crosslet):
         search = ['Freq.List', 'Mr.List', 'accumulation']
         types = ['float64', 'int', 'int']
         for key, word, typ in zip(keys, search, types):
+            unit = u.MHz if key == 'freqs' else 1
             for h in header:
                 if word in h:
                     setattr(
@@ -104,7 +106,7 @@ class TV_Data(Crosslet):
                         np.array(
                             h.split('=')[1].split(','),
                             dtype=typ
-                        )
+                        )*unit
                     )
 
         # Deduce the dtype for decoding

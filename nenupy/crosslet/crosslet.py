@@ -35,6 +35,7 @@ __all__ = [
 
 import numpy as np
 import astropy.units as un
+from astropy.time import Time
 from astropy.coordinates import SkyCoord
 try:
     from tqdm import tqdm
@@ -152,6 +153,128 @@ class Crosslet(object):
 
 
     @property
+    def times(self):
+        """ Times of the cross-correlation recorded.
+            
+            :setter: Array of selected times.
+            
+            :getter: Array of times.
+            
+            :type: :class:`~astropy.time.Time`
+        """
+        return self._times[self._tMask]
+    @times.setter
+    def times(self, t):
+        if t is None:
+            self._times = t
+        else:
+            if not isinstance(t, Time):
+                raise TypeError(
+                    'times should be an astropy Time instance.'
+                )
+            self.timeMin = t[0].copy()
+            self.timeMax = t[-1].copy()
+            self._times = t
+            self.timeRange = [self.timeMin, self.timeMax]
+
+
+    @property
+    def freqs(self):
+        """ Frequencies of the cross-correlation recorded.
+            
+            :setter: Array of selected frequencies.
+            
+            :getter: Array of frequencies.
+            
+            :type: :class:`~astropy.units.Quantity`
+        """
+        return self._freqs[self._fMask]
+    @freqs.setter
+    def freqs(self, f):
+        if f is None:
+            self._freqs = f
+        else:
+            if not isinstance(f, un.Quantity):
+                raise TypeError(
+                    'freqs should be an astropy Quantity instance.'
+                )
+            self.freqMin = f.min()
+            self.freqMax = f.max()
+            self._freqs = f
+            self.freqRange = [self.freqMin.value, self.freqMax.value]
+
+
+    @property
+    def timeRange(self):
+        """
+        """
+        return self._timeRange
+    @timeRange.setter
+    def timeRange(self, t):
+        if t is None:
+            t = [self.timeMin.isot, self.timeMax.isot]
+        if not isinstance(t, Time):
+            t = Time(t)
+        if t.isscalar:
+            dt_sec = (self._times - t).sec
+            self._tMask = [np.argmin(np.abs(dt_sec))]
+        else:
+            if len(t) != 2:
+                raise ValueError(
+                    'timerange should be of size 2'
+                )
+            self._tMask = (self._times >= t[0]) & (self._times <= t[1])
+            if not any(self._tMask):
+                log.warning(
+                    (
+                        'Empty time selection, time should fall '
+                        'between {} and {}'.format(
+                            self.timeMin.isot,
+                            self.timeMax.isot
+                        )
+                    )
+                )
+        self._timeRange = t
+
+
+    @property
+    def freqRange(self):
+        """
+        """
+        return self._freqRange
+    @freqRange.setter
+    def freqRange(self, f):
+        if f is None:
+            f = np.array(
+                [self.freqMin.value, self.freqMax.value]
+            )*un.MHz
+        if not isinstance(f, un.Quantity):
+            f *= un.MHz
+        else:
+            f.to(un.MHz)
+        if f.isscalar:
+            self._fMask = [np.argmin(np.abs(self._freqs - f))]
+        else:
+            if len(f) != 2:
+                raise ValueError(
+                    'freqrange should be of size 2'
+                )
+            self._fMask = (self._freqs >= f[0]) & (self._freqs <= f[1])
+            if not any(self._fMask):
+                log.warning(
+                    (
+                        'Empty freq selection, freq should fall '
+                        'between {} and {}'.format(
+                            self.freqMin.min(),
+                            self.freqMax.max()
+                        )
+                    )
+                )
+        self._freqRange = f
+        return
+
+
+    @property
     def phaseCenter(self):
         """
         """
@@ -179,7 +302,13 @@ class Crosslet(object):
             
             :type: :class:`~numpy.ndarray`
         """
-        xx = self.vis[:, :, self._get_cross_idx('X', 'X')]
+        xx = self.vis[
+            np.ix_(
+                self._tMask,
+                self._fMask,
+                self._get_cross_idx('X', 'X')
+            )
+        ]
         log.info(
             'XX loaded.'
         )
@@ -196,7 +325,13 @@ class Crosslet(object):
             
             :type: :class:`~numpy.ndarray`
         """
-        yy = self.vis[:, :, self._get_cross_idx('Y', 'Y')]
+        yy = self.vis[
+            np.ix_(
+                self._tMask,
+                self._fMask,
+                self._get_cross_idx('Y', 'Y')
+            )
+        ]
         log.info(
             'YY loaded.'
         )
@@ -213,7 +348,13 @@ class Crosslet(object):
             
             :type: :class:`~numpy.ndarray`
         """
-        yx = self.vis[:, :, self._get_cross_idx('Y', 'X')]
+        yx = self.vis[
+            np.ix_(
+                self._tMask,
+                self._fMask,
+                self._get_cross_idx('Y', 'X')
+            )
+        ]
         log.info(
             'YX loaded.'
         )
@@ -244,8 +385,13 @@ class Crosslet(object):
         )
         _xy[:, :, auto] = self.yx[:, :, auto].conj()
         # Get XY correlations
-        indices = self._get_cross_idx('X', 'Y')
-        _xy[:, :, cross] = self.vis[:, :, indices]
+        _xy[:, :, cross] = self.vis[
+            np.ix_(
+                self._tMask,
+                self._fMask,
+                self._get_cross_idx('X', 'Y')
+            )
+        ]
         log.info(
             'XY loaded.'
         )
@@ -260,8 +406,8 @@ class Crosslet(object):
             :attr:`~nenupy.crosslet.crosslet.Crosslet.yy`.
             
             .. math::
-                \mathbf{I}(t, \nu) = \frac{1}{2} \left[
-                    \mathbf{XX}(t, \nu) + \mathbf{YY}(t, \nu)
+                \mathbf{I}(t, \nu) = \left[
+                    \mathbf{X\overline{X}}(t, \nu) + \mathbf{Y\overline{Y}}(t, \nu)
                 \right]
 
             Array is shaped like (time, frequencies, baselines).
@@ -270,7 +416,115 @@ class Crosslet(object):
             
             :type: :class:`~numpy.ndarray`
         """
-        return 0.5*(self.xx + self.yy)
+        return self.xx + self.yy # 0.5*(self.xx + self.yy)
+
+
+    @property
+    def stokes_q(self):
+        r""" Computes the stokes parameter Q from the
+            cross-correlation statistics data using
+            :attr:`~nenupy.crosslet.crosslet.Crosslet.xx` and 
+            :attr:`~nenupy.crosslet.crosslet.Crosslet.yy`.
+            
+            .. math::
+                \mathbf{I}(t, \nu) = \left[
+                    \mathbf{X\overline{X}}(t, \nu) - \mathbf{Y\overline{Y}}(t, \nu)
+                \right]
+
+            Array is shaped like (time, frequencies, baselines).
+
+            :getter: Stokes Q data
+            
+            :type: :class:`~numpy.ndarray`
+        """
+        return self.xx - self.yy
+
+
+    @property
+    def stokes_u(self):
+        r""" Computes the stokes parameter U from the
+            cross-correlation statistics data using
+            :attr:`~nenupy.crosslet.crosslet.Crosslet.xy` and 
+            :attr:`~nenupy.crosslet.crosslet.Crosslet.yx`.
+            
+            .. math::
+                \mathbf{U}(t, \nu) = \left[
+                    \mathbf{X\overline{Y}}(t, \nu) + \mathbf{Y\overline{X}}(t, \nu)
+                \right]
+
+            Array is shaped like (time, frequencies, baselines).
+
+            :getter: Stokes U data
+            
+            :type: :class:`~numpy.ndarray`
+        """
+        return self.xy + self.yx
+
+
+    @property
+    def stokes_v(self):
+        r""" Computes the stokes parameter V from the
+            cross-correlation statistics data using
+            :attr:`~nenupy.crosslet.crosslet.Crosslet.xy` and 
+            :attr:`~nenupy.crosslet.crosslet.Crosslet.yx`.
+            
+            .. math::
+                \mathbf{V}(t, \nu) = -i \left[
+                    \mathbf{X\overline{Y}}(t, \nu) - \mathbf{Y\overline{X}}(t, \nu)
+                \right]
+
+            Array is shaped like (time, frequencies, baselines).
+
+            :getter: Stokes V data
+            
+            :type: :class:`~numpy.ndarray`
+        """
+        return -1.j * (self.xy - self.yx)
+
+
+    @property
+    def stokes_fp(self):
+        r""" Computes the fractional linear polarization from
+            the cross-correlation statistics Stokes parameters
+            :attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_u`,
+            :attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_q`,
+            :attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_i`.
+
+            .. math::
+                \mathbf{P}(t, \nu) = \frac{ \sqrt{
+                    \mathbf{U}^2(t, \nu) + \mathbf{Q}^2(t, \nu)
+                } }{\mathbf{I}(t, \nu)}
+
+            Array is shaped like (time, frequencies, baselines).
+
+            :getter: Fractional linear polarization
+            
+            :type: :class:`~numpy.ndarray`
+        """
+        return np.sqrt(self.stokes_q**2 + self.stokes_u**2) / self.stokes_i
+
+
+    @property
+    def stokes_fv(self):
+        r""" Computes the fractional circular polarization from
+            the cross-correlation statistics Stokes parameters
+            :attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_v`,
+            :attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_i`.
+
+            .. math::
+                \mathbf{L}(t, \nu) = \frac{
+                    \| \mathbf{V}(t, \nu) \|
+                }{\mathbf{I}(t, \nu)}
+
+            Array is shaped like (time, frequencies, baselines).
+
+            :getter: Fractional circular polarization
+            
+            :type: :class:`~numpy.ndarray`
+        """
+        return np.abs(self.stokes_v)/self.stokes_i
+    
+    
 
 
     @property
@@ -488,7 +742,7 @@ class Crosslet(object):
         )
 
 
-    def image(self, resolution=1, fov=50, center=None, fIndices=None):
+    def image(self, resolution=1, fov=50, center=None, fIndices=None, stokes='I'):
         r""" Converts NenuFAR-TV-like data sets containing
             visibilities (:math:`V(u,v,\nu , t)`) into images
             :math:`I(l, m, \nu)` phase-centered at the local
@@ -580,7 +834,7 @@ class Crosslet(object):
         sky = NenuFarTV(
             resolution=resolution,
             time=self.times[0] + exposure/2.,
-            stokes='I',
+            stokes=stokes.upper(),
             meanFreq=np.mean(self.freqs[fIndices]),
             phaseCenter=center,
             fov=fov
@@ -664,7 +918,7 @@ class Crosslet(object):
 
         # Phase visibilities
         vis = np.mean( # Mean in time
-            da.from_array(self.stokes_i[:, fIndices, :].astype(np.complex64)) * da.from_array(rotVis[:, fIndices, :].astype(np.complex64)),
+            da.from_array(self._getStokes(stokes)[:, fIndices, :].astype(np.complex64)) * da.from_array(rotVis[:, fIndices, :].astype(np.complex64)),
             axis=0
         )[:, self.mask_auto] # (nfreqs, nvis)
         
@@ -683,7 +937,7 @@ class Crosslet(object):
         return sky
 
 
-    def nearfield(self, radius=400, npix=64, sources=[], fIndices=None):
+    def nearfield(self, radius=400, npix=64, sources=[], fIndices=None, stokes='I'):
         """
         """
         # Frequency indices
@@ -725,7 +979,7 @@ class Crosslet(object):
         gridDelays = groundDistances[self._ant1] - groundDistances[self._ant2]
 
         # Compute the near-field image
-        visData = np.mean(self.stokes_i[:, fIndices, :], axis=0) # mean in time
+        visData = np.mean(self._getStokes(stokes)[:, fIndices, :], axis=0) # mean in time
         nfImage = self._nearFieldImage(
             visData,
             gridDelays,
@@ -778,6 +1032,28 @@ class Crosslet(object):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
+    def _getStokes(self, stokes):
+        """
+        """
+        if stokes.upper() == 'I':
+            stokesData = self.stokes_i
+        elif stokes.upper() == 'Q':
+            stokesData = self.stokes_q
+        elif stokes.upper() == 'U':
+            stokesData = self.stokes_u
+        elif stokes.upper() == 'V':
+            stokesData = self.stokes_v
+        elif stokes.upper() == 'FRAC_P':
+            stokesData = self.stokes_fp
+        elif stokes.upper() == 'FRAC_V':
+            stokesData = self.stokes_fv
+        else:
+            raise ValueError(
+                'Unknown Stokes parameter `{}`'.format(stokes)
+            )
+        return stokesData
+
+
     def _get_cross_idx(self, c1='X', c2='X'):
         """
         """

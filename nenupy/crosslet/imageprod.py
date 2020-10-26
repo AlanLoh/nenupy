@@ -3,9 +3,22 @@
 
 
 """
-    *********************
-    XST Imageing products
-    *********************
+    ********************
+    XST Imaging products
+    ********************
+
+    NenuFAR Cross-Correlation Statistics data (XST) may be
+    run through a dirty imaging pipeline (see
+    :meth:`~nenupy.crosslet.crosslet.Crosslet.image`) which is
+    basis of the *NenuFAR-TV*. They can also be used to compute
+    near-field images (see
+    :meth:`~nenupy.crosslet.crosslet.Crosslet.nearfield`).
+
+    Both of these aforementioned methods produce outputs that
+    are instances of either :class:`~nenupy.crosslet.imageprod.NenuFarTV`
+    or :class:`~nenupy.crosslet.imageprod.NearField` defined in
+    the following.
+
 """
 
 
@@ -380,6 +393,11 @@ class NearField(object):
     @property
     def nfImage(self):
         """
+            :setter: Mini-Array list
+            
+            :getter: Mini-Array list
+            
+            :type: :class:`~numpy.ndarray`
         """
         return self._nfImage
     @nfImage.setter
@@ -399,9 +417,15 @@ class NearField(object):
         self._nfImage = nfi 
         return
 
+
     @property
     def antNames(self):
         """
+            :setter: Mini-Array list
+            
+            :getter: Mini-Array list
+            
+            :type: :class:`~numpy.ndarray`
         """
         return self._antNames
     @antNames.setter
@@ -416,6 +440,11 @@ class NearField(object):
     @property
     def meanFreq(self):
         """
+            :setter: Mini-Array list
+            
+            :getter: Mini-Array list
+            
+            :type: :class:`~numpy.ndarray`
         """
         return self._meanFreq
     @meanFreq.setter
@@ -434,6 +463,11 @@ class NearField(object):
     @property
     def obsTime(self):
         """
+            :setter: Mini-Array list
+            
+            :getter: Mini-Array list
+            
+            :type: :class:`~numpy.ndarray`
         """
         return self._obsTime
     @obsTime.setter
@@ -452,6 +486,11 @@ class NearField(object):
     @property
     def simuSources(self):
         """
+            :setter: Mini-Array list
+            
+            :getter: Mini-Array list
+            
+            :type: :class:`~numpy.ndarray`
         """
         return self._simuSources
     @simuSources.setter
@@ -481,6 +520,11 @@ class NearField(object):
     @property
     def radius(self):
         """
+            :setter: Mini-Array list
+            
+            :getter: Mini-Array list
+            
+            :type: :class:`~numpy.ndarray`
         """
         return self._radius
     @radius.setter
@@ -498,14 +542,20 @@ class NearField(object):
 
     @property
     def nPix(self):
-        """
+        """             
+            :getter: Mini-Array list
+            
+            :type: :class:`~numpy.ndarray`
         """
         return self.nfImage.shape[0]
 
 
     @property
     def maxPosition(self):
-        """
+        """            
+            :getter: Mini-Array list
+            
+            :type: :class:`~numpy.ndarray`
         """
         maxIndex = np.unravel_index(
             self.nfImage.argmax(),
@@ -533,6 +583,20 @@ class NearField(object):
     @classmethod
     def fromFile(cls, filename):
         """
+            :param filename:
+                Path to the FITS file containing a near-field
+                image (whose format is such as created by the
+                :meth:`~nenupy.crosslet.imageprod.NearField.saveFits`
+                method).
+            :type filename: `str`
+
+            :returns: Instance of :class:`~nenupy.crosslet.imageprod.NearField`
+            :rtype: :class:`~nenupy.crosslet.imageprod.NearField`
+
+            :Example:
+                >>> from nenupy.crosslet import NearField
+                >>> nf.fromFile('/path/to/nearfield.fits')
+
         """
         reservedNames = [
             'PRIMARY',

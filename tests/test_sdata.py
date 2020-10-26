@@ -14,6 +14,7 @@ import astropy.units as u
 import numpy as np
 from astropy.time import Time, TimeDelta
 import pytest
+from unittest.mock import patch 
 
 from nenupy.beamlet import SData
 
@@ -313,5 +314,32 @@ def test_sdata_concat_f():
     )
     s = s1 & s2
     assert s.data.shape == (2, 6, 1)
+# ============================================================= #
+
+
+# ============================================================= #
+# ---------------------- test_sdata_plot ---------------------- #
+# ============================================================= #
+@patch('matplotlib.pyplot.show')
+def test_sdata_plot(mock_show):
+    dts = TimeDelta(np.arange(2), format='sec')
+    s1 = SData(
+        data=np.ones((2, 3, 1)),
+        time=Time('2020-04-01 12:00:00') + dts,
+        freq=np.arange(3) * u.MHz,
+        polar=['NE']
+    )
+    # Default plot
+    s1.plot()
+    # Custom plot
+    s1.plot(
+        db=False,
+        cmap='Blues',
+        vmin=-0.1,
+        vmax=0.1,
+        title='test title',
+        cblabel='test cblabel',
+        figsize=(6, 6),
+    )
 # ============================================================= #
 

@@ -102,7 +102,7 @@ def test_xstimage(mock_show):
     assert image.fov.value == 5.
     assert image.meanFreq.to(u.MHz).value == pytest.approx(74.67, 1e-2)
     assert image.nside == 64
-    assert image.skymap.data.max() == pytest.approx(615, 1e0)
+    assert image.skymap.data.max() == pytest.approx(1230, 1e0)
     # Center on Tau A, first frequency
     image = xst.image(
         resolution=0.2,
@@ -113,13 +113,14 @@ def test_xstimage(mock_show):
     assert image.phaseCenter.ra.deg == pytest.approx(83.633, 1e-3)
     assert image.phaseCenter.dec.deg == pytest.approx(22.014, 1e-3)
     assert image.nside == 256
-    assert image.skymap.data.max() == pytest.approx(16676, 1e0)
+    assert image.skymap.data.max() == pytest.approx(33353, 1e0)
     # Plot
     image.plot(
         db=False,
         center=image.phaseCenter,
         size=5
     )
+    image.savePng()
 # ============================================================= #
 
 
@@ -159,7 +160,7 @@ def test_xstnearfield(mock_show):
     assert nf.maxPosition[0].lat.deg == pytest.approx(47.373, 1e-3)
     assert isinstance(nf.nfImage, np.ndarray)
     assert nf.nfImage.shape == (32, 32)
-    assert nf.nfImage[16, 16] == pytest.approx(91926, 1e0)
+    assert nf.nfImage[16, 16] == pytest.approx(183852, 1e0)
     # Plot
     nf.plot()
 # ============================================================= #
