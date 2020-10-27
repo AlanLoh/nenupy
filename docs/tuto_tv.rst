@@ -1,11 +1,163 @@
 .. _tuto_tv:
 
-NenuFAR TV image
-================
+NenuFAR XST Imaging
+===================
 
 NenuFAR produces cross-correlation statistics data called XST that can be converted to Measurement Set format suited for radio imaging softwares (this is the 'proto-imager' mode, in contrast with the proper imager mode using data from the NICKEL correlator).
 
-When NenuFAR does not observe in XST mode, the cross-correlations are saved with 10 sec integration time and 16 sub-bands in 5-min exposure time binary files. They are immediately converted in images and displayed as the NenuFAR-TV.
+When NenuFAR does not observe in XST mode, the cross-correlations are saved with 10 sec integration time and 16 sub-bands of 195.3125 kHz in 5-min exposure time binary files. They are immediately converted in images to be displayed as the NenuFAR-TV and near-field images are also produced.
+
+NenuFAR Cross-Correlation Statistics come in two flavours, namely XST FITS files and NenuFAR-TV binary files. They can be read and analyzed by :class:`~nenupy.crosslet.xstdata.XST_Data` and :class:`~nenupy.crosslet.tvdata.TV_Data` respectively. Both classes inherit from the base class :class:`~nenupy.crosslet.crosslet.Crosslet`, which contains the methods to image and beamform (see :ref:`tuto_beamforming` tutorial) the data.
+
+The following demonstrates how to open XST-like files and analyze them to compute a near-field image and an image such as outputed for the NenuFAR-TV display.
+
+.. warning::
+    The following operations are designed to suit small data sets, typically of the NenuFAR-TV file volume (i.e., a few tens/hundred of time steps and 16 sub-bands). Larger data sets should be imaged thanks to the appropriate softwares.
+
+Near-field
+----------
+
+A few packages need to be imported in preparation for the following analyzes:
+
+>>> from nenupy.crosslet import XST_Data, TV_Data
+>>> from astropy.coordinates import SkyCoord
+>>> from astropy.time import Time
+>>> import astropy.units as u
+>>> import numpy as np
+
+Reading a XST file
+^^^^^^^^^^^^^^^^^^
+
+Without any prior information regarding the content of an XST file, we will try to extract relevant features during this tutorial. As we are openning a XST file, it is mandatory to create an instance of :class:`~nenupy.crosslet.xstdata.XST_Data`, namely ``xst``, out of it:
+
+>>> xst = XST_Data('/nenupy/tests/test_data/XST.fits')
+
+It may be useful to catch a glimpse of the observation properties attached to the instance ``xst`` such as the minimal and maximal frequencies (:attr:`~nenupy.crosslet.crosslet.Crosslet.freqMin` and :attr:`~nenupy.crosslet.crosslet.Crosslet.freqMax`, stored as :class:`~astropy.units.Quantity` objects), as well as the observing time boundaries (:attr:`~nenupy.crosslet.crosslet.Crosslet.timeMin` and :attr:`~nenupy.crosslet.crosslet.Crosslet.timeMax` stored as :class:`~astropy.time.Time` objects):
+
+>>> xst.freqMin, xst.freqMax
+(<Quantity 68.5546875 MHz>, <Quantity 79.296875 MHz>)
+>>> xst.timeMin.isot, xst.timeMax.isot
+('2020-02-19T18:00:03.000', '2020-02-19T18:00:03.000')
+
+We can also check which Mini-Arrays were observing by interrogating the attribute :attr:`~nenupy.crosslet.crosslet.Crosslet.mas`, and notice that for this particular observation the Mini-Array 1 was missing:
+
+>>> xst.mas
+array([ 0,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17,
+       18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34,
+       35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,
+       52, 53, 54, 55], dtype=int16)
+
+Near-field image computation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The near-field image from this dataset is computed by calling the method :meth:`~nenupy.crosslet.crosslet.Crosslet.nearfield` which returns a :class:`~nenupy.crosslet.imageprod.NearField` instance that we store here in the variable ``nf``:
+
+>>> nf = xst.nearfield(
+        radius=400,
+        npix=64,
+        stokes='I'
+    )
+
+To display the near-field, we simply use the :meth:`~nenupy.crosslet.imageprod.NearField.plot` method. This outputs an image of the near-field projected on East-North-Up ground coordinates. The positions of the NenuFAR Mini-Arrays that were observing are overplotted, as well as the positions of the NenuFAR and LOFAR containers and the NenuFAR building (the North-East red point, close to Mini-Array 20):
+
+>>> nf.plot()
+
+.. image:: ./_images/nearfield_nosources_tuto.png
+  :width: 800
+
+The bulk of the near-field emission seems to come from the South-East direction. Is it pointing towards a RFI source located close to the instrument or is it mostly due to astrophysical signal?
+
+Astrophysical source near-field imprints
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In order to disentangle natural sky signals from artifical ones, we can, in addition, compute the simulated near-field imprints of some astronomical radio sources while calling :meth:`~nenupy.crosslet.crosslet.Crosslet.nearfield`:
+
+.. code-block:: python
+    :emphasize-lines: 4
+
+    >>> nf = xst.nearfield(
+            radius=400,
+            npix=64,
+            sources=['Cyg A', 'Cas A', 'Vir A', 'Tau A'],
+            stokes='I'
+        )
+
+From now on, ``nf`` is associated with simulated source imprints stored in the attribute :attr:`~nenupy.crosslet.imageprod.NearField.simuSources`, a dictionnary of normalized near-field astronomical source imprints:
+
+>>> nf.simuSources
+{'Cyg A': array([[0.36973997, 0.36983056, 0.36919056, ..., 0.30414475, 0.30303653,
+         0.30220664],
+        [0.36962287, 0.36993949, 0.36982368, ..., 0.30314061, 0.30223818,
+         0.30181957],
+        [0.36955059, 0.36985458, 0.37009959, ..., 0.30227907, 0.30182237,
+         0.3017771 ],
+        ...,
+        [0.81443766, 0.82418433, 0.83311626, ..., 0.30295421, 0.30231438,
+         0.30172021],
+        [0.82800777, 0.83682126, 0.84485958, ..., 0.30372235, 0.30294384,
+         0.30237564],
+        [0.84027317, 0.84833398, 0.85556705, ..., 0.30453242, 0.30367309,
+         0.30292642]]),
+ 'Cas A': array([[0.39770227, 0.39728737, 0.39669491, ..., 0.32466963, 0.32404009,
+         0.32333835],
+        [0.39794241, 0.39769444, 0.3971897 , ..., 0.32409922, 0.3233896 ,
+         0.32276444],
+        [0.39812954, 0.39798604, 0.39765936, ..., 0.32344908, 0.32280453,
+         0.32215288],
+        ...,
+        [0.68166412, 0.69039851, 0.69869612, ..., 0.3144044 , 0.31394921,
+         0.31343386],
+        [0.69129802, 0.6993566 , 0.70661281, ..., 0.31543457, 0.31454064,
+         0.31405954],
+        [0.69990683, 0.70700826, 0.71300481, ..., 0.3170047 , 0.31558797,
+         0.31470316]]),
+ 'Tau A': array([[0.35457077, 0.35651137, 0.35825718, ..., 0.59541145, 0.5925085 ,
+         0.58966196],
+        [0.35300826, 0.3552634 , 0.35712059, ..., 0.59261029, 0.58971726,
+         0.58674213],
+        [0.35122797, 0.35377571, 0.35592163, ..., 0.58978045, 0.58675979,
+         0.58357418],
+        ...,
+        [0.34103124, 0.34246305, 0.34378566, ..., 0.39480954, 0.39480443,
+         0.39486838],
+        [0.34224804, 0.34358846, 0.34491409, ..., 0.39470688, 0.39461043,
+         0.3945811 ],
+        [0.3434035 , 0.34473719, 0.34638141, ..., 0.39481484, 0.39456978,
+         0.39444474]])}
+
+Although the ``sources`` argument of the method :meth:`~nenupy.crosslet.crosslet.Crosslet.nearfield` was filled with four sources to simulate, :attr:`~nenupy.crosslet.imageprod.NearField.simuSources` only contains the near-field imprints of three of them, Virgo A discarded. This is because Vir A was below 10 degrees elevation during the observation and was therefore not taken into account.
+
+Calling again the :meth:`~nenupy.crosslet.imageprod.NearField.plot` method, we obtain the same near-field image as before, but for the overlays of the astronomical source near-field imprints:
+
+>>> nf.plot()
+
+.. image:: ./_images/nearfield_tuto.png
+  :width: 800
+
+Thanks to this image, we know that the near-field emission is dominated by natural signal, coming from the radio source Taurus A, which may dominate the data-sets because the analogical beam were directed towards this particular source (and thus explains why Cas A and Cyg A, although bright sources, do not appear here).
+
+Locating near-field emission
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Once the near-field is computed and stored in the ``nf`` variable, it might be useful to localize the origin of the maximal emission (for instance, it can be associated with an artifical instrument that is emitting in the observing frequency band).
+
+In our example, the near-field does not seem to contain such RFI signals. However, it may be relevant for other datasets to query the :attr:`~nenupy.crosslet.imageprod.NearField.maxPosition` attribute, which returns an :class:`~astropy.coordinates.EarthLocation` object in order to precisely assess its position on the ground:
+
+>>> nf.maxPosition
+[(4324292,165783.21,4670150.8)]m
+>>> nf.maxPosition.lon
+[2°11'43.838'']
+>>> nf.maxPosition.lat
+[47°22'22.4878'']
+
+Storing near-field file
+^^^^^^^^^^^^^^^^^^^^^^^
+
+TBD
+
+
+NenuFAR-TV
+----------
 
 TV image production requires loading of the :class:`~nenupy.crosslet.tvdata.TV_Data` class, which inherits from :class:`~nenupy.crosslet.crosslet.Crosslet`:
 
