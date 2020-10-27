@@ -24,7 +24,7 @@ setup(
         'sqlalchemy'
     ],
     extras_require={
-        'astroplan': 'astroplan',
+        #'astroplan': 'astroplan',
         'mocpy': 'mocpy'
     },
     python_requires='>=3.6',
