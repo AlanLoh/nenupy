@@ -74,24 +74,11 @@ def test_xstimage(mock_show):
     xst = XST_Data(
         xstfile=join(dirname(__file__), 'test_data/XST.fits')
     )
-    with pytest.raises(IndexError):
-        image = xst.image(
-            fIndices=np.array([17])
-        )
-    with pytest.raises(IndexError):
-        image = xst.image(
-            fIndices=np.arange(17)
-        )
-    with pytest.raises(TypeError):
-        image = xst.image(
-            fIndices=(1, 2)
-        )
     # Zenith, full bandwidth
     image = xst.image(
         resolution=1,
         fov=5,
         center=None,
-        fIndices=None
     )
     assert isinstance(image, NenuFarTV)
     assert image.analogPointing.az.deg == 0.
@@ -102,18 +89,19 @@ def test_xstimage(mock_show):
     assert image.fov.value == 5.
     assert image.meanFreq.to(u.MHz).value == pytest.approx(74.67, 1e-2)
     assert image.nside == 64
-    assert image.skymap.data.max() == pytest.approx(1230, 1e0)
+    assert image.skymap.data.max() == pytest.approx(615.0, 1e-1)
     # Center on Tau A, first frequency
+    xst.freqRange = xst.freqMin
     image = xst.image(
         resolution=0.2,
         fov=5,
         center=SkyCoord.from_name('Tau A'),
-        fIndices=np.array([0])
     )
     assert image.phaseCenter.ra.deg == pytest.approx(83.633, 1e-3)
     assert image.phaseCenter.dec.deg == pytest.approx(22.014, 1e-3)
+    assert image.meanFreq.to(u.MHz).value == pytest.approx(68.55, 1e-2)
     assert image.nside == 256
-    assert image.skymap.data.max() == pytest.approx(33353, 1e0)
+    assert image.skymap.data.max() == pytest.approx(16676.3, 1e-1)
     # Plot
     image.plot(
         db=False,
@@ -132,18 +120,6 @@ def test_xstnearfield(mock_show):
     xst = XST_Data(
         xstfile=join(dirname(__file__), 'test_data/XST.fits')
     )
-    with pytest.raises(IndexError):
-        nf = xst.nearfield(
-            fIndices=np.array([17])
-        )
-    with pytest.raises(IndexError):
-        nf = xst.nearfield(
-            fIndices=np.arange(17)
-        )
-    with pytest.raises(TypeError):
-        nf = xst.nearfield(
-            fIndices=(1, 2)
-        )
     nf = xst.nearfield(
         radius=400,
         npix=32,
@@ -160,7 +136,7 @@ def test_xstnearfield(mock_show):
     assert nf.maxPosition[0].lat.deg == pytest.approx(47.373, 1e-3)
     assert isinstance(nf.nfImage, np.ndarray)
     assert nf.nfImage.shape == (32, 32)
-    assert nf.nfImage[16, 16] == pytest.approx(183852, 1e0)
+    assert nf.nfImage[16, 16] == pytest.approx(14584.4, 1e-1)
     # Plot
     nf.plot()
 # ============================================================= #

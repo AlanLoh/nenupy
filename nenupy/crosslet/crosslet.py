@@ -34,6 +34,7 @@ __all__ = [
 
 
 import numpy as np
+import os
 import astropy.units as un
 from astropy.time import Time
 from astropy.coordinates import SkyCoord
@@ -379,11 +380,12 @@ class Crosslet(object):
         ma1, ma2 = np.tril_indices(self.mas.size, 0)
         auto = ma1 == ma2
         cross = ~auto
+        yx = self.yx
         _xy = np.zeros(
-            (list(self.yx.shape[:-1]) + [ma1.size]),
+            (list(yx.shape[:-1]) + [ma1.size]),
             dtype=np.complex
         )
-        _xy[:, :, auto] = self.yx[:, :, auto].conj()
+        _xy[:, :, auto] = yx[:, :, auto].conj()
         # Get XY correlations
         _xy[:, :, cross] = self.vis[
             np.ix_(
@@ -406,7 +408,7 @@ class Crosslet(object):
             :attr:`~nenupy.crosslet.crosslet.Crosslet.yy`.
             
             .. math::
-                \mathbf{I}(t, \nu) = \left[
+                \mathbf{I}(t, \nu) = \frac{1}{2} \left[
                     \mathbf{X\overline{X}}(t, \nu) + \mathbf{Y\overline{Y}}(t, \nu)
                 \right]
 
@@ -416,7 +418,7 @@ class Crosslet(object):
             
             :type: :class:`~numpy.ndarray`
         """
-        return self.xx + self.yy # 0.5*(self.xx + self.yy)
+        return 0.5*(self.xx + self.yy)
 
 
     @property
@@ -427,7 +429,7 @@ class Crosslet(object):
             :attr:`~nenupy.crosslet.crosslet.Crosslet.yy`.
             
             .. math::
-                \mathbf{I}(t, \nu) = \left[
+                \mathbf{I}(t, \nu) = \frac{1}{2} \left[
                     \mathbf{X\overline{X}}(t, \nu) - \mathbf{Y\overline{Y}}(t, \nu)
                 \right]
 
@@ -437,7 +439,7 @@ class Crosslet(object):
             
             :type: :class:`~numpy.ndarray`
         """
-        return self.xx - self.yy
+        return 0.5*(self.xx - self.yy)
 
 
     @property
@@ -448,7 +450,7 @@ class Crosslet(object):
             :attr:`~nenupy.crosslet.crosslet.Crosslet.yx`.
             
             .. math::
-                \mathbf{U}(t, \nu) = \left[
+                \mathbf{U}(t, \nu) = \frac{1}{2} \left[
                     \mathbf{X\overline{Y}}(t, \nu) + \mathbf{Y\overline{X}}(t, \nu)
                 \right]
 
@@ -458,7 +460,7 @@ class Crosslet(object):
             
             :type: :class:`~numpy.ndarray`
         """
-        return self.xy + self.yx
+        return 0.5*(self.xy + self.yx)
 
 
     @property
@@ -469,7 +471,7 @@ class Crosslet(object):
             :attr:`~nenupy.crosslet.crosslet.Crosslet.yx`.
             
             .. math::
-                \mathbf{V}(t, \nu) = -i \left[
+                \mathbf{V}(t, \nu) = -\frac{i}{2} \left[
                     \mathbf{X\overline{Y}}(t, \nu) - \mathbf{Y\overline{X}}(t, \nu)
                 \right]
 
@@ -479,11 +481,11 @@ class Crosslet(object):
             
             :type: :class:`~numpy.ndarray`
         """
-        return -1.j * (self.xy - self.yx)
+        return -0.5j * (self.xy - self.yx)
 
 
     @property
-    def stokes_fp(self):
+    def stokes_fl(self):
         r""" Computes the fractional linear polarization from
             the cross-correlation statistics Stokes parameters
             :attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_u`,
@@ -523,8 +525,6 @@ class Crosslet(object):
             :type: :class:`~numpy.ndarray`
         """
         return np.abs(self.stokes_v)/self.stokes_i
-    
-    
 
 
     @property
@@ -637,6 +637,7 @@ class Crosslet(object):
                         ma=[17, 44],
                         calibration='default'
                     )
+
         """
         log.info(
             'Beamforming towards az={}, el={}, pol={}'.format(
@@ -742,26 +743,83 @@ class Crosslet(object):
         )
 
 
-    def image(self, resolution=1, fov=50, center=None, fIndices=None, stokes='I'):
+    def image(self, resolution=1, fov=50, center=None, stokes='I'):
         r""" Converts NenuFAR-TV-like data sets containing
-            visibilities (:math:`V(u,v,\nu , t)`) into images
+            visibilities (:math:`\mathcal{V}(u,v,w, \nu , t)`) into images
             :math:`I(l, m, \nu)` phase-centered at the local
             zenith while time averaging the visibilities.
             The Field of View ``fov`` argument defines the
-            diameter angular size (zenith-centered) above which
+            diameter angular size (zenith-centered) beyond which
             the image is not computed.
             
             .. math::
                 I(l, m, \nu) = \int
-                    \langle V(u, v, \nu, t) \rangle_t e^{
-                        2 \pi i \frac{\nu}{c} \left(
-                            \langle u(t) \rangle_t l + \langle v(t) \rangle_t m
-                        \right)
+                    \langle \mathcal{V}(u, v, w, \nu, t) \rangle_t e^{
+                        -2 \pi i \frac{\nu}{c} \left[
+                            \langle u(t) \rangle_t l + \langle v(t) \rangle_t m + \langle w(t) \rangle_t (n - 1)
+                        \right]
                     }
-                    \, du \, dv
+                    \, du \, dv\, dw
+
+            .. note::
+                If re-phasing is selected towards a sky direction
+                :math:`(\alpha, \delta)` (right-ascension and declination)
+                other than the local zenith (i.e. ``center != None``),
+                the cross-correlation data :math:`\mathcal{V}`
+                and the original :math:`(u_{\rm zen},v_{\rm zen},w_{\rm zen})`
+                coordinates are re-phased as follows:
+
+                .. math::
+                    \pmatrix{
+                        u_{\alpha, \delta}(t)\\
+                        v_{\alpha, \delta}(t)\\
+                        w_{\alpha, \delta}(t)
+                    } = \mathcal{R}(\alpha, \delta) \cdot
+                    \mathcal{R}(\alpha_{\rm{zen}, t}, \delta_{\rm{zen}, t}) \cdot
+                    \pmatrix{
+                        u_{\rm zen}(t)\\
+                        v_{\rm zen}(t)\\
+                        w_{\rm zen}(t)
+                    }
+
+                .. math::
+                    \Delta(t) = \mathcal{R}(\alpha_{\rm{zen}, t}, \delta_{\rm{zen}, t})^{\top} \cdot
+                    \left[
+                        \pmatrix{
+                            \sin(\alpha_{\rm{zen}, t})\cos(\delta_{\rm{zen}, t})\\
+                            \cos(\alpha_{\rm{zen}, t})\cos(\delta_{\rm{zen}, t})\\
+                            \sin(\delta_{\rm{zen}, t})
+                        }
+                        -
+                        \pmatrix{
+                            \sin(\alpha)\cos(\delta)\\
+                            \cos(\alpha)\cos(\delta)\\
+                            \sin(\delta)
+                        }
+                    \right] \cdot
+                    \pmatrix{
+                        u_{\rm zen}(t)\\
+                        v_{\rm zen}(t)\\
+                        w_{\rm zen}(t)
+                    }
+
+                .. math::
+                    \mathcal{V}_{\alpha, \delta}(u_{\alpha, \delta}, v_{\alpha, \delta}, w_{\alpha, \delta}, \nu, t) =
+                     \mathcal{V}_{\rm zen} (u_{\rm zen}, v_{\rm zen}, w_{\rm zen}, \nu, t)  e^{
+                        2 \pi i \frac{\nu}{c} \Delta(t)
+                    }
+
+                With the matrix :math:`\mathcal{R}` being:
+                
+                .. math::
+                    \mathcal{R}(a, b) = \pmatrix{
+                        \cos(a), -\sin(a), 0\\
+                        -\sin(a)\sin(b), -\cos(a)\sin(b) \cos(b)\\
+                        \sin(a)\cos(b), \cos(a)\cos(b), \sin(b)
+                    }
 
             :param resolution:
-                Resoltion (in degrees if a `float` is given) of
+                Resolution (in degrees if a `float` is given) of
                 the HEALPix grid (passed to initialize the 
                 :class:`~nenupy.astro.hpxsky.HpxSky` object).
             :type resolution: `float` or :class:`~astropy.units.Quantity`
@@ -769,10 +827,26 @@ class Crosslet(object):
                 Field of view diameter of the image (in degrees
                 if a `float` is given).
             :type fov: `float` or :class:`~astropy.units.Quantity`
+            :param center:
+                If ``None``, the phase center is considered to be
+                the local zenith and no re-phasing is applied.
+                Otherwise, a re-phasing towards the new-phase
+                center is performed. Default is ``None``.
+            :type center: :class:`~astropy.coordinates.SkyCoord`
+            :param stokes:
+                Stokes parameter to compute, one of ``'I'``
+                (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_i`),
+                ``'Q'`` (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_q`),
+                ``'U'`` (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_u`),
+                ``'V'`` (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_v`),
+                ``'FRAC_L'`` (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_fl`),
+                ``'FRAC_V'`` (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_fv`).
+                Default is ``'I'``.
+            :type stokes: `str`
 
             :returns: HEALPix sky object embedding the computed
                 image.
-            :rtype: :class:`~nenupy.astro.hpxsky.HpxSky`
+            :rtype: :class:`~nenupy.crosslet.imageprod.NenuFarTV`
 
             :Example:
                 >>> from nenupy.crosslet import TV_Data
@@ -785,6 +859,7 @@ class Crosslet(object):
 
             .. seealso::
                 :class:`~nenupy.astro.hpxsky.HpxSky`,
+                :class:`~nenupy.crosslet.imageprod.NenuFarTV`,
                 :meth:`~nenupy.astro.hpxsky.HpxSky.lmn`,
                 :meth:`~nenupy.crosslet.uvw.UVW.fromCrosslets`
 
@@ -794,48 +869,53 @@ class Crosslet(object):
                 suited to long observations for which a MS
                 conversion is required before using imaging
                 dedicated softwares.
+
+            .. versionadded:: 1.1.0
+
         """
+        import dask.array as da
+        from dask.diagnostics import ProgressBar
+
         if not isinstance(fov, un.Quantity):
             fov *= un.deg
-        
-        # f_idx = 0 # Frequency index
-        if fIndices is None:
-            fIndices = np.arange(self.freqs.size)
-        else:
-            if not isinstance(fIndices, np.ndarray):
-                raise TypeError(
-                    'fIndices sould be a numpy array'
-                )
-            if any(fIndices > 15):
-                raise IndexError(
-                    'Maximal authorized frequency index is 15'
-                )
-            if fIndices.size > 16:
-                raise IndexError(
-                    'Number of subbands is 16'
-                )
-        
+
+        log.info(
+            'Computing image over {} sub-bands and {} time steps.'.format(
+                self.freqs.size,
+                self.times.size
+            )
+        )
+
         exposure = self.times[-1] - self.times[0]
 
         uvw = UVW.fromCrosslets(self)
         uvw = uvw.uvw
-        
+        log.info(
+            'UVW coordinates computed.'
+        )
+
         if center is None:
             center = eq_zenith(self.times[0] + exposure/2.)
-            # center = SkyCoord([center.ra], [center.dec])
             center = SkyCoord(center.ra, center.dec)
-            rotVis = np.ones((1, 16, 1))
+            rotVis = np.ones((1, self.freqs.size, 1))
+            log.info(
+                'XST data and UVW are kept phased at the local zenith.'
+            )
         else:
             rotVis, uvw = self._rephase(center, uvw)
+            log.info(
+                'XST data and UVW re-phased towards RA={}deg Dec={}deg.'.format(
+                    center.ra.deg,
+                    center.dec.deg
+                )
+            )
 
         # Sky preparation
-        # sky = HpxSky(resolution=resolution)
-        # sky.time = self.times[0] + exposure/2.
         sky = NenuFarTV(
             resolution=resolution,
             time=self.times[0] + exposure/2.,
             stokes=stokes.upper(),
-            meanFreq=np.mean(self.freqs[fIndices]),
+            meanFreq=np.mean(self.freqs),
             phaseCenter=center,
             fov=fov
         )
@@ -843,58 +923,33 @@ class Crosslet(object):
         sky._is_visible *= sky._eq_coords.separation(center) <= fov/2.
 
         l, m, n = sky.lmn(phase_center=center)
-        # # UVW coordinates
-        # u = np.mean( # Mean in time
-        #     uvw[:, :, 0],
-        #     axis=0
-        # )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
-        # v = np.mean(
-        #     uvw[:, :, 1],
-        #     axis=0
-        # )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
-        # w = np.mean( # Mean in time
-        #     uvw[:, :, 2],
-        #     axis=0
-        # )[self.mask_auto]/wavelength(self.freqs[f_idx]).value
-        # # Mulitply (u, v) by (l, m) and compute FT exp
-        # # ul = ft_mul(
-        # #     x=np.tile(u, (l.size, 1)).T,
-        # #     y= np.tile(l, (u.size, 1))
-        # # )
-        # # vm = ft_mul(
-        # #     x=np.tile(v, (m.size, 1)).T,
-        # #     y=np.tile(m, (v.size, 1))
-        # # )
-        # # wn = ft_mul(
-        # #     x=np.tile(w, (n.size, 1)).T,
-        # #     y=np.tile(n-1, (w.size, 1))
-        # # )
-        # ul = u[:, None] * l[None, :]
-        # vm = v[:, None] * m[None, :]
-        # wn = w[:, None] * (n - 1)[None, :]
-        # phase = ft_phase(ul, vm, wn)
-        # # Phase visibilities
-        # vis = np.mean( # Mean in time
-        #     self.stokes_i * rotVis,
-        #     axis=0
-        # )[f_idx, :][self.mask_auto]
-        # im = np.zeros(l.size)
-        # for i in tqdm(range(l.size)):
-        #     im[i] = np.real(
-        #         ft_sum(vis, phase[:, i])
-        #     )
-        # sky.skymap[sky._is_visible] = im
-        # return sky
 
-        import dask.array as da
-        from dask.diagnostics import ProgressBar
+        log.info(
+            'HEALPix image coordinates (l, m, n) of size ({}, 3) prepared.'.format(
+                l.size
+            )
+        )
+
         # UVW coordinates
-        
-        l = da.from_array(l.astype(np.float32))
-        m = da.from_array(m.astype(np.float32))
-        n = da.from_array(n.astype(np.float32))
-        uvw = da.from_array(uvw.astype(np.float32))
-        uvw = uvw[:, None, :, :]/wavelength(self.freqs[fIndices]).value[None, :, None, None]
+        chkImgSize = np.floor(l.size/os.cpu_count())
+        chkVisSize = np.floor(self._ant1.size/os.cpu_count())
+        l = da.from_array(
+            l.astype(np.float32),
+            chunks=chkImgSize
+        )
+        m = da.from_array(
+            m.astype(np.float32),
+            chunks=chkImgSize
+        )
+        n = da.from_array(
+            n.astype(np.float32),
+            chunks=chkImgSize
+        )
+        uvw = da.from_array(
+            uvw.astype(np.float32),
+            chunks=(self.times.size, chkVisSize, 3)
+        )
+        uvw = uvw[:, None, :, :]/wavelength(self.freqs).value[None, :, None, None]
         u = np.mean( # Mean in time
             uvw[..., 0],
             axis=0
@@ -917,8 +972,16 @@ class Crosslet(object):
         ) # (nfreqs, nvis, npix)
 
         # Phase visibilities
+        visib = da.from_array(
+            self._getStokes(stokes).astype(np.complex64),
+            chunks=(self.times.size, 1, chkVisSize)
+        )
+        rotat = da.from_array(
+            rotVis.astype(np.complex64),
+            chunks=(self.times.size, 1, chkVisSize)
+        )
         vis = np.mean( # Mean in time
-            da.from_array(self._getStokes(stokes)[:, fIndices, :].astype(np.complex64)) * da.from_array(rotVis[:, fIndices, :].astype(np.complex64)),
+            visib * rotat,
             axis=0
         )[:, self.mask_auto] # (nfreqs, nvis)
         
@@ -932,35 +995,49 @@ class Crosslet(object):
             ),
             axis=0
         )
+        log.info(
+            'Dirty image of Stokes {} computation...'.format(
+                stokes.upper()
+            )
+        )
         with ProgressBar():
             sky.skymap[sky._is_visible] = dirtyImage.compute()
         return sky
 
 
-    def nearfield(self, radius=400, npix=64, sources=[], fIndices=None, stokes='I'):
+    def nearfield(self, radius=400, npix=64, sources=[], stokes='I'):
         """
+            :param stokes:
+                Stokes parameter to compute, one of ``'I'``
+                (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_i`),
+                ``'Q'`` (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_q`),
+                ``'U'`` (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_u`),
+                ``'V'`` (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_v`),
+                ``'FRAC_L'`` (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_fl`),
+                ``'FRAC_V'`` (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_fv`).
+                Default is ``'I'``.
+            :type stokes: `str`
+
+            .. versionadded:: 1.1.0
+
         """
-        # Frequency indices
-        if fIndices is None:
-            fIndices = np.arange(self.freqs.size)
-        else:
-            if not isinstance(fIndices, np.ndarray):
-                raise TypeError(
-                    'fIndices sould be a numpy array'
-                )
-            if any(fIndices > 15):
-                raise IndexError(
-                    'Maximal authorized frequency index is 15'
-                )
-            if fIndices.size > 16:
-                raise IndexError(
-                    'Number of subbands is 16'
-                )
+        import dask.array as da
+        from dask.diagnostics import ProgressBar
+
+        log.info(
+            'Near-field over {} sub-bands and {} time steps (radius={}m, npix={}).'.format(
+                self.freqs.size,
+                self.times.size,
+                radius,
+                npix
+            )
+        )
 
         # Mini-Array positions in ENU coordinates
         mapos_l93 = getMAL93(self.mas)
         mapos_etrs = l93_to_etrs(mapos_l93)
         maposENU = etrs_to_enu(mapos_etrs)
+        chkVisSize = np.floor(self._ant1[self.mask_auto].size/os.cpu_count())
 
         # Mean time of observation
         obsTime = self.times[0] + (self.times[-1] - self.times[0])/2.
@@ -977,13 +1054,36 @@ class Crosslet(object):
             )
         )
         gridDelays = groundDistances[self._ant1] - groundDistances[self._ant2]
+        gridDelays = da.from_array(
+            gridDelays[self.mask_auto].astype(np.float32),
+            chunks=(
+                chkVisSize,
+                npix,
+                npix
+            )
+        )
 
+        log.info(
+            'Computing near-field in Stokes {} from {}...'.format(
+                stokes.upper(),
+                self.xstfile
+            )
+        )
         # Compute the near-field image
-        visData = np.mean(self._getStokes(stokes)[:, fIndices, :], axis=0) # mean in time
+        visData = np.mean(
+            da.from_array(
+                self._getStokes(stokes).astype(np.complex64),
+                chunks=(
+                    self.times.size,
+                    self.freqs.size,
+                    chkVisSize
+                )
+            ),
+            axis=0
+        )[:, self.mask_auto] # mean in time 
         nfImage = self._nearFieldImage(
             visData,
-            gridDelays,
-            fIndices
+            gridDelays
         )
 
         # Simulate sources to get their imprint
@@ -997,7 +1097,19 @@ class Crosslet(object):
             )
             if altazSrc.alt.deg <= 10:
                 # Don't take into account sources too low
+                log.info(
+                    'Source {} elevation is {}<=10deg: not taken into account.'.format(
+                        altazSrc.alt.deg,
+                        src
+                    )
+                )
                 continue
+            log.info(
+                'Simulating visibilities of {} in Stokes {}.'.format(
+                    src,
+                    stokes.upper(),
+                )
+            )
             # Projection from AltAz to ENU vector
             cosAz = np.cos(altazSrc.az.rad)
             sinAz = np.sin(altazSrc.az.rad)
@@ -1010,23 +1122,37 @@ class Crosslet(object):
                 maposENU[self._ant1] - maposENU[self._ant2],
                 toENU
             )
+            srcDelays = da.from_array(
+                srcDelays[self.mask_auto, :].astype(np.float32),
+                chunks=(
+                    chkVisSize,
+                    1
+                )
+            )
             # Simulate visibilities
-            lamb = wavelength(self.freqs[fIndices]).value
-            srcVis = ft_delay(srcDelays/lamb)
+            lamb = wavelength(self.freqs).value
+            # srcVis = ft_delay(srcDelays/lamb)
+            srcVis = np.exp(2.j * np.pi * (srcDelays/lamb))
             srcVis = np.swapaxes(srcVis, 1, 0)
+            log.info(
+                'Computing near-field imprint of {} in Stokes {}...'.format(
+                    src,
+                    stokes.upper(),
+                )
+            )
             simuSources[src] = self._nearFieldImage(
                 srcVis,
-                gridDelays,
-                fIndices
+                gridDelays
             )
 
         return NearField(
             nfImage=nfImage,
             antNames=self.mas,
-            meanFreq=np.mean(self.freqs[fIndices]),
+            meanFreq=np.mean(self.freqs),
             obsTime=obsTime,
             simuSources=simuSources,
-            radius=radius*un.m
+            radius=radius*un.m,
+            stokes=stokes.upper()
         )
 
 
@@ -1043,8 +1169,8 @@ class Crosslet(object):
             stokesData = self.stokes_u
         elif stokes.upper() == 'V':
             stokesData = self.stokes_v
-        elif stokes.upper() == 'FRAC_P':
-            stokesData = self.stokes_fp
+        elif stokes.upper() == 'FRAC_L':
+            stokesData = self.stokes_fl
         elif stokes.upper() == 'FRAC_V':
             stokesData = self.stokes_fv
         else:
@@ -1099,10 +1225,6 @@ class Crosslet(object):
             ),
             phaseCenter2Origin
         ) # (3, 3, ntimes)
-        # self.phaseCenter = SkyCoord(
-        #     ra=np.ones(self.times.size) * newPhaseCenter.ra,
-        #     dec=np.ones(self.times.size) * newPhaseCenter.dec
-        # )
         rotUVW = np.matmul(
             np.expand_dims(
                 (phaseCenter2Origin[2, :] - origin2NewPhaseCenter[2, :]).T,
@@ -1129,18 +1251,27 @@ class Crosslet(object):
         return rotVis, newUVW
 
 
-    def _nearFieldImage(self, vis, delays, fIndices):
+    def _nearFieldImage(self, vis, delays):
         """ vis = [freq, nant, nant]
         """
-        assert self.freqs[fIndices].size == vis.shape[0],\
+        from dask.diagnostics import ProgressBar
+
+        assert self.freqs.size == vis.shape[0],\
             'Problem in visibility dimension {}'.format(vis.shape)
+
         nearfield = 0
-        for i in range(self.freqs[fIndices].size): 
+        for i in range(self.freqs.size): 
             vi = vis[i][:, None, None]
-            lamb = wavelength(self.freqs[fIndices][i])
-            nearfield += vi * ft_delay(delays/lamb)
-        nearfield /= self.freqs[fIndices].size
+            lamb = wavelength(self.freqs[i]).value
+            # nearfield += vi * ft_delay(delays/lamb)
+            nearfield += vi * np.exp(2.j * np.pi * (delays/lamb))
+
+        nearfield /= self.freqs.size
         nearfield = np.nanmean(np.abs(nearfield), axis=0)
-        return nearfield
+
+        with ProgressBar():
+            nf = nearfield.compute()
+
+        return nf
 # ============================================================= #
 

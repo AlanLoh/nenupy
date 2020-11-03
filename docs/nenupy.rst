@@ -20,6 +20,7 @@ Subpackages
 
 .. toctree::
 
+   nenupy.base
    nenupy.miscellaneous
 
 

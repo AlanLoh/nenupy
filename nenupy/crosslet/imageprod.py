@@ -80,6 +80,9 @@ buildingsENU = np.array([
 # ============================================================= #
 class NenuFarTV(HpxSky):
     """
+
+        .. versionadded:: 1.1.0
+
     """
 
     def __init__(
@@ -308,7 +311,6 @@ class NenuFarTV(HpxSky):
         """
         if None in [
                 self.nside,
-                self.analogPointing,
                 self.meanFreq,
                 self.time
             ]:
@@ -369,6 +371,9 @@ class NenuFarTV(HpxSky):
 # ============================================================= #
 class NearField(object):
     """
+
+        .. versionadded:: 1.1.0
+
     """
 
     def __init__(
@@ -378,7 +383,8 @@ class NearField(object):
         meanFreq,
         obsTime,
         simuSources,
-        radius
+        radius,
+        stokes
         ):
         self.nfImage = nfImage
         self.antNames = antNames
@@ -386,6 +392,7 @@ class NearField(object):
         self.obsTime = obsTime
         self.simuSources = simuSources
         self.radius = radius
+        self.stokes = stokes
 
 
     # --------------------------------------------------------- #
@@ -612,7 +619,8 @@ class NearField(object):
             simuSources={
                 hdu.header['SOURCE']: hdu.data for hdu in hdus if hdu.name not in reservedNames
             },
-            radius=hdus['NEAR-FIELD'].header['RADIUS']*u.m
+            radius=hdus['NEAR-FIELD'].header['RADIUS']*u.m,
+            stokes=hdus['NEAR-FIELD'].header['STOKES']
         )
         return nf
 
@@ -650,6 +658,7 @@ class NearField(object):
             self.meanFreq.to(u.MHz).value,
             'Mean observing frequency in MHz.'
         )
+        nearfieldHeader['STOKES'] = self.stokes.upper()
         nearfieldHeader['DESCRIPT'] = 'Near-Field image.'
         nearfieldHeader['RADIUS'] = (
             self.radius.value,
@@ -696,6 +705,7 @@ class NearField(object):
                 self.meanFreq.to(u.MHz).value,
                 'Mean observing frequency in MHz.'
             )
+            srcHeader['STOKES'] = self.stokes.upper()
             srcHeader['SOURCE'] = (
                 src,
                 'Name of the source imprint on the near-field'
@@ -794,7 +804,7 @@ class NearField(object):
             format='%.2f'
         )
         cb.solids.set_edgecolor('face')
-        cb.set_label('dB')
+        cb.set_label('dB (Stokes {})'.format(self.stokes))
         # NenuFAR array info
         ax.scatter(
             maposENU[:, 0],

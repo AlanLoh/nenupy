@@ -1,7 +1,7 @@
 .. _tuto_tv:
 
-NenuFAR XST Imaging
-===================
+XST Imaging
+===========
 
 NenuFAR produces cross-correlation statistics data called XST that can be converted to Measurement Set format suited for radio imaging softwares (this is the 'proto-imager' mode, in contrast with the proper imager mode using data from the NICKEL correlator).
 
@@ -12,7 +12,7 @@ NenuFAR Cross-Correlation Statistics come in two flavours, namely XST FITS files
 The following demonstrates how to open XST-like files and analyze them to compute a near-field image and an image such as outputed for the NenuFAR-TV display.
 
 .. warning::
-    The following operations are designed to suit small data sets, typically of the NenuFAR-TV file volume (i.e., a few tens/hundred of time steps and 16 sub-bands). Larger data sets should be imaged thanks to the appropriate softwares.
+    The following operations are designed to suit small data sets, typically of the NenuFAR-TV file volume (i.e., a few tens/hundred of time steps and 16 sub-bands). Larger data sets should be imaged with the appropriate softwares.
 
 Near-field
 ----------
@@ -85,45 +85,15 @@ In order to disentangle natural sky signals from artifical ones, we can, in addi
 From now on, ``nf`` is associated with simulated source imprints stored in the attribute :attr:`~nenupy.crosslet.imageprod.NearField.simuSources`, a dictionnary of normalized near-field astronomical source imprints:
 
 >>> nf.simuSources
-{'Cyg A': array([[0.36973997, 0.36983056, 0.36919056, ..., 0.30414475, 0.30303653,
-         0.30220664],
-        [0.36962287, 0.36993949, 0.36982368, ..., 0.30314061, 0.30223818,
-         0.30181957],
-        [0.36955059, 0.36985458, 0.37009959, ..., 0.30227907, 0.30182237,
-         0.3017771 ],
+{'Cyg A': array([[0.36973997, 0.36983056, ..., 0.30303653, 0.30220664],
         ...,
-        [0.81443766, 0.82418433, 0.83311626, ..., 0.30295421, 0.30231438,
-         0.30172021],
-        [0.82800777, 0.83682126, 0.84485958, ..., 0.30372235, 0.30294384,
-         0.30237564],
-        [0.84027317, 0.84833398, 0.85556705, ..., 0.30453242, 0.30367309,
-         0.30292642]]),
- 'Cas A': array([[0.39770227, 0.39728737, 0.39669491, ..., 0.32466963, 0.32404009,
-         0.32333835],
-        [0.39794241, 0.39769444, 0.3971897 , ..., 0.32409922, 0.3233896 ,
-         0.32276444],
-        [0.39812954, 0.39798604, 0.39765936, ..., 0.32344908, 0.32280453,
-         0.32215288],
+        [0.84027317, 0.84833398, ..., 0.30367309, 0.30292642]]),
+ 'Cas A': array([[0.39770227, 0.39728737, ..., 0.32404009, 0.32333835],
         ...,
-        [0.68166412, 0.69039851, 0.69869612, ..., 0.3144044 , 0.31394921,
-         0.31343386],
-        [0.69129802, 0.6993566 , 0.70661281, ..., 0.31543457, 0.31454064,
-         0.31405954],
-        [0.69990683, 0.70700826, 0.71300481, ..., 0.3170047 , 0.31558797,
-         0.31470316]]),
- 'Tau A': array([[0.35457077, 0.35651137, 0.35825718, ..., 0.59541145, 0.5925085 ,
-         0.58966196],
-        [0.35300826, 0.3552634 , 0.35712059, ..., 0.59261029, 0.58971726,
-         0.58674213],
-        [0.35122797, 0.35377571, 0.35592163, ..., 0.58978045, 0.58675979,
-         0.58357418],
+        [0.69990683, 0.70700826, ..., 0.31558797, 0.31470316]]),
+ 'Tau A': array([[0.35457077, 0.35651137, ..., 0.5925085 , 0.58966196],
         ...,
-        [0.34103124, 0.34246305, 0.34378566, ..., 0.39480954, 0.39480443,
-         0.39486838],
-        [0.34224804, 0.34358846, 0.34491409, ..., 0.39470688, 0.39461043,
-         0.3945811 ],
-        [0.3434035 , 0.34473719, 0.34638141, ..., 0.39481484, 0.39456978,
-         0.39444474]])}
+        [0.3434035 , 0.34473719, ..., 0.39456978, 0.39444474]])}
 
 Although the ``sources`` argument of the method :meth:`~nenupy.crosslet.crosslet.Crosslet.nearfield` was filled with four sources to simulate, :attr:`~nenupy.crosslet.imageprod.NearField.simuSources` only contains the near-field imprints of three of them, Virgo A discarded. This is because Vir A was below 10 degrees elevation during the observation and was therefore not taken into account.
 

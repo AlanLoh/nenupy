@@ -5,6 +5,10 @@
 """
     .. inheritance-diagram:: nenupy.crosslet.xstdata nenupy.crosslet.tvdata
         :parts: 3
+
+    .. inheritance-diagram:: nenupy.crosslet.imageprod
+        :parts: 3
+
 """
 
 
