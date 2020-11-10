@@ -14,11 +14,42 @@
 
     This enables *beamforming* with the 
     :meth:`~nenupy.crosslet.crosslet.Crosslet.beamform` method
-    (see also :ref:`tuto_beamforming` for a detailed tutorial)
-    and *imaging* with the
+    (see also :ref:`tuto_beamforming` for a detailed tutorial),
+    *imaging* with the
     :meth:`~nenupy.crosslet.crosslet.Crosslet.image` method
+    and *near-field computing* with the
+    :meth:`~nenupy.crosslet.crosslet.Crosslet.nearfield` method
     (see also :ref:`tuto_tv` for a detailed tutorial) from 
     cross-correlation statistics data.
+
+    Any :class:`~nenupy.crosslet.crosslet.Crosslet` object can be
+    sub-selected both in time (:attr:`~nenupy.crosslet.crosslet.Crosslet.timeRange`)
+    and frequency (:attr:`~nenupy.crosslet.crosslet.Crosslet.freqRange`)
+    prior to applying any operation, e.g.:
+
+    .. code-block:: python
+        :emphasize-lines: 9, 17
+
+        >>> from nenupy.crosslet import XST_Data
+        
+        >>> xst = XST_Data('/path/to/XST.fits')
+        
+        >>> print(xst.freqMin, xst.freqMax)
+        68.5546875 MHz 79.296875 MHz
+        >>> xst.freqs
+        [68.554688, 73.242188, 73.4375, ..., 79.296875] MHz
+        >>> xst.freqRange = [73.1, 73.3]
+        >>> xst.freqs
+        [73.242188] MHz
+        
+        >>> print(xst.timeMin.isot, xst.timeMax.isot)
+        2020-07-08T12:00:01 2020-07-08T12:00:30
+        >>> xst.times
+        array(['2020-07-08T12:00:01', '2020-07-08T12:00:02', ...])
+        >>> xst.timeRange = ['2020-07-08T12:00:01', '2020-07-08T12:00:01.5']
+        >>> xst.times
+        array(['2020-07-08T12:00:01'])
+
 """
 
 
@@ -1006,7 +1037,50 @@ class Crosslet(object):
 
 
     def nearfield(self, radius=400, npix=64, sources=[], stokes='I'):
-        """
+        r""" Computes the Near-field image from the cross-correlation
+            statistics data :math:`\mathcal{V}`.
+
+            The distances between each Mini-Array :math:`{\rm MA}_i`
+            and the ground positions :math:`Delta` is:
+
+            .. math::
+                d_{\rm{MA}_i} (x, y) = \sqrt{
+                    ({\rm MA}_{i, x} - \Delta_x)^2 + ({\rm MA}_{i, y} - \Delta_y)^2 + \left( {\rm MA}_{i, z} - \sum_j \frac{{\rm MA}_{j, z}}{n_{\rm MA}} - 1 \right)^2
+                } 
+
+            Then, the near-field image :math:`n_f` can be retrieved
+            as follows (:math:`k` and :math:`l` being two distinct
+            Mini-Arrays):
+
+            .. math::
+                n_f (x, y) = \sum_{k, l} \left| \sum_{\nu} \langle \mathcal{V}_{\nu, k, l}(t) \rangle_t e^{2 \pi i \left( d_{{\rm MA}_k} - d_{{\rm MA}_l} \right) (x, y) \frac{\nu}{c}} \right|
+
+            .. note::
+                To simulate astrophysical source of brightness :math:`\mathcal{B}`
+                footprint on the near-field, its visibility per baseline
+                of Mini-Arrays :math:`k` and :math:`l` are computed as:
+
+                .. math::
+                    \mathcal{V}_{{\rm simu}, k, l} = \mathcal{B} e^{2 \pi i \left( \mathbf{r}_k - \mathbf{r}_l \right) \cdot \mathbf{u} \frac{\nu}{c}}
+
+                with :math:`\mathbf{r}` the ENU position of the Mini-Arrays,
+                :math:`\mathbf{u} = \left( \cos(\theta) \sin(\phi), \cos(\theta) \cos(\phi), sin(\theta) \right)`
+                the ground projection vector (in East-North-Up coordinates),
+                (:math:`\phi` and :math:`\theta` are the source horizontal
+                coordinates azimuth and elevation respectively).
+    
+
+            :param radius:
+                Radius in meters of the ground image. Default is 400m.
+            :type radius: `float`
+            :param npix:
+                Number of pixels of the image size. Default is 64.
+            :type npix: `int`
+            :param sources:
+                List of source names for which their near-field footprint
+                may be computed. Only sources above 10 deg elevation
+                will be considered.
+            :type sources: `list`
             :param stokes:
                 Stokes parameter to compute, one of ``'I'``
                 (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_i`),
@@ -1017,6 +1091,19 @@ class Crosslet(object):
                 ``'FRAC_V'`` (:attr:`~nenupy.crosslet.crosslet.Crosslet.stokes_fv`).
                 Default is ``'I'``.
             :type stokes: `str`
+
+            :returns: Near-Field object. 
+            :rtype: :class:`~nenupy.crosslet.imageprod.NearField`
+
+            :Example:
+                >>> from nenupy.crosslet import TV_Data
+                >>> tv = TV_Data('20191204_132113_nenufarTV.dat')
+                >>> nf = tv.nearfield(
+                        radius=400,
+                        npix=32,
+                        sources=['Cyg A', 'Cas A', 'Vir A', 'Tau A'],
+                        stokes='i'
+                    )
 
             .. versionadded:: 1.1.0
 

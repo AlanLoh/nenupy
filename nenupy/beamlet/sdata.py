@@ -427,6 +427,35 @@ class SData(object):
 
 
     @property
+    def medianFProfile(self):
+        """
+            .. versionadded:: 1.1.0
+
+        """
+        return  SData(
+            data=np.expand_dims(np.nanmedian(self.data, axis=0), 0),
+            time=Time([(self.time[0] + (self.time[-1] - self.time[0])/2).isot]),
+            freq=self.freq,
+            polar=self.polar
+        )
+
+
+    @property
+    def medianTProfile(self):
+        """
+            .. versionadded:: 1.1.0
+
+        """
+        return  SData(
+            data=np.expand_dims(np.nanmedian(self.data, axis=1), 1),
+            time=self.time,
+            freq=[np.nanmean(self.freq.to(u.MHz).value)]*u.MHz,
+            polar=self.polar
+        )
+    
+
+
+    @property
     def background(self):
         """
         """
@@ -488,18 +517,6 @@ class SData(object):
         # Make sure everything is correctly set up
         if 'cmap' not in kwargs.keys():
             kwargs['cmap'] = 'YlGnBu_r'
-        if 'vmin' not in kwargs.keys():
-            kwargs['vmin'] = np.nanpercentile(dynspec, 5)
-        elif kwargs['vmin'] is None:
-            kwargs['vmin'] = np.nanpercentile(dynspec, 5)
-        else:
-            pass
-        if 'vmax' not in kwargs.keys():
-            kwargs['vmax'] = np.nanpercentile(dynspec, 95)
-        elif kwargs['vmax'] is None:
-            kwargs['vmax'] = np.nanpercentile(dynspec, 95)
-        else:
-            pass
         if 'title' not in kwargs.keys():
             kwargs['title'] = None
         if 'cblabel' not in kwargs.keys():
@@ -508,20 +525,52 @@ class SData(object):
             kwargs['figsize'] = (15, 10)
         
         fig = plt.figure(figsize=kwargs['figsize'])
-        plt.pcolormesh(
-            self.datetime,
-            self.freq.to(u.MHz).value,
-            dynspec,
-            cmap=kwargs['cmap'],
-            vmin=kwargs['vmin'],
-            vmax=kwargs['vmax']
-        )
-        cbar = plt.colorbar()#format='%.1e')
-        cbar.set_label(kwargs['cblabel'])
-        plt.xlabel(
-            f'Time (since {self.time[0].isot})'
-        )
-        plt.ylabel('Frequency (MHz)')
+        if len(dynspec.shape) == 1:
+            if dynspec.size == self.datetime.size:
+                plt.plot(
+                    self.datetime,
+                    dynspec
+                )
+                plt.ylim((kwargs.get('vmin', None), kwargs.get('vmax', None)))
+                plt.xlabel(
+                    f'Time (since {self.time[0].isot})'
+                )
+                plt.ylabel(kwargs['cblabel'])
+            elif dynspec.size == self.freq.size:
+                plt.plot(
+                    self.freq.to(u.MHz).value,
+                    dynspec
+                )
+                plt.ylim((kwargs.get('vmin', None), kwargs.get('vmax', None)))
+                plt.xlabel('Frequency (MHz)')
+                plt.ylabel(kwargs['cblabel'])
+        else:
+            if 'vmin' not in kwargs.keys():
+                kwargs['vmin'] = np.nanpercentile(dynspec, 5)
+            elif kwargs['vmin'] is None:
+                kwargs['vmin'] = np.nanpercentile(dynspec, 5)
+            else:
+                pass
+            if 'vmax' not in kwargs.keys():
+                kwargs['vmax'] = np.nanpercentile(dynspec, 95)
+            elif kwargs['vmax'] is None:
+                kwargs['vmax'] = np.nanpercentile(dynspec, 95)
+            else:
+                pass
+            plt.pcolormesh(
+                self.datetime,
+                self.freq.to(u.MHz).value,
+                dynspec,
+                cmap=kwargs['cmap'],
+                vmin=kwargs['vmin'],
+                vmax=kwargs['vmax']
+            )
+            cbar = plt.colorbar()#format='%.1e')
+            cbar.set_label(kwargs['cblabel'])
+            plt.xlabel(
+                f'Time (since {self.time[0].isot})'
+            )
+            plt.ylabel('Frequency (MHz)')
         plt.title(kwargs['title'])
         
         # Save or show
