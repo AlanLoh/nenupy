@@ -735,6 +735,12 @@ class NearField(object):
 
         hduList.writeto(filename, overwrite=True)
 
+        log.info(
+            'NearField saved in {}.'.format(
+                filename
+            )
+        )   
+
 
     def plot(self, figname=''):
         """
@@ -857,6 +863,11 @@ class NearField(object):
                 transparent=True,
                 bbox_inches='tight'
             )
+            log.info(
+                'Display of NearField {} saved.'.format(
+                    figname
+                )
+            )   
         plt.close('all')
 
         return

@@ -1151,9 +1151,8 @@ class Crosslet(object):
         )
 
         log.info(
-            'Computing near-field in Stokes {} from {}...'.format(
-                stokes.upper(),
-                self.xstfile
+            'Computing near-field in Stokes {}...'.format(
+                stokes.upper()
             )
         )
         # Compute the near-field image
