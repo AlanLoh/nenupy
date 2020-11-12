@@ -372,6 +372,13 @@ class SData(object):
 
 
     @property
+    def shape(self):
+        """
+        """
+        return self.data.shape
+    
+
+    @property
     def mjd(self):
         """ Return MJD dates
 
@@ -509,6 +516,7 @@ class SData(object):
     # ------------------------ Methods ------------------------ #
     def plot(self, figname=None, db=True, **kwargs):
         """
+            kwargs keys: cmap, title, cblabel, figsize, altaza, vmin, vmax
         """
         import matplotlib.pyplot as plt
 
@@ -531,6 +539,12 @@ class SData(object):
                     self.datetime,
                     dynspec
                 )
+                if 'altaza' in kwargs.keys():
+                    ptimes = kwargs['altaza'].pointingTimes
+                    for ptime in ptimes:
+                        if (ptime < self.datetime[0]) or (ptime > self.datetime[-1]):
+                            continue
+                        plt.axvline(ptime.datetime, linestyle='-.', color='black')
                 plt.ylim((kwargs.get('vmin', None), kwargs.get('vmax', None)))
                 plt.xlabel(
                     f'Time (since {self.time[0].isot})'
@@ -565,6 +579,12 @@ class SData(object):
                 vmin=kwargs['vmin'],
                 vmax=kwargs['vmax']
             )
+            if 'altaza' in kwargs.keys():
+                    ptimes = kwargs['altaza'].pointingTimes
+                    for ptime in ptimes:
+                        if (ptime < self.datetime[0]) or (ptime > self.datetime[-1]):
+                            continue
+                        plt.axvline(ptime.datetime, linestyle='-.', color='black')
             cbar = plt.colorbar()#format='%.1e')
             cbar.set_label(kwargs['cblabel'])
             plt.xlabel(

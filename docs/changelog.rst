@@ -22,6 +22,7 @@ Changelog
 * Addition of Earth coordinates converters (:mod:`~nenupy.astro.astro`: :func:`~nenupy.astro.astro.l93_to_etrs`, :func:`~nenupy.astro.astro.geo_to_etrs`, :func:`~nenupy.astro.astro.etrs_to_geo`, :func:`~nenupy.astro.astro.etrs_to_enu`, :func:`~nenupy.astro.astro.enu_to_etrs`).
 * Near-field computation added for Cross-Correlation Statistics data (:meth:`~nenupy.crosslet.crosslet.Crosslet.nearfield`).
 * Easy acces to LOFAR Skymodel (:class:`~nenupy.skymodel.pointsource.LofarSkymodel`).
+* SST reading (:class:`~nenupy.beamlet.sstdata.SST_Data`)
 
 
 

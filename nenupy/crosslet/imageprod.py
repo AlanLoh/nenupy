@@ -243,10 +243,16 @@ class NenuFarTV(HpxSky):
         if 'PARTIAL' in header['OBJECT']:
             tv.skymap[hppix.mask_bad(tv.skymap)] = np.nan
         
+        log.info(
+            'TV instance generated from an image of {} cells (nside={}).'.format(
+                tv.skymap.size,
+                tv.nside
+            )
+        )
         return tv
 
 
-    def saveFits(self, filename, partial):
+    def saveFits(self, filename, partial=False):
         """
         """
         header = [
@@ -301,6 +307,11 @@ class NenuFarTV(HpxSky):
             contour=contours,
             text=srcText,
             figname=figname
+        )
+        log.info(
+            'Display of TV image {} saved.'.format(
+                figname
+            )
         )
 
 

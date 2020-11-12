@@ -28,6 +28,7 @@ import numpy as np
 
 from nenupy.base import MiniArrays
 from nenupy.beamlet import SData
+from nenupy.observation import AnalogPointing
 
 import logging
 log = logging.getLogger(__name__)
@@ -43,10 +44,11 @@ class SST_Data(object):
         :type sstfile: str
     """
 
-    def __init__(self, filename, **kwargs):
+    def __init__(self, filename, altazA=None, **kwargs):
         self._autoUpdate = kwargs.get('autoUpdate', True)
         self.obsProperties = {}
         self.filename = filename
+        self.altazA = altazA
         self._freqRange = None
         self._timeRange = None
         self._ma = None
@@ -89,6 +91,19 @@ class SST_Data(object):
                 )
             self._fillObsDict(fi)
         self._filename = f
+
+
+    @property
+    def altazA(self):
+        """
+        """
+        return self._altazA
+    @altazA.setter
+    def altazA(self, a):
+        if a is None:
+            self._altazA = None
+        else:
+            self._altazA = AnalogPointing(filename=a)
 
 
     @property
@@ -224,7 +239,11 @@ class SST_Data(object):
                     getattr(self, key)
                 )
             )
+
+        sdata = None
+
         for sstfile in self.filename:
+
             if (self.timeRange[0] > self.obsProperties[sstfile]['tMax'])\
                 or (self.timeRange[1] < self.obsProperties[sstfile]['tMin'])\
                 or (self.freqRange[0] > self.obsProperties[sstfile]['fMax'])\
@@ -267,18 +286,17 @@ class SST_Data(object):
                 polar=self.obsProperties[sstfile]['polars'][pMask]
             )
 
-            if 'sdata' in locals():
-                # Concatenate the data
-                sdata = sdata | sdataTemp
-            else:
+            if sdata is None:
                 # Initialize the SData instance
                 sdata = sdataTemp
+            else:
+                # Concatenate the data
+                sdata = sdata | sdataTemp
 
-        if not 'sdata' in locals():
+        if sdata is None:
             log.warning(
                 'Empty selection.'
             )
-            return
         return sdata
 
 

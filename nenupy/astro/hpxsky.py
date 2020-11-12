@@ -52,6 +52,9 @@ from healpy.fitsfunc import write_map
 import nenupy
 from nenupy.instru import nenufar_loc
 
+import logging
+log = logging.getLogger(__name__)
+
 
 # ============================================================= #
 # -------------------------- HpxSky --------------------------- #
@@ -118,6 +121,14 @@ class HpxSky(object):
         self._resolution = r
         
         self._get_nside()
+
+        self._resolution = Angle(
+            angle=nside2resol(
+                self.nside,
+                arcmin=True
+            ),
+            unit=u.arcmin
+        )
 
         self._get_eq_coords()
         return
@@ -744,6 +755,13 @@ class HpxSky(object):
             dtype=self.skymap.dtype,
             extra_header=hd,
             partial=partial
+        )
+        log.info(
+            'HEALPix image of {} cells (nside={}) saved in `{}`.'.format(
+                map2write.size,
+                self.nside,
+                filename
+            )
         )
         return
 

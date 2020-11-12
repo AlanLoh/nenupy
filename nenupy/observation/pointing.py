@@ -17,16 +17,19 @@ __email__ = 'alan.loh@obspm.fr'
 __status__ = 'Production'
 __all__ = [
     'readPointing',
-    'plotPointing'
+    'plotPointing',
+    'AnalogPointing'
 ]
 
 
+import os
 import numpy as np
 from astropy.time import Time, TimeDelta
 import matplotlib.pyplot as plt
 from os.path import basename, isfile
 
 from nenupy.astro import altazProfile, ho_coord, getSource, toAltaz
+from nenupy.miscellaneous import accepts
 
 
 # ============================================================= #
@@ -34,6 +37,8 @@ from nenupy.astro import altazProfile, ho_coord, getSource, toAltaz
 # ============================================================= #
 def readPointing(pointing_file=None):
     """
+        .. versionadded:: 1.1.0
+
     """
     if pointing_file is None:
         return None
@@ -57,16 +62,22 @@ def readPointing(pointing_file=None):
                     'el_eff'
                 ),
                 'formats': (
-                    'S20',
+                    'U20',
                     'i4',
                     'f4',
                     'f4',
                     'f4',
                     'f4',
-                    'S5',
+                    'U5',
                     'f4'
                 )
             }
+        )
+        pointing['freq'] = list(
+            map(
+                lambda x: x.replace('MHz', ''),
+                pointing['freq']
+            )
         )
     elif pointing_file.endswith('.altazB'):
         pointing = np.loadtxt(
@@ -84,7 +95,7 @@ def readPointing(pointing_file=None):
                     'n',
                 ),
                 'formats': (
-                    'S20',
+                    'U20',
                     'i4',
                     'i4',
                     'f4',
@@ -108,6 +119,8 @@ def readPointing(pointing_file=None):
 # ============================================================= #
 def plotPointing(altaza=None, altazb=None, sourceName=None):
     """
+        .. versionadded:: 1.1.0
+
     """
     fig, axs = plt.subplots(
         2 if sourceName is None else 3,
@@ -288,5 +301,150 @@ def plotPointing(altaza=None, altazb=None, sourceName=None):
     axs[1].set_ylabel('Elevation (deg)')
     axs[1].legend()
     plt.show()
+# ============================================================= #
+
+
+# ============================================================= #
+# ---------------------- AnalogPointing ----------------------- #
+# ============================================================= #
+class AnalogPointing(object):
+    """
+
+        .. versionadded:: 1.1.0
+
+    """
+
+    def __init__(self, filename, **kwargs):
+        self._autoUpdate = kwargs.get('autoUpdate', True)
+        self.pointingOrders = {}
+        self.filename = filename
+
+
+    def __add__(self, other):
+        if not isinstance(other, self.__class__):
+            raise TypeError('Not the same class.')
+        new = AnalogPointing(
+            filename=self.filename + other.filename,
+            autoUpdate=False
+        )
+        new.pointingOrders = {**self.pointingOrders, **other.pointingOrders}
+        return new
+
+
+    def __radd__(self, other):
+        if other==0:
+            return self
+        else:
+            return self.__add__(other)
+
+
+    # --------------------------------------------------------- #
+    # --------------------- Getter/Setter --------------------- #
+    @property
+    def filename(self):
+        """
+        """
+        return sorted(self._filename)
+    @filename.setter
+    def filename(self, f):
+        if not isinstance(f, list):
+            f = [f]
+        for fi in f:
+            self._fill(fi)
+        self._filename = f
+
+
+    @property
+    def tMax(self):
+        """
+        """
+        return max([max(self.pointingOrders[f]['time']) for f in self.pointingOrders.keys()])
+
+
+    @property
+    def pointingTimes(self):
+        """
+        """
+        times = []
+        for key in sorted(self.pointingOrders.keys()):
+            times += self.pointingOrders[key]['time'].isot.tolist()
+        return Time(times, precision=0)
+    
+    
+
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+    @accepts(object, Time)
+    def atTime(self, time):
+        """
+        """
+        if time >= self.tMax:
+            lastFile = sorted(self.pointingOrders.keys())[-1]
+            pointing = self.pointingOrders[lastFile]
+            return {
+                    'time': pointing['time'][-1],
+                    'abeam': pointing['abeam'][-1],
+                    'pDesired': pointing['pDesired'][-1],
+                    'pCorrected': pointing['pCorrected'][-1],
+                    'pEff': pointing['pEff'][-1],
+                    'beamSquintFreq': pointing['beamSquintFreq'][-1]
+                }
+
+        for key in self.pointingOrders.keys():
+            pointing = self.pointingOrders[key]
+            times = pointing['time']
+            mask = [(times[i] <= time) and (times[i+1] > time) for i in range(times.size - 1)]
+            mask += [False]
+            if any(mask):
+                return {
+                    'time': pointing['time'][mask][0],
+                    'abeam': pointing['abeam'][mask][0],
+                    'pDesired': pointing['pDesired'][mask][0],
+                    'pCorrected': pointing['pCorrected'][mask][0],
+                    'pEff': pointing['pEff'][mask][0],
+                    'beamSquintFreq': pointing['beamSquintFreq'][mask][0]
+                }
+
+        return None
+
+
+    # --------------------------------------------------------- #
+    # ----------------------- Internal ------------------------ #
+    def _fill(self, filename):
+        """
+        """
+        if not self._autoUpdate:
+            return
+
+        if not filename.endswith('.altazA'):
+            raise ValueError(
+                '`*.altazA file(s) required.`'
+            )
+        
+        pointing = readPointing(filename)
+
+        times = Time(pointing['time'], precision=0)
+        
+        self.pointingOrders[os.path.basename(filename)] = {
+            'time': times,
+            'abeam': pointing['anabeam'],
+            'pDesired': ho_coord(
+                alt=pointing['el'],
+                az=pointing['az'],
+                time=times
+            ),
+            'pCorrected': ho_coord(
+                alt=pointing['el_cor'],
+                az=pointing['az_cor'],
+                time=times
+            ),
+            'pEff': ho_coord(
+                alt=pointing['el_eff'],
+                az=pointing['az_cor'],
+                time=times
+            ),
+            'beamSquintFreq': pointing['freq'].astype(float)
+
+        }
 # ============================================================= #
 

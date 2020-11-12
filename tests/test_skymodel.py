@@ -58,6 +58,6 @@ def test_lofar():
     )
     assert isinstance(lofar.skymap, np.ma.core.MaskedArray)
     assert lofar.skymap.size == 768
-    assert lofar.skymap[350] == pytest.approx(4.718, 1e-3)
+    assert lofar.skymap[350] == pytest.approx(5.443, 1e-3)
 # ============================================================= #
 

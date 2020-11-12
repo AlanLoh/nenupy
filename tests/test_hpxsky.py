@@ -29,7 +29,7 @@ def test_hpxsky_resolution():
     )
     assert sky.nside == 4
     assert isinstance(sky.resolution, Angle)
-    assert sky.resolution.deg == 20.
+    assert sky.resolution.deg == pytest.approx(14.66, 1e-2)
     # Astropy Angle input
     sky = HpxSky(
         resolution=Angle(20, unit='deg')
@@ -40,7 +40,7 @@ def test_hpxsky_resolution():
     )
     assert sky.nside == 4
     assert isinstance(sky.resolution, Angle)
-    assert sky.resolution.deg == 20.
+    assert sky.resolution.deg == pytest.approx(14.66, 1e-2)
 # ============================================================= #
 
 
