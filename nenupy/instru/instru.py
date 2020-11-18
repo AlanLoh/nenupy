@@ -68,13 +68,6 @@ from astropy.coordinates import (
 )
 import astropy.units as u
 from astropy import constants as const
-from healpy import (
-    read_map,
-    ud_grade,
-    nside2npix,
-    pix2ang,
-    Rotator
-)
 import numpy as np
 import os, sys
 from os.path import join, dirname
@@ -441,6 +434,14 @@ def nenufar_ant_gain(freq, polar='NW', nside=64, time=None, normalize=True):
         .. seealso::
             :class:`~nenupy.beam.hpxbeam.HpxABeam`
     """
+    from healpy import (
+        read_map,
+        ud_grade,
+        nside2npix,
+        pix2ang,
+        Rotator
+    )
+
     # Parameter checks
     if not isinstance(freq, Quantity):
         freq *= u.MHz

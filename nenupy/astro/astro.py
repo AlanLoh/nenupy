@@ -698,7 +698,7 @@ def getSource(name, time=None):
             dec=[src['dec']] * nTime * u.deg,
             frame='icrs'
         )
-        log.info(
+        log.debug(
             f'Source {name} found in {sourceJson}.'
         )
     elif name.lower() in solarSystem:
@@ -718,7 +718,7 @@ def getSource(name, time=None):
                     ra=src.ra,
                     dec=src.dec
                 )
-        log.info(
+        log.debug(
             f'Source {name} found in Solar System Ephemeris.'
         )
     else:
@@ -738,7 +738,7 @@ def getSource(name, time=None):
             dec=[src.dec.deg] * nTime * u.deg,
             frame='icrs'
         )
-        log.info(
+        log.debug(
             f'Source {name} found in Simbad.'
         )
 

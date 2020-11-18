@@ -322,7 +322,7 @@ class AnalogPointing(object):
 
     def __add__(self, other):
         if not isinstance(other, self.__class__):
-            raise TypeError('Not the same class.')
+            raise TypeError('{} exepected.'.format(self.__class__))
         new = AnalogPointing(
             filename=self.filename + other.filename,
             autoUpdate=False
@@ -337,6 +337,34 @@ class AnalogPointing(object):
         else:
             return self.__add__(other)
 
+
+    def __sub__(self, other):
+        if not isinstance(other, self.__class__):
+            raise TypeError('{} exepected.'.format(self.__class__))
+        newFileList = self.filename.copy()
+        newPointingOrders = self.pointingOrders.copy()
+        for fileToRemove in list(map(basename, other.filename)):
+            selfBaseNames = list(map(basename, newFileList))
+            try:
+                fileIndex = selfBaseNames.index(fileToRemove)
+                removedFile = newFileList.pop(fileIndex)
+            except ValueError:
+                # SST file in other not in self
+                pass
+            try:
+                fileKeys = list(newPointingOrders.keys())
+                baseKeys = list(map(basename, fileKeys))
+                fileIndex = baseKeys.index(fileToRemove)
+                del newPointingOrders[fileKeys[fileIndex]]
+            except (ValueError, KeyError):
+                # SST file in other not in self
+                pass
+        new = AnalogPointing(
+            filename=newFileList,
+            autoUpdate=False
+        )
+        new.pointingOrders = newPointingOrders
+        return new
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
@@ -420,7 +448,6 @@ class AnalogPointing(object):
             raise ValueError(
                 '`*.altazA file(s) required.`'
             )
-        
         pointing = readPointing(filename)
 
         times = Time(pointing['time'], precision=0)
