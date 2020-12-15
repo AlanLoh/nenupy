@@ -6,4 +6,5 @@
 from .sqldatabase import ParsetDataBase
 from .parset import Parset
 from .pointing import *
+from .obs_config import *
 

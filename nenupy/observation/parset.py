@@ -27,7 +27,6 @@ from astropy.time import Time
 import astropy.units as u
 import numpy as np
 
-from nenupy.observation import ParsetDataBase
 
 import logging
 log = logging.getLogger(__name__)
@@ -184,6 +183,8 @@ class Parset(object):
     def addToDatabase(self, dataBaseName):
         """
         """
+        from nenupy.observation import ParsetDataBase
+        
         parsetDB = ParsetDataBase(dataBaseName)
         parsetDB.parset = self.parset
         parsetDB.addTable(

@@ -31,6 +31,17 @@ Finally, observations can then be simulated using the simulated beam and a sky m
    BibTeX citation:
 
    .. code-block:: bash
+
+      @software{alan_loh_2020_4279405,
+         author       = {Alan Loh and the NenuFAR team},
+         title        = {nenupy: a Python package for the low-frequency radio telescope NenuFAR},
+         month        = nov,
+         year         = 2020,
+         publisher    = {Zenodo},
+         version      = {v1.1.0},
+         doi          = {10.5281/zenodo.3667815},
+         url          = {https://doi.org/10.5281/zenodo.3667815}
+      }
    
       @software{alan_loh_2020_3775196,
          author       = {Alan Loh and the NenuFAR team},
