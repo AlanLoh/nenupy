@@ -338,9 +338,14 @@ class NenuFAR_Target(object):
             )
             smallIndices = self._jumpIndices(hourAngles)
 
-            transitTimes.append(
-                smallTimes[smallIndices[0]] + smallDt/2.
-            )
+            # transitTimes.append(
+            #     smallTimes[smallIndices[0]] + smallDt/2.
+            # )
+            transitTime = smallTimes[smallIndices[0]] + smallDt/2.
+            if (transitTime >= tMin) and (transitTime <= tMin + duration):
+                transitTimes.append(
+                    transitTime
+                )
 
         return transitTimes
     
@@ -351,6 +356,42 @@ class NenuFAR_Target(object):
         source = self.sourceAtTime(transitTime)
         elevation = 90 - np.abs(nenufarLocation.lat.deg - source.dec.deg)
         return elevation
+
+
+    def elevationAroundMeridianTransit(self, transitTime, duration=86400, dt=60, returnArray=False):
+        """
+        """
+        if not isinstance(transitTime, Time):
+            try:
+                transitTime = Time(transitTime)
+            except:
+                raise TypeError("Wrong type for `transitTime`")
+        if not isinstance(duration, TimeDelta):
+            try:
+                duration = TimeDelta(duration, format='sec')
+            except:
+                raise TypeError("Wrong type for `duration`")
+        if not isinstance(dt, TimeDelta):
+            try:
+                dt = TimeDelta(dt, format='sec')
+            except:
+                raise TypeError("Wrong type for `dt`")
+        
+        nTimes = np.floor(duration/dt)
+        if nTimes % 2 == 0:
+            # Make it odd to center the transit time
+            nTimes += 1
+        times = transitTime + (np.arange(nTimes) - np.floor(nTimes/2)) * dt
+        source = self.sourceAtTime(times, precession=False)
+        hourAngle = self._localHourAngle(
+            time=times
+        )
+        elevations = self._toElevation(hourAngle, source.dec)
+        
+        if returnArray:
+            return times, elevations
+        else:
+            return [{'elevation': el.value, 'date': ti.isot} for el, ti in zip(elevations, times)]
 
 
     # --------------------------------------------------------- #
@@ -637,7 +678,7 @@ if __name__ == "__main__":
         '-t',
         '--time',
         type=str,
-        help='Start time from which to search for horizontal coordinates',
+        help='Start time from which to search for horizontal coordinates (or transit time if --elevations==1)',
         required=True
     )
     parser.add_argument(
@@ -688,6 +729,14 @@ if __name__ == "__main__":
         default=200,
         required=False
     )
+    parser.add_argument(
+        '-e',
+        '--elevations',
+        type=int,
+        help='Get elevations around transit time if 1',
+        default=0,
+        required=False
+    )
     args = parser.parse_args()
 
 
@@ -711,31 +760,41 @@ if __name__ == "__main__":
 
 
     target.precision = 'low' # 'low'
-    transits = target.timeAtMeridianTransit(
-        tMin=Time(args.time),
-        duration=TimeDelta(86400, format='sec')
-    )
 
-    response = ''
-    for transit in transits:
-        elTransit = target.elevationAtMeridianTransit(transit)
-        response += '{:.19} 180.000 {:.3f} '.format(
-           transit.isot,
-           elTransit 
-        )
+    if args.elevations == 0:
 
-        crosstimes = target.timeAtElevation(
-            tCenter=transit,
-            elevation=np.array([args.vmin, args.vok])*u.deg,
+        transits = target.timeAtMeridianTransit(
+            tMin=Time(args.time),
             duration=TimeDelta(86400, format='sec')
         )
-        # Response for vok, ie. 40 degrees
-        response += '{:.19} {:.19} '.format(
-            crosstimes[1][0].isot, crosstimes[1][1].isot
-        )
-        # Response for vmin, ie. 1 degrees
-        response += '{:.19} {:.19} '.format(
-            crosstimes[0][0].isot, crosstimes[0][1].isot
+
+        response = ''
+        for transit in transits:
+            elTransit = target.elevationAtMeridianTransit(transit)
+            response += '{:.19} 180.000 {:.3f} '.format(
+               transit.isot,
+               elTransit 
+            )
+
+            crosstimes = target.timeAtElevation(
+                tCenter=transit,
+                elevation=np.array([args.vmin, args.vok])*u.deg,
+                duration=TimeDelta(86400, format='sec')
+            )
+            # Response for vok, ie. 40 degrees
+            response += '{:.19} {:.19} '.format(
+                crosstimes[1][0].isot, crosstimes[1][1].isot
+            )
+            # Response for vmin, ie. 1 degrees
+            response += '{:.19} {:.19} '.format(
+                crosstimes[0][0].isot, crosstimes[0][1].isot
+            )
+
+    elif args.elevations == 1:
+        response = target.elevationAroundMeridianTransit(
+            transitTime=args.time,
+            duration=86400,
+            dt=60,
         )
     
     print(response)
