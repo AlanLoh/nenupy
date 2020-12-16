@@ -7,11 +7,71 @@
     Observation configuration
     *************************
 
-    Backend setup
-    -------------
+    `NenuFAR <https://nenufar.obs-nancay.fr/en/astronomer/>`_
+    is a versatile low-frequency radio telescope. Several
+    observing modes are available, as represented by the 
+    diversity of its `receivers <https://nenufar.obs-nancay.fr/en/astronomer/#receivers>`_.
+    Observations are configured thanks to text files
+    called *parsets* in which the details of the instrumental set-up,
+    the observation mode(s),
+    the data sampling parameters,
+    the operations applied on the data, etc. are listed.
+
+    The :mod:`~nenupy.observation.obs_config` module aims at
+    handling these different observing configurations as well
+    as providing estimation on the data volume output by
+    *NenuFAR* in one or several given set-up(s).
+
+    NenuFAR Receiver setup
+    ----------------------
     
     Manual setting
     ^^^^^^^^^^^^^^
+
+    The various `receivers <https://nenufar.obs-nancay.fr/en/astronomer/#receivers>`_
+    configurations may be set 'manually'. In such case, the user
+    needs to fill in the different parameters relevant to
+    characterize the observation with the desired receiver.
+
+    For instance, say one is interested in performing an observation
+    and wants to estimate the volume of the most basic *NenuFAR* data
+    output: the *Beamlet Statistics* (or *BST*) FITS files. Instanciating
+    an 'empty' :class:`~nenupy.observation.obs_config.BSTConfig` object
+    and printing it gives a quicklook of all the properties one may want
+    to modify, as well as their current values that are set by default:
+
+    .. code-block:: python
+
+        >>> from nenupy.observation import BSTConfig
+        >>> bstconf = BSTConfig()
+        >>> print(bstconf)
+        Backend configuration of type 'BSTConfig'
+            Properties: 'nSubBands=768', 'nPolars=2', 'durationSec=0'
+
+    .. note::
+        At any time, the user may query the receiver parameters
+        by printing the corresponding instance.
+
+    Then, one can update the attribute values to their preferences
+    by either of the two identical methods below:
+
+    .. code-block:: python
+
+        >>> bstconf.durationSec = 1800
+        
+        >>> bstconf = BSTConfig(durationSec=1800)
+
+    and finally to compute an estimation of the data volume 
+    (returned as a :class:`~astropy.units.Quantity` object):
+
+    .. code-block:: python
+
+        >>> bstconf.volume
+        10.546875 Mibyte
+
+        >>> vol = bstconf.volume
+        >>> vol.to('Gibyte')
+        0.010299683Gibyte
 
     Setting from Parset file
     ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -35,7 +95,10 @@
         ~nenupy.observation.obs_config.BSTConfig
         ~nenupy.observation.obs_config.NICKELConfig
         ~nenupy.observation.obs_config.TFConfig
+        ~nenupy.observation.obs_config.RAWConfig
         ~nenupy.observation.obs_config.PulsarFoldConfig
+        ~nenupy.observation.obs_config.PulsarWaveConfig
+        ~nenupy.observation.obs_config.PulsarSingleConfig
 
 """
 
@@ -551,7 +614,7 @@ class _BackendConfig(object):
 # ============================================================= #
 # ------------------------- BSTConfig ------------------------- #
 # ============================================================= #
-@doc('Beamlet Statistics observation configuration.', 'bst')
+@doc('*Beamlet Statistics* observation configuration.', 'bst')
 class BSTConfig(_BackendConfig):
     
     def __init__(self, **kwargs):
@@ -562,7 +625,35 @@ class BSTConfig(_BackendConfig):
     # --------------------- Getter/Setter --------------------- #
     @property
     def volume(self):
-        """
+        """ Computes an estimation of the data volume of a *BST*
+            FITS file.
+
+            :getter: Data volume.
+
+            :type: :class:`~astropy.units.Quantity`
+
+            :Example:
+                >>> from nenupy.observation import BSTConfig
+                >>> bstconf = BSTConfig(
+                        durationSec=3600
+                    )
+                >>> bstconf.volume
+                21.09375 Mibyte
+
+                >>> from nenupy.observation import BSTConfig
+                >>> bstconf = BSTConfig.fromParset(
+                        'nenufar_obs.parset'
+                    )
+                >>> bstconf.volume
+                XXX Mibyte
+
+            .. warning::
+                The data volume estimation does not handle
+                specificities of the FITS file in which the *BST*
+                are stored (in particular metadata and FITS 
+                architecture). Therefore, the volume may be
+                underestimated by a few MB.
+
         """
         log.debug(str(self))
         nElements = self.nPolars * self.durationSec * self.nSubBands
@@ -574,15 +665,21 @@ class BSTConfig(_BackendConfig):
     @classmethod
     @accepts(type, (Parset, str))
     def fromParset(cls, parset):
-        """ 
+        """ Returns a :class:`~nenupy.observation.obs_config.BSTConfig`
+            instance in which *BST* observation configuration properties
+            are set as defined by the ``parset``.
 
             :param parset:
                 Observation parset file.
             :type parset: `str` or :class:`~nenupy.observation.parset.Parset`
 
             :returns:
-                Backend configuration as defined by the ``parset`` file.
+                *BST* configuration as defined by the ``parset`` file.
             :rtype: :class:`~nenupy.observation.obs_config.BSTConfig`
+
+            :Example:
+                >>> from nenupy.observation import BSTConfig
+                >>> bstconf = BSTConfig.fromParset('nenufar_obs.parset')
 
         """
         if isinstance(parset, str):
@@ -611,7 +708,7 @@ class BSTConfig(_BackendConfig):
 # ============================================================= #
 # ----------------------- NICKELConfig ------------------------ #
 # ============================================================= #
-@doc('NICKEL correlator observation configuration.', 'nickel')
+@doc('*NICKEL* correlator observation configuration.', 'nickel')
 class NICKELConfig(_BackendConfig):
     """
     """
@@ -624,7 +721,38 @@ class NICKELConfig(_BackendConfig):
     # --------------------- Getter/Setter --------------------- #
     @property
     def volume(self):
-        """
+        """ Computes an estimation of the data volume of a *NICKEL*
+            Measurement Set.
+
+            :getter: Data volume.
+
+            :type: :class:`~astropy.units.Quantity`
+
+            :Example:
+                >>> from nenupy.observation import NICKELConfig
+                >>> nriconf = NICKELConfig(
+                        nMAs=56,
+                        nSubBands=244,
+                        nChannels=64,
+                        timeRes=1,
+                        durationSec=3600
+                    )
+                >>> nriconf.volume.to('Tibyte')
+                2.6112914 Tibyte
+
+                >>> from nenupy.observation import NICKELConfig
+                >>> nriconf = NICKELConfig.fromParset(
+                        'nenufar_obs.parset'
+                    )
+                >>> nriconf.volume
+                XXX Gibyte
+
+            .. warning::
+                The data volume estimation does not handle
+                specificities of the Measurement Set.
+                Therefore, the volume may be
+                underestimated.
+
         """
         log.debug(str(self))
         nBaselines = self.nMAs * (self.nMAs - 1)/2 + self.nMAs
@@ -639,7 +767,22 @@ class NICKELConfig(_BackendConfig):
     @classmethod
     @accepts(type, (Parset, str))
     def fromParset(cls, parset):
-        """
+        """ Returns a :class:`~nenupy.observation.obs_config.NICKELConfig`
+            instance in which *NICKEL* observation configuration properties
+            are set as defined by the ``parset``.
+
+            :param parset:
+                Observation parset file.
+            :type parset: `str` or :class:`~nenupy.observation.parset.Parset`
+
+            :returns:
+                *NICKEL* configuration as defined by the ``parset`` file.
+            :rtype: :class:`~nenupy.observation.obs_config.NICKELConfig`
+
+            :Example:
+                >>> from nenupy.observation import NICKELConfig
+                >>> nriconf = NICKELConfig.fromParset('nenufar_obs.parset')
+
         """
         if isinstance(parset, str):
             parset = Parset(parset)
@@ -774,7 +917,7 @@ class _TFBeamConfig(_BackendConfig):
 # ============================================================= #
 # ------------------------- TFConfig -------------------------- #
 # ============================================================= #
-@doc('UnDySPuTeD Time-Frequency mode observation configuration.', 'tf')
+@doc('*UnDySPuTeD Time-Frequency* mode observation configuration.', 'tf')
 class TFConfig(_UnDySPuTeDConfig):
     """
     """
@@ -799,7 +942,64 @@ class TFConfig(_UnDySPuTeDConfig):
     # --------------------- Getter/Setter --------------------- #
     @property
     def volume(self):
-        """
+        """ Computes an estimation of the data volume of an
+            *UnDySPuTeD-TF* observation file.
+
+            :getter: Data volume.
+
+            :type: :class:`~astropy.units.Quantity`
+
+            :Example:
+                >>> from nenupy.observation import TFConfig
+                >>> tfconf = TFConfig(
+                        nSubBands=500,
+                        timeRes=42e-3,
+                        freqRes=200,
+                        durationSec=3600
+                    )
+                >>> tfconf.volume
+                654.83619 Gibyte
+
+                >>> from nenupy.observation import TFConfig
+                >>> tfconf = TFConfig.fromParset(
+                        'nenufar_obs.parset'
+                    )
+                >>> tfconf.volume
+                XXX Gibyte
+
+            .. note::
+                Combinations of ``timeRes`` and ``freqRes`` pairs
+                are limited to that available within the
+                *UnDySPuTeD* receiver. If set otherwise, the closest
+                allowed values will be filled instead.
+
+                One can check the corresponding attributes
+                after setting up the desired configuration:
+                
+                    >>> tfconf = TFConfig(
+                            nSubBands=500,
+                            timeRes=1e-3,
+                            freqRes=200,
+                            durationSec=3600
+                        )
+                    >>> tfconf.timeRes
+                    0.02097152
+                    >>> tfconf.freqRes
+                    190.73486328125
+
+                Altenatively, one can set the log to ``DEBUG``
+                in order to print conversion details:
+
+                    >>> import logging
+                    >>> logging.getLogger('nenupy').setLevel(logging.DEBUG)
+                    >>> nriconf = TFConfig(
+                            nSubBands=500,
+                            timeRes=1e-3,
+                            freqRes=200,
+                            durationSec=3600
+                        )
+                    2020-12-16 17:28:52 -- DEBUG: 'freqRes=0.20 kHz', 'timeRes=1.00 ms' <--> 'df=0.19 kHz', 'dt=20.97 ms' ('fftlen=1024', 'nfft2int=4')
+
         """
         vol = 0 * u.Gibyte
         for bc in self._beamConfigs:
@@ -812,7 +1012,22 @@ class TFConfig(_UnDySPuTeDConfig):
     @classmethod
     @accepts(type, (str, Parset))
     def fromParset(cls, parset):
-        """
+        """ Returns a :class:`~nenupy.observation.obs_config.TFConfig`
+            instance in which *UnDySPuTeD-TF* observation configuration
+            properties are set as defined by the ``parset``.
+
+            :param parset:
+                Observation parset file.
+            :type parset: `str` or :class:`~nenupy.observation.parset.Parset`
+
+            :returns:
+                *UnDySPuTeD-TF* configuration as defined by the ``parset`` file.
+            :rtype: :class:`~nenupy.observation.obs_config.TFConfig`
+
+            :Example:
+                >>> from nenupy.observation import TFConfig
+                >>> tfconf = TFConfig.fromParset('nenufar_obs.parset')
+
         """
         if isinstance(parset, str):
             parset = Parset(parset)
@@ -882,6 +1097,7 @@ class _RawBeamConfig(_BackendConfig):
 # ============================================================= #
 # ------------------------- RAWConfig ------------------------- #
 # ============================================================= #
+@doc('*UnDySPuTeD Waveform* mode observation configuration.', 'raw')
 class RAWConfig(_UnDySPuTeDConfig):
     """
     """
@@ -900,7 +1116,28 @@ class RAWConfig(_UnDySPuTeDConfig):
     # --------------------- Getter/Setter --------------------- #
     @property
     def volume(self):
-        """
+        """ Computes an estimation of the data volume of an
+            *UnDySPuTeD-RAW* observation file.
+
+            :getter: Data volume.
+
+            :type: :class:`~astropy.units.Quantity`
+
+            :Example:
+                >>> from nenupy.observation import RAWConfig
+                >>> rawconf = RAWConfig(
+                        durationSec=3600
+                    )
+                >>> rawconf.volume
+                494.53229 Gibyte
+
+                >>> from nenupy.observation import RAWConfig
+                >>> rawconf = RAWConfig.fromParset(
+                        'nenufar_obs.parset'
+                    )
+                >>> rawconf.volume
+                XXX Gibyte
+
         """
         vol = 0 * u.Gibyte
         for bc in self._beamConfigs:
@@ -913,7 +1150,22 @@ class RAWConfig(_UnDySPuTeDConfig):
     @classmethod
     @accepts(type, (Parset, str))
     def fromParset(cls, parset):
-        """
+        """ Returns a :class:`~nenupy.observation.obs_config.RAWConfig`
+            instance in which *UnDySPuTeD-RAW* observation configuration
+            properties are set as defined by the ``parset``.
+
+            :param parset:
+                Observation parset file.
+            :type parset: `str` or :class:`~nenupy.observation.parset.Parset`
+
+            :returns:
+                *UnDySPuTeD-RAW* configuration as defined by the ``parset`` file.
+            :rtype: :class:`~nenupy.observation.obs_config.RAWConfig`
+
+            :Example:
+                >>> from nenupy.observation import RAWConfig
+                >>> rawconf = RAWConfig.fromParset('nenufar_obs.parset')
+
         """
         if isinstance(parset, str):
             parset = Parset(parset)
@@ -972,7 +1224,7 @@ class _FoldBeamConfig(_BackendConfig):
 # ============================================================= #
 # ---------------------- PulsarFoldConfig --------------------- #
 # ============================================================= #
-@doc('UnDySPuTeD Pulsar-FOLD mode observation configuration.', 'pulsar_fold')
+@doc('*UnDySPuTeD Pulsar-FOLD* mode observation configuration.', 'pulsar_fold')
 class PulsarFoldConfig(_UnDySPuTeDConfig):
     """
     """
@@ -991,7 +1243,28 @@ class PulsarFoldConfig(_UnDySPuTeDConfig):
     # --------------------- Getter/Setter --------------------- #
     @property
     def volume(self):
-        """
+        """ Computes an estimation of the data volume of an
+            *UnDySPuTeD Pulsar-FOLD* observation file.
+
+            :getter: Data volume.
+
+            :type: :class:`~astropy.units.Quantity`
+
+            :Example:
+                >>> from nenupy.observation import PulsarFoldConfig
+                >>> foldconf = PulsarFoldConfig(
+                        durationSec=3600
+                    )
+                >>> foldconf.volume
+                1.9317667 Gibyte
+
+                >>> from nenupy.observation import PulsarFoldConfig
+                >>> foldconf = PulsarFoldConfig.fromParset(
+                        'nenufar_obs.parset'
+                    )
+                >>> foldconf.volume
+                XXX Gibyte
+
         """
         vol = 0 * u.Gibyte
         for bc in self._beamConfigs:
@@ -1004,7 +1277,22 @@ class PulsarFoldConfig(_UnDySPuTeDConfig):
     @classmethod
     @accepts(type, (Parset, str))
     def fromParset(cls, parset):
-        """
+        """ Returns a :class:`~nenupy.observation.obs_config.PulsarFoldConfig`
+            instance in which *UnDySPuTeD Pulsar-FOLD* observation configuration
+            properties are set as defined by the ``parset``.
+
+            :param parset:
+                Observation parset file.
+            :type parset: `str` or :class:`~nenupy.observation.parset.Parset`
+
+            :returns:
+                *UnDySPuTeD Pulsar-FOLD* configuration as defined by the ``parset`` file.
+            :rtype: :class:`~nenupy.observation.obs_config.PulsarFoldConfig`
+
+            :Example:
+                >>> from nenupy.observation import PulsarFoldConfig
+                >>> foldconf = PulsarFoldConfig.fromParset('nenufar_obs.parset')
+
         """
         if isinstance(parset, str):
             parset = Parset(parset)
@@ -1072,7 +1360,7 @@ class _WaveolafBeamConfig(_BackendConfig):
 # ============================================================= #
 # ---------------------- PulsarWaveConfig --------------------- #
 # ============================================================= #
-@doc('UnDySPuTeD Pulsar-WAVEOLAF mode observation configuration.', 'pulsar_waveolaf')
+@doc('*UnDySPuTeD Pulsar-WAVEOLAF* mode observation configuration.', 'pulsar_waveolaf')
 class PulsarWaveConfig(_UnDySPuTeDConfig):
     """
     """
@@ -1091,7 +1379,28 @@ class PulsarWaveConfig(_UnDySPuTeDConfig):
     # --------------------- Getter/Setter --------------------- #
     @property
     def volume(self):
-        """
+        """ Computes an estimation of the data volume of an
+            *UnDySPuTeD Pulsar-WAVEOLAF* observation file.
+
+            :getter: Data volume.
+
+            :type: :class:`~astropy.units.Quantity`
+
+            :Example:
+                >>> from nenupy.observation import PulsarWaveConfig
+                >>> waveconf = PulsarWaveConfig(
+                        durationSec=3600
+                    )
+                >>> waveconf.volume
+                285.85707 Gibyte
+
+                >>> from nenupy.observation import PulsarWaveConfig
+                >>> waveconf = PulsarWaveConfig.fromParset(
+                        'nenufar_obs.parset'
+                    )
+                >>> waveconf.volume
+                XXX Gibyte
+
         """
         vol = 0 * u.Gibyte
         for bc in self._beamConfigs:
@@ -1104,7 +1413,22 @@ class PulsarWaveConfig(_UnDySPuTeDConfig):
     @classmethod
     @accepts(type, (Parset, str))
     def fromParset(cls, parset):
-        """
+        """ Returns a :class:`~nenupy.observation.obs_config.PulsarWaveConfig`
+            instance in which *UnDySPuTeD Pulsar-WAVEOLAF* observation configuration
+            properties are set as defined by the ``parset``.
+
+            :param parset:
+                Observation parset file.
+            :type parset: `str` or :class:`~nenupy.observation.parset.Parset`
+
+            :returns:
+                *UnDySPuTeD Pulsar-WAVEOLAF* configuration as defined by the ``parset`` file.
+            :rtype: :class:`~nenupy.observation.obs_config.PulsarWaveConfig`
+
+            :Example:
+                >>> from nenupy.observation import PulsarWaveConfig
+                >>> waveconf = PulsarWaveConfig.fromParset('nenufar_obs.parset')
+
         """
         if isinstance(parset, str):
             parset = Parset(parset)
@@ -1170,7 +1494,7 @@ class _SingleBeamConfig(_BackendConfig):
 # ============================================================= #
 # --------------------- PulsarSingleConfig -------------------- #
 # ============================================================= #
-@doc('UnDySPuTeD Pulsar-SINGLE mode observation configuration.', 'pulsar_single')
+@doc('*UnDySPuTeD Pulsar-SINGLE* mode observation configuration.', 'pulsar_single')
 class PulsarSingleConfig(_UnDySPuTeDConfig):
     """
     """
@@ -1190,7 +1514,28 @@ class PulsarSingleConfig(_UnDySPuTeDConfig):
     # --------------------- Getter/Setter --------------------- #
     @property
     def volume(self):
-        """
+        """ Computes an estimation of the data volume of an
+            *UnDySPuTeD Pulsar-SINGLE* observation file.
+
+            :getter: Data volume.
+
+            :type: :class:`~astropy.units.Quantity`
+
+            :Example:
+                >>> from nenupy.observation import PulsarSingleConfig
+                >>> singleconf = PulsarSingleConfig(
+                        durationSec=3600
+                    )
+                >>> singleconf.volume
+                15.454134 Gibyte
+
+                >>> from nenupy.observation import PulsarSingleConfig
+                >>> singleconf = PulsarSingleConfig.fromParset(
+                        'nenufar_obs.parset'
+                    )
+                >>> singleconf.volume
+                XXX Gibyte
+
         """
         vol = 0 * u.Gibyte
         for bc in self._beamConfigs:
@@ -1203,7 +1548,22 @@ class PulsarSingleConfig(_UnDySPuTeDConfig):
     @classmethod
     @accepts(type, (Parset, str))
     def fromParset(cls, parset):
-        """
+        """ Returns a :class:`~nenupy.observation.obs_config.PulsarSingleConfig`
+            instance in which *UnDySPuTeD Pulsar-SINGLE* observation configuration
+            properties are set as defined by the ``parset``.
+
+            :param parset:
+                Observation parset file.
+            :type parset: `str` or :class:`~nenupy.observation.parset.Parset`
+
+            :returns:
+                *UnDySPuTeD Pulsar-SINGLE* configuration as defined by the ``parset`` file.
+            :rtype: :class:`~nenupy.observation.obs_config.PulsarSingleConfig`
+
+            :Example:
+                >>> from nenupy.observation import PulsarSingleConfig
+                >>> waveconf = PulsarSingleConfig.fromParset('nenufar_obs.parset')
+
         """
         if isinstance(parset, str):
             parset = Parset(parset)
@@ -1281,7 +1641,31 @@ class ObsConfig(object):
 
     @property
     def volume(self):
-        """
+        """ Computes an estimation of the data volume output for
+            all the *NenuFAR* receivers. If the object
+            :class:`~nenupy.observation.obs_config.ObsConfig` has been
+            set with several parset files (with the method
+            :meth:`~nenupy.observation.obs_config.ObsConfig.fromParsetList`),
+            the volumes are summed over all observations.
+
+            :getter: Data volume.
+
+            :type: `dict` of :class:`~astropy.units.Quantity`
+
+            :Example:
+                >>> from nenupy.observation import ObsConfig
+                >>> obsconf = ObsConfig.fromParset(
+                        'nenufar_obs.parset'
+                    )
+                >>> obsconf.volume
+                {'nickel': <Quantity 0. Gibyte>,
+                 'raw': <Quantity 0. Gibyte>,
+                 'tf': <Quantity 0. Gibyte>,
+                 'bst': <Quantity 20.625 Mibyte>,
+                 'pulsar_fold': <Quantity 3.7763691 Gibyte>,
+                 'pulsar_waveolaf': <Quantity 558.79404545 Gibyte>,
+                 'pulsar_single': <Quantity 0. Gibyte>}
+
         """
         volumes = {}
         for key in backendClasses.keys():
@@ -1292,7 +1676,22 @@ class ObsConfig(object):
     @classmethod
     @accepts(type, (Parset, str))
     def fromParset(cls, parset):
-        """
+        """ Returns a :class:`~nenupy.observation.obs_config.ObsConfig`
+            instance in which all *NenuFAR* receiver configuration
+            properties are set as defined by the ``parset``.
+
+            :param parset:
+                Observation parset file.
+            :type parset: `str` or :class:`~nenupy.observation.parset.Parset`
+
+            :returns:
+                Full *NenuFAR* receiver configurations as defined by the ``parset`` file.
+            :rtype: :class:`~nenupy.observation.obs_config.ObsConfig`
+
+            :Example:
+                >>> from nenupy.observation import ObsConfig
+                >>> obsconf = ObsConfig.fromParset('nenufar_obs.parset')
+
         """
         if isinstance(parset, str):
             parset = Parset(parset)
@@ -1307,7 +1706,26 @@ class ObsConfig(object):
     @classmethod
     @accepts(type, list)
     def fromParsetList(cls, parsetList):
-        """
+        """ Returns a :class:`~nenupy.observation.obs_config.ObsConfig`
+            instance in which all *NenuFAR* receiver configuration
+            properties are set as defined by each parset file conained
+            in ``parsetList``.
+
+            :param parsetList:
+                List of observation parset files.
+            :type parsetList: `list` of `str` or :class:`~nenupy.observation.parset.Parset`
+
+            :returns:
+                *NenuFAR* receiver configurations for all observations defined
+                by the parset files listed in ``parsetList``.
+            :rtype: :class:`~nenupy.observation.obs_config.ObsConfig`
+
+            :Example:
+                >>> from nenupy.observation import ObsConfig
+                >>> obsconf = ObsConfig.fromParset(
+                        ['nenufar_obs_1.parset', 'nenufar_obs_2.parset']
+                    )
+
         """
         if not isinstance(parsetList, list):
             raise TypeError(

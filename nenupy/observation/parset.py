@@ -30,7 +30,6 @@ import numpy as np
 
 import logging
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
 
 
 # ============================================================= #
@@ -184,7 +183,7 @@ class Parset(object):
         """
         """
         from nenupy.observation import ParsetDataBase
-        
+
         parsetDB = ParsetDataBase(dataBaseName)
         parsetDB.parset = self.parset
         parsetDB.addTable(
