@@ -52,16 +52,25 @@
         At any time, the user may query the receiver parameters
         by printing the corresponding instance.
 
-    Then, one can update the attribute values to their preferences
-    by either of the two identical methods below:
+    .. seealso::
+        The other receivers dedicated classes are listed in :ref:`obs_config_class_summary`.
+
+    Attribute values can be directly set to the user preferences
+    to update the status of the current :class:`~nenupy.observation.obs_config.BSTConfig`
+    instance:
 
     .. code-block:: python
 
         >>> bstconf.durationSec = 1800
-        
+
+    Alternatively, the object can be initialized with specific
+    property values given as keyword arguments:
+
+    .. code-block:: python
+
         >>> bstconf = BSTConfig(durationSec=1800)
 
-    and finally to compute an estimation of the data volume 
+    Finally, to compute an estimation of the data volume 
     (returned as a :class:`~astropy.units.Quantity` object):
 
     .. code-block:: python
@@ -73,17 +82,156 @@
         >>> vol.to('Gibyte')
         0.010299683Gibyte
 
+    .. warning::
+        The *beamformer* receivers allow for multi-beams observations. These
+        properties cannot be set manually in a straightforward way.
+        Instead, it is recommended to either treat each individual beam
+        separately or to instanciate the relevant objects with a parset file.
+
     Setting from Parset file
     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+    The most convenient way to set a given receiver's properties
+    associated to as specific observation is to initialize the
+    corresponding object instance from the observation *parset*:
+
+    .. code-block:: python
+
+        >>> from nenupy.observation import BSTConfig
+        >>> bstconf = BSTConfig.fromParset('/path/to/observation.parset')
+
+    Calling the class method ``fromParset`` automatically loads the given file
+    as a :class:`~nenupy.observation.parset.Parset`. The contained instrumental
+    information is parsed and the properties relevant to the receiver class
+    are used to initialize the object instance.
+
+    If an observation is configured to use the multi-beams capability of
+    *NenuFAR*, the receiver properties will take that into account 
+    and the data volume estimation will then be computed accordingly.
+
+    .. warning::
+        At the current stage of development, the *NenuFAR* configuration files
+        called *parset user*
+        (ending with ``'.parset_user'``) are not supported.
 
     Observation setup
     -----------------
 
+    Rather than configuring each receiver individually, one might be
+    interested in setting all of the *NenuFAR* receivers at once, from one
+    or several *parset* file(s).
+    This is achieved using the :class:`~nenupy.observation.obs_config.ObsConfig`
+    class which stores information on all available receivers and update their
+    configuration parameters according to what is described in the *parset* file(s).
+
     Single observation
     ^^^^^^^^^^^^^^^^^^
 
+    In the case of a single observation, described by a unique *parset* file
+    (namely ``'/path/to/observation.parset'`` in the following example),
+    an instance of :class:`~nenupy.observation.obs_config.ObsConfig` is
+    simply created using the class method
+    :meth:`~nenupy.observation.obs_config.ObsConfig.fromParset`:
+
+    .. code-block:: python
+
+        >>> from nenupy.observation import ObsConfig
+        >>> obsconf = ObsConfig.fromParset('/path/to/observation.parset')
+
+    The variable called ``obsconf`` of type :class:`~nenupy.observation.obs_config.ObsConfig`
+    now contains attributes named after
+    the various *NenuFAR* receivers. Every one of these attributes is a
+    list (of only one element in this case) of corresponding configuration
+    class instances:
+
+    .. code-block:: python
+
+        >>> type(obsconf.tf[0])
+        nenupy.observation.obs_config.TFConfig
+
+        >>> type(obsconf.nickel[0])
+        nenupy.observation.obs_config.NICKELConfig
+
+    Querying :attr:`~nenupy.observation.obs_config.ObsConfig.volume` returns
+    a dictionnary composed of the *NenuFAR* receivers as keys and their
+    corresponding raw data volume estimations for the current observation:
+
+    .. code-block:: python
+
+        >>> obsconf.volume
+        {'nickel': <Quantity 0. Gibyte>,
+         'raw': <Quantity 0. Gibyte>,
+         'tf': <Quantity 56.57784641 Gibyte>,
+         'bst': <Quantity 9.4921875 Mibyte>,
+         'pulsar_fold': <Quantity 0. Gibyte>,
+         'pulsar_waveolaf': <Quantity 0. Gibyte>,
+         'pulsar_single': <Quantity 0. Gibyte>}
+
+
     List of observations
     ^^^^^^^^^^^^^^^^^^^^
+
+    Conveniently, it is also possible to initialize an
+    :class:`~nenupy.observation.obs_config.ObsConfig` object
+    from a list of several *parset* files.
+    In order to do that, one simply needs to call the
+    :meth:`~nenupy.observation.obs_config.ObsConfig.fromParsetList`
+    class method:
+
+    .. code-block:: python
+
+        >>> from nenupy.observation import ObsConfig
+        >>> obsconf = ObsConfig.fromParsetList(
+                [
+                    '/path/to/observation_1.parset',
+                    '/path/to/observation_2.parset',
+                    '/path/to/observation_3.parset'
+                ]
+            )
+    
+    Querying the :attr:`~nenupy.observation.obs_config.ObsConfig.volume`
+    attribute returns a dictionnary with the summed estimated raw
+    data volumes for all the *NenuFAR* receivers over all the
+    observations described by the *parset* files:
+
+    .. code-block:: python
+
+        >>> obsconf.volume
+        {'nickel': <Quantity 726.41601562 Gibyte>,
+         'raw': <Quantity 282.88923204 Gibyte>,
+         'tf': <Quantity 1093.13987195 Gibyte>,
+         'bst': <Quantity 264.4921875 Mibyte>,
+         'pulsar_fold': <Quantity 11.50373708 Gibyte>,
+         'pulsar_waveolaf': <Quantity 558.79404545 Gibyte>,
+         'pulsar_single': <Quantity 61.29266694 Gibyte>}
+
+    To get the total estimated raw data volume for a specific
+    receiver, and convert its unit to *Terabytes* for instance, on can
+    do:
+
+    .. code-block:: python
+
+        >>> obsconf.volume['tf'].to('Tibyte')
+        1.0675194 Tibyte
+
+    Assuming ``dec2020_parset_list`` is a list of parsets asociated with
+    the past observations done in December 2020, plotting the cumulative
+    estimated raw data volume is also eased by the method
+    :meth:`~nenupy.observation.obs_config.ObsConfig.plotCumulativeVolume`:
+
+    .. code-block:: python
+
+        >>> from nenupy.observation import ObsConfig
+        >>> obsconf = ObsConfig.fromParsetList(dec2020_parset_list)
+        >>> plotCumulativeVolume(
+                title='NenuFAR observations, December 2020',
+                scale='log'
+            )
+
+    .. image:: ./_images/volume_december20_log.png
+        :width: 800
+
+    .. _obs_config_class_summary:
 
     Classes summary
     ---------------
@@ -122,7 +270,7 @@ __all__ = [
 
 
 import astropy.units as u
-from astropy.time import TimeDelta
+from astropy.time import Time, TimeDelta
 import numpy as np
 
 from nenupy.observation import Parset
@@ -203,14 +351,14 @@ backendProperties = {
         },
         'timeRes': {
             'min': (0.30*u.ms).to(u.s).value,
-            'max': (84.00*u.ms).to(u.s).value,
+            'max': (83.89*u.ms).to(u.s).value,
             'default': (5.00*u.ms).to(u.s).value,
             'type': '`float` or :class:`~astropy.time.TimeDelta`',
             'desc': 'Time resolution in seconds'
         },
         'freqRes': {
             'min': (0.10*u.kHz).to(u.Hz).value,
-            'max': (12.20*u.kHz).to(u.Hz).value,
+            'max': (12.21*u.kHz).to(u.Hz).value,
             'default': (6.10*u.kHz).to(u.Hz).value,
             'type': '`float` or :class:`~astropy.units.Quantity`',
             'desc': 'Frequency resolution in Hz'
@@ -296,7 +444,7 @@ backendProperties = {
         },
         'dsTime': {
             'min': 1,
-            'max': 128,
+            'max': 4096,
             'default': 128,
             'type': '`int`',
             'desc': 'Downsampling'
@@ -346,6 +494,10 @@ class _BackendConfig(object):
     """
 
     def __init__(self, backend, **kwargs):
+        self.startTime = kwargs.get(
+            'startTime',
+            Time.now()
+        )
         self.durationSec = kwargs.get(
             'durationSec',
             0
@@ -699,7 +851,8 @@ class BSTConfig(_BackendConfig):
             totalTimes = np.union1d(totalTimes, dbTimes.jd)
         
         return BSTConfig(
-            durationSec=totalTimes.size
+            durationSec=totalTimes.size,
+            startTime=parset.observation['startTime']
         )
 # ============================================================= #
 # ============================================================= #
@@ -792,10 +945,14 @@ class NICKELConfig(_BackendConfig):
 
         if 'nri_receivers' not in out.keys():
             # Nickel receiver has not been used
-            return NICKELConfig()
+            return NICKELConfig(
+                startTime=parset.observation['startTime']
+            )
         elif 'nickel' not in out['nri_receivers']:
             # Nickel receiver has not been used
-            return NICKELConfig()
+            return NICKELConfig(
+                startTime=parset.observation['startTime']
+            )
 
         # Hypothesis that only one analog beam is used!
         return NICKELConfig(
@@ -804,9 +961,8 @@ class NICKELConfig(_BackendConfig):
             nSubBands=len(out['nri_subbandList']),
             nChannels=out['nri_channelization'],
             nMAs=len(anabeams[0]['maList']),
+            startTime=parset.observation['startTime']
         )
-        #767G   20201208_061100_20201208_081400_VIR_A_TRACKING/
-        #24G    SB150.MS/
 # ============================================================= #
 # ============================================================= #
 
@@ -822,20 +978,41 @@ class _UnDySPuTeDConfig(_BackendConfig):
         super().__init__(backend=backend, **kwargs)
 
 
+    def __str__(self):
+        className = self.__class__.__name__
+        title = "Backend configuration of type '{}'\n".format(className)
+        properties = ''
+        for i, beam in enumerate(self._beamConfigs):
+            attributes = backendProperties[beam._backend].keys()
+            properties += '\tBeam {} Properties: '.format(i)
+            for att in attributes:
+                properties += "'{}={}', ".format(att, getattr(beam, att))
+            properties += "'{}={}', \n".format('durationSec', getattr(beam, 'durationSec'))
+        properties = properties[:-4] # remove the last line skip and coma
+        return title + properties
+
+
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _parseParameters(self, parameters):
+    def _parseParameters(self, parameters, pulsar=False):
         """ Parse values from the digital beam 'parameters'
             entry.
             E.g. 'TF: DF=3.05 DT=10.0 HAMM'
         """
         parameters = parameters.lower()
         mode = parameters.split(':')[0]
-        configs = {
-            param.split('=')[0]: param.split('=')[1]\
-            for param in parameters.split()\
-            if '=' in param
-        }
+        if pulsar:
+            configs = {
+                param.split('=')[0]: param.split('=')[1]\
+                for param in parameters.split('--')\
+                if '=' in param
+            }
+        else:
+            configs = {
+                param.split('=')[0]: param.split('=')[1]\
+                for param in parameters.split()\
+                if '=' in param
+            }
         return mode, configs
 
 
@@ -1036,6 +1213,7 @@ class TFConfig(_UnDySPuTeDConfig):
         digibeams = parset.digibeams
 
         tf = TFConfig(_setFromParset=True)
+        tf.startTime = parset.observation['startTime']
         beamConfigs = []
         
         if 'undysputed' not in out['hd_receivers']:
@@ -1045,7 +1223,13 @@ class TFConfig(_UnDySPuTeDConfig):
             for db in digibeams.keys():
                 if digibeams[db]['toDo'].lower() != 'dynamicspectrum':
                     continue
-                mode, parameters = tf._parseParameters(digibeams[db]['parameters'])
+                try:
+                    mode, parameters = tf._parseParameters(digibeams[db]['parameters'])
+                except KeyError:
+                    log.warning(
+                        "Parset '{}' has no 'parameters' key.".format(parset.parset)
+                    )
+                    continue
                 if mode != 'tf':
                     continue
                 dt, df = tf._checkDFvsDT(
@@ -1174,6 +1358,8 @@ class RAWConfig(_UnDySPuTeDConfig):
         digibeams = parset.digibeams
 
         raw = RAWConfig(_setFromParset=True)
+        raw.startTime = parset.observation['startTime']
+
         beamConfigs = []
         
         if 'undysputed' not in out['hd_receivers']:
@@ -1215,6 +1401,7 @@ class _FoldBeamConfig(_BackendConfig):
         """
         log.debug(str(self))
         duration = self.durationSec - 60 # Burning time at start
+        duration = 0 if duration < 0 else duration
         rateObs = self.nSubBands * self.nPolars * float32 * self.nBins / self.tFold
         return (rateObs * duration).to(u.Gibyte)
 # ============================================================= #
@@ -1301,6 +1488,8 @@ class PulsarFoldConfig(_UnDySPuTeDConfig):
         digibeams = parset.digibeams
 
         fold = PulsarFoldConfig(_setFromParset=True)
+        fold.startTime = parset.observation['startTime']
+
         beamConfigs = []
         
         if 'undysputed' not in out['hd_receivers']:
@@ -1310,7 +1499,16 @@ class PulsarFoldConfig(_UnDySPuTeDConfig):
             for db in digibeams.keys():
                 if digibeams[db]['toDo'].lower() != 'pulsar':
                     continue
-                mode, parameters = fold._parseParameters(digibeams[db]['parameters'])
+                try:
+                    mode, parameters = fold._parseParameters(
+                        digibeams[db]['parameters'],
+                        pulsar=True
+                    )
+                except KeyError:
+                    log.warning(
+                        "Parset '{}' has no 'parameters' key.".format(parset.parset)
+                    )
+                    continue
                 if mode != 'fold':
                     continue
                 
@@ -1319,10 +1517,10 @@ class PulsarFoldConfig(_UnDySPuTeDConfig):
                 beamConfigs.append(
                     _FoldBeamConfig(
                         nSubBands=len(digibeams[db]['subbandList']),
-                        nPolars=1 if '--onlyi' in parameters else 4,
-                        tFold=float(parameters.get('--tfold', props['tFold']['default'])),
+                        nPolars=1 if 'onlyi' in parameters else 4,
+                        tFold=float(parameters.get('tfold', props['tFold']['default'])),
                         durationSec=digibeams[db]['duration'],
-                        nBins=int(parameters.get('--nbin', props['nBins']['default']))
+                        nBins=int(parameters.get('nbin', props['nBins']['default']))
                     )
                 )
 
@@ -1333,7 +1531,7 @@ class PulsarFoldConfig(_UnDySPuTeDConfig):
 
 
 # ============================================================= #
-# ---------------------- _FoldBeamConfig ---------------------- #
+# -------------------- _WaveolafBeamConfig -------------------- #
 # ============================================================= #
 class _WaveolafBeamConfig(_BackendConfig):
     """
@@ -1351,6 +1549,7 @@ class _WaveolafBeamConfig(_BackendConfig):
         """
         log.debug(str(self))
         duration = self.durationSec - 60 # Burning time at start
+        duration = 0 if duration < 0 else duration
         rateObs = 451590 * u.byte * self.nSubBands
         return (rateObs * duration).to(u.Gibyte)
 # ============================================================= #
@@ -1436,7 +1635,9 @@ class PulsarWaveConfig(_UnDySPuTeDConfig):
         out = parset.output
         digibeams = parset.digibeams
 
-        fold = PulsarWaveConfig(_setFromParset=True)
+        wave = PulsarWaveConfig(_setFromParset=True)
+        wave.startTime = parset.observation['startTime']
+
         beamConfigs = []
         
         if 'undysputed' not in out['hd_receivers']:
@@ -1446,7 +1647,16 @@ class PulsarWaveConfig(_UnDySPuTeDConfig):
             for db in digibeams.keys():
                 if digibeams[db]['toDo'].lower() != 'pulsar':
                     continue
-                mode, parameters = fold._parseParameters(digibeams[db]['parameters'])
+                try:
+                    mode, parameters = wave._parseParameters(
+                        digibeams[db]['parameters'],
+                        pulsar=True
+                    )
+                except KeyError:
+                    log.warning(
+                        "Parset '{}' has no 'parameters' key.".format(parset.parset)
+                    )
+                    continue
                 if mode != 'waveolaf':
                     continue
                 
@@ -1459,14 +1669,14 @@ class PulsarWaveConfig(_UnDySPuTeDConfig):
                     )
                 )
 
-        fold._beamConfigs = beamConfigs
-        return fold
+        wave._beamConfigs = beamConfigs
+        return wave
 # ============================================================= #
 # ============================================================= #
 
 
 # ============================================================= #
-# ---------------------- _FoldBeamConfig ---------------------- #
+# --------------------- _SingleBeamConfig --------------------- #
 # ============================================================= #
 class _SingleBeamConfig(_BackendConfig):
     """
@@ -1484,6 +1694,7 @@ class _SingleBeamConfig(_BackendConfig):
         """
         log.debug(str(self))
         duration = self.durationSec - 60 # Burning time at start
+        duration = 0 if duration < 0 else duration
         nBytes = self.nBits / 8 * u.byte
         rateObs = self.nSubBands * self.nPolars * nBytes /5.12e-6 / self.dsTime
         return (rateObs * duration).to(u.Gibyte)
@@ -1572,6 +1783,8 @@ class PulsarSingleConfig(_UnDySPuTeDConfig):
         digibeams = parset.digibeams
 
         single = PulsarSingleConfig(_setFromParset=True)
+        single.startTime = parset.observation['startTime']
+
         beamConfigs = []
         
         if 'undysputed' not in out['hd_receivers']:
@@ -1581,7 +1794,16 @@ class PulsarSingleConfig(_UnDySPuTeDConfig):
             for db in digibeams.keys():
                 if digibeams[db]['toDo'].lower() != 'pulsar':
                     continue
-                mode, parameters = single._parseParameters(digibeams[db]['parameters'])
+                try:
+                    mode, parameters = single._parseParameters(
+                        digibeams[db]['parameters'],
+                        pulsar=True
+                    )
+                except KeyError:
+                    log.warning(
+                        "Parset '{}' has no 'parameters' key.".format(parset.parset)
+                    )
+                    continue
                 if mode != 'single':
                     continue
                 
@@ -1590,10 +1812,10 @@ class PulsarSingleConfig(_UnDySPuTeDConfig):
                 beamConfigs.append(
                     _SingleBeamConfig(
                         nSubBands=len(digibeams[db]['subbandList']),
-                        nPolars=1 if '--onlyi' in parameters else 4,
-                        dsTime=int(parameters.get('--dstime', props['dsTime']['default'])),
+                        nPolars=1 if 'onlyi' in parameters else 4,
+                        dsTime=int(parameters.get('dstime', props['dsTime']['default'])),
                         durationSec=digibeams[db]['duration'],
-                        nBits=int(parameters.get('--nbits', props['nBits']['default']))
+                        nBits=int(parameters.get('nbits', props['nBits']['default']))
                     )
                 )
 
@@ -1630,7 +1852,7 @@ class ObsConfig(object):
 
     def __add__(self, other):
         if not isinstance(other, self.__class__):
-            raise TypeError('{} exepected.'.format(self.__class__))
+            raise TypeError('{} expected.'.format(self.__class__))
 
         new = ObsConfig()
         for key in backendClasses:
@@ -1639,6 +1861,8 @@ class ObsConfig(object):
         return new
 
 
+    # --------------------------------------------------------- #
+    # --------------------- Getter/Setter --------------------- #
     @property
     def volume(self):
         """ Computes an estimation of the data volume output for
@@ -1673,6 +1897,8 @@ class ObsConfig(object):
         return volumes
 
 
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
     @classmethod
     @accepts(type, (Parset, str))
     def fromParset(cls, parset):
@@ -1722,7 +1948,7 @@ class ObsConfig(object):
 
             :Example:
                 >>> from nenupy.observation import ObsConfig
-                >>> obsconf = ObsConfig.fromParset(
+                >>> obsconf = ObsConfig.fromParsetList(
                         ['nenufar_obs_1.parset', 'nenufar_obs_2.parset']
                     )
 
@@ -1738,6 +1964,166 @@ class ObsConfig(object):
             tot += obs
 
         return tot
+
+
+    @accepts(object, str, (str, u.Quantity), strict=False)
+    def getCumulativeVolume(self, receiver, unit='Tibyte'):
+        """ Gets an estimation of the cumulative raw data volume
+            over time
+            computed from the observations listed in the current
+            :class:`~nenupy.observation.obs_config.ObsConfig`
+            instance for the given ``receiver``.
+
+            :param receiver:
+                Name of the receiver from which the cumulative data
+                volume is estimated.
+            :type receiver: `str`
+            :param unit:
+                Data volume unit in which the cumulative volume
+                will be expressed (see also
+                `binary unit prefixes <https://docs.astropy.org/en/stable/units/standard_units.html#prefixes>`_).
+            :type unit: `str` or :class:`~astropy.units.Quantity`
+
+            :returns: 
+                Observation start times and cumulative data volumes.
+            :rtype: (:class:`~astropy.time.Time`, :class:`~numpy.ndarray`)
+
+            :Example:
+                >>> from nenupy.observation import ObsConfig
+                >>> obsconf = ObsConfig.fromParsetList(
+                        ['nenufar_obs_1.parset', 'nenufar_obs_2.parset']
+                    )
+                >>> times, volumes = obsconf.getCumulativeVolume(
+                        receiver='nickel',
+                        unit='Gibyte'
+                    )
+
+        """
+        if receiver not in backendClasses.keys():
+            raise ValueError(
+                f"Receiver '{receiver}' not in '{backendClasses.keys()}'"
+            )
+        obs_list = getattr(self, receiver)
+        times = Time([obs.startTime for obs in obs_list])
+        indices = np.argsort(times.mjd)
+        times = times[indices]
+        volumes = np.array([obs.volume.to(unit).value for obs in obs_list])
+        cumVol = np.cumsum(volumes[indices])
+        return times, cumVol
+
+
+    def plotCumulativeVolume(self, figname='', **kwargs):
+        """ Plots the cumulative raw data volume estimation.
+
+            :param figname:
+                Figure name to store. If set to ``''`` (by default),
+                the figure is only displayed.
+            :type figname: `str`
+            :param figsize:
+                Figure size in inches (default: ``(10, 5)``).
+            :type figsize: `tuple`
+            :param unit:
+                Data volume unit in which the cumulative
+                volume will be expressed (see also
+                `binary unit prefixes <https://docs.astropy.org/en/stable/units/standard_units.html#prefixes>`_).
+                Default is ``'Tibyte'``.
+            :type unit: `str` or :class:`~astropy.units.Quantity`
+            :param receivers:
+                List of receivers whose cumulative data
+                volumes must be plotted. Default: all
+                available *NenuFAR* receivers.
+            :type receivers: `list` of `str`
+            :param scale:
+                y-axis scaling (``'linear'`` or ``'log'``).
+            :type scale: `str`
+            :param title:
+                Title of the plot.
+            :type title: `str`
+            :param grid:
+                Add a grid to help the visualization. Default is ``True``.
+            :type grid: `bool`
+            :param tMin:
+                Minimum time to represent.
+            :type tMin: `str` or :class:`~astropy.time.Time`
+            :param tMax:
+                Maximum time to represent.
+            :type tMax: `str` or :class:`~astropy.time.Time`
+
+        """
+        import matplotlib.pylab as plt
+        from itertools import cycle
+        
+        fig = plt.figure(
+            figsize=kwargs.get('figsize', (10, 5))
+        )
+        unit = kwargs.get('unit', 'Tibyte')
+
+        receivers = kwargs.get('receivers', list(backendClasses.keys()))
+        if not isinstance(receivers, list):
+            raise TypeError(
+                "`receivers` must be set as a list."
+            )
+        lStyles = [
+            'solid',
+            'dotted',
+            'dashed',
+            'dashdot',
+            (0, (5, 5)), # loose dashed
+            (0, (3, 5, 1, 5, 1, 5)), # dashdotteddotted
+            (0, (3, 1, 1, 1, 1, 1)) # dense dashdotteddotted
+        ]
+        linecycler = cycle(lStyles)
+        
+        volCumDico = {}
+        for receiver in receivers:
+            times, cumVol = self.getCumulativeVolume(
+                receiver=receiver,
+                unit=unit
+            )
+            volCumDico[receiver] = {
+                'times': times,
+                'cumulative_sum': cumVol
+            }
+            plt.plot(
+                times.datetime,
+                cumVol,
+                label=receiver,
+                linewidth=1,
+                linestyle=next(linecycler)
+            )
+
+        plt.plot(
+            times.datetime,
+            sum([volCumDico[k]['cumulative_sum'] for k in volCumDico.keys()]),
+            label='Total',
+            color='black',
+            linestyle='solid',
+            linewidth=2,
+            )
+
+        plt.yscale(kwargs.get('scale', 'linear'))
+        plt.legend()
+        plt.xlabel('UTC Time')
+        plt.ylabel(f'Raw data volume ({unit})')
+        plt.title(kwargs.get('title', ''))
+        plt.xlim(
+            (
+                Time(kwargs.get('tMin', times[0])).datetime,
+                Time(kwargs.get('tMax', times[-1])).datetime
+            )
+        )
+        if kwargs.get('grid', True):
+            plt.grid()
+        
+        if figname == '':
+            plt.show()
+        else:
+            plt.savefig(
+                figname,
+                dpi=300,
+                transparent=True,
+                bbox_inches='tight'
+            )
 # ============================================================= #
 # ============================================================= #
 
