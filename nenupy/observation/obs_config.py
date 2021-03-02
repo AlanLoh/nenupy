@@ -223,7 +223,7 @@
 
         >>> from nenupy.observation import ObsConfig
         >>> obsconf = ObsConfig.fromParsetList(dec2020_parset_list)
-        >>> plotCumulativeVolume(
+        >>> obsconf.plotCumulativeVolume(
                 title='NenuFAR observations, December 2020',
                 scale='log'
             )
@@ -479,6 +479,8 @@ def doc(docstring, backend):
             :param durationSec:
                 Observation duration in seconds (default: ``0``).
             :type durationSec: `int` or :class:`~astropy.time.TimeDelta`
+
+            .. versionadded:: 1.2.0
     """
     def document(func):
         func.__doc__ = docstring + '\n' + paramDoc
@@ -491,6 +493,7 @@ def doc(docstring, backend):
 # ============================================================= #
 class _BackendConfig(object):
     """
+        .. versionadded:: 1.2.0
     """
 
     def __init__(self, backend, **kwargs):
@@ -863,8 +866,6 @@ class BSTConfig(_BackendConfig):
 # ============================================================= #
 @doc('*NICKEL* correlator observation configuration.', 'nickel')
 class NICKELConfig(_BackendConfig):
-    """
-    """
 
     def __init__(self, **kwargs):
         super().__init__(backend='nickel', **kwargs)
@@ -972,6 +973,7 @@ class NICKELConfig(_BackendConfig):
 # ============================================================= #
 class _UnDySPuTeDConfig(_BackendConfig):
     """
+        .. versionadded:: 1.2.0
     """
 
     def __init__(self, backend, **kwargs):
@@ -1071,6 +1073,7 @@ class _UnDySPuTeDConfig(_BackendConfig):
 # ============================================================= #
 class _TFBeamConfig(_BackendConfig):
     """
+        .. versionadded:: 1.2.0
     """
 
     def __init__(self, **kwargs):
@@ -1096,8 +1099,6 @@ class _TFBeamConfig(_BackendConfig):
 # ============================================================= #
 @doc('*UnDySPuTeD Time-Frequency* mode observation configuration.', 'tf')
 class TFConfig(_UnDySPuTeDConfig):
-    """
-    """
 
     def __init__(self, _setFromParset=False, **kwargs):
         if not _setFromParset:
@@ -1256,6 +1257,7 @@ class TFConfig(_UnDySPuTeDConfig):
 # ============================================================= #
 class _RawBeamConfig(_BackendConfig):
     """
+        .. versionadded:: 1.2.0
     """
 
     def __init__(self, **kwargs):
@@ -1283,8 +1285,6 @@ class _RawBeamConfig(_BackendConfig):
 # ============================================================= #
 @doc('*UnDySPuTeD Waveform* mode observation configuration.', 'raw')
 class RAWConfig(_UnDySPuTeDConfig):
-    """
-    """
 
     def __init__(self, _setFromParset=False, **kwargs):
         if not _setFromParset:
@@ -1387,6 +1387,7 @@ class RAWConfig(_UnDySPuTeDConfig):
 # ============================================================= #
 class _FoldBeamConfig(_BackendConfig):
     """
+        .. versionadded:: 1.2.0
     """
 
     def __init__(self, **kwargs):
@@ -1413,8 +1414,6 @@ class _FoldBeamConfig(_BackendConfig):
 # ============================================================= #
 @doc('*UnDySPuTeD Pulsar-FOLD* mode observation configuration.', 'pulsar_fold')
 class PulsarFoldConfig(_UnDySPuTeDConfig):
-    """
-    """
 
     def __init__(self, _setFromParset=False, **kwargs):
         if not _setFromParset:
@@ -1535,6 +1534,7 @@ class PulsarFoldConfig(_UnDySPuTeDConfig):
 # ============================================================= #
 class _WaveolafBeamConfig(_BackendConfig):
     """
+        .. versionadded:: 1.2.0
     """
 
     def __init__(self, **kwargs):
@@ -1561,8 +1561,6 @@ class _WaveolafBeamConfig(_BackendConfig):
 # ============================================================= #
 @doc('*UnDySPuTeD Pulsar-WAVEOLAF* mode observation configuration.', 'pulsar_waveolaf')
 class PulsarWaveConfig(_UnDySPuTeDConfig):
-    """
-    """
 
     def __init__(self, _setFromParset=False, **kwargs):
         if not _setFromParset:
@@ -1680,6 +1678,7 @@ class PulsarWaveConfig(_UnDySPuTeDConfig):
 # ============================================================= #
 class _SingleBeamConfig(_BackendConfig):
     """
+        .. versionadded:: 1.2.0
     """
 
     def __init__(self, **kwargs):
@@ -1707,8 +1706,6 @@ class _SingleBeamConfig(_BackendConfig):
 # ============================================================= #
 @doc('*UnDySPuTeD Pulsar-SINGLE* mode observation configuration.', 'pulsar_single')
 class PulsarSingleConfig(_UnDySPuTeDConfig):
-    """
-    """
 
     def __init__(self, _setFromParset=False, **kwargs):
         if not _setFromParset:
@@ -1843,6 +1840,8 @@ backendClasses = {
 # ============================================================= #
 class ObsConfig(object):
     """ Main observation configuration class.
+
+        .. versionadded:: 1.2.0
     """
 
     def __init__(self):

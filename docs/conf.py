@@ -49,9 +49,10 @@ extensions = [
 # Add mappings
 intersphinx_mapping = {
     'astropy': ('https://docs.astropy.org/en/stable/', None),
-    'numpy': ('https://docs.scipy.org/doc/numpy/', None),
+    'numpy': ('https://numpy.org/doc/stable/', None),
     'python': ('http://docs.python.org/3', None),
     'healpy': ('https://healpy.readthedocs.io/en/latest/', None),
+    'matplotlib': ('https://matplotlib.org/stable/', None),
     # 'nenupy': ('https://nenupy.readthedocs.io/en/latest/', None),
 }
 

@@ -2,10 +2,20 @@
 # -*- coding: utf-8 -*-
 
 
-"""
+r"""
     ********
     SST Data
     ********
+
+    The most basic data product of `NenuFAR <https://nenufar.obs-nancay.fr/en/astronomer/>`_
+    are the *Spectral STatistics*, also known as *SST* data.
+    They are computed and delivered by the `LaNewBa <https://nenufar.obs-nancay.fr/en/astronomer/#receivers>`_
+    receiver which digitizes :math:`96 \times 2` input signals (96 Mini-Arrays and 2 polarizations) at a
+    sampling frequency of :math:`200\ {\rm MHz}`, further channelized in sub-bands of
+    :math:`200\ {\rm MHz} / 1024 = 195.3125\ {\rm kHz}` bandwidth each.
+    The SST data consist in the gathering of spectra per individual Mini-Array,
+    per second, evaluated at the 2 *NenuFAR* antenna polarizations (*North-West* and *North-East*).
+
 
     Data reading
     ------------
@@ -59,8 +69,8 @@
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     SST FITS files are most often split to only cover one or two hours
-    of observations. In this regard, :class:`~nenupy.beamlet.sstdata.SST_Data`
-    objects have been designed to allow for time concatenantion between
+    of observation. In this regard, :class:`~nenupy.beamlet.sstdata.SST_Data`
+    objects have been designed to allow for time concatenation between
     several :class:`~nenupy.beamlet.sstdata.SST_Data` instances. The
     arithmetic operator *Addition* is used to fill this role.
 
@@ -120,30 +130,25 @@
     Plotting
     ^^^^^^^^
 
-    SST_Data Reference
-    ------------------
+    Reference
+    ---------
 
-    Methods
-    ^^^^^^^
+    .. autosummary::
+        :nosignatures:
 
-    .. list-table:: Title
-       :widths: 25 25 50
-       :header-rows: 1
-
-       * - Heading row 1, column 1
-         - Heading row 1, column 2
-         - Heading row 1, column 3
-       * - Row 1, column 1
-         -
-         - Row 1, column 3
-       * - Row 2, column 1
-         - Row 2, column 2
-         - Row 2, column 3
-
-
-    Attributes
-    ^^^^^^^^^^
-
+        ~nenupy.beamlet.sstdata.SST_Data
+        ~nenupy.beamlet.sstdata.SST_Data.select
+        ~nenupy.beamlet.sstdata.SST_Data.filename
+        ~nenupy.beamlet.sstdata.SST_Data.altazA
+        ~nenupy.beamlet.sstdata.SST_Data.fMin
+        ~nenupy.beamlet.sstdata.SST_Data.fMax
+        ~nenupy.beamlet.sstdata.SST_Data.freqRange
+        ~nenupy.beamlet.sstdata.SST_Data.ma
+        ~nenupy.beamlet.sstdata.SST_Data.mas
+        ~nenupy.beamlet.sstdata.SST_Data.polar
+        ~nenupy.beamlet.sstdata.SST_Data.tMax
+        ~nenupy.beamlet.sstdata.SST_Data.tMin
+        ~nenupy.beamlet.sstdata.SST_Data.timeRange
 
 """
 
@@ -179,8 +184,8 @@ log = logging.getLogger(__name__)
 class SST_Data(object):
     """ Class to read *NenuFAR* SST data stored as FITS files.
 
-        :param sstfile: Path to SST file.
-        :type sstfile: `str` or `list`
+        :param filename: Path to SST file.
+        :type filename: `str` or `list`
         :param altazA: Path to ``*.altazA`` file, which describe
             the analogical pointing.
         :type altazA: `str` or `list`
@@ -314,10 +319,16 @@ class SST_Data(object):
     # --------------------- Getter/Setter --------------------- #
     @property
     def filename(self):
-        """
-            :setter: 
+        """ SST FITS file name(s).
+
+            :setter:
+                SST file name(s) to be read. It can be provided
+                by either a single `str` or a `list` of `str`
+                corresponding to the desired FITS file(s).
 
             :getter:
+                List of the SST file name(s) loaded for this
+                instance of :class:`~nenupy.beamlet.sstdata.SST_Data`.
 
             :type: `list`
         """
@@ -337,7 +348,8 @@ class SST_Data(object):
 
     @property
     def altazA(self):
-        """
+        """ Mini-Arrays analog pointing orders file.
+
             :setter: 
 
             :getter:
@@ -355,7 +367,8 @@ class SST_Data(object):
 
     @property
     def timeRange(self):
-        """
+        """ Sets the start and end times of SST data selection.
+
             :setter: 
 
             :getter:
@@ -378,7 +391,8 @@ class SST_Data(object):
 
     @property
     def freqRange(self):
-        """
+        """ Sets the minimum and maximum frequencies of SST data selection.
+
             :setter: 
 
             :getter:
@@ -401,7 +415,8 @@ class SST_Data(object):
 
     @property
     def polar(self):
-        """
+        """ Sets the polarization of SST data selection.
+
             :setter: 
 
             :getter:
@@ -427,7 +442,8 @@ class SST_Data(object):
 
     @property
     def ma(self):
-        """
+        """ Sets the Mini-Array of SST data selection.
+
             :setter: 
 
             :getter:
@@ -452,7 +468,9 @@ class SST_Data(object):
 
     @property
     def tMin(self):
-        """
+        """ Gets the start time of the
+            :class:`~nenupy.beamlet.sstdata.SST_Data` instance.
+
             :getter:
 
             :type: :class:`~astropy.time.Time`
@@ -462,7 +480,9 @@ class SST_Data(object):
 
     @property
     def tMax(self):
-        """
+        """ Gets the end time of the
+            :class:`~nenupy.beamlet.sstdata.SST_Data` instance.
+
             :getter:
 
             :type: :class:`~astropy.time.Time`
@@ -506,12 +526,16 @@ class SST_Data(object):
         """
             :param freqRange:
             :type freqRange:
+                `list` of :class:`~astropy.units.Quantity`
             :param timeRange:
             :type timeRange:
+                `list` of :class:`~astropy.time.Time`
             :param ma:
             :type ma:
+                `int`
             :param polar:
             :type polar:
+                `str`
 
             :returns:
             :rtype: `~nenupy.beamlet.sdata.SData`

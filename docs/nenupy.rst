@@ -12,6 +12,7 @@ Subpackages
    nenupy.crosslet
    nenupy.instru
    nenupy.observation
+   nenupy.schedule
    nenupy.simulation
    nenupy.skymodel
    nenupy.undysputed

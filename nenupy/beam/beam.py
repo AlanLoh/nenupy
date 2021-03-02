@@ -526,6 +526,7 @@ class DBeam(Beam):
                     elana=self.elana,
                     ma=ma
                 )
+                ana.beamsquint = self.beamsquint
                 anavals = ana.beam_values(
                     coords=coords,
                     time=time

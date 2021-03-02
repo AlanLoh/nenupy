@@ -105,6 +105,7 @@ Finally, observations can then be simulated using the simulated beam and a sky m
    nenupy.astro
    nenupy.instru
    nenupy.observation
+   nenupy.schedule
 
 
 .. toctree::
