@@ -1242,6 +1242,29 @@ class Crosslet(object):
         )
 
 
+    def matrix(self, vis):
+        """
+        """
+        c = np.zeros(
+            (self.mas.size, self.mas.size),
+            dtype=np.complex
+        )
+        mask = np.zeros(
+            (self.mas.size, self.mas.size),
+            dtype=bool
+        )
+        mask[np.triu_indices(self.mas.size, 0)] = True
+        c[np.tril_indices(self.mas.size, 0)] = np.mean(vis, axis=(0, 1)) # time, freq, baselines
+        c = np.ma.masked_array(
+            c,
+            mask=mask
+        )
+        vmin = np.percentile(np.real(c), 0.68)
+        fig = plt.figure(figsize=(10, 10))
+        im = plt.imshow(np.real(c), origin='lower', cmap='Spectral_r', vmin=vmin, vmax=-vmin)
+        plt.colorbar(im)
+
+
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     def _getStokes(self, stokes):

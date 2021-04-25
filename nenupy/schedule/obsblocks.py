@@ -240,6 +240,143 @@ class ObsBlock(Block):
         self.duration = duration
 
         self.blockIdx = 0
+        
+        super().__init__(self)
+
+
+    # --------------------------------------------------------- #
+    # --------------------- Getter/Setter --------------------- #
+    @property
+    def program(self):
+        """
+        """
+        return self._program
+    @program.setter
+    def program(self, pg):
+        pg = pg.lower()
+        self._isKP(pg)
+        self._program = pg
+
+
+    @property
+    def target(self):
+        """
+        """
+        return self._target
+    @target.setter
+    def target(self, src):
+        if not isinstance(src, _Target):
+            raise TypeError(
+                f'`target` should be of type {_Target}.'
+            )
+        self._target = src
+
+
+    @property
+    def constraints(self):
+        """
+        """
+        return self._constraints
+    @constraints.setter
+    def constraints(self, ct):
+        if ct is None:
+            ct = Constraints()
+        self._constraints = ct
+
+
+
+    @property
+    def kpColor(self):
+        """
+        """
+        return KPS[self.program]['color']
+
+
+    @property
+    def title(self):
+        """
+        """
+        _charLimit = 23
+        blkId = f'ID: {self.blockIdx}'
+        kpInfos = ' - '.join(
+            [
+                self.program.upper(),
+                KPS[self.program]['name']
+            ]
+        )
+        kpInfos = kpInfos[:_charLimit]
+        obsName = self.name[:_charLimit]
+        return f'{blkId}\n{kpInfos}\n{obsName}'
+
+
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+    # @classmethod
+    # def fromJson(self, jsonFile):
+    #     """
+    #     """
+
+    # def evaluateScore(self, time):
+    #     """
+    #     """
+    #     # Evaluate the target positions over time and compute the
+    #     # score (product of each contraint score)
+    #     # If it has already been evaluated do not do twice
+    #     if self.target._lst is None:
+    #         self.target.computePosition(time)
+
+    #         # Compute the product of the score for each constraint
+    #         # self.constraints.computeWeight(
+    #         #     target=self.target
+    #         # )
+    #         self.constraints.evaluate(
+    #             target=self.target,
+    #             time=time,
+    #             nslots=self.nSlots
+    #         )
+
+    #         log.debug(
+    #             f"<ObsBlock> named '{self.name}': Constraint "
+    #             "score evaluated."
+    #         )
+
+
+    # --------------------------------------------------------- #
+    # ----------------------- Internal ------------------------ #
+    @staticmethod
+    def _isKP(kp):
+        """
+        """
+        if kp not in KPS.keys():
+            raise KeyError(
+                '`program` is not a valid NenuFAR Key Science '
+                f'Program, i.e. one of {KPS.keys()}.'
+            )
+        return True
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------- ObsBlock -------------------------- #
+# ============================================================= #
+class ObsBlock2(Block):
+    """
+        .. versionadded:: 1.2.0
+    """
+
+    def __init__(
+        self, name, program, target,
+        constraints=None,
+        duration=TimeDelta(3600, format='sec')
+    ):
+        self.name = name
+        self.program = program
+        self.target = target
+        self.constraints = constraints
+        self.duration = duration
+
+        self.blockIdx = 0
         self.isBooked = False
         
         # These atrributes are filled once the ObsBlock has been
@@ -276,7 +413,7 @@ class ObsBlock(Block):
     def target(self, src):
         if not isinstance(src, _Target):
             raise TypeError(
-                f'`target` should be of type {type(_Target)}.'
+                f'`target` should be of type {_Target}.'
             )
         self._target = src
 
@@ -375,6 +512,13 @@ class ObsBlock(Block):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+    # @classmethod
+    # def fromJson(self, jsonFile):
+    #     """
+    #     """
+
+
+
     def evaluateScore(self, time, **kwargs):
         """
         """
@@ -395,8 +539,8 @@ class ObsBlock(Block):
             )
 
             log.debug(
-                f"<ObsBlock> named '{self.name}': Constraint "
-                "score evaluated."
+                f"<ObsBlock> #{self.blockIdx} named '{self.name}': "
+                "Constraint score evaluated."
             )
 
 
@@ -412,7 +556,8 @@ class ObsBlock(Block):
         # Check if the obsblock has been booked in the schedule
         if self.tMin is None:
             log.warning(
-                f'<ObsBlock> named {self.name} is not booked.'
+                f"<ObsBlock> #{self.blockIdx} named '{self.name}' "
+                "is not booked."
             )
             return
         

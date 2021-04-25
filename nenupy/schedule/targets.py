@@ -334,6 +334,19 @@ class ESTarget(_Target):
         return cls(
             target=esSource
         )
+
+
+    @classmethod
+    def fromCoordinates(cls, coordinates):
+        """
+        """
+        if isinstance(coordinates, str):
+            esSource = SkyCoord(coordinates, unit=(u.hourangle, u.deg))
+        else:
+            esSource = SkyCoord(*coordinates, unit=u.deg)
+        return cls(
+            target=esSource
+        )
 # ============================================================= #
 # ============================================================= #
 

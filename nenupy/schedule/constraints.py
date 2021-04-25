@@ -154,6 +154,7 @@ r"""
 
 """
 
+# TO DO : CENTRER SUR L AZIMUTH / transit au meridien
 
 __author__ = 'Alan Loh'
 __copyright__ = 'Copyright 2021, nenupy'
@@ -472,18 +473,25 @@ class ElevationCnst(TargetConstraint):
         # aboveMin = self.score[indices] > 0
         # return np.mean(self.score[indices][aboveMin])
         # return np.mean(self.score[indices])
+        # return np.mean(
+        #     np.where(
+        #         np.isnan(self.score[indices]),
+        #         0,
+        #         self.score[indices]
+        #     )
+        # )
         return np.mean(
             np.where(
-                np.isnan(self.score[indices]),
-                0,
-                self.score[indices]
+                self.score[indices]>0.,
+                1,
+                0
             )
         )
 
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _evaluate(self, target):
+    def _evaluate(self, target, nslots):
         """ Evaluates the constraint :class:`~nenupy.schedule.constraint.ElevationCnst`
             on the ``target`` which astronomical positions need
             to be computed first (using :meth:`~nenupy.schedule.targets._Target.computePosition`).
@@ -565,21 +573,37 @@ class MeridianTransitCnst(TargetConstraint):
             :rtype: `float`
         """
         self._isArray(indices)
-        return np.sum(self.score[indices], axis=-1)
+        #return np.sum(self.score[indices], axis=-1)
+        return int((self.score[indices]>0.7).any())
 
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _evaluate(self, target):
+    def _evaluate(self, target, nslots):
         self._isTarget(target)
 
         hourAngle = target.hourAngle
         transitIdx = np.where(
             (np.roll(hourAngle, -1) - hourAngle)[:-1] < 0
         )[0]
-
-        # Set transit slots to maximal score
         scores = np.zeros(hourAngle.size)
+        # Set neighbor slots to non-zero to maximize centering
+        slotShifts = np.arange(nslots) - int(np.floor(nslots/2))
+        neighborIdx = (transitIdx[:, None] + slotShifts[None, :]).ravel()
+        outOfBounds = (neighborIdx < 0) + (neighborIdx >= scores.size)
+        neighborIdx = np.delete(
+            neighborIdx,
+            np.argwhere(outOfBounds)
+        )
+        scores = np.where(
+            np.isin(
+                np.arange(scores.size, dtype=int),
+                neighborIdx
+            ),
+            0.5,
+            scores
+        )
+        # Set transit slots to maximal score
         scores[transitIdx] = 1.
         self.score = scores[:-1]
         return self.score
@@ -624,12 +648,13 @@ class AzimuthCnst(TargetConstraint):
         """
         """
         self._isArray(indices)
-        return np.sum(self.score[indices], axis=-1)
+        # return np.sum(self.score[indices], axis=-1)
+        return int((self.score[indices]>0.7).any())
 
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _evaluate(self, target):
+    def _evaluate(self, target, nslots):
         self._isTarget(target)
         
         azimuths = target.azimuth.rad
@@ -650,8 +675,30 @@ class AzimuthCnst(TargetConstraint):
         else:
             mask = (az >= azimuths[:-1]) &\
                 (az <= azimuths[1:])
-        
-        self.score = mask.astype(float)
+
+        scores = np.zeros(mask.size)
+        azIndices = np.where(mask)[0]
+        # Set neighbor slots to non-zero to maximize centering
+        slotShifts = np.arange(nslots) - int(np.floor(nslots/2))
+        neighborIdx = (azIndices[:, None] + slotShifts[None, :]).ravel()
+        outOfBounds = (neighborIdx < 0) + (neighborIdx >= scores.size)
+        neighborIdx = np.delete(
+            neighborIdx,
+            np.argwhere(outOfBounds)
+        )
+        scores = np.where(
+            np.isin(
+                np.arange(scores.size, dtype=int),
+                neighborIdx
+            ),
+            0.5,
+            scores
+        )
+
+        # Set azimuth found slots to maximal score
+        scores[azIndices] = 1.
+        self.score = scores
+        # self.score = mask.astype(float)
         return self.score
 # ============================================================= #
 # ============================================================= #
@@ -712,7 +759,7 @@ class LocalTimeCnst(ScheduleConstraint):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _evaluate(self, time):
+    def _evaluate(self, time, nslots):
         """
         """
         self._isTime(time)
@@ -801,7 +848,7 @@ class TimeRangeCnst(ScheduleConstraint):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _evaluate(self, time):
+    def _evaluate(self, time, nslots):
         """ time: dim + 1
         """
         self._isTime(time)
@@ -827,7 +874,7 @@ class Constraints(object):
     def __init__(self, *constraints):
         self._default_el = False
         self.constraints = constraints
-        self.score = 1
+        self.score = None
         
         # Check they are all of unique type
         unique, count = np.unique(
@@ -904,16 +951,15 @@ class Constraints(object):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def evaluate(self, target, time, method='prod'):
+    def evaluate(self, target, time, nslots=1):
         """
-            method: [prod, sum]
         """
         cnts = np.zeros((self.size, time.size - 1))
         for i, cnt in enumerate(self):
             if isinstance(cnt, TargetConstraint):
-                cnts[i, :] = cnt(target)
+                cnts[i, :] = cnt(target, nslots)
             elif isinstance(cnt, ScheduleConstraint):
-                cnts[i, :] = cnt(time)
+                cnts[i, :] = cnt(time, nslots)
             else:
                 pass
         score = np.average(cnts, weights=self.weights, axis=0)
@@ -922,6 +968,7 @@ class Constraints(object):
             0,
             score
         )
+        self.score[np.where(np.prod(cnts, axis=0)==0)[0]] = 0
         return self.score
 
 

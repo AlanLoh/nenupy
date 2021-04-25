@@ -44,7 +44,7 @@ class GeneticAlgorithm(object):
         self._childScores = []
         self._genScores = []
         self._bestScore = 0
-        self._bestGenome = None
+        self.bestGenome = None
 
         self.generation = 0
         self.populate = populate
@@ -196,6 +196,7 @@ class GeneticAlgorithm(object):
                 addRandom (default 1)
                 selectionMethod (default FPS)
                 crossoverMethod (default SPCO)
+                elitism (default True)
         """
         if scoreMin > 1.:
             raise ValueError(
@@ -212,6 +213,9 @@ class GeneticAlgorithm(object):
                 f'<addRandom={addRandom}> is greater than the '
                 f'population size {self.populationSize}.'
             )
+        parentSelection = kwargs.get('selectionMethod', 'TNS')
+        crossoverMethod = kwargs.get('crossoverMethod', 'TPCO')
+        beElitist = kwargs.get('elitism', True)
 
         log.info(
             'Genetic algorithm launched.'
@@ -223,7 +227,7 @@ class GeneticAlgorithm(object):
         # Initialization of a starting population of solutions
         population = self.populate(self.populationSize)#, **kwargs)
         popDtype = population.dtype
-        self._bestGenome = population[0]
+        self.bestGenome = population[0]
 
         # Genetic Loop
         while self.generation < maxGen:
@@ -237,7 +241,7 @@ class GeneticAlgorithm(object):
             self._genScores.append(score)
             if score > self._bestScore:
                 self._bestScore = score
-                self._bestGenome = population[maxId]
+                self.bestGenome = population[maxId]
                 nStag = 0 # the score has changed, reset nStag
 
             # Show status
@@ -283,17 +287,17 @@ class GeneticAlgorithm(object):
             # Perform crossovers with the rest of the population
             for i in range(int(self.populationSize/2) - 1):
                 # Select 2 parents from the population with a
-                # rprobability weighted by their score
+                # probability weighted by their score
                 parents = self._selectPair(
                     population=population,
                     scores=populationScores,
-                    method=kwargs.get('selectionMethod', 'TNS')
+                    method=parentSelection
                 )
                 # Make two children out of the parents by crossing
                 # their genomes
                 child1, child2 = self._crossOver(
                     parents=parents,
-                    method=kwargs.get('crossoverMethod', 'TPCO')
+                    method=crossoverMethod
                 )
                 # Randomly mutate one gene of each child
                 child1 = self.mutation(
@@ -424,10 +428,10 @@ class GeneticAlgorithm(object):
 
         elif method == 'TNS':
             # Tournament Selection
-            # Select k individuals from the population and found
+            # Select k individuals from the population and find
             # the best out of these to make a parent.
             k = np.max(
-                (2, int(np.ceil(population.shape[0]/3)))
+                (2, int(np.ceil(population.shape[0]/10)))
             )
             selectIdx = np.zeros(2, dtype=int)
             for i in range(2):
