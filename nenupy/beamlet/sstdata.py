@@ -205,6 +205,7 @@ class SST_Data(object):
 
     def __init__(self, filename, altazA=None, **kwargs):
         self._autoUpdate = kwargs.get('autoUpdate', True)
+        self._allMAs = kwargs.get('allMAs', False)
         self.obsProperties = {}
         self.filename = filename
         self.altazA = altazA
@@ -459,10 +460,16 @@ class SST_Data(object):
             raise TypeError(
                 '`ma` should be an integer.'
             )
-        if not all([m in mas for mas in self._getPropList('MAs')]):
-            raise IndexError(
-                'Mini-Array `{}` not used in current observation.'.format(m)
-            )
+        if not self._allMAs:
+            if not all([m in mas for mas in self._getPropList('MAs')]):
+                raise IndexError(
+                    'Mini-Array `{}` not used in current observation.'.format(m)
+                )
+        else:
+            if not all([m in mas for mas in self._getPropList('AllMAs')]):
+                raise IndexError(
+                    'Mini-Array `{}` not present in current observation.'.format(m)
+                )
         self._ma = m
 
 
@@ -517,7 +524,10 @@ class SST_Data(object):
 
             :type: :class:`~nenupy.base.MiniArrays`
         """
-        return self._getPropList('MAs')[0]
+        if self._allMAs:
+            return self._getPropList('AllMAs')[0]
+        else:
+            return self._getPropList('MAs')[0]
 
 
     # --------------------------------------------------------- #
@@ -633,7 +643,8 @@ class SST_Data(object):
             'fMax': ins['frq'].max()*u.MHz,
             'freqs': ins['frq'][0]*u.MHz,
             'polars': ins['spol'][0],
-            'MAs': MiniArrays(ins['noMROn'][0])
+            'MAs': MiniArrays(ins['noMROn'][0]),
+            'AllMAs': MiniArrays(ins['noMR'][0])
         }
 
 
