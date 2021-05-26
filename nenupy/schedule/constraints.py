@@ -319,7 +319,7 @@ class Constraint(object):
         """
         if not isinstance(arr, np.ndarray):
             raise TypeError(
-                f'{np.ndarray.__class__} object expected.'
+                f'{np.ndarray} object expected.'
             )
 # ============================================================= #
 # ============================================================= #
@@ -350,7 +350,7 @@ class TargetConstraint(Constraint):
         """
         if not isinstance(target, _Target):
             raise TypeError(
-                f'{_Target.__class__} object expected.'
+                f'{_Target} object expected.'
             )
 
 
@@ -855,7 +855,14 @@ class TimeRangeCnst(ScheduleConstraint):
         
         jds = time.jd
         
-        mask = (jds >= self.tMin.jd) & (jds <= self.tMax.jd)
+        if self.tMin.isscalar:
+            mask = (jds >= self.tMin.jd) & (jds <= self.tMax.jd)
+        else:
+            mask = np.sum(
+                (jds[:, None] >= self.tMin.jd) & (jds[:, None] <= self.tMax.jd),
+                axis=1,
+                dtype=bool
+            )
         score = mask[:-1].astype(float)
         self.score = np.where(score==0, np.nan, score)
         return self.score
@@ -955,13 +962,20 @@ class Constraints(object):
         """
         """
         cnts = np.zeros((self.size, time.size - 1))
+        unEvaluatedCnst = 0
         for i, cnt in enumerate(self):
-            if isinstance(cnt, TargetConstraint):
+            if isinstance(cnt, TargetConstraint) and (target is not None):
                 cnts[i, :] = cnt(target, nslots)
             elif isinstance(cnt, ScheduleConstraint):
                 cnts[i, :] = cnt(time, nslots)
             else:
-                pass
+                unEvaluatedCnst += 1
+        if unEvaluatedCnst == self.size:
+            cnts += 1.
+            log.debug(
+                'No defined constraint could be used. Schedule '
+                'slot scores have been set to 1...'
+            )
         score = np.average(cnts, weights=self.weights, axis=0)
         self.score = np.where(
             np.isnan(score),

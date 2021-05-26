@@ -588,6 +588,97 @@ class Crosslet(object):
     #     plt.imshow(mat, origin='lower')
     #     return
 
+    # def rephase(...):
+        # Packages generiques
+        # from astropy.coordinates import SkyCoord
+        # import astropy.units as u
+        # import dask.array as da
+        # from dask.diagnostics import ProgressBar
+
+        # # Package nenupy
+        # from nenupy.crosslet import XST_Data, TV_Data
+        # from nenupy.astro import toAltaz
+        # from nenupy.instru import ma_pos, read_cal_table, freq2sb
+        # from nenupy.astro import wavelength
+
+
+        # # Lecture des donnees
+        # #xst = XST_Data(' ..../.../XST...fits') # ou TV_Data('....dat')
+        # xst = TV_Data('/Users/aloh/Documents/Work/NenuFAR/TV/20191204_132113_nenufarTV.dat')
+
+        # # Centre de phase radec
+        # centre_phase = SkyCoord.from_name('Cyg A')
+
+        # # Conversion en altaz
+        # centre_phase_altaz = toAltaz(centre_phase, xst.times)
+
+
+        # trix, triy = np.tril_indices(xst.mas.size, 0)
+
+        # # Pointing direction, rotation
+        # az = centre_phase_altaz.az.rad
+        # el = centre_phase_altaz.alt.rad
+        # uu = np.array([
+        #     -np.cos(el) * np.cos(az),
+        #     np.cos(el) * np.sin(az),
+        #     np.sin(el)
+        # ])
+
+        # # Select XST data, and lazy-load as Dask array
+        # data = da.from_array(
+        #     xst.xx
+        # )
+
+        # # Calibration
+        # cal = read_cal_table(
+        #     calfile='default'
+        # )
+        # cal = cal[np.ix_(
+        #     freq2sb(xst.freqs),
+        #     xst.mas,
+        #     [0]
+        # )].squeeze()
+        # # Calibrate the Xcorr with the caltable
+        # #data *= np.dot(
+        # #    np.expand_dims(cal, axis=2),
+        # #    np.expand_dims(cal.T.conj(), axis=1)
+        # #)[np.newaxis, :, trix, triy, 0]
+        # data *= (cal[..., None] * cal[:, None, :].conj())[None, :, trix, triy]
+
+        # # Phase the Xcorr towards centre_phase
+        # dphi = np.dot(
+        #     ma_pos[xst._ant1] - ma_pos[xst._ant2],
+        #     uu
+        # )
+        # wavel = wavelength(tv.freqs).value
+
+        # exp_phase = np.exp(
+        #     +2.j*np.pi/wavel[None, :, None] * dphi.T[:, None, :]
+        # )
+
+        # # Final result
+        # rephased_xst = data * exp_phase # shape: (times, sb, baselines)
+
+        # # Slice selection before plotting / Dask
+        # #toplot = np.zeros(
+        # #    (xst.mas.size, xst.mas.size),
+        # #    dtype=np.complex
+        # #)
+        # #with ProgressBar():
+        # #    toplot[trix, triy] = rephased_xst[0, 1, :].compute() # computation is only done here for the given slice (.1sec for my machine with 56 MRs)
+        # #
+        # #plt.imshow(
+        # #    toplot.imag,
+        # #    origin='lower'
+        # #)
+
+        # paire_de_mas = np.array([10, 20, 31, 12])
+        # mas = xst._mas_idx[np.isin(xst.mas, paire_de_mas)]
+        # mask = np.isin(xst._ant1, mas) & np.isin(xst._ant2, mas)
+        # plan_tf = rephased_xst[:, :, mask].compute()
+        # plt.imshow(plan_tf[..., 1].T.imag, origin='lower')
+        # plt.colorbar()
+
 
     def beamform(self, az, el, pol='NW', ma=None, calibration='default'):
         r""" Converts cross correlation statistics data XST, 

@@ -150,7 +150,7 @@ class ScheduleBlock(ObsBlock):
         # Evaluate the target positions over time and compute the
         # score (product of each contraint score)
         # If it has already been evaluated do not do twice
-        if self.target._lst is None:
+        if (self.target is not None) and (self.target._lst is None):
             self.target.computePosition(time)
 
         if self.constraints.score is None:
@@ -617,10 +617,14 @@ class Schedule(_TimeSlots):
     def book(self, optimize=True, **kwargs):
         """
             kwargs
-                nChildren
-                scoreMin
-                maxGen
-
+                nChildren (default 20)
+                scoreMin (default 0.8)
+                maxGen (default 1000)
+                maxStag (default 100)
+                addRandom (default 1)
+                selectionMethod (default FPS)
+                crossoverMethod (default SPCO)
+                elitism
         """
         self._evaluateCnst(**kwargs)
 

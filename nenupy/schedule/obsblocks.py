@@ -265,7 +265,9 @@ class ObsBlock(Block):
         return self._target
     @target.setter
     def target(self, src):
-        if not isinstance(src, _Target):
+        if src is None:
+            pass
+        elif not isinstance(src, _Target):
             raise TypeError(
                 f'`target` should be of type {_Target}.'
             )

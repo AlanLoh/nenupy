@@ -365,7 +365,7 @@ class NenuFarTV(HpxSky):
         decs = []
         names = []
         for src, name in zip(srcCoords, src2display):
-            if src.separation(self.phaseCenter) <= self.fov/2 - 0.2*self.fov:
+            if src.separation(self.phaseCenter) <= 0.45*self.fov:#self.fov/2 - 0.2*self.fov:
                 ras.append(src.ra.deg)
                 decs.append(src.dec.deg)
                 names.append(name)
