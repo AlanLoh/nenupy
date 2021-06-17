@@ -24,6 +24,7 @@
     * :func:`~nenupy.instru.instru.data_rate`: NenuFAR data rate estimation
     * :func:`~nenupy.instru.instru.freq2sb`: Conversion from frequency to sub-band index
     * :func:`~nenupy.instru.instru.sb2freq`: Conversion sub-band index to sub-band start frequency
+    * :func:`~nenupy.instru.instru.lnaGain`: Low Noise Amplifier gain
 
 """
 
@@ -54,7 +55,8 @@ __all__ = [
     'confusion_noise',
     'data_rate',
     'freq2sb',
-    'sb2freq'
+    'sb2freq',
+    'lnaGain'
 ]
 
 
@@ -1306,5 +1308,56 @@ def sb2freq(sb):
     sb_width = 100. * u.MHz
     freq_start = (sb * sb_width) / 512
     return freq_start
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------- lnaGain --------------------------- #
+# ============================================================= #
+def lnaGain(freq, filter25=False):
+    """ Returns the NenuFAR Low Noise Amplifier (LNA) gains with
+        at given frequencies ``freq``. LNA gains values are linearly
+        interpolated between 15 and 85 MHz.
+
+        :param freq:
+            Frequency at which the LNA gain must be returned.
+        :type freq:
+            `int`, `float`, :class:`~np.ndarray` or :class:`~astropy.units.Quantity`
+        :param filter25:
+            Take into account or not the LNA gain for which a 25 MHz
+            high-pass filter has been applied. Default is ``False``.
+        :type filter25: `bool`
+
+        :returns:
+            Interpolated LNA gain values over ``freq``.
+        :rtype: :class:`~np.ndarray` or :class:`~astropy.units.Quantity`
+
+        :example:
+            >>> from nenupy.instru import lnaGain
+            >>> lnaGain(freq=50)
+            1893.637660993468
+
+            >>> from nenupy.instru import lnaGain
+            >>> lnaGain(freq=np.linspace(20, 22, 2), filter25=True)
+            array([ 41.40509095, 190.31974857])
+
+            >>> from nenupy.instru import lnaGain
+            >>> import numpy as np
+            >>> import astropy.units as u
+            >>> lnaGain(freq=np.linspace(30, 40, 3) * u.MHz)
+            array([ 807.5866613 , 1176.55665449, 1681.93892233])
+
+        .. versionadded:: 1.2.0
+    """
+    if isinstance(freq, u.Quantity):
+        freq = freq.to(u.MHz).value
+    file = join(
+        dirname(__file__),
+        'LNA_25MHzFilter.fits' if filter25 else 'LNA_NoFilter.fits'
+    )
+    lnagain = getdata(file)
+    freqs = lnagain['freq'] # MHz
+    gains = lnagain['gain']
+    return np.interp(freq, freqs, gains)
 # ============================================================= #
 
