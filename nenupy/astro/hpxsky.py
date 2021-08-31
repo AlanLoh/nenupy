@@ -660,7 +660,7 @@ class HpxSky(object):
             )
 
         im.set_clip_path(ax.coords.frame.patch)
-        ax.set_title(kwargs['title'], pad=25)
+        ax.set_title(kwargs['title'])#, pad=25)
 
         # Colorbar
         if kwargs['cbar']:
