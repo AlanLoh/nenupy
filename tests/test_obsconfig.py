@@ -296,7 +296,7 @@ def test_singleconfig_parset():
     assert single._beamConfigs[0].nBits == 32
     assert single._beamConfigs[0].dsTime == 128
 
-    assert single.volume.value == pytest.approx(61.29, 1e-2)
+    assert single.volume.value == pytest.approx(15.32, 1e-2)
 # ============================================================= #
 
 
