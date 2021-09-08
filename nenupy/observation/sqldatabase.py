@@ -62,11 +62,11 @@ class _ObservationTable(Base):
 
     id = Column(Integer, primary_key=True)
 
-    obsName = Column(String, nullable=False)
-    contactName = Column(String, nullable=False)
-    contactEmail = Column(String, nullable=False)
-    keyProjectCode = Column(String, nullable=False)
-    keyProjectName = Column(String, nullable=False)
+    obsName = Column(String(40), nullable=False)
+    contactName = Column(String(50), nullable=False)
+    contactEmail = Column(String(100), nullable=False)
+    keyProjectCode = Column(String(4), nullable=False)
+    keyProjectName = Column(String(100), nullable=False)
     startTime = Column(DateTime, nullable=False)
     stopTime = Column(DateTime, nullable=False)
     nAnaBeams = Column(Integer, nullable=False)
@@ -77,7 +77,7 @@ class _ObservationTable(Base):
     sstON = Column(Boolean, nullable=False)
     bstON = Column(Boolean, nullable=False)
     xstON = Column(Boolean, nullable=False)
-    parsetFile = Column(String, nullable=False)
+    parsetFile = Column(String(100), nullable=False)
 # ============================================================= #
 # ============================================================= #
 
@@ -97,14 +97,14 @@ class _AnalogBeamTable(Base):
 
     angle1 = Column(Float, nullable=False)
     angle2 = Column(Float, nullable=False)
-    coordType = Column(String, nullable=False)
-    pointingType = Column(String, nullable=False)
+    coordType = Column(String(50), nullable=False)
+    pointingType = Column(String(50), nullable=False)
     startTime = Column(DateTime, nullable=False)
     stopTime = Column(DateTime, nullable=False)
     nMiniArrays = Column(Integer, nullable=False)
-    miniArrays = Column(String, nullable=False)
+    miniArrays = Column(String(400), nullable=False)
     nAntennas = Column(Integer, nullable=False)
-    antennas = Column(String, nullable=False)
+    antennas = Column(String(100), nullable=False)
     beamSquintFreq = Column(Float, nullable=False)
 
 
@@ -151,11 +151,11 @@ class _DigitalBeamTable(Base):
 
     angle1 = Column(Float, nullable=False)
     angle2 = Column(Float, nullable=False)
-    coordType = Column(String, nullable=False)
-    pointingType = Column(String, nullable=False)
+    coordType = Column(String(50), nullable=False)
+    pointingType = Column(String(50), nullable=False)
     startTime = Column(DateTime, nullable=False)
     stopTime = Column(DateTime, nullable=False)
-    subBands = Column(String, nullable=False)
+    subBands = Column(String(400), nullable=False)
     fMin = Column(Float, nullable=False)
     fMax = Column(Float, nullable=False)
 
