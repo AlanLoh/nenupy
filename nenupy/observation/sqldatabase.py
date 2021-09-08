@@ -183,9 +183,9 @@ class ParsetDataBase(object):
     """
     """
 
-    def __init__(self, dataBaseName):
-        self.engine = ''
+    def __init__(self, dataBaseName, engine=None):
         self.name = dataBaseName
+        self.engine = engine
         self.parset = None
         Base.metadata.create_all(self.engine)
         DBSession = sessionmaker(bind=self.engine)
@@ -209,10 +209,18 @@ class ParsetDataBase(object):
                 'name should end with .db'
             )
         self._name = abspath(n)
-        self.engine = create_engine(
-            'sqlite:///' + self._name
-        )
 
+
+    @property
+    def engine(self):
+        return self._engine
+    @engine.setter
+    def engine(self, e):
+        if e is None:
+            e = create_engine(
+                'sqlite:///' + self.name
+            )
+        self._engine = e
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #

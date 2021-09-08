@@ -1009,12 +1009,22 @@ class _UnDySPuTeDConfig(_BackendConfig):
                 for param in parameters.split('--')\
                 if '=' in param
             }
+            configs.update({
+                param.rstrip(): True\
+                for param in parameters.split('--')\
+                if '=' not in param
+            })
         else:
             configs = {
                 param.split('=')[0]: param.split('=')[1]\
                 for param in parameters.split()\
                 if '=' in param
             }
+            configs.update({
+                param.rstrip(): True\
+                for param in parameters.split('--')\
+                if '=' not in param
+            })
         return mode, configs
 
 
@@ -1805,7 +1815,7 @@ class PulsarSingleConfig(_UnDySPuTeDConfig):
                     continue
                 
                 props = backendProperties['pulsar_single']
-                
+
                 beamConfigs.append(
                     _SingleBeamConfig(
                         nSubBands=len(digibeams[db]['subbandList']),

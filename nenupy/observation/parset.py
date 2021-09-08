@@ -9,7 +9,7 @@
 """
 
 
-__author__ = 'Alan Loh, Baptiste Cecconi'
+__author__ = 'Alan Loh'
 __copyright__ = 'Copyright 2020, nenupy'
 __credits__ = ['Alan Loh']
 __maintainer__ = 'Alan'
@@ -18,12 +18,14 @@ __status__ = 'Production'
 __all__ = [
     '_ParsetProperty',
     'Parset',
-    'ParseUser'
+    'ParsetUser'
 ]
 
 
 from os.path import abspath, isfile
 from collections.abc import MutableMapping
+from copy import deepcopy
+import re
 from astropy.time import Time, TimeDelta
 import astropy.units as u
 import numpy as np
@@ -181,12 +183,13 @@ class Parset(object):
         return
 
 
-    def addToDatabase(self, dataBaseName):
+    def addToDatabase(self, data_base):#dataBaseName):
         """
         """
-        from nenupy.observation import ParsetDataBase
+        # from nenupy.observation import ParsetDataBase
 
-        parsetDB = ParsetDataBase(dataBaseName)
+        # parsetDB = ParsetDataBase(dataBaseName)
+        parsetDB = data_base
         parsetDB.parset = self.parset
         parsetDB.addTable(
             {**self.observation, **self.output}, # dict merging
@@ -203,9 +206,9 @@ class Parset(object):
                 desc='digibeam'
             )
 
-        log.info(
-            f'Parset {self.parset} added to database {dataBaseName}'
-        )
+        # log.info(
+        #     f'Parset {self.parset} added to database {dataBaseName}'
+        # )
         return
 
 
@@ -267,13 +270,19 @@ class _ParsetBlock:
 
     def __init__(self, field):
         self.field = field
-        self.configuration = PARSET_OPTIONS[self.field].copy()
+        self.configuration = deepcopy(PARSET_OPTIONS[self.field])
     
 
     def __setitem__(self, key, value):
         """
         """
         self._modify_properties(**{key: value})
+    
+
+    def __getitem__(self, key):
+        """
+        """
+        return self.configuration[key]["value"]
 
 
     def _modify_properties(self, **kwargs):
@@ -298,7 +307,8 @@ class _ParsetBlock:
                     value = "true" if value else "false"
 
                 # Updates the key value
-                self.configuration[key] = value
+                self.configuration[key]["value"] = value
+                self.configuration[key]["modified"] = True
             
             # If the key doesn't exist a warning message is raised
             else:
@@ -309,44 +319,83 @@ class _ParsetBlock:
     def _write_block_list(self, index=None) -> str:
         """
         """
+        # Prints a counter that is shown regarding the beam indices
         if index is not None:
             counter = f"[{index}]"
         else:
             counter = ""
-        return  "\n".join(
-            "{}{}.{}={}".format(self.field, counter, *i)
-            for i in self.configuration.items()
+
+        # Writes the parset blocks in the correct format
+        return "\n".join(
+            [f"{self.field}{counter}.{key}={val['value']}"
+                for key, val in self.configuration.items()
+                if (val['modified'] or val['required'])
+            ])
+
+# ============================================================= #
+
+class _BeamParsetBlock(_ParsetBlock):
+    """
+    """
+
+    def __init__(self, field, **kwargs):
+        super().__init__(field=field)
+        self.index = 0
+        self._modify_properties(**kwargs)
+
+
+    def __str__(self):
+        return self._write_block_list(index=self.index)
+
+
+    def is_above_horizon(self) -> bool:
+        """ Checks that the numerical beam is pointed above the horizon. """
+        beam_start_time = Time(self["startTime"], format="isot")
+        beam_duration = self._get_duration()
+        return True
+
+
+    def _get_duration(self) -> TimeDelta:
+        """ Reads the 'duration' field and converts it to a TimeDelta instance. """
+        # Regex check to split the value and the unit
+        match = re.match(
+            pattern=r"(?P<value>\d+)(?P<unit>[smh])",
+            string=self["duration"]
         )
+        value = float(match.group("value"))
 
+        # Prepares a dictionnary to convert unit to seconds
+        to_seconds = {
+            "s": 1,
+            "m": 60,
+            "h": 3600
+        }
+        conversion_factor = to_seconds[match.group("unit").lower()]
 
-class _NumericalBeamParsetBlock(_ParsetBlock):
+        # Converts the value to seconds
+        seconds = value * conversion_factor
+    
+        return TimeDelta(seconds, format="sec")
+
+# ============================================================= #
+
+class _NumericalBeamParsetBlock(_BeamParsetBlock):
     """
     """
 
     def __init__(self, **kwargs):
-        super().__init__(field="Beam")
-        self._index = 0
-        self._modify_properties(**kwargs)
+        super().__init__(field="Beam", **kwargs)
 
 
-    def __str__(self):
-        return self._write_block_list(index=self._index)
+# ============================================================= #
 
-
-class _AnalogBeamParsetBlock(_ParsetBlock):
+class _AnalogBeamParsetBlock(_BeamParsetBlock):
     """
     """
 
     def __init__(self, **kwargs):
-        super().__init__(field="Anabeam")
-        self._index = 0
-        self._modify_properties(**kwargs)
+        super().__init__(field="Anabeam", **kwargs)
         self.numerical_beams = []
-        self._add_numerical_beam()
-
-
-    def __str__(self):
-        return self._write_block_list(index=self._index)
 
 
     def _add_numerical_beam(self, **kwargs):
@@ -354,10 +403,18 @@ class _AnalogBeamParsetBlock(_ParsetBlock):
         """
         self.numerical_beams.append(
             _NumericalBeamParsetBlock(
-                noBeam=self._index
+                **kwargs
             )
         )
 
+
+    def _propagate_index(self):
+        """
+        """
+        for i, numbeam in enumerate(self.numerical_beams):
+            numbeam["noBeam"] = self.index
+
+# ============================================================= #
 
 class _OutputParsetBlock(_ParsetBlock):
     """
@@ -371,6 +428,7 @@ class _OutputParsetBlock(_ParsetBlock):
     def __str__(self):
         return self._write_block_list()
 
+# ============================================================= #
 
 class _ObservationParsetBlock(_ParsetBlock):
     """
@@ -380,7 +438,6 @@ class _ObservationParsetBlock(_ParsetBlock):
         super().__init__(field="Observation")
         self._modify_properties(**kwargs)
         self.analog_beams = []
-        self._add_analog_beam()
 
 
     def __str__(self):
@@ -391,9 +448,10 @@ class _ObservationParsetBlock(_ParsetBlock):
         """
         """
         self.analog_beams.append(
-            _AnalogBeamParsetBlock()
+            _AnalogBeamParsetBlock(**kwargs)
         )
 
+# ============================================================= #
 
 class ParsetUser:
     """
@@ -405,11 +463,7 @@ class ParsetUser:
 
 
     def __str__(self):
-        # Updates the number of analog and numerical beams
-        nb_analog_beams = len(self.observation.analog_beams)
-        nb_numerical_beams = sum(len(anabeam.numerical_beams) for anabeam in self.observation.analog_beams)
-        self.observation.configuration['nrAnabeams'] = nb_analog_beams
-        self.observation.configuration['nrBeams'] = nb_numerical_beams
+        self._update_beam_numbers()
 
         # Prepares the different text blocks
         observation_text = str(self.observation)
@@ -450,10 +504,10 @@ class ParsetUser:
         self._updates_anabeams_indices()
 
 
-    def remove_analog_beam(self, index):
+    def remove_analog_beam(self, anabeam_index):
         """
         """
-        del self.observation.analog_beams[index]
+        del self.observation.analog_beams[anabeam_index]
         self._updates_anabeams_indices()
 
 
@@ -462,22 +516,24 @@ class ParsetUser:
         """
         # Adds a numerical beam to the analog beam 'anabeam_index'
         try:
-            self.observation.analog_beams[anabeam_index]._add_numerical_beam(**kwargs)
+            anabeam = self.observation.analog_beams[anabeam_index]
         except IndexError:
             log.error(
                 f"Requested analog beam index {anabeam_index} is out of range. Only {len(self.observation.analog_beams)} analog beams are set."
             )
             raise
+        anabeam._add_numerical_beam(**kwargs)
+        anabeam._propagate_index()
         self._updates_numbeams_indices()
         
 
-    def remove_numerical_beam(self, index):
+    def remove_numerical_beam(self, numbeam_index):
         """
         """
         counter = 0
         for anabeam in self.observation.analog_beams:
             for i, _ in enumerate(anabeam.numerical_beams):
-                if counter==index:
+                if counter==numbeam_index:
                     del anabeam.numerical_beams[i]
                     break
                 counter += 1
@@ -487,11 +543,51 @@ class ParsetUser:
         self._updates_numbeams_indices()
 
 
+    def validate(self):
+        """
+        """
+        # Update the beam numbers on the Observation table
+        self._update_beam_numbers()
+
+        # Check that the beams are above the horizon during the course of the observation
+        for anabeam in self.observation.analog_beams:
+            if not anabeam.is_above_horizon():
+                log.warning("")
+            for numbeam in anabeam.numerical_beams:
+                if not numbeam.is_above_horizon():
+                    log.warning("")
+
+        # Concatenate the different parset fields into one dictionnary
+        all_configurations = dict(self.observation.configuration)
+        all_configurations.update(self.output.configuration)
+        for anabeam in self.observation.analog_beams:
+            all_configurations.update(anabeam.configuration)
+            for numbeam in anabeam.numerical_beams:
+                all_configurations.update(numbeam.configuration)
+ 
+        # Check each key and the corresponding regex syntax
+        for key in all_configurations:
+            # Get the regex syntax and if it doesn't exist, go to the next key
+            try:
+                syntax_pattern = all_configurations[key]['syntax']
+            except KeyError:
+                continue
+            
+            # Retrieve the value that needs to be checked
+            value = all_configurations[key]["value"]
+
+            # Perform a regex full match check, send a warning if invalid
+            if re.fullmatch(pattern=syntax_pattern, string=value) is None:
+                log.warning(
+                    f"Syntax error on '{value}' (key '{key}')."
+                )
+
+
     def write(self, file_name):
         """ Writes the current instance of :class:`~nenupy.observation.parset.ParsetUser`
             to a file called ``file_name``. 
         """
-        return
+        return str(self)
 
 
     def _updates_numbeams_indices(self):
@@ -499,7 +595,7 @@ class ParsetUser:
         numbeams_counter = 0
         for anabeam in self.observation.analog_beams:
             for numbeam in anabeam.numerical_beams:
-                numbeam._index = numbeams_counter
+                numbeam.index = numbeams_counter
                 numbeams_counter += 1
 
 
@@ -507,8 +603,17 @@ class ParsetUser:
         """ Updates the indices of analog beams. """
         anabeams_counter = 0
         for anabeam in self.observation.analog_beams:
-            anabeam._index = anabeams_counter
+            anabeam.index = anabeams_counter
+            anabeam._propagate_index()
             anabeams_counter += 1
         self._updates_numbeams_indices()
+
+
+    def _update_beam_numbers(self):
+        """ Updates the number of analog and numerical beams. """
+        nb_analog_beams = len(self.observation.analog_beams)
+        nb_numerical_beams = sum(len(anabeam.numerical_beams) for anabeam in self.observation.analog_beams)
+        self.observation["nrAnabeams"] = str(nb_analog_beams)
+        self.observation["nrBeams"] = str(nb_numerical_beams)
 # ============================================================= #
 # ============================================================= #
