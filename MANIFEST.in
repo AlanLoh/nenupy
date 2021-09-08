@@ -7,3 +7,4 @@ include nenupy/instru/LNA_25MHzFilter.fits
 include nenupy/skymodel/lfsky.fits
 include nenupy/undysputed/bandpass_coeffs.dat
 include nenupy/astro/radio_sources.json
+include nenupy/observation/parset_user_options.json

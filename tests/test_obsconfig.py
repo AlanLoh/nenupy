@@ -291,7 +291,7 @@ def test_singleconfig_parset():
     )
     assert len(single._beamConfigs) == 3
     assert single._beamConfigs[0].nSubBands == 192
-    assert single._beamConfigs[0].nPolars == 4
+    assert single._beamConfigs[0].nPolars == 1
     assert single._beamConfigs[0].durationSec == 4740
     assert single._beamConfigs[0].nBits == 32
     assert single._beamConfigs[0].dsTime == 128
