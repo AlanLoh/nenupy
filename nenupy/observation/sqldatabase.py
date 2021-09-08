@@ -52,6 +52,10 @@ Base = declarative_base()
 
 
 # ============================================================= #
+# ----------------------- AntennaTable ------------------------ #
+# ============================================================= #
+
+# ============================================================= #
 # --------------------- _ObservationTable --------------------- #
 # ============================================================= #
 class _ObservationTable(Base):
@@ -77,7 +81,7 @@ class _ObservationTable(Base):
     sstON = Column(Boolean, nullable=False)
     bstON = Column(Boolean, nullable=False)
     xstON = Column(Boolean, nullable=False)
-    parsetFile = Column(String(100), nullable=False)
+    parsetFile = Column(String(300), nullable=False)
 # ============================================================= #
 # ============================================================= #
 
@@ -102,9 +106,9 @@ class _AnalogBeamTable(Base):
     startTime = Column(DateTime, nullable=False)
     stopTime = Column(DateTime, nullable=False)
     nMiniArrays = Column(Integer, nullable=False)
-    miniArrays = Column(String(400), nullable=False)
+    miniArrays = Column(String(500), nullable=False)
     nAntennas = Column(Integer, nullable=False)
-    antennas = Column(String(100), nullable=False)
+    antennas = Column(String(200), nullable=False)
     beamSquintFreq = Column(Float, nullable=False)
 
 
@@ -155,7 +159,7 @@ class _DigitalBeamTable(Base):
     pointingType = Column(String(50), nullable=False)
     startTime = Column(DateTime, nullable=False)
     stopTime = Column(DateTime, nullable=False)
-    subBands = Column(String(400), nullable=False)
+    subBands = Column(String(500), nullable=False)
     fMin = Column(Float, nullable=False)
     fMax = Column(Float, nullable=False)
 
