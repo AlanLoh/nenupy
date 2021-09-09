@@ -88,7 +88,7 @@ class _ObservationTable(Base):
 class _MiniArrayAssociation(Base):
     """
     """
-    __tablename__ = 'ma_association'
+    __tablename__ = 'mini_array_association'
 
     analog_beam_id = Column(ForeignKey("analogbeam.id"), primary_key=True)
     mini_array_id = Column(ForeignKey("miniarray.id"), primary_key=True)
@@ -106,6 +106,7 @@ class _MiniArrayTable(Base):
     id = Column(Integer, primary_key=True)
     analog_beams = relationship("_MiniArrayAssociation", back_populates='mini_array')
     name = Column(String(2), nullable=False)
+    antennas = relationship("_AntennaAssociation", back_populates='mini_array')
 # ============================================================= #
 # ============================================================= #
 
@@ -113,6 +114,19 @@ class _MiniArrayTable(Base):
 # ============================================================= #
 # ----------------------- _AntennaTable ----------------------- #
 # ============================================================= #
+class _AntennaAssociation(Base):
+    """
+    """
+    __tablename__ = 'antenna_association'
+
+    mini_array_id = Column(ForeignKey("miniarray.id"), primary_key=True)
+    antenna_id = Column(ForeignKey("antenna.id"), primary_key=True)
+    
+    extra_data = Column(String(50))
+    antenna = relationship("_AntennaTable", back_populates="mini_arrays")
+    mini_array = relationship("_MiniArrayTable", back_populates="antennas")
+
+
 class _AntennaTable(Base):
     """
     """
@@ -120,6 +134,7 @@ class _AntennaTable(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(2), nullable=False)
+    mini_arrays = relationship("_AntennaAssociation", back_populates='antenna')
 # ============================================================= #
 # ============================================================= #
 
@@ -127,12 +142,26 @@ class _AntennaTable(Base):
 # ============================================================= #
 # ----------------------- _SubBandTable ----------------------- #
 # ============================================================= #
+class _SubBandAssociation(Base):
+    """
+    """
+    __tablename__ = 'subband_association'
+
+    digital_beam_id = Column(ForeignKey("digitalbeam.id"), primary_key=True)
+    subband_id = Column(ForeignKey("subband.id"), primary_key=True)
+    
+    extra_data = Column(String(50))
+    subband = relationship("_SubBandTable", back_populates="digital_beams")
+    digital_beam = relationship("_DigitalBeamTable", back_populates="subbands")
+
+
 class _SubBandTable(Base):
     """
     """
     __tablename__ = 'subband'
 
     id = Column(Integer, primary_key=True)
+    digital_beams = relationship("_SubBandAssociation", back_populates='subband')
     index = Column(String(3), nullable=False)
     frequency_mhz = Column(Float, nullable=False)
 # ============================================================= #
@@ -162,7 +191,7 @@ class _AnalogBeamTable(Base):
     # miniArrays = Column(String(500), nullable=False)
     mini_arrays = relationship("_MiniArrayAssociation", back_populates='analog_beam')
     nAntennas = Column(Integer, nullable=False)
-    antennas = Column(String(200), nullable=False)
+    #antennas = Column(String(200), nullable=False)
     beamSquintFreq = Column(Float, nullable=False)
 
 
@@ -213,7 +242,8 @@ class _DigitalBeamTable(Base):
     pointingType = Column(String(50), nullable=False)
     startTime = Column(DateTime, nullable=False)
     stopTime = Column(DateTime, nullable=False)
-    subBands = Column(String(500), nullable=False)
+    # subBands = Column(String(500), nullable=False)
+    subbands = relationship("_SubBandAssociation", back_populates='digital_beam')
     fMin = Column(Float, nullable=False)
     fMax = Column(Float, nullable=False)
 
@@ -343,6 +373,9 @@ class ParsetDataBase(object):
                 pProp['angle1'] = '999'
                 pProp['angle2'] = '999'
             
+            # Link to Antenna
+            # antennas = self.session.query(_AntennaTable).filter(_AntennaTable.name.in_(pProp['antList'])).all()
+
             # Link to Mini-Arrays
             miniarrays = self.session.query(_MiniArrayTable).filter(_MiniArrayTable.name.in_(pProp['maList'])).all()
 
@@ -357,7 +390,7 @@ class ParsetDataBase(object):
                 # _miniArrays = pProp['maList'],
                 mini_arrays = [_MiniArrayAssociation(mini_array=ma, extra_data='extra') for ma in miniarrays],#[ma for ma in miniarrays],
                 nAntennas = len(pProp['antList']),
-                _antennas = pProp['antList'],
+                #_antennas = pProp['antList'],
                 beamSquintFreq = pProp['optFrq'] if pProp['beamSquint'] else 0,
                 observation = self.obsid
             )
@@ -369,6 +402,10 @@ class ParsetDataBase(object):
                 # This is a Solar System observation
                 pProp['angle1'] = '999'
                 pProp['angle2'] = '999'
+            
+            # Link to Sub-Bands
+            subbands = self.session.query(_SubBandTable).filter(_SubBandTable.index.in_(pProp['subbandList'])).all()
+
             newRow = _DigitalBeamTable(
                 angle1 = pProp['angle1'].value,
                 angle2 = pProp['angle2'].value,
@@ -376,7 +413,8 @@ class ParsetDataBase(object):
                 pointingType = 'TRANSIT' if pProp['directionType'] == 'AZELGEO' else 'TRACKING',
                 startTime = pProp['startTime'].datetime,
                 stopTime = (pProp['startTime'] + duration).datetime,
-                _subBands = pProp['subbandList'],
+                # _subBands = pProp['subbandList'],
+                subbands = [_SubBandAssociation(subband=sb) for sb in subbands],
                 fMin = sb2freq(min(pProp['subbandList']))[0].value, 
                 fMax = sb2freq(max(pProp['subbandList']))[0].value,
                 anabeam = self.anaid[pProp['noBeam']]
