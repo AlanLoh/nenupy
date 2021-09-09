@@ -357,6 +357,7 @@ class _BeamParsetBlock(_ParsetBlock):
 
     def _get_duration(self) -> TimeDelta:
         """ Reads the 'duration' field and converts it to a TimeDelta instance. """
+
         # Regex check to split the value and the unit
         match = re.match(
             pattern=r"(?P<value>\d+)(?P<unit>[smh])",
