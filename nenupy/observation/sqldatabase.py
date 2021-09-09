@@ -267,7 +267,7 @@ class ParsetDataBase(object):
 
         # Initialize the SubBand Table
         self.session.add_all([
-            _SubBandTable(index=str(subband), frequency_mhz=sb2freq(subband).value)
+            _SubBandTable(index=str(subband), frequency_mhz=sb2freq(subband)[0].value)
             for subband in range(512)
         ])
         self.session.commit()
@@ -377,8 +377,8 @@ class ParsetDataBase(object):
                 startTime = pProp['startTime'].datetime,
                 stopTime = (pProp['startTime'] + duration).datetime,
                 _subBands = pProp['subbandList'],
-                fMin = sb2freq(min(pProp['subbandList'])).value, 
-                fMax = sb2freq(max(pProp['subbandList'])).value,
+                fMin = sb2freq(min(pProp['subbandList']))[0].value, 
+                fMax = sb2freq(max(pProp['subbandList']))[0].value,
                 anabeam = self.anaid[pProp['noBeam']]
             )
 
