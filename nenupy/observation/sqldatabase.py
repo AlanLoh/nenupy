@@ -7,6 +7,26 @@
     SQL Database
     ************
 
+    Query obs containing 19 antennas in database:
+
+    SELECT * 
+    FROM observation o 
+        inner join analogbeam a
+        on o.id = a.observation_id
+    where a.nAntennas = 19;
+
+    Query obs containing MA 55 in database:
+
+    select * 
+    from observation o
+    inner join analogbeam a
+        on o.id = a.observation_id
+        inner join mini_array_association aa
+            on a.id = aa.analog_beam_id
+            inner join miniarray ma
+                on ma.id = aa.mini_array_id
+    where ma.name = 55;
+
 """
 
 
@@ -92,11 +112,11 @@ class _MiniArrayAssociation(Base):
 
     analog_beam_id = Column(ForeignKey("analogbeam.id"), primary_key=True)
     mini_array_id = Column(ForeignKey("miniarray.id"), primary_key=True)
+    antenna_id = Column(ForeignKey("antenna.id"), primary_key=True)
     
-    extra_data = Column(String(50))
     mini_array = relationship("_MiniArrayTable", back_populates="analog_beams")
     analog_beam = relationship("_AnalogBeamTable", back_populates="mini_arrays")
-
+    antenna = relationship("_AntennaTable", back_populates="mini_arrays")
 
 class _MiniArrayTable(Base):
     """
@@ -106,7 +126,7 @@ class _MiniArrayTable(Base):
     id = Column(Integer, primary_key=True)
     analog_beams = relationship("_MiniArrayAssociation", back_populates='mini_array')
     name = Column(String(2), nullable=False)
-    antennas = relationship("_AntennaAssociation", back_populates='mini_array')
+    # antennas = relationship("_AntennaAssociation", back_populates='mini_array')
 # ============================================================= #
 # ============================================================= #
 
@@ -114,17 +134,15 @@ class _MiniArrayTable(Base):
 # ============================================================= #
 # ----------------------- _AntennaTable ----------------------- #
 # ============================================================= #
-class _AntennaAssociation(Base):
-    """
-    """
-    __tablename__ = 'antenna_association'
+# class _AntennaAssociation(Base):
+#     """
+#     """
+#     __tablename__ = 'antenna_association'
 
-    mini_array_id = Column(ForeignKey("miniarray.id"), primary_key=True)
-    antenna_id = Column(ForeignKey("antenna.id"), primary_key=True)
-    
-    extra_data = Column(String(50))
-    antenna = relationship("_AntennaTable", back_populates="mini_arrays")
-    mini_array = relationship("_MiniArrayTable", back_populates="antennas")
+#     mini_array_id = Column(ForeignKey("miniarray.id"), primary_key=True)
+#     antenna_id = Column(ForeignKey("antenna.id"), primary_key=True)
+#     antenna = relationship("_AntennaTable", back_populates="mini_arrays")
+#     mini_array = relationship("_MiniArrayTable", back_populates="antennas")
 
 
 class _AntennaTable(Base):
@@ -134,7 +152,7 @@ class _AntennaTable(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(2), nullable=False)
-    mini_arrays = relationship("_AntennaAssociation", back_populates='antenna')
+    mini_arrays = relationship("_MiniArrayAssociation", back_populates='antenna')
 # ============================================================= #
 # ============================================================= #
 
@@ -291,7 +309,7 @@ class ParsetDataBase(object):
         # Initialize the Antenna Table
         self.session.add_all([
             _AntennaTable(name=str(antenna_name))
-            for antenna_name in range(19)
+            for antenna_name in range(1, 20)
         ])
         self.session.commit()
 
@@ -374,10 +392,12 @@ class ParsetDataBase(object):
                 pProp['angle2'] = '999'
             
             # Link to Antenna
-            # antennas = self.session.query(_AntennaTable).filter(_AntennaTable.name.in_(pProp['antList'])).all()
-
+            antennas = self.session.query(_AntennaTable).filter(_AntennaTable.name.in_(pProp['antList'])).all()
+            #antennas_assoc = [_AntennaAssociation(antenna=ant) for ant in antennas]
             # Link to Mini-Arrays
             miniarrays = self.session.query(_MiniArrayTable).filter(_MiniArrayTable.name.in_(pProp['maList'])).all()
+            #for ma in miniarrays:
+            #    ma.antennas = antennas_assoc
 
             newRow = _AnalogBeamTable(
                 angle1 = pProp['angle1'].value,
@@ -388,7 +408,7 @@ class ParsetDataBase(object):
                 stopTime = (pProp['startTime'] + duration).datetime,
                 nMiniArrays = len(pProp['maList']),
                 # _miniArrays = pProp['maList'],
-                mini_arrays = [_MiniArrayAssociation(mini_array=ma, extra_data='extra') for ma in miniarrays],#[ma for ma in miniarrays],
+                mini_arrays = [_MiniArrayAssociation(mini_array=ma, antenna=ant) for ma in miniarrays for ant in antennas],#[ma for ma in miniarrays],
                 nAntennas = len(pProp['antList']),
                 #_antennas = pProp['antList'],
                 beamSquintFreq = pProp['optFrq'] if pProp['beamSquint'] else 0,
