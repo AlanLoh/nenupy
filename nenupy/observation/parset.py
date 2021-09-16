@@ -31,6 +31,7 @@ import astropy.units as u
 import numpy as np
 
 from nenupy.observation import PARSET_OPTIONS
+from nenupy.observation.sqldatabase import DuplicateParsetEntry
 
 import logging
 log = logging.getLogger(__name__)
@@ -183,33 +184,34 @@ class Parset(object):
         return
 
 
-    def addToDatabase(self, data_base):#dataBaseName):
+    def add_to_database(self, data_base):#dataBaseName):
         """
+            data_base: ParsetDataBase
         """
-        # from nenupy.observation import ParsetDataBase
-
-        # parsetDB = ParsetDataBase(dataBaseName)
         parsetDB = data_base
-        parsetDB.parset = self.parset
-        parsetDB.addTable(
+        try:
+            parsetDB.parset = self.parset
+        except DuplicateParsetEntry:
+            return
+
+        parsetDB.add_row(
             {**self.observation, **self.output}, # dict merging
             desc='observation'
         )
         for anaIdx in self.anabeams.keys():
-            parsetDB.addTable(
+            parsetDB.add_row(
                 self.anabeams[anaIdx],
                 desc='anabeam'
             )
         for digiIdx in self.digibeams.keys():
-            parsetDB.addTable(
+            parsetDB.add_row(
                 self.digibeams[digiIdx],
                 desc='digibeam'
             )
 
-        # log.info(
-        #     f'Parset {self.parset} added to database {dataBaseName}'
-        # )
-        return
+        log.info(
+            f'Parset {self.parset} added to database {data_base.name}'
+        )
 
 
     # --------------------------------------------------------- #
@@ -217,10 +219,6 @@ class Parset(object):
     def _decodeParset(self):
         """
         """
-        log.info(
-            f'Decoding parset {self._parset}...'
-        )
-
         with open(self.parset, 'r') as file_object:
             line = file_object.readline()
             
@@ -250,12 +248,13 @@ class Parset(object):
                     digiIdx = int(dicoName[-2])
                     if digiIdx not in self.digibeams.keys():
                         self.digibeams[digiIdx] = _ParsetProperty()
+                        self.digibeams[digiIdx]['digiIdx'] = str(digiIdx)
                     self.digibeams[digiIdx][key] = value
                 
                 line = file_object.readline()
 
             log.info(
-                f'Parset {self._parset} decoded.'
+                f"Parset '{self._parset}' loaded."
             )
         return
 # ============================================================= #

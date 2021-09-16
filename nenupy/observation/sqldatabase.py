@@ -27,6 +27,17 @@
                 on ma.id = aa.mini_array_id
     where ma.name = 55;
 
+    from nenupy.observation import ParsetDataBase
+    from nenupy.observation import Parset
+    from sqlalchemy import create_engine
+    import os
+
+    os.remove('/Users/aloh/Desktop/ma_base.db')
+    db = ParsetDataBase(dataBaseName='/Users/aloh/Desktop/ma_base.db')#, engine=create_engine('mysql:///'))
+    parset = Parset('/Users/aloh/Desktop/es11-2021-06-04-crab.parset')
+    parset.addToDatabase(data_base=db)
+    parset2 = Parset('/Users/aloh/Desktop/parset/test_alan.parset')
+    parset2.addToDatabase(data_base=db)
 """
 
 
@@ -37,18 +48,20 @@ __maintainer__ = 'Alan'
 __email__ = 'alan.loh@obspm.fr'
 __status__ = 'Production'
 __all__ = [
-    '_ObservationTable',
-    '_AnalogBeamTable',
-    '_DigitalBeamTable',
+    'SchedulingTable',
+    'AnalogBeamTable',
+    'DigitalBeamTable',
     'ParsetDataBase'
 ]
 
 
 import numpy as np
 from os.path import abspath, isfile
-from astropy.time import TimeDelta
+from astropy.time import Time, TimeDelta
+from astropy.coordinates import SkyCoord, AltAz, ICRS, solar_system_ephemeris, get_body
 
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.inspection import inspect
 from sqlalchemy import (
     Column,
     ForeignKey,
@@ -62,42 +75,75 @@ from sqlalchemy import (
 from sqlalchemy.orm import sessionmaker, relationship
 
 from nenupy.instru import sb2freq
+from nenupy import nenufar_position
 
 import logging
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
 
 
 Base = declarative_base()
 
+# ============================================================= #
+# ------------------------- Constants ------------------------- #
+# ============================================================= #
+MINI_ARRAYS = np.concatenate(
+    (np.arange(96, dtype=int), np.arange(100, 107, dtype=int))
+)
+
+ANTENNAS = np.arange(1, 20, dtype=int)
+
+SUB_BANDS = np.arange(512, dtype=int)
+
+RECEIVERS = np.array(['undysputed', 'xst', 'nickel', 'seti', 'radiogaga'])
+# ============================================================= #
+# ============================================================= #
+
 
 # ============================================================= #
-# --------------------- _ObservationTable --------------------- #
+# ---------------------- SchedulingTable ---------------------- #
 # ============================================================= #
-class _ObservationTable(Base):
+class SchedulingTable(Base):
     """
     """
 
-    __tablename__ = 'observation'
+    __tablename__ = 'scheduling'
 
     id = Column(Integer, primary_key=True)
-
-    obsName = Column(String(40), nullable=False)
-    contactName = Column(String(50), nullable=False)
-    contactEmail = Column(String(100), nullable=False)
-    keyProjectCode = Column(String(4), nullable=False)
-    keyProjectName = Column(String(100), nullable=False)
+    name = Column(String(255), nullable=False)
+    fileName = Column(String(255), nullable=False)
+    path = Column(String(255), nullable=True)
+    comments = Column(String(255), nullable=True)
+    checkTime = Column(DateTime, nullable=True)
     startTime = Column(DateTime, nullable=False)
-    stopTime = Column(DateTime, nullable=False)
-    nAnaBeams = Column(Integer, nullable=False)
-    nDigiBeams = Column(Integer, nullable=False)
-    setiON = Column(Boolean, nullable=False)
-    undysputedON = Column(Boolean, nullable=False)
-    nickelON = Column(Boolean, nullable=False)
-    sstON = Column(Boolean, nullable=False)
-    bstON = Column(Boolean, nullable=False)
-    xstON = Column(Boolean, nullable=False)
-    parsetFile = Column(String(300), nullable=False)
+    endTime = Column(DateTime, nullable=False)
+    abortTime = Column(DateTime, nullable=True)
+    state = Column(String(30), nullable=False)
+    status = Column(String(30), nullable=False, default="unknown")
+    other_error = Column(String(150), nullable=True)
+    type = Column(String(30), nullable=False, default="unknown")
+    topic = Column(String(255), nullable=False, default="debug")
+    tags = Column(String(255), nullable=True)
+    submitTime = Column(DateTime, nullable=False, default=Time.now().datetime)
+    token = Column(String(255), nullable=True)
+    username = Column(String(255), nullable=False, default="testobs")
+    checker_username = Column(String(255), nullable=True)
+    # PRIMARY KEY (`id`),
+    # UNIQUE KEY `fileName` (`fileName`),
+    # KEY `username` (`username`),
+    # KEY `topic` (`topic`),
+    # CONSTRAINT `contrainte_topic` FOREIGN KEY (`topic`) REFERENCES `key_projects` (`value`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+    # CONSTRAINT `contrainte_username` FOREIGN KEY (`username`) REFERENCES `nenufar_users` (`username`)
+    # ) ENGINE=InnoDB AUTO_INCREMENT=51947 DEFAULT CHARSET=latin1
+
+    # obs_name = Column(String(40), nullable=False)
+    # contact_name = Column(String(255), nullable=False)
+    # contact_email = Column(String(255), nullable=False)
+    # key_project_code = Column(String(4), nullable=False)
+    # key_project_name = Column(String(100), nullable=False)
+    # start_time = Column(DateTime, nullable=False)
+    # stop_time = Column(DateTime, nullable=False)
+    # parset_file = Column(String(300), nullable=False)
+    receivers = relationship("ReceiverAssociation", back_populates='scheduling', cascade="all, delete, delete-orphan")
 # ============================================================= #
 # ============================================================= #
 
@@ -105,26 +151,51 @@ class _ObservationTable(Base):
 # ============================================================= #
 # ---------------------- _MiniArrayTable ---------------------- #
 # ============================================================= #
-class _MiniArrayAssociation(Base):
+class ReceiverAssociation(Base):
+    """ """
+    __tablename__ = "receiver_association"
+
+    scheduling_id = Column(ForeignKey("scheduling.id", ondelete="CASCADE"), primary_key=True)
+    receiver_id = Column(ForeignKey("receivers.id", ondelete="CASCADE"), primary_key=True)
+    
+    receiver = relationship("ReceiverTable", back_populates="schedulings", cascade="all, delete")
+    scheduling = relationship("SchedulingTable", back_populates="receivers", cascade="all, delete")
+
+
+class ReceiverTable(Base):
+    """ """
+    __tablename__ = 'receivers'
+
+    id = Column(Integer, primary_key=True)
+    schedulings = relationship("ReceiverAssociation", back_populates='receiver', cascade="all, delete, delete-orphan")
+    name = Column(String(20), nullable=False)
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ---------------------- MiniArrayTable ----------------------- #
+# ============================================================= #
+class MiniArrayAssociation(Base):
     """
     """
     __tablename__ = 'mini_array_association'
 
-    analog_beam_id = Column(ForeignKey("analogbeam.id"), primary_key=True)
-    mini_array_id = Column(ForeignKey("miniarray.id"), primary_key=True)
-    antenna_id = Column(ForeignKey("antenna.id"), primary_key=True)
+    analog_beam_id = Column(ForeignKey("analogbeam.id", ondelete="CASCADE"), primary_key=True)
+    mini_array_id = Column(ForeignKey("miniarray.id", ondelete="CASCADE"), primary_key=True)
+    antenna_id = Column(ForeignKey("antenna.id", ondelete="CASCADE"), primary_key=True)
     
-    mini_array = relationship("_MiniArrayTable", back_populates="analog_beams")
-    analog_beam = relationship("_AnalogBeamTable", back_populates="mini_arrays")
-    antenna = relationship("_AntennaTable", back_populates="mini_arrays")
+    mini_array = relationship("MiniArrayTable", back_populates="analog_beams", cascade="all, delete")
+    analog_beam = relationship("AnalogBeamTable", back_populates="mini_arrays", cascade="all, delete")
+    antenna = relationship("AntennaTable", back_populates="mini_arrays", cascade="all, delete")
 
-class _MiniArrayTable(Base):
+class MiniArrayTable(Base):
     """
     """
     __tablename__ = 'miniarray'
 
     id = Column(Integer, primary_key=True)
-    analog_beams = relationship("_MiniArrayAssociation", back_populates='mini_array')
+    analog_beams = relationship("MiniArrayAssociation", back_populates='mini_array', cascade="all, delete, delete-orphan")
     name = Column(String(2), nullable=False)
     # antennas = relationship("_AntennaAssociation", back_populates='mini_array')
 # ============================================================= #
@@ -132,7 +203,7 @@ class _MiniArrayTable(Base):
 
 
 # ============================================================= #
-# ----------------------- _AntennaTable ----------------------- #
+# ----------------------- AntennaTable ------------------------ #
 # ============================================================= #
 # class _AntennaAssociation(Base):
 #     """
@@ -145,41 +216,41 @@ class _MiniArrayTable(Base):
 #     mini_array = relationship("_MiniArrayTable", back_populates="antennas")
 
 
-class _AntennaTable(Base):
+class AntennaTable(Base):
     """
     """
     __tablename__ = 'antenna'
 
     id = Column(Integer, primary_key=True)
     name = Column(String(2), nullable=False)
-    mini_arrays = relationship("_MiniArrayAssociation", back_populates='antenna')
+    mini_arrays = relationship("MiniArrayAssociation", back_populates='antenna', cascade="all, delete, delete-orphan")
 # ============================================================= #
 # ============================================================= #
 
 
 # ============================================================= #
-# ----------------------- _SubBandTable ----------------------- #
+# ----------------------- SubBandTable ------------------------ #
 # ============================================================= #
-class _SubBandAssociation(Base):
+class SubBandAssociation(Base):
     """
     """
     __tablename__ = 'subband_association'
 
-    digital_beam_id = Column(ForeignKey("digitalbeam.id"), primary_key=True)
-    subband_id = Column(ForeignKey("subband.id"), primary_key=True)
+    digital_beam_id = Column(ForeignKey("digitalbeam.id", ondelete="CASCADE"), primary_key=True)
+    subband_id = Column(ForeignKey("subband.id", ondelete="CASCADE"), primary_key=True)
     
     extra_data = Column(String(50))
-    subband = relationship("_SubBandTable", back_populates="digital_beams")
-    digital_beam = relationship("_DigitalBeamTable", back_populates="subbands")
+    subband = relationship("SubBandTable", back_populates="digital_beams", cascade="all, delete")
+    digital_beam = relationship("DigitalBeamTable", back_populates="subbands", cascade="all, delete")
 
 
-class _SubBandTable(Base):
+class SubBandTable(Base):
     """
     """
     __tablename__ = 'subband'
 
     id = Column(Integer, primary_key=True)
-    digital_beams = relationship("_SubBandAssociation", back_populates='subband')
+    digital_beams = relationship("SubBandAssociation", back_populates='subband', cascade="all, delete, delete-orphan")
     index = Column(String(3), nullable=False)
     frequency_mhz = Column(Float, nullable=False)
 # ============================================================= #
@@ -187,97 +258,97 @@ class _SubBandTable(Base):
 
 
 # ============================================================= #
-# --------------------- _AnalogBeamTable ---------------------- #
+# ---------------------- AnalogBeamTable ---------------------- #
 # ============================================================= #
-class _AnalogBeamTable(Base):
+class AnalogBeamTable(Base):
     """
     """
 
     __tablename__ = 'analogbeam'
 
     id = Column(Integer, primary_key=True)
-    observation_id = Column(Integer, ForeignKey('observation.id'))
-    observation = relationship(_ObservationTable)
+    scheduling_id = Column(Integer, ForeignKey('scheduling.id', ondelete="CASCADE"))
+    scheduling = relationship(SchedulingTable, cascade="all, delete")
 
     angle1 = Column(Float, nullable=False)
     angle2 = Column(Float, nullable=False)
-    coordType = Column(String(50), nullable=False)
-    pointingType = Column(String(50), nullable=False)
-    startTime = Column(DateTime, nullable=False)
-    stopTime = Column(DateTime, nullable=False)
-    nMiniArrays = Column(Integer, nullable=False)
+    coord_type = Column(String(50), nullable=False)
+    pointing_type = Column(String(50), nullable=False)
+    start_time = Column(DateTime, nullable=False)
+    stop_time = Column(DateTime, nullable=False)
+    # nMiniArrays = Column(Integer, nullable=False)
     # miniArrays = Column(String(500), nullable=False)
-    mini_arrays = relationship("_MiniArrayAssociation", back_populates='analog_beam')
-    nAntennas = Column(Integer, nullable=False)
+    mini_arrays = relationship("MiniArrayAssociation", back_populates='analog_beam')
+    # nAntennas = Column(Integer, nullable=False)
     #antennas = Column(String(200), nullable=False)
-    beamSquintFreq = Column(Float, nullable=False)
+    beam_squint_freq_mhz = Column(Float, nullable=False)
 
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
-    @property
-    def _miniArrays(self):
-        return list(map(int, self.miniArrays.split(',')))
-    @_miniArrays.setter
-    def _miniArrays(self, m):
-        if not isinstance(m, (list, np.ndarray)):
-            raise TypeError(
-                'miniarrays should be a list-like object'
-            )
-        self.miniArrays = ','.join([str(mi) for mi in m])
+    # @property
+    # def _miniArrays(self):
+    #     return list(map(int, self.miniArrays.split(',')))
+    # @_miniArrays.setter
+    # def _miniArrays(self, m):
+    #     if not isinstance(m, (list, np.ndarray)):
+    #         raise TypeError(
+    #             'miniarrays should be a list-like object'
+    #         )
+    #     self.miniArrays = ','.join([str(mi) for mi in m])
 
 
-    @property
-    def _antennas(self):
-        return list(map(int, self.antennas.split(',')))
-    @_antennas.setter
-    def _antennas(self, a):
-        if not isinstance(a, (list, np.ndarray)):
-            raise TypeError(
-                'antennas should be a list-like object'
-            )
-        self.antennas = ','.join([str(ai) for ai in a])
+    # @property
+    # def _antennas(self):
+    #     return list(map(int, self.antennas.split(',')))
+    # @_antennas.setter
+    # def _antennas(self, a):
+    #     if not isinstance(a, (list, np.ndarray)):
+    #         raise TypeError(
+    #             'antennas should be a list-like object'
+    #         )
+    #     self.antennas = ','.join([str(ai) for ai in a])
 # ============================================================= #
 # ============================================================= #
 
 
 # ============================================================= #
-# --------------------- _DigitalBeamTable --------------------- #
+# --------------------- DigitalBeamTable ---------------------- #
 # ============================================================= #
-class _DigitalBeamTable(Base):
+class DigitalBeamTable(Base):
     """
     """
 
     __tablename__ = 'digitalbeam'
 
     id = Column(Integer, primary_key=True)
-    anabeam_id = Column(Integer, ForeignKey('analogbeam.id'))
-    anabeam = relationship(_AnalogBeamTable)
+    anabeam_id = Column(Integer, ForeignKey('analogbeam.id', ondelete="CASCADE"))
+    anabeam = relationship(AnalogBeamTable, cascade="all, delete")
 
     angle1 = Column(Float, nullable=False)
     angle2 = Column(Float, nullable=False)
-    coordType = Column(String(50), nullable=False)
-    pointingType = Column(String(50), nullable=False)
-    startTime = Column(DateTime, nullable=False)
-    stopTime = Column(DateTime, nullable=False)
+    coord_type = Column(String(50), nullable=False)
+    pointing_type = Column(String(50), nullable=False)
+    start_time = Column(DateTime, nullable=False)
+    stop_time = Column(DateTime, nullable=False)
     # subBands = Column(String(500), nullable=False)
-    subbands = relationship("_SubBandAssociation", back_populates='digital_beam')
-    fMin = Column(Float, nullable=False)
-    fMax = Column(Float, nullable=False)
+    subbands = relationship("SubBandAssociation", back_populates='digital_beam', cascade="all, delete, delete-orphan")
+    freq_min_mhz = Column(Float, nullable=False)
+    freq_max_mhz = Column(Float, nullable=False)
 
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
-    @property
-    def _subBands(self):
-        return list(map(int, self.subBands.split(',')))
-    @_subBands.setter
-    def _subBands(self, s):
-        if not isinstance(s, (list, np.ndarray)):
-            raise TypeError(
-                'subBands should be a list-like object'
-            )
-        self.subBands = ','.join([str(si) for si in s])
+    # @property
+    # def _subBands(self):
+    #     return list(map(int, self.subBands.split(',')))
+    # @_subBands.setter
+    # def _subBands(self, s):
+    #     if not isinstance(s, (list, np.ndarray)):
+    #         raise TypeError(
+    #             'subBands should be a list-like object'
+    #         )
+    #     self.subBands = ','.join([str(si) for si in s])
 # ============================================================= #
 # ============================================================= #
 
@@ -285,40 +356,25 @@ class _DigitalBeamTable(Base):
 # ============================================================= #
 # ----------------------- ParsetDataBase ---------------------- #
 # ============================================================= #
+class DuplicateParsetEntry(Exception):
+    pass
+
 class ParsetDataBase(object):
     """
     """
 
-    def __init__(self, dataBaseName, engine=None):
-        self.name = dataBaseName
+    def __init__(self, database_name, engine=None):
+        self.name = database_name
         self.engine = engine
         self.parset = None
         Base.metadata.create_all(self.engine)
         DBSession = sessionmaker(bind=self.engine)
         self.session = DBSession()
-        self.obsid = None
+
+        log.info(f"Session started on {self.engine.url}.")
+
+        self.current_scheduling = None
         self.anaid = {}
-
-        # Initialize the Mini-Array Table
-        self.session.add_all([
-            _MiniArrayTable(name=str(miniarray_name))
-            for miniarray_name in range(96)
-        ])
-        self.session.commit()
-
-        # Initialize the Antenna Table
-        self.session.add_all([
-            _AntennaTable(name=str(antenna_name))
-            for antenna_name in range(1, 20)
-        ])
-        self.session.commit()
-
-        # Initialize the SubBand Table
-        self.session.add_all([
-            _SubBandTable(index=str(subband), frequency_mhz=sb2freq(subband)[0].value)
-            for subband in range(512)
-        ])
-        self.session.commit()
 
 
     # --------------------------------------------------------- #
@@ -350,103 +406,266 @@ class ParsetDataBase(object):
             )
         self._engine = e
 
+
+    @property
+    def parset(self):
+        return self._parset
+    @parset.setter
+    def parset(self, p):
+        # Check if an entry already exists
+        if inspect(self.engine).has_table("scheduling"):
+        #if data_base.engine.dialect.has_table(data_base.engine, "SchedulingTable"):
+            entry_exists = self.session.query(SchedulingTable).filter_by(fileName=p).first() is not None
+            if entry_exists:
+                log.info(f"Parset {p} already in {self.name}. Skipping it.")
+                raise DuplicateParsetEntry(f"Duplicated parset {p}.")
+        self._parset = p
+
+
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+    def create_configuration_tables(self):
+        """ Creates the tables 'mini_arrays', 'antennas', 'sub-bands' and 'receivers'. """
+
+        # Initialize the Mini-Array Table (96 core + 6 remote Mini-Arrays)
+        log.debug("Generating the 'mini-arrays' table.")
+        self.session.add_all([
+            MiniArrayTable(name=str(miniarray_name))
+            for miniarray_name in MINI_ARRAYS
+        ])
+
+        # Initialize the Antenna Table
+        log.debug("Generating the 'antennas' table.")
+        self.session.add_all([
+            AntennaTable(name=str(antenna_name))
+            for antenna_name in ANTENNAS
+        ])
+
+        # Initialize the SubBand Table
+        log.debug("Generating the 'sub-bands' table.")
+        self.session.add_all([
+            SubBandTable(index=str(subband), frequency_mhz=sb2freq(subband)[0].value)
+            for subband in SUB_BANDS
+        ])
+
+        # Initialize the Receiver Table
+        log.debug("Generating the 'receivers' table.")
+        self.session.add_all([
+            ReceiverTable(name=receiver)
+            for receiver in RECEIVERS
+        ])
+
+        # Commit the changes
+        self.session.commit()
+        log.info("Tables 'mini-arrays', 'antennas', 'sub-bands' and 'receivers' generated.")
+
+
     def done(self):
         """
         """
         self.engine.dispose()
+    
+
+    def delete_row(self, scheduling_id):
+        """ """
+        self.session.query(SchedulingTable).filter_by(id=scheduling_id).delete()
+        self.session.commit()
 
 
-    def addTable(self, parsetProperty, desc):
+    def add_row(self, parset_property, desc):
         """
         """
-        pProp = parsetProperty
+        pProp = parset_property
 
         if desc.lower() == 'observation':
-            newRow = _ObservationTable(
-                obsName=pProp['name'],
-                contactName=pProp['contactName'],
-                contactEmail=pProp['contactEmail'],
-                keyProjectCode=pProp['topic'].split(' ', 1)[0],
-                keyProjectName=pProp['topic'].split(' ', 1)[1],
-                startTime=pProp['startTime'].datetime,
-                stopTime=pProp['stopTime'].datetime,
-                nAnaBeams=pProp['nrAnaBeams'],
-                nDigiBeams=pProp['nrBeams'],
-                setiON='seti' in pProp.get('hd_receivers', []),
-                undysputedON='undysputed' in pProp.get('hd_receivers', []),
-                nickelON='nickel' in pProp.get('nri_receivers', []),
-                sstON=pProp['sst_userfile'],
-                bstON=pProp['bst_userfile'],
-                xstON=pProp['xst_userfile'],
-                parsetFile=self.parset
-            )
-            self.obsid = newRow
+            new_row = self._create_scheduling_row(parset_property)
+
+            # Keep track of current scheduling row
+            self.current_scheduling = new_row
 
         elif desc.lower() == 'anabeam':
-            duration = TimeDelta(pProp['duration'] , format='sec')
-            if pProp['directionType'] not in ['J2000', 'AZELGEO']:
-                # This is a Solar System observation
-                pProp['angle1'] = '999'
-                pProp['angle2'] = '999'
-            
-            # Link to Antenna
-            antennas = self.session.query(_AntennaTable).filter(_AntennaTable.name.in_(pProp['antList'])).all()
-            #antennas_assoc = [_AntennaAssociation(antenna=ant) for ant in antennas]
-            # Link to Mini-Arrays
-            miniarrays = self.session.query(_MiniArrayTable).filter(_MiniArrayTable.name.in_(pProp['maList'])).all()
-            #for ma in miniarrays:
-            #    ma.antennas = antennas_assoc
+            new_row = self._create_analog_beam_row(parset_property)
 
-            newRow = _AnalogBeamTable(
-                angle1 = pProp['angle1'].value,
-                angle2 = pProp['angle2'].value,
-                coordType = pProp['directionType'],
-                pointingType = 'TRANSIT' if pProp['directionType'] == 'AZELGEO' else 'TRACKING',
-                startTime = pProp['startTime'].datetime,
-                stopTime = (pProp['startTime'] + duration).datetime,
-                nMiniArrays = len(pProp['maList']),
-                # _miniArrays = pProp['maList'],
-                mini_arrays = [_MiniArrayAssociation(mini_array=ma, antenna=ant) for ma in miniarrays for ant in antennas],#[ma for ma in miniarrays],
-                nAntennas = len(pProp['antList']),
-                #_antennas = pProp['antList'],
-                beamSquintFreq = pProp['optFrq'] if pProp['beamSquint'] else 0,
-                observation = self.obsid
-            )
-            self.anaid[pProp['anaIdx']] = newRow
+            # Keep track of analog beam rows
+            self.anaid[pProp['anaIdx']] = new_row
 
         elif desc.lower() == 'digibeam':
-            duration = TimeDelta(pProp['duration'] , format='sec')
-            if pProp['directionType'] not in ['J2000', 'AZELGEO']:
-                # This is a Solar System observation
-                pProp['angle1'] = '999'
-                pProp['angle2'] = '999'
-            
-            # Link to Sub-Bands
-            subbands = self.session.query(_SubBandTable).filter(_SubBandTable.index.in_(pProp['subbandList'])).all()
-
-            newRow = _DigitalBeamTable(
-                angle1 = pProp['angle1'].value,
-                angle2 = pProp['angle2'].value,
-                coordType = pProp['directionType'],
-                pointingType = 'TRANSIT' if pProp['directionType'] == 'AZELGEO' else 'TRACKING',
-                startTime = pProp['startTime'].datetime,
-                stopTime = (pProp['startTime'] + duration).datetime,
-                # _subBands = pProp['subbandList'],
-                subbands = [_SubBandAssociation(subband=sb) for sb in subbands],
-                fMin = sb2freq(min(pProp['subbandList']))[0].value, 
-                fMax = sb2freq(max(pProp['subbandList']))[0].value,
-                anabeam = self.anaid[pProp['noBeam']]
-            )
+            new_row = self._create_digital_beam_row(parset_property)
 
         else:
             raise ValueError(
                 'desc should be observation/anabeam/digibeam'
             )
 
-        self.session.add(newRow)
+        self.session.add(new_row)
         self.session.commit()
+
+
+    # --------------------------------------------------------- #
+    # ----------------------- Internal ------------------------ #
+    @staticmethod
+    def _normalize_beam_pointing(parset_property) -> dict:
+        """ Returns a RA, Dec whatever the pointing type is. """
+
+        # Sort out the beam start and stop times
+        duration = TimeDelta(parset_property['duration'] , format='sec')
+        start_time = parset_property['startTime']
+        stop_time = (parset_property['startTime'] + duration)
+
+        # Deal with coordinates and pointing types
+        direction_type = parset_property['directionType'].lower()
+        if direction_type == "j2000":
+            # Nothing else to do
+            log.debug(f"'{direction_type}' beam direction type.")
+            right_ascension = parset_property['angle1'].value
+            declination = parset_property['angle2'].value
+
+        elif direction_type == "azelgeo":
+            # This is a transit observation, compute the mean RA/Dec
+            log.debug(f"'{direction_type}' beam direction type, taking the mean RA/Dec.")
+            # Convert AltAz to RA/Dec
+            radec = SkyCoord(
+                parset_property['angle1'],
+                parset_property['angle2'],
+                frame=AltAz(
+                    obstime=start_time + duration/2.,
+                    location=nenufar_position
+                )
+            ).transform_to(ICRS)
+            right_ascension = radec.ra.deg
+            declination = radec.dec.deg
+
+        else:
+            # Dealing with a Solar System source
+            log.debug(f"'{direction_type}' beam direction type, taking the mean RA/Dec.")
+            with solar_system_ephemeris.set('builtin'):
+                source = get_body(
+                    body=direction_type,
+                    time=start_time + duration/2.,
+                    location=nenufar_position
+                )
+            radec = source.transform_to(ICRS)
+            right_ascension = radec.ra.deg
+            declination = radec.dec.deg
+
+        return {
+            "ra": right_ascension,
+            "dec": declination,
+            "start_time": start_time.datetime,
+            "stop_time": stop_time.datetime
+        }
+
+
+    def _create_scheduling_row(self, parset_property):
+        """ """
+        # Link to receivers
+        receivers_on = parset_property.get("hd_receivers", [])
+        if parset_property["xst_userfile"]:
+            # Add the xst option, which is not a proper receiver
+            receivers_on.append("xst")
+        if not np.all(np.isin(receivers_on, RECEIVERS)):
+            log.warning("One of the receiver listed ({receivers_on}) does not belong to the predefined list ({RECEIVERS}).")
+
+        receivers = self.session.query(ReceiverTable).filter(ReceiverTable.name.in_(receivers_on)).all()
+
+        # scheduling_row = SchedulingTable(
+        #     name=parset_property['name'],
+        #     contact_name=parset_property['contactName'],
+        #     contact_email=parset_property['contactEmail'],
+        #     key_project_code=parset_property['topic'].split(' ', 1)[0],
+        #     key_project_name=parset_property['topic'].split(' ', 1)[1],
+        #     start_time=parset_property['startTime'].datetime,
+        #     stop_time=parset_property['stopTime'].datetime,
+        #     receivers=[ReceiverAssociation(receiver=receiver) for receiver in receivers],
+        #     parset_file=self.parset
+        # )
+
+        scheduling_row = SchedulingTable(
+            name=parset_property['name'],
+            fileName=self.parset,
+            startTime=parset_property["startTime"].datetime,
+            endTime=parset_property["stopTime"].datetime,
+            state="default_value",
+            topic=parset_property["topic"].split(" ", 1)[1],
+            username=parset_property["contactName"],
+            receivers=[ReceiverAssociation(receiver=receiver) for receiver in receivers]
+        )
+
+        log.debug(f"Row of table 'scheduling' created for '{scheduling_row.name}'.")
+
+        return scheduling_row
+
+
+    def _create_analog_beam_row(self, parset_property):
+        """ """
+
+        pointing = self._normalize_beam_pointing(parset_property)
+        # duration = TimeDelta(parset_property['duration'] , format='sec')
+        # if parset_property['directionType'] not in ['J2000', 'AZELGEO']:
+        #     # This is a Solar System observation
+        #     parset_property['angle1'] = '999'
+        #     parset_property['angle2'] = '999'
+        
+        # Link to Antenna
+        antennas = self.session.query(AntennaTable).filter(AntennaTable.name.in_(parset_property['antList'])).all()
+        #antennas_assoc = [_AntennaAssociation(antenna=ant) for ant in antennas]
+        # Link to Mini-Arrays
+        miniarrays = self.session.query(MiniArrayTable).filter(MiniArrayTable.name.in_(parset_property['maList'])).all()
+        #for ma in miniarrays:
+        #    ma.antennas = antennas_assoc
+
+        analog_beam_row = AnalogBeamTable(
+            angle1 = pointing["ra"],
+            angle2 = pointing["dec"],
+            coord_type = parset_property['directionType'],
+            pointing_type = 'TRANSIT' if parset_property['directionType'] == 'AZELGEO' else 'TRACKING',
+            start_time = pointing["start_time"],
+            stop_time = pointing["stop_time"],
+            # nMiniArrays = len(pProp['maList']),
+            # _miniArrays = pProp['maList'],
+            mini_arrays = [MiniArrayAssociation(mini_array=ma, antenna=ant) for ma in miniarrays for ant in antennas],
+            # nAntennas = len(pProp['antList']),
+            #_antennas = pProp['antList'],
+            beam_squint_freq_mhz = parset_property['optFrq'] if parset_property['beamSquint'] else 0,
+            scheduling = self.current_scheduling
+        )
+
+        log.debug(f"Row of table 'analogbeam' (index {parset_property['anaIdx']}) created for '{self.current_scheduling.name}'.")
+
+        return analog_beam_row
+
+
+    def _create_digital_beam_row(self, parset_property):
+        """ """
+
+        pointing = self._normalize_beam_pointing(parset_property)
+
+        # duration = TimeDelta(pProp['duration'] , format='sec')
+        # if pProp['directionType'] not in ['J2000', 'AZELGEO']:
+        #     # This is a Solar System observation / compute the mean radec?
+        #     pProp['angle1'] = '999'
+        #     pProp['angle2'] = '999'
+        
+        # Link to Sub-Bands
+        subbands = self.session.query(SubBandTable).filter(SubBandTable.index.in_(parset_property['subbandList'])).all()
+
+        digital_beam_row = DigitalBeamTable(
+            angle1 = pointing["ra"],
+            angle2 = pointing["dec"],
+            coord_type = parset_property["directionType"],
+            pointing_type = 'TRANSIT' if parset_property["directionType"] == 'AZELGEO' else 'TRACKING',
+            start_time = pointing["start_time"],
+            stop_time = pointing["stop_time"],
+            # _subBands = pProp['subbandList'],
+            subbands = [SubBandAssociation(subband=sb) for sb in subbands],
+            freq_min_mhz = sb2freq(min(parset_property['subbandList']))[0].value, 
+            freq_max_mhz = sb2freq(max(parset_property['subbandList']))[0].value,
+            anabeam = self.anaid[parset_property['noBeam']]
+        )
+
+        log.debug(f"Row of table 'digitalbeam' (index {parset_property['digiIdx']}) created for '{self.current_scheduling.name}'.")
+
+        return digital_beam_row
 # ============================================================= #
 # ============================================================= #
 

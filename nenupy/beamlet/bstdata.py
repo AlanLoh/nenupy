@@ -14,11 +14,6 @@
     `NenuFAR <https://nenufar.obs-nancay.fr/en/astronomer/>`_
     low-frequency radio-telescope.
 
-    .. note::
-        To read high-rate time-frequency data from the *UnDySPuTeD*
-        NenuFAR backend, see `nenupytf <https://nenupytf.readthedocs.io/en/latest/>`_
-        package.
-
     **Initialization**
     
     The :class:`.BST_Data` object needs to be provided with a path to

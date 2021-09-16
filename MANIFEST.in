@@ -1,3 +1,4 @@
+include nenupy/telescopes.json
 include nenupy/instru/NenuFAR_thph.fits
 include nenupy/instru/squint_table.sav
 include nenupy/instru/NenuFAR_Ant_Hpx.fits
