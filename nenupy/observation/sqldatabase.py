@@ -366,13 +366,12 @@ class ParsetDataBase(object):
     def __init__(self, database_name, engine=None):
         self.name = database_name
         self.engine = engine
-        self.parset = None
         Base.metadata.create_all(self.engine)
         DBSession = sessionmaker(bind=self.engine)
         self.session = DBSession()
-
         log.info(f"Session started on {self.engine.url}.")
 
+        self.parset = None
         self.current_scheduling = None
         self.anaid = {}
 
