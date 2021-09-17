@@ -67,6 +67,7 @@ from sqlalchemy import (
     Column,
     ForeignKey,
     Integer,
+    BigInteger,
     String,
     Float,
     Boolean,
@@ -156,7 +157,7 @@ class ReceiverAssociation(Base):
     """ """
     __tablename__ = "receiver_association"
 
-    scheduling_id = Column(ForeignKey("scheduling.id", ondelete="CASCADE"), primary_key=True)
+    scheduling_id = Column(BigInteger, ForeignKey("scheduling.id", ondelete="CASCADE"), primary_key=True)
     receiver_id = Column(ForeignKey("receivers.id", ondelete="CASCADE"), primary_key=True)
     
     receiver = relationship("ReceiverTable", back_populates="schedulings", cascade="all, delete")
@@ -268,7 +269,7 @@ class AnalogBeamTable(Base):
     __tablename__ = 'analogbeam'
 
     id = Column(Integer, primary_key=True)
-    scheduling_id = Column(Integer, ForeignKey('scheduling.id', ondelete="CASCADE"))
+    scheduling_id = Column(BigInteger, ForeignKey('scheduling.id', ondelete="CASCADE"))
     scheduling = relationship(SchedulingTable, cascade="all, delete")
 
     angle1 = Column(Float, nullable=False)
@@ -386,7 +387,6 @@ class ParsetDataBase(object):
         if p is not None:
             # Check if an entry already exists
             if inspect(self.engine).has_table("scheduling"):
-            #if data_base.engine.dialect.has_table(data_base.engine, "SchedulingTable"):
                 entry_exists = self.session.query(SchedulingTable).filter_by(fileName=p).first() is not None
                 if entry_exists:
                     log.info(f"Parset {p} already in {self.name}. Skipping it.")
@@ -423,37 +423,55 @@ class ParsetDataBase(object):
     def create_configuration_tables(self):
         """ Creates the tables 'mini_arrays', 'antennas', 'sub-bands' and 'receivers'. """
 
-        # Initialize the Mini-Array Table (96 core + 6 remote Mini-Arrays)
-        log.debug("Generating the 'mini-arrays' table.")
-        self.session.add_all([
-            MiniArrayTable(name=str(miniarray_name))
-            for miniarray_name in MINI_ARRAYS
-        ])
+        existing_tables = inspect(self.engine).get_table_names()
 
-        # Initialize the Antenna Table
-        log.debug("Generating the 'antennas' table.")
-        self.session.add_all([
-            AntennaTable(name=str(antenna_name))
-            for antenna_name in ANTENNAS
-        ])
+        if "miniarray" in existing_tables:
+            log.warning("'miniarrays' table already exists.")
+        else:
+            # Initialize the Mini-Array Table (96 core + 6 remote Mini-Arrays)
+            log.debug("Generating the 'miniarrays' table.")
+            self.session.add_all([
+                MiniArrayTable(name=str(miniarray_name))
+                for miniarray_name in MINI_ARRAYS
+            ])
 
-        # Initialize the SubBand Table
-        log.debug("Generating the 'sub-bands' table.")
-        self.session.add_all([
-            SubBandTable(index=str(subband), frequency_mhz=sb2freq(subband)[0].value)
-            for subband in SUB_BANDS
-        ])
+        if "antenna" in existing_tables:
+            log.warning("'antenna' table already exists.")
+        else:
+            # Initialize the Antenna Table
+            log.debug("Generating the 'antennas' table.")
+            self.session.add_all([
+                AntennaTable(name=str(antenna_name))
+                for antenna_name in ANTENNAS
+            ])
 
-        # Initialize the Receiver Table
-        log.debug("Generating the 'receivers' table.")
-        self.session.add_all([
-            ReceiverTable(name=receiver)
-            for receiver in RECEIVERS
-        ])
+        if "subband" in existing_tables:
+            log.warning("'subband' table already exists.")
+        else:
+            # Initialize the SubBand Table
+            log.debug("Generating the 'sub-bands' table.")
+            self.session.add_all([
+                SubBandTable(index=str(subband), frequency_mhz=sb2freq(subband)[0].value)
+                for subband in SUB_BANDS
+            ])
+
+        if "receivers" in existing_tables:
+            log.warning("'receivers' table already exists.")
+        else:
+            # Initialize the Receiver Table
+            log.debug("Generating the 'receivers' table.")
+            self.session.add_all([
+                ReceiverTable(name=receiver)
+                for receiver in RECEIVERS
+            ])
 
         # Commit the changes
         self.session.commit()
-        log.info("Tables 'mini-arrays', 'antennas', 'sub-bands' and 'receivers' generated.")
+        log.info("Tables 'mini-arrays', 'antennas', 'sub-bands' and 'receivers' ready.")
+
+
+    def create_association_tables(self):
+        """ """
 
 
     def done(self):
