@@ -425,7 +425,7 @@ class ParsetDataBase(object):
 
         existing_tables = inspect(self.engine).get_table_names()
 
-        if "miniarray" in existing_tables:
+        if ("miniarray" in existing_tables) and (self.session.query(MiniArrayTable).first() is not None):
             log.warning("'miniarrays' table already exists.")
         else:
             # Initialize the Mini-Array Table (96 core + 6 remote Mini-Arrays)
@@ -435,7 +435,7 @@ class ParsetDataBase(object):
                 for miniarray_name in MINI_ARRAYS
             ])
 
-        if "antenna" in existing_tables:
+        if ("antenna" in existing_tables) and (self.session.query(AntennaTable).first() is not None):
             log.warning("'antenna' table already exists.")
         else:
             # Initialize the Antenna Table
@@ -445,7 +445,7 @@ class ParsetDataBase(object):
                 for antenna_name in ANTENNAS
             ])
 
-        if "subband" in existing_tables:
+        if ("subband" in existing_tables) and (self.session.query(SubBandTable).first() is not None):
             log.warning("'subband' table already exists.")
         else:
             # Initialize the SubBand Table
@@ -455,7 +455,7 @@ class ParsetDataBase(object):
                 for subband in SUB_BANDS
             ])
 
-        if "receivers" in existing_tables:
+        if ("receivers" in existing_tables) and (self.session.query(ReceiverTable).first() is not None):
             log.warning("'receivers' table already exists.")
         else:
             # Initialize the Receiver Table
