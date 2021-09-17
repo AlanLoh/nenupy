@@ -61,6 +61,7 @@ from astropy.time import Time, TimeDelta
 from astropy.coordinates import SkyCoord, AltAz, ICRS, solar_system_ephemeris, get_body
 
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.inspection import inspect
 from sqlalchemy import (
     Column,
@@ -70,9 +71,9 @@ from sqlalchemy import (
     Float,
     Boolean,
     DateTime,
-    create_engine
+    create_engine,
 )
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import Session, sessionmaker, relationship
 
 from nenupy.instru import sb2freq
 from nenupy import nenufar_position
@@ -363,12 +364,11 @@ class ParsetDataBase(object):
     """
     """
 
-    def __init__(self, database_name, engine=None):
+    def __init__(self, database_name, engine=None, session=None):
         self.name = database_name
         self.engine = engine
-        Base.metadata.create_all(self.engine)
-        DBSession = sessionmaker(bind=self.engine)
-        self.session = DBSession()
+        self.session = session
+
         log.info(f"Session started on {self.engine.url}.")
 
         self.parset = None
@@ -379,50 +379,47 @@ class ParsetDataBase(object):
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
     @property
-    def name(self):
-        return self._name
-    @name.setter
-    def name(self, n):
-        if not isinstance(n, str):
-            raise TypeError(
-                'name should be a string'
-            )
-        if not n.endswith('.db'):
-            raise ValueError(
-                'name should end with .db'
-            )
-        self._name = abspath(n)
-
-
-    @property
-    def engine(self):
-        return self._engine
-    @engine.setter
-    def engine(self, e):
-        if e is None:
-            e = create_engine(
-                'sqlite:///' + self.name
-            )
-        self._engine = e
-
-
-    @property
     def parset(self):
         return self._parset
     @parset.setter
     def parset(self, p):
-        # Check if an entry already exists
-        if inspect(self.engine).has_table("scheduling"):
-        #if data_base.engine.dialect.has_table(data_base.engine, "SchedulingTable"):
-            entry_exists = self.session.query(SchedulingTable).filter_by(fileName=p).first() is not None
-            if entry_exists:
-                log.info(f"Parset {p} already in {self.name}. Skipping it.")
-                raise DuplicateParsetEntry(f"Duplicated parset {p}.")
+        if p is not None:
+            # Check if an entry already exists
+            if inspect(self.engine).has_table("scheduling"):
+            #if data_base.engine.dialect.has_table(data_base.engine, "SchedulingTable"):
+                entry_exists = self.session.query(SchedulingTable).filter_by(fileName=p).first() is not None
+                if entry_exists:
+                    log.info(f"Parset {p} already in {self.name}. Skipping it.")
+                    raise DuplicateParsetEntry(f"Duplicated parset {p}.")
         self._parset = p
 
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+    @classmethod
+    def new(cls, database_name='my_base.db', engine=None):
+        """ """
+        if engine is None:
+            # Create a default engine
+            engine = create_engine(
+                'sqlite:///' + database_name
+            )
+        Base.metadata.create_all(engine)
+        DBSession = sessionmaker(bind=engine)
+        session = DBSession()
+        return cls(database_name=database_name, engine=engine, session=session)
+
+
+    @classmethod
+    def from_existing_database(cls, engine):
+        """ """
+        Base = automap_base()
+        Base.prepare(engine, reflect=True)
+        session = Session(engine)
+        name = engine.url.database
+        return cls(database_name=name, engine=engine, session=session)
+
+
     def create_configuration_tables(self):
         """ Creates the tables 'mini_arrays', 'antennas', 'sub-bands' and 'receivers'. """
 
