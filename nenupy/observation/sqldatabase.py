@@ -384,13 +384,23 @@ class ParsetDataBase(object):
         return self._parset
     @parset.setter
     def parset(self, p):
+        # if p is not None:
+        #     # Check if an entry already exists
+        #     if inspect(self.engine).has_table("scheduling"):
+        #         entry_exists = self.session.query(SchedulingTable).filter_by(fileName=p).first() is not None
+        #         if entry_exists:
+        #             log.info(f"Parset {p} already in {self.name}. Skipping it.")
+        #             raise DuplicateParsetEntry(f"Duplicated parset {p}.")
+        
         if p is not None:
-            # Check if an entry already exists
-            if inspect(self.engine).has_table("scheduling"):
-                entry_exists = self.session.query(SchedulingTable).filter_by(fileName=p).first() is not None
-                if entry_exists:
-                    log.info(f"Parset {p} already in {self.name}. Skipping it.")
-                    raise DuplicateParsetEntry(f"Duplicated parset {p}.")
+            parset_entry = self.session.query(SchedulingTable).filter_by(fileName=p).first()
+            if parset_entry is not None:
+                if inspect(self.engine).has_table("receiver_association"):
+                    scheduling_id = parset_entry.id
+                    entry = self.session.query(ReceiverAssociation).filter_by(scheduling_id=scheduling_id).first()
+                    if entry is not None:
+                        log.info(f"Parset {p} already in {self.name}. Skipping it.")
+                        raise DuplicateParsetEntry(f"Duplicated parset {p}.")
         self._parset = p
 
 
