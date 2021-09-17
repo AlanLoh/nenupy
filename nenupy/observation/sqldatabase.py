@@ -502,26 +502,27 @@ class ParsetDataBase(object):
         pProp = parset_property
 
         if desc.lower() == 'observation':
-            new_row = self._create_scheduling_row(parset_property)
+            new_row, is_new = self._create_scheduling_row(parset_property)
 
             # Keep track of current scheduling row
             self.current_scheduling = new_row
 
         elif desc.lower() == 'anabeam':
-            new_row = self._create_analog_beam_row(parset_property)
+            new_row, is_new = self._create_analog_beam_row(parset_property)
 
             # Keep track of analog beam rows
             self.anaid[pProp['anaIdx']] = new_row
 
         elif desc.lower() == 'digibeam':
-            new_row = self._create_digital_beam_row(parset_property)
+            new_row, is_new = self._create_digital_beam_row(parset_property)
 
         else:
             raise ValueError(
                 'desc should be observation/anabeam/digibeam'
             )
 
-        self.session.add(new_row)
+        if is_new:
+            self.session.add(new_row)
         self.session.commit()
 
 
@@ -584,11 +585,12 @@ class ParsetDataBase(object):
         """ """
         # Link to receivers
         receivers_on = parset_property.get("hd_receivers", [])
+        receivers_on += parset_property.get("nri_receivers", [])
         if parset_property["xst_userfile"]:
             # Add the xst option, which is not a proper receiver
             receivers_on.append("xst")
         if not np.all(np.isin(receivers_on, RECEIVERS)):
-            log.warning("One of the receiver listed ({receivers_on}) does not belong to the predefined list ({RECEIVERS}).")
+            log.warning(f"One of the receiver listed ({receivers_on}) does not belong to the predefined list ({RECEIVERS}).")
 
         receivers = self.session.query(ReceiverTable).filter(ReceiverTable.name.in_(receivers_on)).all()
 
@@ -604,20 +606,28 @@ class ParsetDataBase(object):
         #     parset_file=self.parset
         # )
 
-        scheduling_row = SchedulingTable(
-            name=parset_property['name'],
-            fileName=self.parset,
-            startTime=parset_property["startTime"].datetime,
-            endTime=parset_property["stopTime"].datetime,
-            state="default_value",
-            topic=parset_property["topic"].split(" ", 1)[1],
-            username=parset_property["contactName"],
-            receivers=[ReceiverAssociation(receiver=receiver) for receiver in receivers]
-        )
+        scheduling_row = self.session.query(SchedulingTable).filter_by(fileName=self.parset).first()
+        if scheduling_row is None:
+            # Create the new row
+            scheduling_row = SchedulingTable(
+                name=parset_property['name'],
+                fileName=self.parset,
+                startTime=parset_property["startTime"].datetime,
+                endTime=parset_property["stopTime"].datetime,
+                state="default_value",
+                topic=parset_property["topic"].split(" ", 1)[1],
+                username=parset_property["contactName"],
+                receivers=[ReceiverAssociation(receiver=receiver) for receiver in receivers]
+            )
+            is_new = True
+        else:
+            # Only add the receiver association, the row already exist in scheduling table
+            [ReceiverAssociation(receiver=receiver, scheduling=parset_entry) for receiver in receivers]
+            is_new = False
 
         log.debug(f"Row of table 'scheduling' created for '{scheduling_row.name}'.")
 
-        return scheduling_row
+        return scheduling_row, is_new
 
 
     def _create_analog_beam_row(self, parset_property):
@@ -656,7 +666,7 @@ class ParsetDataBase(object):
 
         log.debug(f"Row of table 'analogbeam' (index {parset_property['anaIdx']}) created for '{self.current_scheduling.name}'.")
 
-        return analog_beam_row
+        return analog_beam_row, True
 
 
     def _create_digital_beam_row(self, parset_property):
@@ -689,7 +699,7 @@ class ParsetDataBase(object):
 
         log.debug(f"Row of table 'digitalbeam' (index {parset_property['digiIdx']}) created for '{self.current_scheduling.name}'.")
 
-        return digital_beam_row
+        return digital_beam_row, True
 # ============================================================= #
 # ============================================================= #
 
