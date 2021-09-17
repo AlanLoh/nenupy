@@ -198,7 +198,7 @@ class MiniArrayTable(Base):
 
     id = Column(Integer, primary_key=True)
     analog_beams = relationship("MiniArrayAssociation", back_populates='mini_array', cascade="all, delete, delete-orphan")
-    name = Column(String(2), nullable=False)
+    name = Column(String(3), nullable=False)
     # antennas = relationship("_AntennaAssociation", back_populates='mini_array')
 # ============================================================= #
 # ============================================================= #
