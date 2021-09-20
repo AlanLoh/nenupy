@@ -620,12 +620,12 @@ class ParsetDataBase(object):
                 receivers=[ReceiverAssociation(receiver=receiver) for receiver in receivers]
             )
             is_new = True
+            log.debug(f"Row of table 'scheduling' created for '{scheduling_row.name}'.")
         else:
-            # Only add the receiver association, the row already exist in scheduling table
-            [ReceiverAssociation(receiver=receiver, scheduling=parset_entry) for receiver in receivers]
+            # Only add the receiver association, the row already exists in scheduling table
+            [ReceiverAssociation(receiver=receiver, scheduling=scheduling_row) for receiver in receivers]
             is_new = False
-
-        log.debug(f"Row of table 'scheduling' created for '{scheduling_row.name}'.")
+            log.debug(f"Row of table 'scheduling' updated for '{scheduling_row.name}'.")
 
         return scheduling_row, is_new
 

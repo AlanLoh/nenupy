@@ -5,7 +5,7 @@ __author__ = 'Alan Loh'
 __copyright__ = 'Copyright 2020, nenupy'
 __credits__ = ['Alan Loh']
 __license__ = 'MIT'
-__version__ = '1.2.16'
+__version__ = '1.2.17'
 __maintainer__ = 'Alan Loh'
 __email__ = 'alan.loh@obspm.fr'
 
