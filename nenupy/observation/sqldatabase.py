@@ -123,7 +123,7 @@ class SchedulingTable(Base):
     status = Column(String(30), nullable=False, default="unknown")
     other_error = Column(String(150), nullable=True)
     type = Column(String(30), nullable=False, default="unknown")
-    topic = Column(String(255), nullable=False, default="debug")
+    topic = Column(String(255), nullable=True, default="debug")
     tags = Column(String(255), nullable=True)
     submitTime = Column(DateTime, nullable=False, default=Time.now().datetime)
     token = Column(String(255), nullable=True)
