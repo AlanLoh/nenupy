@@ -617,7 +617,7 @@ class ParsetDataBase(object):
                 endTime=parset_property["stopTime"].datetime,
                 state="default_value",
                 topic=parset_property.get("topic", "ES00 DEBUG").split(" ", 1)[1],
-                username=parset_property["contactName"],
+                username="testobs" if parset_property["contactName"]=="" else parset_property["contactName"],
                 receivers=[ReceiverAssociation(receiver=receiver) for receiver in receivers]
             )
             is_new = True
