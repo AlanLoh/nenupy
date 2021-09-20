@@ -56,7 +56,7 @@ __all__ = [
 
 
 import numpy as np
-from os.path import abspath, isfile
+from os.path import abspath, isfile, basename, dirname
 from astropy.time import Time, TimeDelta
 from astropy.coordinates import SkyCoord, AltAz, ICRS, solar_system_ephemeris, get_body
 
@@ -606,12 +606,13 @@ class ParsetDataBase(object):
         #     parset_file=self.parset
         # )
 
-        scheduling_row = self.session.query(SchedulingTable).filter_by(fileName=self.parset).first()
+        scheduling_row = self.session.query(SchedulingTable).filter_by(fileName=basename(self.parset)).first()
         if scheduling_row is None:
             # Create the new row
             scheduling_row = SchedulingTable(
                 name=parset_property['name'],
-                fileName=self.parset,
+                fileName=basename(self.parset),
+                path=dirname(self.parset),
                 startTime=parset_property["startTime"].datetime,
                 endTime=parset_property["stopTime"].datetime,
                 state="default_value",
