@@ -123,7 +123,7 @@ class SchedulingTable(Base):
     status = Column(String(30), nullable=False, default="unknown")
     other_error = Column(String(150), nullable=True)
     type = Column(String(30), nullable=False, default="unknown")
-    topic = Column(String(255), nullable=True, default="debug")
+    topic = Column(String(255), nullable=False, default="debug")
     tags = Column(String(255), nullable=True)
     submitTime = Column(DateTime, nullable=False, default=Time.now().datetime)
     token = Column(String(255), nullable=True)
@@ -586,7 +586,7 @@ class ParsetDataBase(object):
         # Link to receivers
         receivers_on = parset_property.get("hd_receivers", [])
         receivers_on += parset_property.get("nri_receivers", [])
-        if parset_property["xst_userfile"]:
+        if parset_property.get("xst_userfile", False):
             # Add the xst option, which is not a proper receiver
             receivers_on.append("xst")
         if not np.all(np.isin(receivers_on, RECEIVERS)):
@@ -615,7 +615,7 @@ class ParsetDataBase(object):
                 startTime=parset_property["startTime"].datetime,
                 endTime=parset_property["stopTime"].datetime,
                 state="default_value",
-                topic=parset_property["topic"].split(" ", 1)[1],
+                topic=parset_property.get("topic", "ES00 DEBUG").split(" ", 1)[1],
                 username=parset_property["contactName"],
                 receivers=[ReceiverAssociation(receiver=receiver) for receiver in receivers]
             )
@@ -660,7 +660,7 @@ class ParsetDataBase(object):
             mini_arrays = [MiniArrayAssociation(mini_array=ma, antenna=ant) for ma in miniarrays for ant in antennas],
             # nAntennas = len(pProp['antList']),
             #_antennas = pProp['antList'],
-            beam_squint_freq_mhz = parset_property['optFrq'] if parset_property['beamSquint'] else 0,
+            beam_squint_freq_mhz = parset_property['optFrq'] if parset_property.get("beamSquint", False) else 0,
             scheduling = self.current_scheduling
         )
 
