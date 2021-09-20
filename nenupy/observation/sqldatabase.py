@@ -276,10 +276,10 @@ class AnalogBeamTable(Base):
     scheduling_id = Column(BigInteger, ForeignKey('scheduling.id', ondelete="CASCADE"))
     scheduling = relationship(SchedulingTable, cascade="all, delete")
 
-    angle1 = Column(Float, nullable=False)
-    angle2 = Column(Float, nullable=False)
-    coord_type = Column(String(50), nullable=False)
-    pointing_type = Column(String(50), nullable=False)
+    ra_j2000 = Column(Float, nullable=False)
+    dec_j2000 = Column(Float, nullable=False)
+    observed_coord_type = Column(String(50), nullable=False)
+    observed_pointing_type = Column(String(50), nullable=False)
     start_time = Column(DateTime, nullable=False)
     stop_time = Column(DateTime, nullable=False)
     # nMiniArrays = Column(Integer, nullable=False)
@@ -331,10 +331,10 @@ class DigitalBeamTable(Base):
     anabeam_id = Column(Integer, ForeignKey('analogbeam.id', ondelete="CASCADE"))
     anabeam = relationship(AnalogBeamTable, cascade="all, delete")
 
-    angle1 = Column(Float, nullable=False)
-    angle2 = Column(Float, nullable=False)
-    coord_type = Column(String(50), nullable=False)
-    pointing_type = Column(String(50), nullable=False)
+    ra_j2000 = Column(Float, nullable=False)
+    dec_j2000 = Column(Float, nullable=False)
+    observed_coord_type = Column(String(50), nullable=False)
+    observed_pointing_type = Column(String(50), nullable=False)
     start_time = Column(DateTime, nullable=False)
     stop_time = Column(DateTime, nullable=False)
     # subBands = Column(String(500), nullable=False)
@@ -403,7 +403,7 @@ class ParsetDataBase(object):
                     scheduling_id = parset_entry.id
                     entry = self.session.query(ReceiverAssociation).filter_by(scheduling_id=scheduling_id).first()
                     if entry is not None:
-                        log.info(f"Parset {p} already in {self.name}. Skipping it.")
+                        log.info(f"Parset {basename(p)} already in {self.name}. Skipping it.")
                         raise DuplicateParsetEntry(f"Duplicated parset {basename(p)}.")
         self._parset = p
 
@@ -612,6 +612,14 @@ class ParsetDataBase(object):
 
         scheduling_row = self.session.query(SchedulingTable).filter_by(fileName=basename(self.parset)).first()
         if scheduling_row is None:
+            # Sort out the topic
+            topic = parset_property.get("topic", "ES00 DEBUG")
+            if topic.lower().strip() == 'maintenance':
+                topic = "MAINTENANCE"
+            else:
+                # We have something like "ES00 DEBUG"
+                topic = topic.split(" ", 1)[1]
+
             # Create the new row
             scheduling_row = SchedulingTable(
                 name=parset_property['name'],
@@ -620,7 +628,7 @@ class ParsetDataBase(object):
                 startTime=parset_property["startTime"].datetime,
                 endTime=parset_property["stopTime"].datetime,
                 state="default_value",
-                topic=parset_property.get("topic", "ES00 DEBUG").split(" ", 1)[1],
+                topic=topic,
                 username="testobs" if parset_property["contactName"]=="" else parset_property["contactName"],
                 receivers=[ReceiverAssociation(receiver=receiver) for receiver in receivers]
             )
@@ -654,10 +662,10 @@ class ParsetDataBase(object):
         #    ma.antennas = antennas_assoc
 
         analog_beam_row = AnalogBeamTable(
-            angle1 = pointing["ra"],
-            angle2 = pointing["dec"],
-            coord_type = parset_property['directionType'],
-            pointing_type = 'TRANSIT' if parset_property['directionType'] == 'AZELGEO' else 'TRACKING',
+            ra_j2000 = pointing["ra"],
+            dec_j2000 = pointing["dec"],
+            observed_coord_type = parset_property['directionType'],
+            observed_pointing_type = 'TRANSIT' if parset_property['directionType'] == 'AZELGEO' else 'TRACKING',
             start_time = pointing["start_time"],
             stop_time = pointing["stop_time"],
             # nMiniArrays = len(pProp['maList']),
@@ -689,10 +697,10 @@ class ParsetDataBase(object):
         subbands = self.session.query(SubBandTable).filter(SubBandTable.index.in_(parset_property['subbandList'])).all()
 
         digital_beam_row = DigitalBeamTable(
-            angle1 = pointing["ra"],
-            angle2 = pointing["dec"],
-            coord_type = parset_property["directionType"],
-            pointing_type = 'TRANSIT' if parset_property["directionType"] == 'AZELGEO' else 'TRACKING',
+            ra_j2000 = pointing["ra"],
+            dec_j2000 = pointing["dec"],
+            observed_coord_type = parset_property["directionType"],
+            observed_pointing_type = 'TRANSIT' if parset_property["directionType"] == 'AZELGEO' else 'TRACKING',
             start_time = pointing["start_time"],
             stop_time = pointing["stop_time"],
             # _subBands = pProp['subbandList'],
