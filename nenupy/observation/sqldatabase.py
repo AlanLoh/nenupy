@@ -129,6 +129,10 @@ class SchedulingTable(Base):
     token = Column(String(255), nullable=True)
     username = Column(String(255), nullable=False, default="testobs")
     checker_username = Column(String(255), nullable=True)
+
+    # scheduling_id = Column(BigInteger, ForeignKey('scheduling.id', ondelete="CASCADE"))
+    # scheduling = relationship(SchedulingTable, cascade="all, delete")
+
     # PRIMARY KEY (`id`),
     # UNIQUE KEY `fileName` (`fileName`),
     # KEY `username` (`username`),
@@ -393,14 +397,14 @@ class ParsetDataBase(object):
         #             raise DuplicateParsetEntry(f"Duplicated parset {p}.")
         
         if p is not None:
-            parset_entry = self.session.query(SchedulingTable).filter_by(fileName=p).first()
+            parset_entry = self.session.query(SchedulingTable).filter_by(fileName=basename(p)).first()
             if parset_entry is not None:
                 if inspect(self.engine).has_table("receiver_association"):
                     scheduling_id = parset_entry.id
                     entry = self.session.query(ReceiverAssociation).filter_by(scheduling_id=scheduling_id).first()
                     if entry is not None:
                         log.info(f"Parset {p} already in {self.name}. Skipping it.")
-                        raise DuplicateParsetEntry(f"Duplicated parset {p}.")
+                        raise DuplicateParsetEntry(f"Duplicated parset {basename(p)}.")
         self._parset = p
 
 
