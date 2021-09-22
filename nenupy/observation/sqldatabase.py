@@ -737,8 +737,8 @@ class ParsetDataBase(object):
             stop_time = pointing["stop_time"],
             # _subBands = pProp['subbandList'],
             subbands = [SubBandAssociation(subband=sb) for sb in subbands],
-            freq_min_mhz = sb2freq(min(parset_property['subbandList']))[0].value, 
-            freq_max_mhz = sb2freq(max(parset_property['subbandList']))[0].value,
+            freq_min_mhz = sb2freq( max(min(parset_property['subbandList']), 0) )[0].value, 
+            freq_max_mhz = sb2freq( min(max(parset_property['subbandList']), 511) )[0].value,
             anabeam = self.anaid[parset_property['noBeam']]
         )
 
