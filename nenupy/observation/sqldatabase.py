@@ -285,8 +285,8 @@ class AnalogBeamTable(Base):
     scheduling_id = Column(BigInteger, ForeignKey('scheduling.id', ondelete="CASCADE"))
     scheduling = relationship(SchedulingTable, cascade="all, delete")
 
-    ra_j2000 = Column(Float, nullable=False)
-    dec_j2000 = Column(Float, nullable=False)
+    ra_j2000 = Column(Float, nullable=True)
+    dec_j2000 = Column(Float, nullable=True)
     observed_coord_type = Column(String(50), nullable=False)
     observed_pointing_type = Column(String(50), nullable=False)
     start_time = Column(DateTime, nullable=False)
@@ -340,8 +340,8 @@ class DigitalBeamTable(Base):
     anabeam_id = Column(Integer, ForeignKey('analogbeam.id', ondelete="CASCADE"))
     anabeam = relationship(AnalogBeamTable, cascade="all, delete")
 
-    ra_j2000 = Column(Float, nullable=False)
-    dec_j2000 = Column(Float, nullable=False)
+    ra_j2000 = Column(Float, nullable=True)
+    dec_j2000 = Column(Float, nullable=True)
     observed_coord_type = Column(String(50), nullable=False)
     observed_pointing_type = Column(String(50), nullable=False)
     start_time = Column(DateTime, nullable=False)
@@ -563,7 +563,7 @@ class ParsetDataBase(object):
             right_ascension = (parset_property['angle1'].to(u.deg) + decal_ra).value
             declination = (parset_property['angle2'].to(u.deg) + decal_dec).value
 
-        elif direction_type in ["azelgeo", "natif"]:
+        elif direction_type == "azelgeo":
             # This is a transit observation, compute the mean RA/Dec
             log.debug(f"'{direction_type}' beam direction type, taking the mean RA/Dec.")
             # Convert AltAz to RA/Dec
@@ -577,6 +577,12 @@ class ParsetDataBase(object):
             ).transform_to(ICRS)
             right_ascension = radec.ra.deg
             declination = radec.dec.deg
+        
+        elif direction_type == "natif":
+            # This is a test observation, unable to parse the RA/Dec
+            log.debug(f"'{direction_type}' beam direction type, RA/Dec fields will be empty.")
+            right_ascension = None
+            declination = None
 
         else:
             # Dealing with a Solar System source
