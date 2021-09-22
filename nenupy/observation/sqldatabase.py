@@ -58,9 +58,10 @@ __all__ = [
 import numpy as np
 from os.path import abspath, isfile, basename, dirname
 from astropy.time import Time, TimeDelta
+import astropy.units as u
 from astropy.coordinates import SkyCoord, AltAz, ICRS, solar_system_ephemeris, get_body
 
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.declarative import DeferredReflection, declarative_base
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.inspection import inspect
 from sqlalchemy import (
@@ -104,6 +105,14 @@ RECEIVERS = np.array(['undysputed', 'xst', 'nickel', 'seti', 'radiogaga'])
 # ============================================================= #
 # ---------------------- SchedulingTable ---------------------- #
 # ============================================================= #
+class NenufarUserTable(DeferredReflection, Base):
+    """
+        Fake class for NenuFAR User Table
+    """
+
+    __tablename__ = 'nenufar_users'
+
+
 class SchedulingTable(Base):
     """
     """
@@ -365,6 +374,9 @@ class DigitalBeamTable(Base):
 class DuplicateParsetEntry(Exception):
     pass
 
+class UserNameNotFound(Exception):
+    pass
+
 class ParsetDataBase(object):
     """
     """
@@ -546,16 +558,18 @@ class ParsetDataBase(object):
         if direction_type == "j2000":
             # Nothing else to do
             log.debug(f"'{direction_type}' beam direction type.")
-            right_ascension = parset_property['angle1'].value
-            declination = parset_property['angle2'].value
+            decal_ra = float(parset_property.get("decal_ra", 0.0))*u.deg
+            decal_dec = float(parset_property.get("decal_dec", 0.0))*u.deg
+            right_ascension = (parset_property['angle1'].to(u.deg) + decal_ra).value
+            declination = (parset_property['angle2'].to(u.deg) + decal_dec).value
 
         elif direction_type == "azelgeo":
             # This is a transit observation, compute the mean RA/Dec
             log.debug(f"'{direction_type}' beam direction type, taking the mean RA/Dec.")
             # Convert AltAz to RA/Dec
             radec = SkyCoord(
-                parset_property['angle1'],
-                parset_property['angle2'],
+                parset_property['angle1'] + float(parset_property.get("decal_az", 0.0))*u.deg,
+                parset_property['angle2'] + float(parset_property.get("decal_el", 0.0))*u.deg,
                 frame=AltAz(
                     obstime=start_time + duration/2.,
                     location=nenufar_position
@@ -574,8 +588,10 @@ class ParsetDataBase(object):
                     location=nenufar_position
                 )
             radec = source.transform_to(ICRS)
-            right_ascension = radec.ra.deg
-            declination = radec.dec.deg
+            decal_ra = float(parset_property.get("decal_ra", 0.0))*u.deg
+            decal_dec = float(parset_property.get("decal_dec", 0.0))*u.deg
+            right_ascension = radec.ra.deg + decal_ra.value
+            declination = radec.dec.deg + decal_dec.value
 
         return {
             "ra": right_ascension,
@@ -612,6 +628,16 @@ class ParsetDataBase(object):
 
         scheduling_row = self.session.query(SchedulingTable).filter_by(fileName=basename(self.parset)).first()
         if scheduling_row is None:
+            username = "testobs" if parset_property["contactName"]=="" else parset_property["contactName"]
+
+            # Check if 'username' exists
+            if inspect(self.engine).has_table("nenufar_users"):
+                DeferredReflection.prepare(self.engine)
+                username_entry = self.session.query(NenufarUserTable).filter_by(username=username).first()
+                if username_entry is None:
+                    log.warning(f"Username '{username}' not found in 'nenufar_users' table, skipping it.")
+                    raise UserNameNotFound(f"'{username}'")
+
             # Sort out the topic
             topic = parset_property.get("topic", "ES00 DEBUG")
             if topic.lower().strip() == 'maintenance':
@@ -629,7 +655,7 @@ class ParsetDataBase(object):
                 endTime=parset_property["stopTime"].datetime,
                 state="default_value",
                 topic=topic,
-                username="testobs" if parset_property["contactName"]=="" else parset_property["contactName"],
+                username=username,
                 receivers=[ReceiverAssociation(receiver=receiver) for receiver in receivers]
             )
             is_new = True

@@ -31,7 +31,7 @@ import astropy.units as u
 import numpy as np
 
 from nenupy.observation import PARSET_OPTIONS
-from nenupy.observation.sqldatabase import DuplicateParsetEntry
+from nenupy.observation.sqldatabase import DuplicateParsetEntry, UserNameNotFound
 
 import logging
 log = logging.getLogger(__name__)
@@ -194,10 +194,13 @@ class Parset(object):
         except DuplicateParsetEntry:
             return
 
-        parsetDB.add_row(
-            {**self.observation, **self.output}, # dict merging
-            desc='observation'
-        )
+        try:
+            parsetDB.add_row(
+                {**self.observation, **self.output}, # dict merging
+                desc='observation'
+            )
+        except UserNameNotFound:
+            return
         for anaIdx in self.anabeams.keys():
             parsetDB.add_row(
                 self.anabeams[anaIdx],
