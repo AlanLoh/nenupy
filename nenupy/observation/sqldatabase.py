@@ -399,9 +399,9 @@ class ParsetDataBase(object):
         if p is not None:
             parset_entry = self.session.query(SchedulingTable).filter_by(fileName=basename(p)).first()
             if parset_entry is not None:
-                if inspect(self.engine).has_table("receiver_association"):
+                if inspect(self.engine).has_table("analogbeam"):
                     scheduling_id = parset_entry.id
-                    entry = self.session.query(ReceiverAssociation).filter_by(scheduling_id=scheduling_id).first()
+                    entry = self.session.query(AnalogBeamTable).filter_by(scheduling_id=scheduling_id).first()
                     if entry is not None:
                         log.info(f"Parset {basename(p)} already in {self.name}. Skipping it.")
                         raise DuplicateParsetEntry(f"Duplicated parset {basename(p)}.")
