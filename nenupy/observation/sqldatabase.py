@@ -563,7 +563,7 @@ class ParsetDataBase(object):
             right_ascension = (parset_property['angle1'].to(u.deg) + decal_ra).value
             declination = (parset_property['angle2'].to(u.deg) + decal_dec).value
 
-        elif direction_type == "azelgeo":
+        elif direction_type in ["azelgeo", "natif"]:
             # This is a transit observation, compute the mean RA/Dec
             log.debug(f"'{direction_type}' beam direction type, taking the mean RA/Dec.")
             # Convert AltAz to RA/Dec
