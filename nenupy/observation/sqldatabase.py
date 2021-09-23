@@ -105,12 +105,12 @@ RECEIVERS = np.array(['undysputed', 'xst', 'nickel', 'seti', 'radiogaga'])
 # ============================================================= #
 # ---------------------- SchedulingTable ---------------------- #
 # ============================================================= #
-# class NenufarUserTable(DeferredReflection, Base):
-#     """
-#         Fake class for NenuFAR User Table
-#     """
+class NenufarUserTable(DeferredReflection, Base):
+    """
+        Fake class for NenuFAR User Table
+    """
 
-#     __tablename__ = 'nenufar_users'
+    __tablename__ = 'nenufar_users'
 
 
 class SchedulingTable(Base):
@@ -639,11 +639,11 @@ class ParsetDataBase(object):
 
             # Check if 'username' exists
             if inspect(self.engine).has_table("nenufar_users"):
-                class NenufarUserTable(DeferredReflection, Base):
-                    """
-                        Fake class for NenuFAR User Table
-                    """
-                    __tablename__ = 'nenufar_users'
+                # class NenufarUserTable(DeferredReflection, Base):
+                #     """
+                #         Fake class for NenuFAR User Table
+                #     """
+                #     __tablename__ = 'nenufar_users'
 
                 DeferredReflection.prepare(self.engine)
                 username_entry = self.session.query(NenufarUserTable).filter_by(username=username).first()
