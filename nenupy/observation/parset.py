@@ -241,14 +241,14 @@ class Parset(object):
                     self.output[key] = value
                 
                 elif line.startswith('AnaBeam'):
-                    anaIdx = int(dicoName[-2])
+                    anaIdx = int(re.search(r'\[(\d*)\]', dicoName).group(1))
                     if anaIdx not in self.anabeams.keys():
                         self.anabeams[anaIdx] = _ParsetProperty()
                         self.anabeams[anaIdx]['anaIdx'] = str(anaIdx)
                     self.anabeams[anaIdx][key] = value
                 
                 elif line.startswith('Beam'):
-                    digiIdx = int(dicoName[-2])
+                    digiIdx = int(re.search(r'\[(\d*)\]', dicoName).group(1))
                     if digiIdx not in self.digibeams.keys():
                         self.digibeams[digiIdx] = _ParsetProperty()
                         self.digibeams[digiIdx]['digiIdx'] = str(digiIdx)

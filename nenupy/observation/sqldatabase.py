@@ -105,12 +105,12 @@ RECEIVERS = np.array(['undysputed', 'xst', 'nickel', 'seti', 'radiogaga'])
 # ============================================================= #
 # ---------------------- SchedulingTable ---------------------- #
 # ============================================================= #
-class NenufarUserTable(DeferredReflection, Base):
-    """
-        Fake class for NenuFAR User Table
-    """
+# class NenufarUserTable(DeferredReflection, Base):
+#     """
+#         Fake class for NenuFAR User Table
+#     """
 
-    __tablename__ = 'nenufar_users'
+#     __tablename__ = 'nenufar_users'
 
 
 class SchedulingTable(Base):
@@ -428,7 +428,8 @@ class ParsetDataBase(object):
         if engine is None:
             # Create a default engine
             engine = create_engine(
-                'sqlite:///' + database_name
+                'sqlite:///' + database_name,
+                pool_pre_ping=True
             )
         Base.metadata.create_all(engine)
         DBSession = sessionmaker(bind=engine)
@@ -638,6 +639,12 @@ class ParsetDataBase(object):
 
             # Check if 'username' exists
             if inspect(self.engine).has_table("nenufar_users"):
+                class NenufarUserTable(DeferredReflection, Base):
+                    """
+                        Fake class for NenuFAR User Table
+                    """
+                    __tablename__ = 'nenufar_users'
+
                 DeferredReflection.prepare(self.engine)
                 username_entry = self.session.query(NenufarUserTable).filter_by(username=username).first()
                 if username_entry is None:
@@ -678,6 +685,8 @@ class ParsetDataBase(object):
     def _create_analog_beam_row(self, parset_property):
         """ """
 
+        log.debug(f"Treating 'analogbeam' (index {parset_property['anaIdx']})...")
+
         pointing = self._normalize_beam_pointing(parset_property)
         # duration = TimeDelta(parset_property['duration'] , format='sec')
         # if parset_property['directionType'] not in ['J2000', 'AZELGEO']:
@@ -716,6 +725,8 @@ class ParsetDataBase(object):
 
     def _create_digital_beam_row(self, parset_property):
         """ """
+
+        log.debug(f"Treating 'digitalbeam' (index {parset_property['digiIdx']})...")
 
         pointing = self._normalize_beam_pointing(parset_property)
 
