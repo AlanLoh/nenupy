@@ -97,7 +97,7 @@ ANTENNAS = np.arange(1, 20, dtype=int)
 
 SUB_BANDS = np.arange(512, dtype=int)
 
-RECEIVERS = np.array(['undysputed', 'xst', 'nickel', 'seti', 'radiogaga'])
+RECEIVERS = np.array(['undysputed', 'xst', 'nickel', 'seti', 'radiogaga', 'codalema'])
 # ============================================================= #
 # ============================================================= #
 
@@ -268,6 +268,28 @@ class SubBandTable(Base):
     digital_beams = relationship("SubBandAssociation", back_populates='subband', cascade="all, delete, delete-orphan")
     index = Column(String(3), nullable=False)
     frequency_mhz = Column(Float, nullable=False)
+
+
+# class SubBandNickelAssociation(Base):
+#     """
+#     """
+#     __tablename__ = 'subband_nickel_association'
+
+#     scheduling_id = Column(ForeignKey("scheduling.id", ondelete="CASCADE"), primary_key=True)
+#     subband_id = Column(ForeignKey("subband_nickel.id", ondelete="CASCADE"), primary_key=True)
+#     subband = relationship("SubBandNickelTable", back_populates="scheduling", cascade="all, delete")
+#     scheduling = relationship("SchedulingTable", back_populates="subbands", cascade="all, delete")
+
+
+# class SubBandNickelTable(Base):
+#     """
+#     """
+#     __tablename__ = 'subband_nickel'
+
+#     id = Column(Integer, primary_key=True)
+#     scheduling = relationship("SubBandNickelAssociation", back_populates='subband', cascade="all, delete, delete-orphan")
+#     index = Column(String(3), nullable=False)
+#     frequency_mhz = Column(Float, nullable=False)
 # ============================================================= #
 # ============================================================= #
 
@@ -350,6 +372,7 @@ class DigitalBeamTable(Base):
     subbands = relationship("SubBandAssociation", back_populates='digital_beam', cascade="all, delete, delete-orphan")
     freq_min_mhz = Column(Float, nullable=False)
     freq_max_mhz = Column(Float, nullable=False)
+    processing = Column(String(255), nullable=True)
 
 
     # --------------------------------------------------------- #
@@ -750,7 +773,8 @@ class ParsetDataBase(object):
             subbands = [SubBandAssociation(subband=sb) for sb in subbands],
             freq_min_mhz = sb2freq( max(min(parset_property['subbandList']), 0) )[0].value, 
             freq_max_mhz = sb2freq( min(max(parset_property['subbandList']), 511) )[0].value,
-            anabeam = self.anaid[parset_property['noBeam']]
+            anabeam = self.anaid[parset_property['noBeam']],
+            processing = parset_property["toDo"]
         )
 
         log.debug(f"Row of table 'digitalbeam' (index {parset_property['digiIdx']}) created for '{self.current_scheduling.name}'.")

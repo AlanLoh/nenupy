@@ -82,7 +82,7 @@ class _ParsetProperty(MutableMapping):
                 elif ':' in val[i]:
                     # Might be a time object
                     try:
-                        item = Time(val[i], precision=0)
+                        item = Time(val[i].strip(), precision=0)
                     except ValueError:
                         item = val[i]
                     value.append(item)
