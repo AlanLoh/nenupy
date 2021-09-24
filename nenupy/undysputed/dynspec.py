@@ -432,7 +432,7 @@ from nenupy.astro import dispersion_delay
 
 import logging
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
+#log.setLevel(logging.INFO)
 
 
 # ============================================================= #
@@ -516,7 +516,7 @@ class _Lane(object):
         """
         half_sb = self.subband_width/2
         channels = self.chan[0, :] # Assumed all identical!
-        return np.min(channels)*self.subband_width - half_sb
+        return np.min(channels).compute()*self.subband_width - half_sb
 
 
     @property
@@ -525,7 +525,7 @@ class _Lane(object):
         """
         half_sb = self.subband_width/2
         channels = self.chan[0, :] # Assumed all identical!
-        return np.max(channels)*self.subband_width + half_sb
+        return np.max(channels.compute()*self.subband_width + half_sb
     
 
     # --------------------------------------------------------- #
@@ -628,7 +628,7 @@ class _Lane(object):
             np.arange(n_times, dtype='float64')
         )
         self._times *= self.dt.value
-        self._times += self.timestamp
+        self._times += self.timestamp + self.blockseqnumber/195312.5
         # Frequency array
         n_freqs = nfb * self.fftlen
         self._freqs = da.from_array(
@@ -812,13 +812,13 @@ class Dynspec(object):
         if not isinstance(l, list):
             l = [l]
         l = list(map(abspath, l))
-        # Check that all the input files belong to the same obs
-        names = list(map(basename,l))
-        obsname = [ni[::-1].split('_', 1)[1] for ni in names]
-        if obsname != obsname[::-1]:
-            raise ValueError(
-                'Input files seem not to belong to the same observation.'
-            )
+        # Check that all the input files belong to the same obs TO REDO
+        # names = list(map(basename,l))
+        # obsname = [ni[::-1].split('_', 1)[1] for ni in names]
+        # if obsname != obsname[::-1]:
+        #     raise ValueError(
+        #         'Input files seem not to belong to the same observation.'
+        #     )
         for li in map(abspath, l):
             if not isfile(li):
                 raise FileNotFoundError(
@@ -1160,7 +1160,7 @@ class Dynspec(object):
             .. versionadded:: 1.1.0
         """
         fm = min(li.fmin for li in self.lanes)
-        return fm.compute().to(u.MHz)
+        return fm.to(u.MHz)
 
 
     @property
@@ -1175,7 +1175,7 @@ class Dynspec(object):
             .. versionadded:: 1.1.0
         """
         fm = max(li.fmax for li in self.lanes)
-        return fm.compute().to(u.MHz)
+        return fm.to(u.MHz)
 
 
     @property
