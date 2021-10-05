@@ -141,15 +141,6 @@ class SchedulingTable(Base):
 
     # scheduling_id = Column(BigInteger, ForeignKey('scheduling.id', ondelete="CASCADE"))
     # scheduling = relationship(SchedulingTable, cascade="all, delete")
-
-    # PRIMARY KEY (`id`),
-    # UNIQUE KEY `fileName` (`fileName`),
-    # KEY `username` (`username`),
-    # KEY `topic` (`topic`),
-    # CONSTRAINT `contrainte_topic` FOREIGN KEY (`topic`) REFERENCES `key_projects` (`value`) ON DELETE NO ACTION ON UPDATE NO ACTION,
-    # CONSTRAINT `contrainte_username` FOREIGN KEY (`username`) REFERENCES `nenufar_users` (`username`)
-    # ) ENGINE=InnoDB AUTO_INCREMENT=51947 DEFAULT CHARSET=latin1
-
     # obs_name = Column(String(40), nullable=False)
     # contact_name = Column(String(255), nullable=False)
     # contact_email = Column(String(255), nullable=False)
@@ -159,12 +150,13 @@ class SchedulingTable(Base):
     # stop_time = Column(DateTime, nullable=False)
     # parset_file = Column(String(300), nullable=False)
     receivers = relationship("ReceiverAssociation", back_populates='scheduling', cascade="all, delete, delete-orphan")
+    nickel_subbands = relationship("SubBandNickelAssociation", back_populates='scheduling', cascade="all, delete, delete-orphan")
 # ============================================================= #
 # ============================================================= #
 
 
 # ============================================================= #
-# ---------------------- _MiniArrayTable ---------------------- #
+# ----------------------- ReceiverTable ----------------------- #
 # ============================================================= #
 class ReceiverAssociation(Base):
     """ """
@@ -254,7 +246,7 @@ class SubBandAssociation(Base):
     digital_beam_id = Column(ForeignKey("digitalbeam.id", ondelete="CASCADE"), primary_key=True)
     subband_id = Column(ForeignKey("subband.id", ondelete="CASCADE"), primary_key=True)
     
-    extra_data = Column(String(50))
+    # extra_data = Column(String(50))
     subband = relationship("SubBandTable", back_populates="digital_beams", cascade="all, delete")
     digital_beam = relationship("DigitalBeamTable", back_populates="subbands", cascade="all, delete")
 
@@ -266,19 +258,20 @@ class SubBandTable(Base):
 
     id = Column(Integer, primary_key=True)
     digital_beams = relationship("SubBandAssociation", back_populates='subband', cascade="all, delete, delete-orphan")
+    scheduling = relationship("SubBandNickelAssociation", back_populates='subband', cascade="all, delete, delete-orphan")
     index = Column(String(3), nullable=False)
     frequency_mhz = Column(Float, nullable=False)
 
 
-# class SubBandNickelAssociation(Base):
-#     """
-#     """
-#     __tablename__ = 'subband_nickel_association'
+class SubBandNickelAssociation(Base):
+    """
+    """
+    __tablename__ = 'subband_nickel_association'
 
-#     scheduling_id = Column(ForeignKey("scheduling.id", ondelete="CASCADE"), primary_key=True)
-#     subband_id = Column(ForeignKey("subband_nickel.id", ondelete="CASCADE"), primary_key=True)
-#     subband = relationship("SubBandNickelTable", back_populates="scheduling", cascade="all, delete")
-#     scheduling = relationship("SchedulingTable", back_populates="subbands", cascade="all, delete")
+    scheduling_id = Column(ForeignKey("scheduling.id", ondelete="CASCADE"), primary_key=True)
+    subband_id = Column(ForeignKey("subband.id", ondelete="CASCADE"), primary_key=True)
+    subband = relationship("SubBandTable", back_populates="scheduling", cascade="all, delete")
+    scheduling = relationship("SchedulingTable", back_populates="nickel_subbands", cascade="all, delete")
 
 
 # class SubBandNickelTable(Base):
@@ -701,6 +694,11 @@ class ParsetDataBase(object):
             [ReceiverAssociation(receiver=receiver, scheduling=scheduling_row) for receiver in receivers]
             is_new = False
             log.debug(f"Row of table 'scheduling' updated for '{scheduling_row.name}'.")
+        
+        if "nickel" in receivers_on:
+            log.debug("Adding the association to NICKEL subbands.")
+            nickel_subbands = self.session.query(SubBandTable).filter(SubBandTable.index.in_(parset_property.get("nri_subbandList", []))).all()
+            [SubBandNickelAssociation(subband=sb, scheduling=scheduling_row) for sb in nickel_subbands]
 
         return scheduling_row, is_new
 
