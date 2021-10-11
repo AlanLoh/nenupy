@@ -105,12 +105,12 @@ RECEIVERS = np.array(['undysputed', 'xst', 'nickel', 'seti', 'radiogaga', 'codal
 # ============================================================= #
 # ---------------------- SchedulingTable ---------------------- #
 # ============================================================= #
-class NenufarUserTable(DeferredReflection, Base):
-    """
-        Fake class for NenuFAR User Table
-    """
+# class NenufarUserTable(DeferredReflection, Base):
+#     """
+#         Fake class for NenuFAR User Table
+#     """
 
-    __tablename__ = 'nenufar_users'
+#     __tablename__ = 'nenufar_users'
 
 
 class SchedulingTable(Base):
@@ -251,6 +251,19 @@ class SubBandAssociation(Base):
     digital_beam = relationship("DigitalBeamTable", back_populates="subbands", cascade="all, delete")
 
 
+class SubBandNickelAssociation(Base):
+    """
+    """
+    __tablename__ = 'subband_nickel_association'
+
+    scheduling_id = Column(ForeignKey("scheduling.id", ondelete="CASCADE"), primary_key=True)
+    # subband_id = Column(ForeignKey("subband.id", ondelete="CASCADE"), primary_key=True)
+    subband_id = Column(ForeignKey("subband_nickel.id", ondelete="CASCADE"), primary_key=True)
+    # subband = relationship("SubBandTable", back_populates="scheduling", cascade="all, delete")
+    subband = relationship("SubBandNickelTable", back_populates="scheduling", cascade="all, delete")
+    scheduling = relationship("SchedulingTable", back_populates="nickel_subbands", cascade="all, delete")
+
+
 class SubBandTable(Base):
     """
     """
@@ -258,31 +271,20 @@ class SubBandTable(Base):
 
     id = Column(Integer, primary_key=True)
     digital_beams = relationship("SubBandAssociation", back_populates='subband', cascade="all, delete, delete-orphan")
-    scheduling = relationship("SubBandNickelAssociation", back_populates='subband', cascade="all, delete, delete-orphan")
+    #scheduling = relationship("SubBandNickelAssociation", back_populates='subband', cascade="all, delete, delete-orphan")
     index = Column(String(3), nullable=False)
     frequency_mhz = Column(Float, nullable=False)
 
 
-class SubBandNickelAssociation(Base):
+class SubBandNickelTable(Base):
     """
     """
-    __tablename__ = 'subband_nickel_association'
+    __tablename__ = 'subband_nickel'
 
-    scheduling_id = Column(ForeignKey("scheduling.id", ondelete="CASCADE"), primary_key=True)
-    subband_id = Column(ForeignKey("subband.id", ondelete="CASCADE"), primary_key=True)
-    subband = relationship("SubBandTable", back_populates="scheduling", cascade="all, delete")
-    scheduling = relationship("SchedulingTable", back_populates="nickel_subbands", cascade="all, delete")
-
-
-# class SubBandNickelTable(Base):
-#     """
-#     """
-#     __tablename__ = 'subband_nickel'
-
-#     id = Column(Integer, primary_key=True)
-#     scheduling = relationship("SubBandNickelAssociation", back_populates='subband', cascade="all, delete, delete-orphan")
-#     index = Column(String(3), nullable=False)
-#     frequency_mhz = Column(Float, nullable=False)
+    id = Column(Integer, primary_key=True)
+    scheduling = relationship("SubBandNickelAssociation", back_populates='subband', cascade="all, delete, delete-orphan")
+    index = Column(String(3), nullable=False)
+    frequency_mhz = Column(Float, nullable=False)
 # ============================================================= #
 # ============================================================= #
 
@@ -498,6 +500,16 @@ class ParsetDataBase(object):
                 for subband in SUB_BANDS
             ])
 
+        if ("subband_nickel" in existing_tables) and (self.session.query(SubBandNickelTable).first() is not None):
+            log.warning("'subband_nickel' table already exists.")
+        else:
+            # Initialize the SubBand Table
+            log.debug("Generating the 'subband_nickel' table.")
+            self.session.add_all([
+                SubBandNickelTable(index=str(subband), frequency_mhz=sb2freq(subband)[0].value)
+                for subband in SUB_BANDS
+            ])
+
         if ("receivers" in existing_tables) and (self.session.query(ReceiverTable).first() is not None):
             log.warning("'receivers' table already exists.")
         else:
@@ -655,11 +667,11 @@ class ParsetDataBase(object):
 
             # Check if 'username' exists
             if inspect(self.engine).has_table("nenufar_users"):
-                # class NenufarUserTable(DeferredReflection, Base):
-                #     """
-                #         Fake class for NenuFAR User Table
-                #     """
-                #     __tablename__ = 'nenufar_users'
+                class NenufarUserTable(DeferredReflection, Base):
+                    """
+                        Fake class for NenuFAR User Table
+                    """
+                    __tablename__ = 'nenufar_users'
 
                 DeferredReflection.prepare(self.engine)
                 username_entry = self.session.query(NenufarUserTable).filter_by(username=username).first()
@@ -697,7 +709,7 @@ class ParsetDataBase(object):
         
         if "nickel" in receivers_on:
             log.debug("Adding the association to NICKEL subbands.")
-            nickel_subbands = self.session.query(SubBandTable).filter(SubBandTable.index.in_(parset_property.get("nri_subbandList", []))).all()
+            nickel_subbands = self.session.query(SubBandNickelTable).filter(SubBandNickelTable.index.in_(parset_property.get("nri_subbandList", []))).all()
             [SubBandNickelAssociation(subband=sb, scheduling=scheduling_row) for sb in nickel_subbands]
 
         return scheduling_row, is_new
@@ -709,11 +721,6 @@ class ParsetDataBase(object):
         log.debug(f"Treating 'analogbeam' (index {parset_property['anaIdx']})...")
 
         pointing = self._normalize_beam_pointing(parset_property)
-        # duration = TimeDelta(parset_property['duration'] , format='sec')
-        # if parset_property['directionType'] not in ['J2000', 'AZELGEO']:
-        #     # This is a Solar System observation
-        #     parset_property['angle1'] = '999'
-        #     parset_property['angle2'] = '999'
         
         # Link to Antenna
         antennas = self.session.query(AntennaTable).filter(AntennaTable.name.in_(parset_property['antList'])).all()
@@ -750,12 +757,6 @@ class ParsetDataBase(object):
         log.debug(f"Treating 'digitalbeam' (index {parset_property['digiIdx']})...")
 
         pointing = self._normalize_beam_pointing(parset_property)
-
-        # duration = TimeDelta(pProp['duration'] , format='sec')
-        # if pProp['directionType'] not in ['J2000', 'AZELGEO']:
-        #     # This is a Solar System observation / compute the mean radec?
-        #     pProp['angle1'] = '999'
-        #     pProp['angle2'] = '999'
         
         # Link to Sub-Bands
         subbands = self.session.query(SubBandTable).filter(SubBandTable.index.in_(parset_property['subbandList'])).all()

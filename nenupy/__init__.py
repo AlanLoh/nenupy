@@ -5,7 +5,7 @@ __author__ = 'Alan Loh'
 __copyright__ = 'Copyright 2020, nenupy'
 __credits__ = ['Alan Loh']
 __license__ = 'MIT'
-__version__ = '1.3.1'
+__version__ = '1.3.2'
 __maintainer__ = 'Alan Loh'
 __email__ = 'alan.loh@obspm.fr'
 
@@ -13,6 +13,7 @@ __email__ = 'alan.loh@obspm.fr'
 import logging
 import sys
 import json
+import os
 from os.path import join, dirname
 import functools
 import inspect
