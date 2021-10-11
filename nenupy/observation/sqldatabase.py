@@ -163,7 +163,7 @@ class ReceiverAssociation(Base):
     __tablename__ = "receiver_association"
 
     scheduling_id = Column(BigInteger, ForeignKey("scheduling.id", ondelete="CASCADE"), primary_key=True)
-    receiver_id = Column(BigInteger, ForeignKey("receivers.id", ondelete="CASCADE"), primary_key=True)
+    receiver_id = Column(ForeignKey("receivers.id", ondelete="CASCADE"), primary_key=True)
     
     receiver = relationship("ReceiverTable", back_populates="schedulings", cascade="all, delete")
     scheduling = relationship("SchedulingTable", back_populates="receivers", cascade="all, delete")
@@ -188,9 +188,9 @@ class MiniArrayAssociation(Base):
     """
     __tablename__ = 'mini_array_association'
 
-    analog_beam_id = Column(BigInteger, ForeignKey("analogbeam.id", ondelete="CASCADE"), primary_key=True)
-    mini_array_id = Column(BigInteger, ForeignKey("miniarray.id", ondelete="CASCADE"), primary_key=True)
-    antenna_id = Column(BigInteger, ForeignKey("antenna.id", ondelete="CASCADE"), primary_key=True)
+    analog_beam_id = Column(ForeignKey("analogbeam.id", ondelete="CASCADE"), primary_key=True)
+    mini_array_id = Column(ForeignKey("miniarray.id", ondelete="CASCADE"), primary_key=True)
+    antenna_id = Column(ForeignKey("antenna.id", ondelete="CASCADE"), primary_key=True)
     
     mini_array = relationship("MiniArrayTable", back_populates="analog_beams", cascade="all, delete")
     analog_beam = relationship("AnalogBeamTable", back_populates="mini_arrays", cascade="all, delete")
@@ -243,8 +243,8 @@ class SubBandAssociation(Base):
     """
     __tablename__ = 'subband_association'
 
-    digital_beam_id = Column(BigInteger, ForeignKey("digitalbeam.id", ondelete="CASCADE"), primary_key=True)
-    subband_id = Column(BigInteger, ForeignKey("subband.id", ondelete="CASCADE"), primary_key=True)
+    digital_beam_id = Column(ForeignKey("digitalbeam.id", ondelete="CASCADE"), primary_key=True)
+    subband_id = Column(ForeignKey("subband.id", ondelete="CASCADE"), primary_key=True)
     
     # extra_data = Column(String(50))
     subband = relationship("SubBandTable", back_populates="digital_beams", cascade="all, delete")
@@ -257,7 +257,7 @@ class SubBandNickelAssociation(Base):
     __tablename__ = 'subband_nickel_association'
 
     scheduling_id = Column(BigInteger, ForeignKey("scheduling.id", ondelete="CASCADE"), primary_key=True)
-    subband_id = Column(BigInteger, ForeignKey("subband.id", ondelete="CASCADE"), primary_key=True)
+    subband_id = Column(ForeignKey("subband.id", ondelete="CASCADE"), primary_key=True)
     subband = relationship("SubBandTable", back_populates="scheduling", cascade="all, delete")
     scheduling = relationship("SchedulingTable", back_populates="nickel_subbands", cascade="all, delete")
 
