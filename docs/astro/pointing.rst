@@ -138,7 +138,7 @@ altazA file
 An ``.altazA`` file describes the analog pointing of the Mini-Arrays, i.e., all pointing orders for each analog beam.
 The columns can be read, from left to right, as *'start time of the pointing'*, *'analog beam index'*, *'desired azimuth'*, *'desired elevation'*, *'corrected azimuth (after calibration)'*, *'corrected elevation (after calibration)'*, *'frequency at which the beamsquint effect is computed'*, *'elevation to point (taking into account the beamsquint effect)'*.
 
-.. code-block::
+.. code-block:: text
 
     ;========================================================================================
     ; az cor, el cor : method 'mix'
@@ -173,7 +173,7 @@ The :meth:`~nenupy.astro.pointing.Pointing.plot` method can be used to quickly v
     Another file is present in each `NenuFAR <https://nenufar.obs-nancay.fr/en/homepage-en/>`_ observation repository: the so-called 'tracking file'.
     This one lists the analog pointing orders used to control the delay lines. It looks like:
 
-    .. code-block::
+    .. code-block:: text
 
         2021-11-04T17:01:10Z A 000 036 003 1 59 2 31
         2021-11-04T17:01:10Z A 001 009 025 1 60 2 31
@@ -208,7 +208,7 @@ An ``.altazB`` file describes the numerical pointing of the NenuFAR array in bea
 Several numerical beams can co-exist (see `NenuFAR pointing <https://nenufar.obs-nancay.fr/en/astronomer/#pointing>`_ for more details), each with a given index ``BEAM``.
 Each numerical beam is linked to an analog beam (Mini-Arrays configuration), this is why the analog beam index ``ANA`` is associated to each line.
 
-.. code-block::
+.. code-block:: text
 
     ; ============================================================================================================
     ;YYYY-MM-DD HH:NN:SS  ANA BEAM  az (deg)   el (deg)           L                   M                   N 
