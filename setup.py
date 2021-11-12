@@ -11,17 +11,17 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        'numpy',
-        'scipy',
-        'astropy',
-        'matplotlib', 
-        'healpy', #==1.13.0
-        'reproject',
-        'numba',
-        'numexpr',
-        'pyproj',
-        'dask[array]',
-        'sqlalchemy'
+        'numpy', # 1.19.4
+        'scipy', #1.5.2
+        'astropy', #4.1
+        'matplotlib', # 3.3.3
+        'healpy', # >=1.13.0
+        'reproject', # 0.5.1
+        'numba', # 0.48.0
+        'numexpr', # 2.7.1
+        'pyproj', # 2.6.0
+        'dask[array]', # 2020.12.0
+        'sqlalchemy' # 1.3.18
     ],
     extras_require={
         #'astroplan': 'astroplan',

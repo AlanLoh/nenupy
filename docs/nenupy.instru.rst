@@ -5,7 +5,9 @@ nenupy.instru
 
 .. toctree::
 
-   nenupy.instru.instru
+   nenupy.instru.instrument_tools
+   nenupy.instru.interferometer
+   nenupy.instru.nenufar
 
 
 

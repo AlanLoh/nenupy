@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.abspath('.'))
 # -- Project information -----------------------------------------------------
 from nenupy import __version__
 project = 'nenupy'
-copyright = '2020, Alan Loh'
+copyright = '2021, Alan Loh'
 author = 'Alan Loh'
 version = __version__ 
 
@@ -53,8 +53,11 @@ intersphinx_mapping = {
     'python': ('http://docs.python.org/3', None),
     'healpy': ('https://healpy.readthedocs.io/en/latest/', None),
     'matplotlib': ('https://matplotlib.org/stable/', None),
+    'dask': ('https://docs.dask.org/en/stable/', None),
     # 'nenupy': ('https://nenupy.readthedocs.io/en/latest/', None),
 }
+
+autodoc_typehints = "none"
 
 autodoc_mock_imports = [
     'pygsm',
@@ -110,7 +113,10 @@ html_theme_options = {
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-#html_static_path = ['_static']
+html_static_path = ['_static']
+html_css_files = [
+    'css/my_theme.css',
+]
 
 html_logo = '../Logo-NenuFAR-noir.svg'
 # html_logo = '../nenupy_logo.svg'

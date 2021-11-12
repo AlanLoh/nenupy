@@ -7,10 +7,12 @@ Subpackages
 .. toctree::
 
    nenupy.astro
+   nenupy.astro_old
    nenupy.beam
    nenupy.beamlet
    nenupy.crosslet
    nenupy.instru
+   nenupy.instru_old
    nenupy.observation
    nenupy.schedule
    nenupy.simulation

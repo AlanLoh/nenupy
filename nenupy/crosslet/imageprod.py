@@ -272,7 +272,7 @@ class NenuFarTV(HpxSky):
         )
 
 
-    def savePng(self, figname=''):
+    def savePng(self, figname='', **kwargs):
         """
         """
         if (figname != '') and (not figname.endswith('.png')):
@@ -306,7 +306,8 @@ class NenuFarTV(HpxSky):
             cblabel='Stokes {}'.format(self.stokes),
             contour=contours,
             text=srcText,
-            figname=figname
+            figname=figname,
+            **kwargs
         )
         log.info(
             'Display of TV image {} saved.'.format(
@@ -742,7 +743,7 @@ class NearField(object):
         )   
 
 
-    def plot(self, figname=''):
+    def plot(self, figname='', **kwargs):
         """
         """
         radius = self.radius.to(u.m).value
@@ -760,7 +761,9 @@ class NearField(object):
             np.flipud(nfImage_db), # This needs to be understood...
             cmap='YlGnBu_r',
             extent=[-radius, radius, -radius, radius],
-            zorder=0
+            zorder=0,
+            vmin=kwargs.get('vmin', np.min(nfImage_db)),
+            vmax=kwargs.get('vmax', np.max(nfImage_db))
         )
         # Show the contour of the simulated source imprints
         groundGranularity = np.linspace(-radius, radius, self.nPix)
@@ -814,8 +817,8 @@ class NearField(object):
             cmap=get_cmap(name='YlGnBu_r'),
             orientation='vertical',
             norm=Normalize(
-                vmin=np.min(nfImage_db),
-                vmax=np.max(nfImage_db)
+                vmin=kwargs.get('vmin', np.min(nfImage_db)),
+                vmax=kwargs.get('vmax', np.max(nfImage_db))
             ),
             ticks=LinearLocator(),
             format='%.2f'

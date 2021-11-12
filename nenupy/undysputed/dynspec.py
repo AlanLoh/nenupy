@@ -525,7 +525,7 @@ class _Lane(object):
         """
         half_sb = self.subband_width/2
         channels = self.chan[0, :] # Assumed all identical!
-        return np.max(channels.compute()*self.subband_width + half_sb
+        return np.max(channels).compute()*self.subband_width + half_sb
     
 
     # --------------------------------------------------------- #

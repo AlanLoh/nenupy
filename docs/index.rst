@@ -76,6 +76,38 @@ Finally, observations can then be simulated using the simulated beam and a sky m
    tuto_xst2bst
    tuto_tv
 
+.. toctree::
+   :caption: Instrument
+   :maxdepth: 1
+
+   instru/array_configuration
+   instru/instrument_properties
+   instru/tools
+
+.. toctree::
+   :caption: Astronomy
+   :maxdepth: 1
+
+   astro/target
+   astro/sky
+   astro/skymodel
+   astro/pointing
+   astro/tools
+
+.. toctree::
+   :caption: Simulation
+   :maxdepth: 1
+
+   simu/beam_simulation
+   simu/obs_simulation
+
+.. toctree::
+   :caption: Observation management
+   :maxdepth: 1
+
+   obs/obs_scheduling
+   obs/obs_configuration
+
 .. _data-reading:
 
 .. toctree::
@@ -88,13 +120,13 @@ Finally, observations can then be simulated using the simulated beam and a sky m
 
 .. _data-analysis:
 
-.. toctree::
-   :caption: Simulation
-   :maxdepth: 2
+.. .. toctree::
+..    :caption: Simulation
+..    :maxdepth: 2
 
-   nenupy.beam
-   nenupy.skymodel
-   nenupy.simulation
+..    nenupy.beam
+..    nenupy.skymodel
+..    nenupy.simulation
 
 .. _tools:
 
