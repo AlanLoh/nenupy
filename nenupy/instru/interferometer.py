@@ -614,7 +614,10 @@ class Interferometer(ABC, metaclass=CombinedMeta):
             whose spectrum is defined in the ``source_spectrum`` argument computed as:
 
             .. math::
-                T_{\rm src} = \frac{F_{src} \eta A_{\rm eff}}{2 k_{\rm B}}
+                T_{\rm src} = \frac{F_{\rm src} \eta A_{\rm eff}}{2 k_{\rm B}}
+            
+            where :math:`F_{\rm src}` is the source spectrum, :math:`\eta` is the
+            ``efficiency`` of the effective area :math:`A_{\rm eff}}`.
 
             :param frequency: 
                 Frequency for the System Temperature computation.
@@ -630,11 +633,13 @@ class Interferometer(ABC, metaclass=CombinedMeta):
                 Effective area reducing factor. Default is ``1.``, it cannot be greater than ``1.``.
             :type efficiency:
                 `float`
-            :param decoherence:
-                Parameter that reflects other uncertainties (particularly the unperfect phasing system).
-                Default is ``1.``.
-            :type decoherence:
-                `float`
+            :param source_spectrum:
+                By default the system temperature is evaluated using a mean Galactic temperature.
+                However, if a bright source is targeted, the noise introduced can be under-estimated.
+                Therefore, one can provide a `callable` object that takes as inputs a frequency array (of type :class:`~astropy.units.Quantity`) and
+                returns the source flux density in Jansky (of type :class:`~astropy.units.Quantity`).
+            :type source_spectrum:
+                `dict` of `callable`
 
             :returns:
                 System Temperature in Kelvins.
@@ -668,7 +673,7 @@ class Interferometer(ABC, metaclass=CombinedMeta):
             .. math::
                 S_{\rm sys} = \xi \frac{2 k_{\rm B}}{ \eta A_{\rm eff}(\nu, \theta)} T_{\rm sys} (\nu)
             
-            with :math:`T_{\rm sys}` the :meth:`~nenupy.instru.interferometer.system_temperature`,
+            with :math:`T_{\rm sys}` the :meth:`~nenupy.instru.interferometer.Interferometer.system_temperature`,
             the efficiency :math:`\eta`, :math:`\nu` the frequency, :math:`\theta` the elevation,
             :math:`\xi` the decoherence factor, and :math:`k_{\rm B}` the
             Boltzmann constant.
@@ -707,7 +712,7 @@ class Interferometer(ABC, metaclass=CombinedMeta):
                 :class:`~astropy.units.Quantity`
         
             .. seealso::
-                `LOFAR website <http://old.astron.nl/radio-observatory/astronomers/lofar-imaging-capabilities-sensitivity/sensitivity-lofar-array/sensiti>`_, 
+                `LOFAR website <http://old.astron.nl/radio-observatory/astronomers/lofar-imaging-capabilities-sensitivity/sensitivity-lofar-array/sensiti>`_, :meth:`nenupy.instru.interferometer.Interferometer.system_temperature`
 
         """
         effective_area = self.effective_area(frequency, elevation)
@@ -888,8 +893,15 @@ class Interferometer(ABC, metaclass=CombinedMeta):
                 0.2 \left( \frac{\nu}{\rm GHz} \right)^{-0.7} 
                 \left( \frac{\theta}{\rm arcmin} \right)^{2}
             
+            or (if ``lofar=True``):
+            
+            .. math::
+                \left( \frac{\sigma_{\rm c}}{\mu\rm{Jy}\, \rm{beam}^{-1}} \right) \simeq
+                30 \left( \frac{\nu}{74 {\rm MHz}} \right)^{-0.7} 
+                \left( \frac{\theta}{\rm arcsec} \right)^{1.54}
+            
             where :math:`\nu` is the frequency and :math:`\theta` is
-            the radiotelescope FWHM.
+            the radiotelescope FWHM (see :meth:`~nenupy.instru.interferometer.Interferometer.angular_resolution`).
             
             Individual sources fainter than about 
             :math:`5\sigma_{\rm c}` cannot be detected reliably.
@@ -902,17 +914,22 @@ class Interferometer(ABC, metaclass=CombinedMeta):
                 Mini-Array indices to take into account.
                 Default is ``None`` (all available MAs).
             :type miniarrays: `int`, `list` or :class:`~numpy.ndarray`
+            :param lofar:
+                If set to ``True`` (recommended), the confusion noise
+                is estimated using Eq. 6 of `van Haarlem et al. (2013) <https://arxiv.org/pdf/1305.3550.pdf>`_.
+            :type:
+                `bool`
 
-            :returns: Confusion rms noise in mJy/beam
-            :rtype: :class:`~astropy.units.Quantity`
+            :returns:
+                Confusion rms noise in Jy/beam
+            :rtype:
+                :class:`~astropy.units.Quantity`
 
             :Example:
-                >>> from nenupy.instru import confusion_noise
-                >>> confusion_noise(
-                        freq=50,
-                        miniarrays=None
+                >>> import astropy.units as u
+                >>> <instrument>.confusion_noise(
+                        frequency=50*u.MHz
                     )
-                4663.202 mJy
 
             .. see also::
                 `NRAO lecture <https://www.cv.nrao.edu/course/astr534/Radiometers.html>`_ (eq. 3E6),
@@ -922,12 +939,16 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         if lofar: # https://arxiv.org/pdf/1305.3550.pdf
             freq_at_74mHz = (frequency.to(u.MHz)/(74*u.MHz)).value
             res_in_asec = resolution.to(u.arcsec).value
-            conf_in_mjy = 30 * res_in_asec**1.54 * freq_at_74mHz**(-0.7) * u.uJy
+            conf = 30 * res_in_asec**1.54 * freq_at_74mHz**(-0.7) * u.uJy
         else:
+            # freq_in_ghz = frequency.to(u.GHz).value
+            # res_in_asec = resolution.to(u.arcsec).value
+            # conf = 1.2 * (freq_in_ghz/3.02)**(-0.7) * (res_in_asec/8)**(10/3) * u.uJy # condon 2012
             freq_in_ghz = frequency.to(u.GHz).value
             res_in_amin = resolution.to(u.arcmin).value
-            conf_in_mjy = 0.2 * freq_in_ghz**(-0.7) * res_in_amin**2 * u.mJy # Condon 2002
-        return conf_in_mjy.to(u.Jy) # Jy/beam
+            conf = 0.2 * freq_in_ghz**(-0.7) * res_in_amin**2 * u.mJy # Condon 2002
+
+        return conf.to(u.Jy) # Jy/beam
 
 
     # --------------------------------------------------------- #

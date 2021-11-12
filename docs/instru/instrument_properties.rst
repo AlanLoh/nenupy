@@ -158,7 +158,13 @@ Noise and sensitivity
 Instrument temperature
 ^^^^^^^^^^^^^^^^^^^^^^
 
+NenuFAR instrument temperature can be computed thanks to the :func:`~nenupy.instru.instrument_tools.instrument_temperature` function.
+The values come from observation measurements and depend on the bandwidth high-pass filter applied.
+
+Below, is computed the instrument temperature for the two available filters (namely ``0`` and ``3`` which correspond to 'no filter' and '25 MHz high-pass filter').
+
 .. code-block:: python
+    :emphasize-lines: 3,4
 
     >>> from nenupy.instru import instrument_temperature
     >>> frequencies = np.linspace(15, 85, 50)*u.MHz
@@ -166,38 +172,69 @@ Instrument temperature
     >>> t_ins_25mhz_filter = instrument_temperature(frequency=frequencies, lna_filter=3)    
     >>> plt.plot(frequencies, t_ins_no_filter, label="No filter")
     >>> plt.plot(frequencies, t_ins_25mhz_filter, label="25 MHz filter")
-    >>> plt.legend()
-    >>> plt.yscale("log")
-    >>> plt.ylim(0, 1e5)
-    >>> plt.ylabel(r"$T_{\rm ins}$ (K)")
-    >>> plt.xlabel("Frequency (MHz)")
 
 
 .. figure:: ../_images/instru_images/instrument_temperature.png
     :width: 450
     :align: center
 
-    NenuFAR instrument temperature.
+    NenuFAR instrument temperature computed for the two available filters.
+
+.. note::
+
+    All the methods involving th computation of :func:`~nenupy.instru.instrument_tools.instrument_temperature` do accept ``lna_filter`` as argument.
+    This is true for :meth:`~nenupy.instru.interferometer.Interferometer.system_temperature`, :meth:`~nenupy.instru.interferometer.Interferometer.sefd` and :meth:`~nenupy.instru.interferometer.Interferometer.sensitivity`.
 
 
 
 System temperature
 ^^^^^^^^^^^^^^^^^^
 
-The *system temperature* represents the added noise of the system, which is a combination of many contributions.
+The *system temperature* represents the added noise of the system, which is a combination of several contributions.
 The :meth:`~nenupy.instru.interferometer.Interferometer.system_temperature` does simply consider the instrument and the sky temperatures, the latter being dominated by the Galactic emission at NenuFAR frequencies.
 
+.. code-block:: python
+
+    >>> from nenupy.astro import sky_temperature
+    >>> ma = MiniArray()
+    >>> frequencies = np.linspace(15, 85, 50)*u.MHz
+    >>> t_sys_0 = ma.system_temperature(frequency=frequencies, lna_filter=0)
+    >>> t_ins_0 = ma.instrument_temperature(frequency=frequencies, lna_filter=0)
+    >>> t_sys_3 = ma.system_temperature(frequency=frequencies, lna_filter=3)
+    >>> t_ins_3 = ma.instrument_temperature(frequency=frequencies, lna_filter=3)
+    >>> t_sky = sky_temperature(frequency=frequencies)
 
 
 .. figure:: ../_images/instru_images/ma_temp.png
     :width: 450
     :align: center
 
-    Blabla.
+    Sky temperature (:math:`T_{\rm sky}`), instrument temperature (:math:`T_{\rm ins}`, for both filters) and the resulting system temperature (:math:`T_{\rm sys} = T_{\rm sky} + T_{\rm ins}`).
 
 
 System equivalent flux density
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The System Equivalent Flux Density (or SEFD), is defined as the flux density (in Jy) of a radio source that doubles the system temperature.
+
+
+.. code-block:: python
+
+    >>> ma = MiniArray()
+    >>> frequencies = np.linspace(15, 85, 50)*u.MHz
+    >>> sefd_90_0 = ma.sefd(frequency=frequencies, elevation=90*u.deg, lna_filter=0)
+    >>> sefd_60_0 = ma.sefd(frequency=frequencies, elevation=60*u.deg, lna_filter=0)
+    >>> sefd_30_0 = ma.sefd(frequency=frequencies, elevation=30*u.deg, lna_filter=0)
+    >>> sefd_90_3 = ma.sefd(frequency=frequencies, elevation=90*u.deg, lna_filter=3)
+    >>> sefd_60_3 = ma.sefd(frequency=frequencies, elevation=60*u.deg, lna_filter=3)
+    >>> sefd_30_3 = ma.sefd(frequency=frequencies, elevation=30*u.deg, lna_filter=3)
+
+.. figure:: ../_images/instru_images/sefd.png
+    :width: 450
+    :align: center
+
+    Mini-Array SEFD for different elevations :math:`\phi` and filters.
+
 
 Sensitivity
 ^^^^^^^^^^^
@@ -217,10 +254,12 @@ This precision is added thanks to :class:`~nenupy.instru.interferometer.Observin
     >>>     mode=ObservingMode.BEAMFORMING,
     >>>     dt=3600*u.s,
     >>>     df=25*u.MHz,
-    >>>     elevation=70*u.deg
+    >>>     elevation=70*u.deg,
+    >>>     efficiency=1.,
+    >>>     decoherence=1.,
+    >>>     lna_filter=0
     >>> )
-    0.34524316 Jy
-
+    0.19055667 Jy
 
 .. warning::
 
@@ -228,7 +267,11 @@ This precision is added thanks to :class:`~nenupy.instru.interferometer.Observin
     However, this may not be a valid statement while a bright source is directly observed (such as A-team members).   
     This would yield to unaccurate noise estimations.
 
-Below `De Gasperin et al. (2020) <https://arxiv.org/pdf/2002.10431.pdf>`_
+In order to derive more precise noise estimation in the case of a pointing towards a bright source, it is mandatory to fill in the ``source_spectrum`` argument of :meth:`~nenupy.instru.interferometer.Interferometer.sensitivity`.
+This argument requires a `callable` object that takes as input ``frequency`` (of type :class:`astropy.units.Quantity`) and returns the spectrum of the target source in Janskys (also of type :class:`astropy.units.Quantity`).
+
+As an example, we define such a function based on `De Gasperin et al. (2020) <https://arxiv.org/pdf/2002.10431.pdf>`_ which returns the spectrum of the A-team source Cas A with respect to ``frequency``.
+The ``0.7`` factor has been added to better fit the UTR-2 measurements at low frequency.
 
 .. code-block:: python
 
@@ -241,6 +284,9 @@ Below `De Gasperin et al. (2020) <https://arxiv.org/pdf/2002.10431.pdf>`_
     >>>     log_nu = np.log10(frequency.to(u.GHz).value)
     >>>     return 0.7 * np.power(10, (a0 + a1*log_nu + a2*log_nu**2 + a3*log_nu**3) )*u.Jy
 
+Then a :class:`~nenupy.instru.nenufar.NenuFAR` instance is created, for which the array only contains 56 Mini-Arrays (see :ref:`array_configuration_doc`).
+The sensitivity is computed while filling in the configuration of an observation made by the `NenuFAR 'Science Key Program' <https://nenufar.obs-nancay.fr/en/astronomer/#news>`_ ES10 ('Radio recombination lines').
+The function describing this particular observation target spectrum, previously defined, is also inserted.
 
 .. code-block:: python
 
@@ -256,19 +302,35 @@ Below `De Gasperin et al. (2020) <https://arxiv.org/pdf/2002.10431.pdf>`_
     >>>     source_spectrum={"Cas A": casa_spectrum}
     >>> )
 
+The following figure shows the result of the theoretical sensitivity ``rms`` (evaluated with or without the incorporation of Cas A spectrum).
+It is plotted against on-sky measurements of ES10.
+The addition of Cas A spectrum does provide a more realistic noise estimation.
+
 .. figure:: ../_images/instru_images/casa_rms.png
     :width: 450
     :align: center
 
-    Blabla.
+    Theoretical sensitivity of NenuFAR (orange and green curves).
+    Noise measurement (blue curve, courtesy of ES10 'Radio recombination lines' team).
 
 
 Confusion noise
 ^^^^^^^^^^^^^^^
 
+The confusion noise can be directly evaluated using the method :meth:`~nenupy.instru.interferometer.Interferometer.confusion_noise`:
 
 .. code-block:: python
 
-    >>> from nenupy.instru.nenufar import NenuFAR
-    >>> nenufar = NenuFAR()
+    >>> frequencies = np.linspace(15, 85, 30)*u.MHz
+    >>> nenufar_core = NenuFAR()
+    >>> nenufar_core_distant = NenuFAR(include_remote_mas=True)
+    >>> nc_core = nenufar_core.confusion_noise(frequency=frequencies)
+    >>> nc_core_distant = nenufar_core_distant.confusion_noise(frequency=frequencies)
+
+
+.. figure:: ../_images/instru_images/confusion.png
+    :width: 450
+    :align: center
+
+    Confusion noise evaluated for NenuFAR, considering either the core Mini-Arrays only (blue curve) or the core and the distant Mini-Arrays (orange dashed curve). 
 

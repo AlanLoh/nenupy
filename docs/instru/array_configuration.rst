@@ -180,7 +180,7 @@ This operation allows for four different types of input:
 Array combinations
 ^^^^^^^^^^^^^^^^^^
 
-Array combinations may be useful in some specific cases, or to ease the manipulation of :class:`~nenupy.instru.interferometer.Inteferometer` objects while programming.
+Array combinations may be useful in some specific cases, or to ease the manipulation of :class:`~nenupy.instru.interferometer.Interferometer` objects while programming.
 
 Two :class:`~nenupy.instru.interferometer.Interferometer` instances are merged with the use of ``+`` operator.
 This operation takes care of duplicated elements belong to both of the summed instances. 
