@@ -9,12 +9,7 @@ sphinx:
 python:
   version: 3.7
   install:
-    - method: pip
-      path: .
-      requirements: docs/requirements.txt
-      extra_requirements:
-        - docs
-        - all
+    - requirements: docs/requirements.txt
 
 submodules:
   include: all
