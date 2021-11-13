@@ -250,10 +250,10 @@ class Constraint(object):
                 Size of the figure. Default: ``(10, 5)``.
             :type figSize:
                 `tuple`
-            :param figName:
+            :param figname:
                 Name of the figure to be stored. Default: ``''``,
                 the figure is only displayed.
-            :type figName:
+            :type figname:
                 `str`
             :param marker:
                 Plot marker type (see :func:`matplotlib.pyplot.plot`).
@@ -280,15 +280,15 @@ class Constraint(object):
         plt.title(f'{self.__class__}')
 
         # Save or show the figure
-        figName = kwargs.get('figName', '')
-        if figName != '':
+        figname = kwargs.get('figname', '')
+        if figname != '':
             plt.savefig(
-                figName,
+                figname,
                 dpi=300,
                 bbox_inches='tight',
                 transparent=True
             )
-            log.info(f"Figure '{figName}' saved.")
+            log.info(f"Figure '{figname}' saved.")
         else:
             plt.show()
         plt.close('all')
@@ -801,40 +801,40 @@ class TimeRangeCnst(ScheduleConstraint):
         .. versionadded:: 1.2.0
     """
 
-    def __init__(self, tMin, tMax, weight=1):
+    def __init__(self, time_min, time_max, weight=1):
         super().__init__(weight=weight)
-        self.tMin = tMin
-        self.tMax = tMax
+        self.time_min = time_min
+        self.time_max = time_max
 
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
     @property
-    def tMin(self):
+    def time_min(self):
         """
         """
-        return self._tMin
-    @tMin.setter
-    def tMin(self, t):
+        return self._time_min
+    @time_min.setter
+    def time_min(self, t):
         if not isinstance(t, Time):
             raise TypeError(
                 f'{t} should be of type {type(Time)}.'
             )
-        self._tMin = t
+        self._time_min = t
 
 
     @property
-    def tMax(self):
+    def time_max(self):
         """
         """
-        return self._tMax
-    @tMax.setter
-    def tMax(self, t):
+        return self._time_max
+    @time_max.setter
+    def time_max(self, t):
         if not isinstance(t, Time):
             raise TypeError(
                 f'{t} should be of type {type(Time)}.'
             )
-        self._tMax = t
+        self._time_max = t
 
 
     # --------------------------------------------------------- #
@@ -855,11 +855,11 @@ class TimeRangeCnst(ScheduleConstraint):
         
         jds = time.jd
         
-        if self.tMin.isscalar:
-            mask = (jds >= self.tMin.jd) & (jds <= self.tMax.jd)
+        if self.time_min.isscalar:
+            mask = (jds >= self.time_min.jd) & (jds <= self.time_max.jd)
         else:
             mask = np.sum(
-                (jds[:, None] >= self.tMin.jd) & (jds[:, None] <= self.tMax.jd),
+                (jds[:, None] >= self.time_min.jd) & (jds[:, None] <= self.time_max.jd),
                 axis=1,
                 dtype=bool
             )
@@ -899,7 +899,8 @@ class Constraints(object):
             raise ValueError(message)
 
         # Add the elevation constraint by default
-        if not str(ElevationCnst) in unique:
+        #if not str(ElevationCnst) in unique:
+        if not np.any(np.isin(np.array([str(ElevationCnst)]), unique)):
             self.constraints += (ElevationCnst(0.),)
             self._default_el = True
 
@@ -937,6 +938,11 @@ class Constraints(object):
         """
         """
         return len(self.constraints)
+
+
+    def __del__(self):
+        for constraint in self.constraints:
+            del constraint
 
 
     # --------------------------------------------------------- #
@@ -990,7 +996,7 @@ class Constraints(object):
         """
             kwargs:
                 figsize
-                figName
+                figname
 
         """
         fig = plt.figure(
@@ -1010,15 +1016,15 @@ class Constraints(object):
         plt.legend()
 
         # Save or show the figure
-        figName = kwargs.get('figName', '')
-        if figName != '':
+        figname = kwargs.get('figname', '')
+        if figname != '':
             plt.savefig(
-                figName,
+                figname,
                 dpi=300,
                 bbox_inches='tight',
                 transparent=True
             )
-            log.info(f"Figure '{figName}' saved.")
+            log.info(f"Figure '{figname}' saved.")
         else:
             plt.show()
         plt.close('all')

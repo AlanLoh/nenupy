@@ -24,7 +24,7 @@ __all__ = [
 from astropy.time import Time, TimeDelta
 from astropy.table import Table
 import numpy as np
-from copy import deepcopy
+from copy import deepcopy, copy
 
 from nenupy.schedule.obsblocks import (
     Block,
@@ -85,9 +85,13 @@ class ScheduleBlock(ObsBlock):
 
         self.dt = dt
         self.startIdx = None
-        self.tMin = None
-        self.tMax = None
+        self.time_min = None
+        self.time_max = None
         self.nSlots = int(np.ceil(self.duration/self.dt))
+
+
+    def __del__(self):
+        pass
 
 
     # --------------------------------------------------------- #
@@ -172,7 +176,7 @@ class ScheduleBlock(ObsBlock):
             kwargs
                 figsize
                 nPoints
-                figName
+                figname
         """
         import matplotlib.pyplot as plt
 
@@ -186,8 +190,8 @@ class ScheduleBlock(ObsBlock):
         
         # Compute the target position
         nPoints = kwargs.get('nPoints', 50)
-        dt = (self.tMax - self.tMin)/nPoints
-        times = self.tMin + np.arange(nPoints + 1)*dt
+        dt = (self.time_max - self.time_min)/nPoints
+        times = self.time_min + np.arange(nPoints + 1)*dt
         # Create a copy of the target object to keep self.target intact
         target = deepcopy(self.target)
         target.computePosition(times)
@@ -205,12 +209,12 @@ class ScheduleBlock(ObsBlock):
             label='Elevation'
         )
         ax1.axvline(
-            self.tMin.datetime,
+            self.time_min.datetime,
             color='black',
             linestyle='-.'
         )
         ax1.axvline(
-            self.tMax.datetime,
+            self.time_max.datetime,
             color='black',
             linestyle='-.'
         )
@@ -233,15 +237,15 @@ class ScheduleBlock(ObsBlock):
         fig.tight_layout()
 
         # Save or show the figure
-        figName = kwargs.get('figName', '')
-        if figName != '':
+        figname = kwargs.get('figname', '')
+        if figname != '':
             plt.savefig(
-                figName,
+                figname,
                 dpi=300,
                 bbox_inches='tight',
                 transparent=True
             )
-            log.info(f"Figure '{figName}' saved.")
+            log.info(f"Figure '{figname}' saved.")
         else:
             plt.show()
         plt.close('all')
@@ -254,13 +258,13 @@ class ScheduleBlock(ObsBlock):
         """
         import matplotlib.dates as mdates
 
-        if self.tMin is None:
+        if self.time_min is None:
             return
 
         # Show the block rectangle
         ax.axvspan(
-            self.tMin.datetime,
-            self.tMax.datetime,
+            self.time_min.datetime,
+            self.time_max.datetime,
             facecolor=self.kpColor,
             edgecolor='black',
             alpha=0.6
@@ -268,15 +272,15 @@ class ScheduleBlock(ObsBlock):
 
         # Indicate the status
         ax.axvspan(
-            self.tMin.datetime,
-            self.tMax.datetime,
+            self.time_min.datetime,
+            self.time_max.datetime,
             ymin=0.9,
             facecolor=self.statusColor,
             edgecolor='black',
         )
         ax.axvspan(
-            self.tMin.datetime,
-            self.tMax.datetime,
+            self.time_min.datetime,
+            self.time_max.datetime,
             ymax=0.1,
             facecolor=self.statusColor,
             edgecolor='black',
@@ -284,7 +288,7 @@ class ScheduleBlock(ObsBlock):
 
         # Show the observation block title
         xMin, xMax = ax.get_xlim()
-        textPos = (self.tMin + (self.tMax - self.tMin)/2)
+        textPos = (self.time_min + (self.time_max - self.time_min)/2)
         textPosMDate = mdates.date2num(textPos.datetime)
         if (xMin <= textPosMDate) & (textPosMDate < xMax):
             ax.text(
@@ -338,6 +342,11 @@ class ScheduleBlocks(object):
         """
         """
         return self.blocks[n]
+    
+
+    def __del__(self):
+        for block in self.blocks:
+            del block
 
 
     # --------------------------------------------------------- #
@@ -394,22 +403,22 @@ class _TimeSlots(object):
 
     def __init__(
         self,
-        tMin,
-        tMax,
+        time_min, #tMin
+        time_max, #tMax,
         dt=TimeDelta(3600, format='sec')
     ):
-        if not (_isTime(tMin, tMax) and _isTDelta(dt)):
+        if not (_isTime(time_min, time_max) and _isTDelta(dt)):
             raise TypeError(
-                f'Wrong types in `_TimeSlots({type(tMin)}, '
-                f'{type(tMax)}, {type(dt)})`.'
+                f'Wrong types in `_TimeSlots({type(time_min)}, '
+                f'{type(time_max)}, {type(dt)})`.'
             )
 
         self.dt = dt
         
         # Compute the time slots
         self.starts, self.stops = self._computeTimeSlots(
-            tMin=tMin,
-            tMax=tMax,
+            time_min=time_min,
+            time_max=time_max,
             dt=dt
         )
         self._startsJD = self.starts.jd
@@ -432,17 +441,41 @@ class _TimeSlots(object):
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
     @property
-    def tMin(self):
-        """
+    def time_min(self):
+        """ Start time of the shedule.
+
+            :getter: Start time.
+            
+            :type: :class:`~astropy.time.Time`
         """
         return self.starts[0]
 
 
     @property
-    def tMax(self):
-        """
+    def time_max(self):
+        """ Stop time of the shedule.
+
+            :getter: Stop time.
+            
+            :type: :class:`~astropy.time.Time`
         """
         return self.stops[-1]
+    
+
+    @property
+    def dt(self):
+        """ Schedule granularity (time slot duration).
+
+            :setter: Schedule granularity.
+            
+            :getter: Schedule granularity.
+            
+            :type: :class:`~astropy.time.TimeDelta`
+        """
+        return self._dt
+    @dt.setter
+    def dt(self, d):
+        self._dt = d
 
 
     # --------------------------------------------------------- #
@@ -476,37 +509,37 @@ class _TimeSlots(object):
         return self.idxSlots[mask]
 
 
-    def addBooking(self, tMin, tMax):
+    def addBooking(self, time_min, time_max):
         """ Changes the status of the time slots comprised
-            between ``tMin`` and ``tMax`` to 'booked' (i.e., not
+            between ``time_min`` and ``time_max`` to 'booked' (i.e., not
             available anymore).
             In particular, the attribute 
             :attr:`~nenupy.schedule._TimeSlots.freeSlots` is set
             to ``False`` at the corresponding indices.
 
-            :param tMin:
+            :param time_min:
                 Start time.
-            :type tMin:
+            :type time_min:
                 :class:`~astropy.time.Time`
-            :param tMax:
+            :param time_max:
                 Stop time.
-            :type tMax:
+            :type time_max:
                 :class:`~astropy.time.Time`
         """
-        indices = self.time2idx(tMin, tMax)
+        indices = self.time2idx(time_min, time_max)
         if any(~self.freeSlots[indices]):
             log.warning(
-                f"Booking on reserved slots from '{tMin.isot}' "
-                f"to '{tMax.isot}'."
+                f"Booking on reserved slots from '{time_min.isot}' "
+                f"to '{time_max.isot}'."
             )
         self.freeSlots[indices] = False
         self._freeIndices = self.idxSlots[self.freeSlots]
 
 
-    def delBooking(self, tMin, tMax):
+    def delBooking(self, time_min, time_max):
         """
         """
-        indices = self.time2idx(tMin, tMax)
+        indices = self.time2idx(time_min, time_max)
         self.freeSlots[indices] = True
         self._freeIndices = self.idxSlots[self.freeSlots]
 
@@ -514,23 +547,23 @@ class _TimeSlots(object):
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     @staticmethod
-    def _computeTimeSlots(tMin, tMax, dt):
+    def _computeTimeSlots(time_min, time_max, dt):
         """
         """
-        if tMax <= tMin:
+        if time_max <= time_min:
             raise ValueError(
-                f'Schedule tMax={tMax.isot} <= '
-                f'tMin={tMin.isot}.'
+                f'Schedule time_max={time_max.isot} <= '
+                f'time_min={time_min.isot}.'
             )
 
-        period = tMax - tMin
-        timeSteps = int( np.ceil(period/dt) )
-        dtShifts = np.arange(timeSteps)*dt
+        period = time_max - time_min
+        time_steps = int( np.ceil(period/dt) )
+        dt_shifts = np.arange(time_steps)*dt
 
-        slotStarts = tMin + dtShifts
-        slotStops = slotStarts + dt
+        slot_starts = time_min + dt_shifts
+        slot_stops = slot_starts + dt
 
-        return slotStarts, slotStops
+        return slot_starts, slot_stops
 # ============================================================= #
 # ============================================================= #
 
@@ -539,92 +572,245 @@ class _TimeSlots(object):
 # ------------------------- Schedule -------------------------- #
 # ============================================================= #
 class Schedule(_TimeSlots):
-    """
-        .. versionadded:: 1.2.0
+    """ Foundation class of observation scheduling.
+
+        :param time_min:
+            Schedule time range lower edge.
+        :type time_min:
+            :class:`~astropy.time.Time`
+        :param time_max:
+            Schedule time range upper edge.
+        :type time_max:
+            :class:`~astropy.time.Time`
+        :param dt:
+            Schedule granularity (or time slot duration).
+            Default is ``1 hour``.
+        :type dt:
+            :class:`~astropy.time.TimeDelta`
+        
+        :Example:
+            >>> from nenupy.schedule import Schedule
+            >>> from astropy.time import Time, TimeDelta
+            >>> schedule = Schedule(
+            >>>     time_min=Time('2021-01-11 00:00:00'),
+            >>>     time_max=Time('2021-01-15 00:00:00'),
+            >>>     dt=TimeDelta(3600, format='sec')
+            >>> )
+        
+        .. seealso::
+            :ref:`scheduling_doc`
+
+        .. rubric:: Attributes Summary
+
+        .. autosummary::
+
+            ~nenupy.schedule.schedule._TimeSlots.time_min
+            ~nenupy.schedule.schedule._TimeSlots.time_max
+            ~nenupy.schedule.schedule._TimeSlots.dt
+            ~Schedule.observation_blocks
+            ~Schedule.reserved_blocks
+
+        .. rubric:: Methods Summary
+
+        .. autosummary::
+
+            ~Schedule.insert
+            ~Schedule.plot
+            ~Schedule.book
+            ~Schedule.export
+            
+        .. rubric:: Attributes and Methods Documentation
+
     """
 
     def __init__(
         self,
-        tMin,
-        tMax,
+        time_min,
+        time_max,
         dt=TimeDelta(3600, format='sec')
     ):
         super().__init__(
-            tMin=tMin,
-            tMax=tMax,
+            time_min=time_min,
+            time_max=time_max,
             dt=dt
         )
 
-        # self.obsBlocks = None
-        self.obsBlocks = ScheduleBlocks(dt=self.dt)
-        self.reservedBlocks = None
+        # self.observation_blocks = None
+        self.observation_blocks = ScheduleBlocks(dt=self.dt)
+        self.reserved_blocks = None
 
 
     def __getitem__(self, n):
         """
         """
-        return self.obsBlocks[n]
+        return self.observation_blocks[n]
+
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
-    # @property
-    # def obsBlocks(self):
-    #     """
-    #     """
-    #     return self._obsBlocks
-    # @obsBlocks.setter
-    # def obsBlocks(self, obs):
-    #     #self._blkIndices = np.zeros(obs.size, dtype=int)
-    #     self._obsBlocks = obs
+    @property
+    def observation_blocks(self):
+        """ Observation blocks included in the schedule.
+
+            :setter: Observation blocks.
+            
+            :getter: Observation blocks.
+            
+            :type: :class:`~nenupy.schedule.schedule.ScheduleBlocks`
+        """
+        return self._observation_blocks
+    @observation_blocks.setter
+    def observation_blocks(self, obs):
+        self._observation_blocks = obs
+
+
+    @property
+    def reserved_blocks(self):
+        """ Reserved blocks included in the schedule.
+            No observation can be planned on these time slots.
+
+            :setter: Reserved blocks.
+            
+            :getter: Reserved blocks.
+            
+            :type: :class:`~nenupy.schedule.obsblocks.ReservedBlock`
+        """
+        return self._reserved_blocks
+    @reserved_blocks.setter
+    def reserved_blocks(self, res):
+        self._reserved_blocks = res
 
 
     # @property
     # def scheduledBlocks(self):
     #     """
     #     """
-    # list(map(schedule.obsBlocks.__getitem__, [i for i, blk in enumerate(schedule.obsBlocks) if blk.isBooked]))
+    # list(map(schedule.observation_blocks.__getitem__, [i for i, blk in enumerate(schedule.observation_blocks) if blk.isBooked]))
     #     return self._scheduledBlocks
     
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def insert(self, *blocks):
-        """
+        r""" Inserts observation blocks or reserved blocks in the schedule.
+        
+            :param \*blocks:
+                Observation blocks or reserved blocks.
+            :type \*blocks:
+                :class:`~nenupy.schedule.obsblocks.Block`, :class:`~nenupy.schedule.obsblocks.ObsBlock` or :class:`~nenupy.schedule.obsblocks.ReservedBlock`
+
+            :Example:
+                >>> from nenupy.schedule import Schedule, ESTarget, ObsBlock
+                >>> from astropy.time import Time, TimeDelta
+                >>> schedule = Schedule(
+                >>>     time_min=Time('2021-01-11 00:00:00'),
+                >>>     time_max=Time('2021-01-15 00:00:00'),
+                >>>     dt=TimeDelta(3600, format='sec')
+                >>> )
+                >>> cas_a = ObsBlock(
+                >>>     name="Cas A",
+                >>>     program="ES00",
+                >>>     target=ESTarget.fromName("Cas A"),
+                >>>     duration=TimeDelta(2*3600, format='sec'),
+                >>> )
+                >>> schedule.insert(cas_a)
+
         """
         for blocks_i in blocks:
-            if not isinstance(blocks_i, Block):
-                raise TypeError(
-                    f'Expected input of type {Block}>'
-                    f', got <{blocks_i.__class__}> instead.'
-                )
-            elif all([blk.__class__ is ObsBlock for blk in blocks_i]):
-                self.obsBlocks.insert(blocks_i)
+            # if not isinstance(blocks_i, Block):
+            #     raise TypeError(
+            #         f'Expected input of type {Block}>'
+            #         f', got <{blocks_i.__class__}> instead.'
+            #     )
+            if all([blk.__class__ is ObsBlock for blk in blocks_i]):
+                self.observation_blocks.insert(blocks_i)
             elif all([blk.__class__ is ReservedBlock for blk in blocks_i]):
                 for blk in blocks_i:
-                    self.addBooking(blk.tMin, blk.tMax)
-                if self.reservedBlocks is None:
-                    self.reservedBlocks = blocks_i
+                    self.addBooking(blk.time_min, blk.time_max)
+                if self.reserved_blocks is None:
+                    self.reserved_blocks = blocks_i
                 else:
-                    self.reservedBlocks += blocks_i
+                    self.reserved_blocks += blocks_i
             else:
                 raise Exception(
                     f'Not supposed to happen for type {blocks_i.__class__}!'
                 )
 
-        self._toSchedule = np.ones(self.obsBlocks.size, dtype=bool)
+        self._toSchedule = np.ones(self.observation_blocks.size, dtype=bool)
 
 
-    def book(self, optimize=True, **kwargs):
-        """
-            kwargs
-                nChildren (default 20)
-                scoreMin (default 0.8)
-                maxGen (default 1000)
-                maxStag (default 100)
-                addRandom (default 1)
+    def book(self, optimize=False, **kwargs):
+        r""" Distributes the :attr:`~nenupy.schedule.schedule.Schedule.observation_blocks` over the schedule time slots.
+            The observing constraints are evaluated over the whole schedule.
+
+            :param optimize:
+                If set to ``False`` an heuristic algorithm is used to perfom the booking.
+                However faster, this could result in sub-optimized time slots filling.
+                If set to ``True``, a genetic algorithm is used (see below the configuration keywords).
+                This method delivers more optimized scheduling solutions.
+                However, due to the random nature of genetic algorithm behaviors, the results may not be reproducible and may vary from one run to the other.
+                Default is ``False``.
+            :type optimize:
+                `bool`
+            
+            .. rubric:: Genetic algorithm configuration keywords
+            
+            :param population_size:
+                Size of the solution population, i.e., how many distinct soluttions are evolving at the same time.
+                Default is 20.
+            :type population_size:
+                `int`
+            :param random_individuals:
+                At each generation, the population of solutions will replace its lower-score ``random_individuals`` solutions by random genome ones.
+                This allows for genetic diversity.
+                Default is ``1``.
+            :type random_individuals:
+                `int`
+            :param score_threshold:
+                Score value (between ``0`` and ``1``) at which the evolution may stop.
+                Default is ``0.8``.
+            :type score_threshold:
+                `float`
+            :param generation_max:
+                Maximum generation number at which the evolution has to stop (even if ``score_threshold`` is not reached).
+                Default is ``1000``.
+            :type generation_max:
+                `int`
+            :param max_stagnating_generations:
+                If the score does not evolve after ``max_stagnating_generations`` generations, the evolution is stopped.
+                Default is ``100``.
+            :type max_stagnating_generations:
+                `int`
+            :param selection:
+                At each generation, pairs of individuals (solutions) are selected to give birth to new children with a mix of their genomes (see ``crossover``).
+                This selection can be perfomed according to three methods.
+                ``'FPS'`` (Fitness Proportionate Selection): parents are as likely to be picked as their score is high.
+                ``'TNS'`` (Tournament Selection): :math:`k` individuals from the population are selected, the best becomes a parent (where :math:`k = \max( 2, \rm{population\ size}/10 )`).
+                ``'RKS'`` (Rank Selection): individuals are ranked according to their scores, and are more likely to be picked according to their rank. The amplitude of score differences doesn't count.
+                Default is ``'FPS'``.
+            :type selection:
+                `str`
+            :param crossover:
+                Whenever parents give birth to children, their genome (i.e., time slot indices for each observation block) is mixed.
+                This cross-over can be performed according to three methods.
+                ``'SPCO'`` (Single-point crossover): genes from 'parent1' and 'parent2' are interverted after a random index.
+                ``'TPCO'`` (Two-point crossover): genes from 'parent1' and 'parent2' are interverted between two random indices.
+                ``'UNCO'`` (Uniform crossover): every genes from 'parent1' and 'parent2' are interverted with a uniform probability.
+                Default is ``'SPCO'``.
+            :type crossover:
+                `str`
+
                 selectionMethod (default FPS)
                 crossoverMethod (default SPCO)
                 elitism
+            
+            :returns:
+                If ``optimize`` is set to ``False``, nothing is returned.
+                If ``optimize`` is set to ``True``, the :class:`~nenupy.schedule.geneticalgo.GeneticAlgorithm` instance is returned.
+                The method :class:`~nenupy.schedule.geneticalgo.GeneticAlgorithm.plot` can then be called to visualize the evolution of the solution populations.
+            :rtype:
+                ``None`` or :class:`~nenupy.schedule.geneticalgo.GeneticAlgorithm`
+
         """
         self._evaluateCnst(**kwargs)
 
@@ -647,7 +833,7 @@ class Schedule(_TimeSlots):
                 populate=self._populate,
                 fitness=self._fitness,
                 mutation=self._mutation,
-                populationSize=kwargs.get('nChildren', 20)
+                populationSize=kwargs.get('population_size', 20)
             )
 
             ga.evolve(
@@ -655,7 +841,7 @@ class Schedule(_TimeSlots):
             )
 
             k = 0
-            for i, blk in enumerate(self.obsBlocks):
+            for i, blk in enumerate(self.observation_blocks):
                 if not self._toSchedule[i]:
                     continue
                 bestStartIdx = ga.bestGenome[k]
@@ -668,8 +854,8 @@ class Schedule(_TimeSlots):
                     )
                     continue
                 blk.startIdx = bestStartIdx
-                blk.tMin = self.starts[bestStartIdx]
-                blk.tMax = self.stops[bestStartIdx + blk.nSlots-1]
+                blk.time_min = self.starts[bestStartIdx]
+                blk.time_max = self.stops[bestStartIdx + blk.nSlots-1]
 
             log.info(
                 f'{sum(self._toSchedule) - nBlocksUnScheduled}/'
@@ -681,7 +867,7 @@ class Schedule(_TimeSlots):
 
         else:
             # Block are booked iteratively 
-            for i, blk in enumerate(self.obsBlocks):
+            for i, blk in enumerate(self.observation_blocks):
                 if not self._toSchedule[i]:
                     continue
                 # Construct a mask to avoid setting the obsblock where it cannot fit
@@ -704,8 +890,8 @@ class Schedule(_TimeSlots):
                 blk.startIdx = bestStartIdx
                 bestStopIdx = bestStartIdx + blk.nSlots - 1
                 self.freeSlots[bestStartIdx:bestStopIdx + 1] = False
-                blk.tMin = self.starts[bestStartIdx]
-                blk.tMax = self.stops[bestStopIdx]
+                blk.time_min = self.starts[bestStartIdx]
+                blk.time_max = self.stops[bestStopIdx]
 
             log.info(
                 f'{sum(self._toSchedule) - nBlocksUnScheduled}/'
@@ -714,20 +900,36 @@ class Schedule(_TimeSlots):
             )
 
 
-    def export(self, scoreMin=0):
-        """ https://docs.astropy.org/en/stable/io/ascii/index.html#supported-formats
+    def export(self, score_min=0):
+        """ Exports the current schedule once :meth:`~nenupy.schedule.schedule.Schedule.book` has been called.
+            Every observation with a ``score`` higher than ``score_min`` is included in the export.
+
+            :param score_min:
+                Minimal :attr:`~nenupy.schedule.schedule.Schedule.obervation_blocks`'s score to be exported.
+                Default is ``0``.
+            :type scoremin:
+                `float`
+
+            :returns:
+                Scheduled observation blocks as a :class:`~astropy.table.Table`.
+                This object can further be converted to any user requirements using
+                the :meth:`astropy.io.ascii.write` method
+                (see the list of supported `formats <https://docs.astropy.org/en/stable/io/ascii/index.html#supported-formats>`_).
+            :rtype:
+                :class:`~astropy.table.Table`
+
         """
-        if not isinstance(scoreMin, (float, int)):
+        if not isinstance(score_min, (float, int)):
             raise TypeError(
-                '<scoreMin> should be a number.'
+                '<score_min> should be a number.'
             )
-        elif scoreMin < 0:
+        elif score_min < 0:
             raise ValueError(
-                '<scoreMin> should be a positive.'
+                '<score_min> should be a positive.'
             )
-        elif scoreMin > 1:
+        elif score_min > 1:
             raise ValueError(
-                '<scoreMin> cannot be greater than 1.'
+                '<score_min> cannot be greater than 1.'
             )
 
         names = []
@@ -736,17 +938,17 @@ class Schedule(_TimeSlots):
         stops = []
         programs = []
         scores = []
-        for blk in self.obsBlocks:
+        for blk in self.observation_blocks:
             if not blk.isBooked:
                 continue
             score = blk.score
-            if score < scoreMin:
+            if score < score_min:
                 continue
             scores.append(score)
             names.append(blk.name)
             index.append(blk.blockIdx)
-            starts.append(blk.tMin.isot)
-            stops.append(blk.tMax.isot)
+            starts.append(blk.time_min.isot)
+            stops.append(blk.time_max.isot)
             programs.append(blk.program)
         startArray = Time(starts, format='isot')
         chron = np.argsort(startArray)
@@ -762,27 +964,50 @@ class Schedule(_TimeSlots):
         return tab
 
 
-    def plot(self, daysPerSubplot=1, **kwargs):
-        """
-            kwargs:
-                figName
-                figsize
-                grid
+    def plot(self, days_per_line=1, **kwargs):
+        """ Plots the current schedule.
+
+            .. rubric:: Data display keywords
+
+            :param days_per_line:
+                Number of days to plots per line.
+                Default is ``1``.
+            :type days_per_line:
+                `int`
+
+            .. rubric:: Plotting layout keywords
+
+            :param grid:
+                If set to ``True``, the time slots are separated by vertical lines.
+                Default is ``True``.
+            :type grid:
+                `bool`
+            :param figname:
+                Name of the file (absolute or relative path) to save the figure.
+                Default is ``''`` (i.e., only show the figure).
+            :type figname:
+                `str`
+            :param figsize:
+                Set the figure size.
+                Default is ``(15, 3*lines)``.
+            :type figsize:
+                `tuple`
+
         """
         import matplotlib.pyplot as plt
         import matplotlib.dates as mdates
         
         # Set relevant variables for the plot
-        tMin = Time(self.starts[0].isot.split('T')[0])
-        tMax = self.stops[-1]
+        time_min = Time(self.starts[0].isot.split('T')[0])
+        time_max = self.stops[-1]
 
         # Find the number of sub-plots to display the schedule
-        if not isinstance(daysPerSubplot, TimeDelta):
-            daysPerSubplot = TimeDelta(
-                daysPerSubplot,
+        if not isinstance(days_per_line, TimeDelta):
+            days_per_line = TimeDelta(
+                days_per_line,
                 format='jd'
             )
-        nSubPlots = int(np.ceil((tMax - tMin)/daysPerSubplot))
+        nSubPlots = int(np.ceil((time_max - time_min)/days_per_line))
 
         # Initialize the figure
         fig, axs = plt.subplots(
@@ -798,8 +1023,8 @@ class Schedule(_TimeSlots):
             axs = [axs]
         for i, ax in enumerate(axs):
             # Plot time limits
-            tiMin = tMin + i*daysPerSubplot
-            tiMax = tMin + (i + 1)*daysPerSubplot
+            tiMin = time_min + i*days_per_line
+            tiMax = time_min + (i + 1)*days_per_line
             ax.set_xlim(
                 left=tiMin.datetime,
                 right=tiMax.datetime
@@ -818,13 +1043,13 @@ class Schedule(_TimeSlots):
                     )
 
             # Display unavailable slots
-            if self.reservedBlocks is not None:
-                for bookedBlock in self.reservedBlocks:
+            if self.reserved_blocks is not None:
+                for bookedBlock in self.reserved_blocks:
                     bookedBlock._display(ax=ax)
 
             # Display observation blocks
-            if self.obsBlocks is not None:
-                for obsBlock in self.obsBlocks:
+            if self.observation_blocks is not None:
+                for obsBlock in self.observation_blocks:
                     obsBlock._display(ax=ax)
 
             # Formating
@@ -833,15 +1058,15 @@ class Schedule(_TimeSlots):
             ax.xaxis.set_major_formatter(h_fmt)
 
         # Save or show the figure
-        figName = kwargs.get('figName', '')
-        if figName != '':
+        figname = kwargs.get('figname', '')
+        if figname != '':
             plt.savefig(
-                figName,
+                figname,
                 dpi=300,
                 bbox_inches='tight',
                 transparent=True
             )
-            log.info(f"Figure '{figName}' saved.")
+            log.info(f"Figure '{figname}' saved.")
         else:
             plt.show()
         plt.close('all')
@@ -857,13 +1082,13 @@ class Schedule(_TimeSlots):
             'the schedule...'
         )
         self._cnstScores = np.zeros(
-            (self.obsBlocks.size, self.size)
+            (self.observation_blocks.size, self.size)
         )
-        self._maxScores = np.zeros(self.obsBlocks.size)
+        self._maxScores = np.zeros(self.observation_blocks.size)
 
         # Compute the constraint score over the schedule if it
         # has not been previously been done
-        for i, blk in enumerate(self.obsBlocks):
+        for i, blk in enumerate(self.observation_blocks):
             if blk.constraints.score is None:
                 # If != 1, the constraint score has already been computed
                 # Append the last time slot to get the last slot top
@@ -901,7 +1126,7 @@ class Schedule(_TimeSlots):
                 )
 
         log.info(
-            f'{self.obsBlocks.size} observation blocks have been '
+            f'{self.observation_blocks.size} observation blocks have been '
             'successfully evaluated.'
         )        
 
@@ -913,9 +1138,9 @@ class Schedule(_TimeSlots):
             return startIndices = (schedule_size)
         """
         indices[indices < 0] = 0
-        beyond = (indices + self.obsBlocks.nSlots[self._toSchedule]) >= self.idxSlots.size
+        beyond = (indices + self.observation_blocks.nSlots[self._toSchedule]) >= self.idxSlots.size
         indices[beyond] = self.idxSlots.size - 1
-        indices -= beyond*self.obsBlocks.nSlots[self._toSchedule]
+        indices -= beyond*self.observation_blocks.nSlots[self._toSchedule]
         return indices
 
 
@@ -926,20 +1151,20 @@ class Schedule(_TimeSlots):
         #     randGen.integers(
         #         low=0,
         #         high=self.idxSlots.size,
-        #         size=(n, self.obsBlocks.size),
+        #         size=(n, self.observation_blocks.size),
         #         dtype=np.int64
         #     )
         # )
         nBlocks = np.sum(self._toSchedule)
         # population = np.zeros(
-        #     (n, self.obsBlocks.size),
+        #     (n, self.observation_blocks.size),
         #     dtype=int
         # )
         population = np.zeros(
             (n, nBlocks),
             dtype=int
         )
-        # for i in range(self.obsBlocks.size):
+        # for i in range(self.observation_blocks.size):
         for i in range(nBlocks):
             population[:, i] = randGen.choice(
                 np.where(self._cnstScores[self._toSchedule][i] != 0)[0],
@@ -978,7 +1203,7 @@ class Schedule(_TimeSlots):
                     axis=1
                 ),
                 axis=1
-            ) - self.obsBlocks.nSlots[self._toSchedule][sortedIdx][:, :-1] < 0,
+            ) - self.observation_blocks.nSlots[self._toSchedule][sortedIdx][:, :-1] < 0,
             axis=1
         )
         # The fitness is the product of the constraint score and

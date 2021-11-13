@@ -209,6 +209,13 @@ class Block(object):
         return Block(*blocks)
 
 
+    def reset(self):
+        """ 
+        """
+        for block in self._blocks:
+            block.constraints = None
+
+
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     def _assignIndices(self):
@@ -224,8 +231,42 @@ class Block(object):
 # ------------------------- ObsBlock -------------------------- #
 # ============================================================= #
 class ObsBlock(Block):
-    """
-        .. versionadded:: 1.2.0
+    """ Class to handle observation blocks.
+
+        :param name:
+            The name of the observation, for further reference.
+        :type name:
+            `str`
+        :param program:
+            The NenuFAR scientific program to which this observation belongs.
+        :type program:
+            `str`
+        :param target:
+            The celestial target.
+        :type target:
+            :class:`~nenupy.schedule.targets.ESTarget` or :class:`~nenupy.schedule.targets.SSTarget`
+        :param constraints:
+            The observing constraints to apply.
+        :type constraints:
+            :class:`~nenupy.schedule.constraints.Constraints`
+        :param duration:
+            The requested duration of the observation.
+        :type duration:
+            :class:`~astropy.time.TimeDelta`
+
+        .. seealso::
+            :ref:`observation_request_sec`
+        
+        .. rubric:: Attributes Summary
+        
+        .. autosummary::
+
+            ~ObsBlock.program
+            ~ObsBlock.target
+            ~ObsBlock.constraints
+
+        .. rubric:: Attributes and Methods Documentation
+
     """
 
     def __init__(
@@ -384,8 +425,8 @@ class ObsBlock2(Block):
         # These atrributes are filled once the ObsBlock has been
         # evaluated over a time range
         self._idx = None
-        self.tMin = None
-        self.tMax = None
+        self.time_min = None
+        self.time_max = None
         self.nSlots = 0
         self.startIdx = None
         
@@ -556,7 +597,7 @@ class ObsBlock2(Block):
         import matplotlib.pyplot as plt
 
         # Check if the obsblock has been booked in the schedule
-        if self.tMin is None:
+        if self.time_min is None:
             log.warning(
                 f"<ObsBlock> #{self.blockIdx} named '{self.name}' "
                 "is not booked."
@@ -565,8 +606,8 @@ class ObsBlock2(Block):
         
         # Compute the target position
         nPoints = kwargs.get('nPoints', 50)
-        dt = (self.tMax - self.tMin)/nPoints
-        times = self.tMin + np.arange(nPoints + 1)*dt
+        dt = (self.time_max - self.time_min)/nPoints
+        times = self.time_min + np.arange(nPoints + 1)*dt
         # Create a copy of the target object to keep self.target intact
         target = deepcopy(self.target)
         target.computePosition(times)
@@ -584,12 +625,12 @@ class ObsBlock2(Block):
             label='Elevation'
         )
         ax1.axvline(
-            self.tMin.datetime,
+            self.time_min.datetime,
             color='black',
             linestyle='-.'
         )
         ax1.axvline(
-            self.tMax.datetime,
+            self.time_max.datetime,
             color='black',
             linestyle='-.'
         )
@@ -645,13 +686,13 @@ class ObsBlock2(Block):
         """
         import matplotlib.dates as mdates
 
-        if self.tMin is None:
+        if self.time_min is None:
             return
 
         # Show the block rectangle
         ax.axvspan(
-            self.tMin.datetime,
-            self.tMax.datetime,
+            self.time_min.datetime,
+            self.time_max.datetime,
             facecolor=self.kpColor,
             edgecolor='black',
             alpha=0.6
@@ -659,15 +700,15 @@ class ObsBlock2(Block):
 
         # Indicate the status
         ax.axvspan(
-            self.tMin.datetime,
-            self.tMax.datetime,
+            self.time_min.datetime,
+            self.time_max.datetime,
             ymin=0.9,
             facecolor=self.statusColor,
             edgecolor='black',
         )
         ax.axvspan(
-            self.tMin.datetime,
-            self.tMax.datetime,
+            self.time_min.datetime,
+            self.time_max.datetime,
             ymax=0.1,
             facecolor=self.statusColor,
             edgecolor='black',
@@ -675,7 +716,7 @@ class ObsBlock2(Block):
 
         # Show the observation block title
         xMin, xMax = ax.get_xlim()
-        textPos = (self.tMin + (self.tMax - self.tMin)/2)
+        textPos = (self.time_min + (self.time_max - self.time_min)/2)
         textPosMDate = mdates.date2num(textPos.datetime)
         if (xMin <= textPosMDate) & (textPosMDate < xMax):
             ax.text(
@@ -707,15 +748,31 @@ class ObsBlock2(Block):
 # ----------------------- ReservedBlock ----------------------- #
 # ============================================================= #
 class ReservedBlock(Block):
-    """
-        .. versionadded:: 1.2.0
+    """ Class to handle reserved schedule time blocks.
+        
+        :param time_min:
+            Starting time of the reserved time window.
+        :type time_min:
+            :class:`~astropy.time.Time`
+        :param time_max:
+            Ending time of the reserved time window.
+        :type time_max:
+            :class:`~astropy.time.Time`
+
+        .. rubric:: Methods Summary
+
+        .. autosummary::
+
+            ~ReservedBlock.from_VCR
+
+        .. rubric:: Attributes and Methods Documentation
     """
 
-    def __init__(self, tMin, tMax):
+    def __init__(self, time_min, time_max):
         # These atrributes are filled once the ReservedBlk
         # has been inserted over a time range
-        self.tMin = tMin
-        self.tMax = tMax
+        self.time_min = time_min
+        self.time_max = time_max
 
         self.blockIdx = 0
         self.isBooked = False
@@ -729,21 +786,52 @@ class ReservedBlock(Block):
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     @classmethod
-    def fromVCR(cls, fileName):
-        """
+    def from_VCR(cls, file_name):
+        """ Instantiates a :class:`~nenupy.schedule.obsblocks.ReservedBlock` object from the `Virtual Control Room <https://gui-nenufar.obs-nancay.fr/Planning/>`_ current booking list.
+
+            :param file_name:
+                CSV file describing the VCR current booking.
+            :type file_name:
+                `str`
+
+            :returns:
+                Reserved slots from the VCR active bookings.
+            :rtype:
+                :class:`~nenupy.schedule.obsblocks.ReservedBlock`
+            
+            .. warning::
+                Only users with 'administrator' status may download the booking files.
+
         """
         reserved = []
-        with open(fileName, 'r') as rfile:
-            for line in rfile.readlines():
-                words = line.split()
-                if len(words)<4:
-                    continue        
-                reserved.append(
-                    cls(
-                        tMin=Time(words[0] + 'T' + words[1]),
-                        tMax=Time(words[2] + 'T' + words[3])
-                    )
+        # with open(file_name, 'r') as rfile:
+        #     for line in rfile.readlines():
+        #         words = line.split(',')
+        #         print(words[0])
+        #         reserved.append(
+        #             cls(
+        #                 time_min=Time(words[0]),
+        #                 time_max=Time(words[1])
+        #             )
+        #         )
+        bookings = np.loadtxt(
+            file_name,
+            skiprows=1,
+            delimiter=',',
+            dtype={
+                'names': ('start', 'stop', 'kp', 'comment'),
+                'formats': ('U19', 'U19', 'U4', 'U50')
+            }
+        )
+        starts = Time(bookings["start"])
+        stops = Time(bookings["stop"])
+        for start, stop in zip(starts, stops):
+            reserved.append(
+                cls(
+                    time_min=start,
+                    time_max=stop
                 )
+            )
         return functools.reduce(
             lambda x, y: x+y,
             reserved
@@ -762,8 +850,8 @@ class ReservedBlock(Block):
         """
         # Show the block rectangle
         ax.axvspan(
-            self.tMin.datetime,
-            self.tMax.datetime,
+            self.time_min.datetime,
+            self.time_max.datetime,
             facecolor='0.8',
             edgecolor='black',
             hatch='//'
