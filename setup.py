@@ -20,11 +20,11 @@ setup(
         'numexpr', # 2.7.1
         'pyproj', # 2.6.0
         'dask[array]', # 2020.12.0
-        'sqlalchemy' # 1.3.18
+        'sqlalchemy', # 1.3.18
+        'healpy'
     ],
     extras_require={
         #'astroplan': 'astroplan',
-        'healpy': 'healpy', # >=1.13.0
         'mocpy': 'mocpy'
     },
     python_requires='>=3.6',

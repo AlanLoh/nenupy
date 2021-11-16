@@ -476,13 +476,13 @@ Genetic algorithm
     >>> schedule.insert(my_observations)
     >>> ga = schedule.book(
     >>>     optimize=True, # Computes the booking using the GA algorithm
-    >>>     nChildren=100, # Number of individuals per generation
-    >>>     maxGen=1000, # Stops the evolution after 1000 generations
-    >>>     maxStag=-1, # Stops the evolution if the best score has not increased over N gen.
-    >>>     scoreMin=1., # Stops the evolution if the best score is above this value
-    >>>     addRandom=10, # Adds individuals with random genomes at each generation
-    >>>     crossoverMethod='TPCO', # Defines the cross-over method
-    >>>     selectionMethod='TNS' # Defines the parent selection method
+    >>>     population_size=100, # Number of individuals per generation
+    >>>     generation_max=1000, # Stops the evolution after 1000 generations
+    >>>     max_stagnating_generations=-1, # Stops the evolution if the best score has not increased over N gen.
+    >>>     score_threshold=1., # Stops the evolution if the best score is above this value
+    >>>     random_individuals=10, # Adds individuals with random genomes at each generation
+    >>>     crossover='TPCO', # Defines the cross-over method
+    >>>     selection='TNS' # Defines the parent selection method
     >>> )
     >>> schedule.plot(
     >>>     figsize=(10, 4),
