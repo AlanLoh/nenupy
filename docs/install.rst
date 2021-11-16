@@ -42,11 +42,25 @@ or the current 'beta' version hosted on `GitHub <https://github.com/AlanLoh/nenu
         
         .. code-block:: bash
 
-            $ python3.8 -m pip install astropy --upgrade
-            $ python3.8 -m pip install healpy --upgrade
+            $ python3.8 -m pip install setuptools
+            $ python3.8 -m pip install --upgrade jupyter
+            $ python3.8 -m pip install --upgrade --user nbconvert
             $ python3.8 -m pip install h5py --upgrade
             $ python3.8 -m pip install ephem --upgrade
+            $ python3.8 -m pip install colorama --upgrade
+            $ python3.8 -m pip install traitlets --upgrade
+            $ python3.8 -m pip install healpy --upgrade
+            $ python3.8 -m pip install nenupy --upgrade
+            $ python3.8 -m ipykernel install --user
+            $ python3.8 -m pip install jupyter ipython
+            $ python3.8 -m pip install /databf2/nenufar/workshop/pygsm/PyGSM/ --user
 
+To execute a notebook:
+
+.. code-block:: bash
+
+   $ export PATH=$PATH:~/.local/bin
+   $ python3.8 -m jupyter notebook --browser firefox
 
 
 Dependencies
