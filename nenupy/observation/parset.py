@@ -30,7 +30,7 @@ import json
 from astropy.time import Time, TimeDelta
 from astropy.coordinates import SkyCoord, AltAz, ICRS
 import astropy.units as u
-from ipywidgets.widgets.widget_output import Output
+# from ipywidgets.widgets.widget_output import Output
 import numpy as np
 
 from nenupy import nenufar_position
@@ -184,10 +184,8 @@ class Parset(object):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def to_json(self, path_name):
+    def to_json(self, path_name=None):
         """ """
-        json_file_name = basename(self.parset).replace(".parset", ".json")
-        json_file = join(path_name, json_file_name)
         
         data = {}
 
@@ -324,9 +322,14 @@ class Parset(object):
             associated_fov = data["field_of_views"][idx]
             associated_fov["pointings"].append(pointing)
 
-
-        with open(json_file, 'w', encoding='utf-8') as wf:
-            json.dump(data, wf, ensure_ascii=False, indent=4)
+        if path_name is not None:
+            # Write the JSON file
+            json_file_name = basename(self.parset).replace(".parset", ".json")
+            json_file = join(path_name, json_file_name)
+            with open(json_file, 'w', encoding='utf-8') as wf:
+                json.dump(data, wf, ensure_ascii=False, indent=4)
+        else:
+            return data
 
 
     def createDatabase(self):
