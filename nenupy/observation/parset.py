@@ -22,14 +22,20 @@ __all__ = [
 ]
 
 
-from os.path import abspath, isfile
+from os.path import abspath, isfile, join, basename, dirname
 from collections.abc import MutableMapping
 from copy import deepcopy
 import re
+import json
 from astropy.time import Time, TimeDelta
+from astropy.coordinates import SkyCoord, AltAz, ICRS
 import astropy.units as u
+from ipywidgets.widgets.widget_output import Output
 import numpy as np
 
+from nenupy import nenufar_position
+from nenupy.instru import sb2freq
+from nenupy.astro.target import SolarSystemTarget
 from nenupy.observation import PARSET_OPTIONS
 from nenupy.observation.sqldatabase import DuplicateParsetEntry, UserNameNotFound
 
@@ -178,6 +184,151 @@ class Parset(object):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+    def to_json(self, path_name):
+        """ """
+        json_file_name = basename(self.parset).replace(".parset", ".json")
+        json_file = join(path_name, json_file_name)
+        
+        data = {}
+
+        # Fill out observation tab
+        data["file_name"] = {
+            "name": basename(self.parset),
+            "path": dirname(self.parset)
+        }
+        data["time"] = {
+            "start": self.observation["startTime"].isot,
+            "stop": self.observation["stopTime"].isot,
+            "duration": {
+                "value": (self.observation["stopTime"] - self.observation["startTime"]).sec,
+                "unit": "s"
+            }
+        }
+        key_mapping = {
+            "title": "title",
+            "contactName": "contact_name",
+            "contactEmail": "contact_email",
+            "topic": "topic"
+        }
+        for key, value in self.observation.items():
+            if key in key_mapping:
+                data[key_mapping[key]] = value
+
+        # Fill out outputs
+        # data["output"] = {}
+        # for key, value in self.output.items():
+        #     data_level, data_property = key.split("_")
+        #     if data_level not in data["output"]:
+        #         data["output"][data_level] = {}
+        #     data["output"][data_level][data_property] = value
+
+        # Fill out field of views (= anabeams)
+        data["field_of_views"] = []
+        for ana_idx, anabeam in self.anabeams.items():
+            fov = {}
+            
+            fov["idx"] = ana_idx
+            fov["pointings"] = []
+            fov["center"] = self._get_pointing_center_dict(anabeam)
+            fov["time"] = self._get_time_dict(anabeam)
+            fov["beamsquint"] = {
+                "correction": anabeam["beamSquint"],
+                "frequency": {
+                    "value": anabeam["optFrq"],
+                    "unit": "MHz"
+                }
+            }
+            fov["mini_arrays"] = anabeam["maList"]
+            fov["antennas"] = anabeam["antList"]
+            fov["filter"] = [{"name": int(fil), "start": tim.isot} for fil, tim in zip(anabeam["filter"], anabeam["filterTime"])]
+
+            data["field_of_views"].append(fov)
+
+        fov_indices = np.array([fov["idx"] for fov in data["field_of_views"]])
+
+        for digi_idx, digibeam in self.digibeams.items():
+            pointing = {}
+            pointing['idx'] = digi_idx
+            pointing["center"] = self._get_pointing_center_dict(digibeam)
+            pointing["time"] = self._get_time_dict(digibeam)
+
+            if digibeam["toDo"].lower() == "pulsar":
+                mode, config = self._parse_parameters(digibeam["parameters"], pulsar=True)
+                if mode == "fold":
+                    pointing["receiver"] = {
+                        "name": "undysputed",
+                        "mode": "pulsar_fold",
+                        "source_name": config["src"],
+                        "n_polars": 1 if config.get("onlyi", False) else 4,
+                        "frequency": self._get_frequency_dict(digibeam, field="subbandList")
+                    }
+                elif mode == "single":
+                    pointing["receiver"] = {
+                        "name": "undysputed",
+                        "mode": "pulsar_single",
+                        "source_name": config["src"],
+                        "downsampling": int(config["dstime"]),
+                        "n_polars": 1 if config.get("onlyi", False) else 4,
+                        "frequency": self._get_frequency_dict(digibeam, field="subbandList")
+                    }
+                elif mode == "waveolaf":
+                    pointing["receiver"] = {
+                        "name": "undysputed",
+                        "mode": "pulsar_waveolaf",
+                        "source_name": config["src"],
+                        "frequency": self._get_frequency_dict(digibeam, field="subbandList")
+                    }
+                else:
+                    pointing["receiver_configuration"] = {}
+            elif digibeam["toDo"].lower() == "waveform":
+                pointing["receiver"] = {
+                    "name": "undysputed",
+                    "mode": "waveform",
+                    "source_name": config["src"],
+                    "frequency": self._get_frequency_dict(digibeam, field="subbandList")
+                }
+            elif digibeam["toDo"].lower() == "dynamicspectrum":
+                _, config = self._parse_parameters(digibeam["parameters"], pulsar=False)
+                pointing["receiver"] = {
+                    "name": "undysputed",
+                    "mode": "tf",
+                    # "dt_ms": float(re.search(r'((DT)|(dt))=\d*.\d*', parameters).group(0).split("=")[1]),
+                    # "df_khz": float(re.search(r'((DF)|(df))=\d*.\d*', parameters).group(0).split("=")[1]),
+                    "dt": {
+                        "value": float(config["dt"]),
+                        "unit": "ms"
+                    },
+                    "df": {
+                        "value": float(config["df"]),
+                        "unit": "kHz"
+                    },
+                    "frequency": self._get_frequency_dict(digibeam, field="subbandList")
+                }
+            elif (digibeam["toDo"].lower() == "tbd") and ("nickel" in self.output["nri_receivers"]):
+            # elif digibeam["toDo"].lower() == "imaging": # to be implemented?
+                pointing["receiver"] = {
+                    "name": "nickel",
+                    "channelization": self.output["nri_channelization"],
+                    "dumptime": {
+                        "value": self.output["nri_dumpTime"],
+                        "unit": "s"
+                    },
+                    "frequency": self._get_frequency_dict(self.output, "nri_subbandList")
+                }
+            else:
+                pointing["receiver_configuration"] = {}
+           
+
+            # Select the correct fov
+            idx = np.where(fov_indices == digibeam["noBeam"])[0][0]
+            associated_fov = data["field_of_views"][idx]
+            associated_fov["pointings"].append(pointing)
+
+
+        with open(json_file, 'w', encoding='utf-8') as wf:
+            json.dump(data, wf, ensure_ascii=False, indent=4)
+
+
     def createDatabase(self):
         """
         """
@@ -260,6 +411,163 @@ class Parset(object):
                 f"Parset '{self._parset}' loaded."
             )
         return
+
+
+    @staticmethod
+    def _parse_parameters(parameters, pulsar=False):
+        """ Parse values from the digital beam 'parameters'
+            entry.
+            E.g. 'TF: DF=3.05 DT=10.0 HAMM'
+        """
+        parameters = parameters.lower()
+        mode = parameters.split(':')[0]
+        if pulsar:
+            configs = {
+                param.split('=')[0]: param.split('=')[1]\
+                for param in parameters.split('--')\
+                if '=' in param
+            }
+            configs.update({
+                param.rstrip(): True\
+                for param in parameters.split('--')\
+                if '=' not in param
+            })
+        else:
+            configs = {
+                param.split('=')[0]: param.split('=')[1]\
+                for param in parameters.split()\
+                if '=' in param
+            }
+            configs.update({
+                param.rstrip(): True\
+                for param in parameters.split('--')\
+                if '=' not in param
+            })
+        return mode, configs
+
+
+    @staticmethod
+    def _get_time_dict(property) -> dict:
+        """ """
+        # Sort out the beam start and stop times
+        duration = TimeDelta(property['duration'] , format='sec')
+        start_time = property['startTime']
+        stop_time = (property['startTime'] + duration)
+        return {
+            "start": start_time.isot,
+            "stop": stop_time.isot,
+            "duration": {
+                "value": duration.sec,
+                "unit": "s"
+            }
+        }
+
+
+    @staticmethod
+    def _get_frequency_dict(property, field="subbandList") -> dict:
+        """ """
+        subband_list = property[field]
+        return {
+            "fmin": {
+                "value": sb2freq(np.min(subband_list))[0].to(u.MHz).value,
+                "unit": "MHz"
+            },
+            "fmax": {
+                "value": sb2freq(np.max(subband_list))[0].to(u.MHz).value ,
+                "unit": "MHz"
+            }
+        }
+
+
+    @staticmethod
+    def _get_pointing_center_dict(property) -> dict:
+        """ Returns a RA, Dec whatever the pointing type is. """
+
+        # Sort out the beam start and stop times
+        duration = TimeDelta(property['duration'] , format='sec')
+        start_time = property['startTime']
+        stop_time = (property['startTime'] + duration)
+
+        # Deal with coordinates and pointing types
+        direction_type = property['directionType'].lower()
+        if direction_type == "j2000":
+            ra = property['angle1'].to(u.deg)
+            dec = property['angle2'].to(u.deg)
+            if ("decal_az" in property) or ("decal_el" in property):
+                altaz = SkyCoord(ra, dec).transform_to(
+                    AltAz(
+                        obstime=start_time + duration/2.,
+                        location=nenufar_position
+                    )
+                )
+                radec = SkyCoord(
+                    altaz.az + float(property.get("decal_az", 0.0))*u.deg,
+                    altaz.alt + float(property.get("decal_el", 0.0))*u.deg,
+                    frame=AltAz(
+                        obstime=start_time + duration/2.,
+                        location=nenufar_position
+                    )
+                ).transform_to(ICRS)
+                ra = radec.ra
+                dec = radec.dec
+            # Nothing else to do
+            decal_ra = float(property.get("decal_ra", 0.0))*u.deg
+            decal_dec = float(property.get("decal_dec", 0.0))*u.deg
+            right_ascension = (ra + decal_ra).value
+            declination = (dec + decal_dec).value
+
+        elif direction_type == "azelgeo":
+            # This is a transit observation, compute the mean RA/Dec
+            # Convert AltAz to RA/Dec
+            radec = SkyCoord(
+                property['angle1'] + float(property.get("decal_az", 0.0))*u.deg,
+                property['angle2'] + float(property.get("decal_el", 0.0))*u.deg,
+                frame=AltAz(
+                    obstime=start_time + duration/2.,
+                    location=nenufar_position
+                )
+            ).transform_to(ICRS)
+            right_ascension = radec.ra.deg + float(property.get("decal_ra", 0.0))
+            declination = radec.dec.deg + float(property.get("decal_dec", 0.0))
+        
+        elif direction_type == "natif":
+            # This is a test observation, unable to parse the RA/Dec
+            right_ascension = None
+            declination = None
+
+        else:
+            # Dealing with a Solar System source
+            solar_system_target = SolarSystemTarget.from_name(
+                name=direction_type,
+                time=start_time + duration/2.
+            )
+            radec = solar_system_target.coordinates
+            if ("decal_az" in property) or ("decal_el" in property):
+                altaz = solar_system_target.horizontal_coordinates[0]
+                radec = SkyCoord(
+                    altaz.az + float(property.get("decal_az", 0.0))*u.deg,
+                    altaz.alt + float(property.get("decal_el", 0.0))*u.deg,
+                    frame=AltAz(
+                        obstime=start_time + duration/2.,
+                        location=nenufar_position
+                    )
+                ).transform_to(ICRS)
+            decal_ra = float(property.get("decal_ra", 0.0))*u.deg
+            decal_dec = float(property.get("decal_dec", 0.0))*u.deg
+            right_ascension = radec.ra.deg + decal_ra.value
+            declination = radec.dec.deg + decal_dec.value
+
+        return {
+            "ra": {
+                "value": right_ascension,
+                "unit": "deg"
+            },
+            "dec": {
+                "value": declination,
+                "unit": "deg"
+            },
+            "obs_direction_type": property["directionType"].lower()
+        }
 # ============================================================= #
 
 
