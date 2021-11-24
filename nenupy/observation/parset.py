@@ -43,6 +43,9 @@ import logging
 log = logging.getLogger(__name__)
 
 
+SB_WIDTH = 195.3125*u.kHz
+
+
 # ============================================================= #
 # ---------------------- _ParsetProperty ---------------------- #
 # ============================================================= #
@@ -202,10 +205,15 @@ class Parset(object):
                 "unit": "s"
             }
         }
+        topic = self.observation["topic"]
+        data["topic"] = {
+            "code": topic[:3] if topic.startswith('ES') else "ES00",
+            "name": topic[5:] if topic.startswith('ES') else topic
+        }
         key_mapping = {
             "title": "title",
             "contactName": "contact_name",
-            "contactEmail": "contact_email",
+            # "contactEmail": "contact_email",
             "topic": "topic"
         }
         for key, value in self.observation.items():
@@ -250,7 +258,12 @@ class Parset(object):
             pointing["center"] = self._get_pointing_center_dict(digibeam)
             pointing["time"] = self._get_time_dict(digibeam)
 
-            if digibeam["toDo"].lower() == "pulsar":
+            if "toDo" not in digibeam:
+                pointing["receiver"] = {
+                    "name": None,
+                    "frequency": self._get_frequency_dict(digibeam, field="subbandList")
+                }
+            elif digibeam["toDo"].lower() == "pulsar":
                 mode, config = self._parse_parameters(digibeam["parameters"], pulsar=True)
                 if mode == "fold":
                     pointing["receiver"] = {
@@ -302,25 +315,61 @@ class Parset(object):
                     },
                     "frequency": self._get_frequency_dict(digibeam, field="subbandList")
                 }
-            elif (digibeam["toDo"].lower() == "tbd") and ("nickel" in self.output["nri_receivers"]):
+            elif (digibeam["toDo"].lower() == "tbd") and ("nickel" in self.output.get("nri_receivers", [])):
             # elif digibeam["toDo"].lower() == "imaging": # to be implemented?
                 pointing["receiver"] = {
                     "name": "nickel",
-                    "channelization": self.output["nri_channelization"],
+                    "channelization": {
+                        "value": self.output["nri_channelization"],
+                        "unit": None
+                    },
                     "dumptime": {
                         "value": self.output["nri_dumpTime"],
                         "unit": "s"
                     },
                     "frequency": self._get_frequency_dict(self.output, "nri_subbandList")
-                }
-            else:
-                pointing["receiver_configuration"] = {}
-           
+                }           
 
             # Select the correct fov
             idx = np.where(fov_indices == digibeam["noBeam"])[0][0]
             associated_fov = data["field_of_views"][idx]
             associated_fov["pointings"].append(pointing)
+        
+        # Add a pointing per anabeam if XST data have been taken
+        if self.output['xst_userfile']:
+            for i, fov in enumerate(data["field_of_views"]):
+                print(fov)
+                start = Time(fov["time"]["gte"])
+                duration = TimeDelta(fov["time"]["duration"]["value"], format="sec")
+                zenith = SkyCoord(
+                    0, 90,
+                    unit="deg",
+                    frame=AltAz(
+                        obstime=start + duration/2,
+                        location=nenufar_position
+                    )
+                ).transform_to(ICRS)
+                fov["pointings"].append(
+                    {
+                        "idx": digi_idx + 1 + i,
+                        "center": {
+                            "ra": {
+                                "value": zenith.ra.deg,
+                                "unit": "deg"
+                            },
+                            "dec": {
+                                "value": zenith.dec.deg,
+                                "unit": "deg"
+                            },
+                            "obs_direction_type": "zenith"
+                        },
+                        "time": fov["time"],
+                        "receiver": {
+                            "name": None,
+                            "frequency": self._get_frequency_dict(self.output, field="xst_sbList")
+                        }
+                    }
+                )
 
         if path_name is not None:
             # Write the JSON file
@@ -456,9 +505,17 @@ class Parset(object):
         duration = TimeDelta(property['duration'] , format='sec')
         start_time = property['startTime']
         stop_time = (property['startTime'] + duration)
+        # return {
+        #     "start": start_time.isot,
+        #     "stop": stop_time.isot,
+        #     "duration": {
+        #         "value": duration.sec,
+        #         "unit": "s"
+        #     }
+        # }
         return {
-            "start": start_time.isot,
-            "stop": stop_time.isot,
+            "gte": start_time.isot,
+            "lte": stop_time.isot,
             "duration": {
                 "value": duration.sec,
                 "unit": "s"
@@ -470,15 +527,29 @@ class Parset(object):
     def _get_frequency_dict(property, field="subbandList") -> dict:
         """ """
         subband_list = property[field]
+        # Find consecutive subbands groups:
+        subband_list_groups = np.split(
+            subband_list,
+            np.where(np.diff(subband_list) != 1)[0] + 1
+        )
+        # return {
+        #     "fmin": {
+        #         "value": sb2freq(np.min(subband_list))[0].to(u.MHz).value,
+        #         "unit": "MHz"
+        #     },
+        #     "fmax": {
+        #         "value": sb2freq(np.max(subband_list))[0].to(u.MHz).value ,
+        #         "unit": "MHz"
+        #     }
+        # }
         return {
-            "fmin": {
-                "value": sb2freq(np.min(subband_list))[0].to(u.MHz).value,
-                "unit": "MHz"
-            },
-            "fmax": {
-                "value": sb2freq(np.max(subband_list))[0].to(u.MHz).value ,
-                "unit": "MHz"
-            }
+            "value": [
+                {
+                    "gte": sb2freq(group.min())[0].to(u.MHz).value,
+                    "lt": (sb2freq(group.max()) + SB_WIDTH)[0].to(u.MHz).value,
+                } for group in subband_list_groups
+            ],
+            "unit": "MHz"
         }
 
 
