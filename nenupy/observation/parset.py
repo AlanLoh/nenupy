@@ -191,6 +191,7 @@ class Parset(object):
         """ """
         
         data = {}
+        data["@timestamp"] = self.observation["startTime"].isot
 
         # Fill out observation tab
         data["file_name"] = {
