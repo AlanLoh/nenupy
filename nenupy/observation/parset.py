@@ -198,8 +198,11 @@ class Parset(object):
             "path": dirname(self.parset)
         }
         data["time"] = {
-            "start": self.observation["startTime"].isot,
-            "stop": self.observation["stopTime"].isot,
+            "startstop": 
+               {
+                  "gte": self.observation["startTime"].isot, 
+                  "lt": self.observation["stopTime"].isot
+               },
             "duration": {
                 "value": (self.observation["stopTime"] - self.observation["startTime"]).sec,
                 "unit": "s"
@@ -514,8 +517,11 @@ class Parset(object):
         #     }
         # }
         return {
-            "gte": start_time.isot,
-            "lte": stop_time.isot,
+            "startstop":
+               {
+                  "gte": start_time.isot,
+                  "lte": stop_time.isot
+               },
             "duration": {
                 "value": duration.sec,
                 "unit": "s"
