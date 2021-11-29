@@ -156,6 +156,8 @@ class Parset(object):
         self.output = _ParsetProperty()
         self.anabeams = {} # dict of _ParsetProperty
         self.digibeams = {} # dict of _ParsetProperty
+        self.txt = ""
+        self.parset_user = ""
         self.parset = parset
 
 
@@ -374,7 +376,10 @@ class Parset(object):
                         }
                     }
                 )
-
+                
+        data['txt'] = self.txt
+        data['parset_user'] = self.parset_user
+        
         if path_name is not None:
             # Write the JSON file
             json_file_name = basename(self.parset).replace(".parset", ".json")
@@ -429,10 +434,12 @@ class Parset(object):
     def _decodeParset(self):
         """
         """
+        
         with open(self.parset, 'r') as file_object:
             line = file_object.readline()
             
             while line:
+                self.txt = self.txt + line 
                 try:
                     dicoName, content = line.split('.', 1)
                 except ValueError:
@@ -462,10 +469,20 @@ class Parset(object):
                     self.digibeams[digiIdx][key] = value
                 
                 line = file_object.readline()
-
+            
             log.info(
                 f"Parset '{self._parset}' loaded."
             )
+        
+        try:
+            with open(self.parset + '_user', 'r') as file_object:
+                line = file_object.readline()
+                while line:
+                    self.parset_user = self.parset_user + line
+                    line = file_object.readline()
+        except Exception as e:
+            pass
+                       
         return
 
 
