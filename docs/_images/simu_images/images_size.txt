@@ -1,0 +1,10 @@
+regular plot (7, 4)
+sky plot (12, 6)
+sky plot grid (8, 4)
+
+plt.savefig(
+    "/Users/aloh/Documents/GitHub/nenupy/docs/_images/instru_images/casa_rms.png",
+    transparent=True,
+    bbox_inches="tight",
+    dpi=300
+)

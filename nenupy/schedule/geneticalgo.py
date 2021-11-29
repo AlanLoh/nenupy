@@ -190,38 +190,38 @@ class GeneticAlgorithm(object):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def evolve(self, scoreMin=0.8, maxGen=1000, maxStag=100, **kwargs):
+    def evolve(self,
+            score_threshold=0.8,
+            generation_max=1000,
+            max_stagnating_generations=100,
+            **kwargs
+        ):
         """
-            kwargs:
-                addRandom (default 1)
-                selectionMethod (default FPS)
-                crossoverMethod (default SPCO)
-                elitism (default True)
         """
-        if scoreMin > 1.:
+        if score_threshold > 1.:
             raise ValueError(
-                f'<scoreMin={scoreMin}> should be < 1.'
+                f'<scoreMin={score_threshold}> should be < 1.'
             )
 
-        addRandom = kwargs.get('addRandom', 1)
-        if not isinstance(addRandom, int):
+        random_individuals = kwargs.get('random_individuals', 1)
+        if not isinstance(random_individuals, int):
             raise TypeError(
-               f'<addRandom={addRandom}> should be integer.'
+               f'<random_individuals={random_individuals}> should be integer.'
             )
-        elif addRandom > self.populationSize:
+        elif random_individuals > self.populationSize:
             raise ValueError(
-                f'<addRandom={addRandom}> is greater than the '
+                f'<random_individuals={random_individuals}> is greater than the '
                 f'population size {self.populationSize}.'
             )
-        parentSelection = kwargs.get('selectionMethod', 'TNS')
-        crossoverMethod = kwargs.get('crossoverMethod', 'TPCO')
+        parent_selection = kwargs.get('selection', 'TNS')
+        crossover_method = kwargs.get('crossover', 'TPCO')
         beElitist = kwargs.get('elitism', True)
 
         log.info(
             'Genetic algorithm launched.'
         )
 
-        modGen = maxGen//10 if maxGen>=10 else 1
+        modGen = generation_max//10 if generation_max>=10 else 1
         nStag = 0
 
         # Initialization of a starting population of solutions
@@ -230,7 +230,7 @@ class GeneticAlgorithm(object):
         self.bestGenome = population[0]
 
         # Genetic Loop
-        while self.generation < maxGen:
+        while self.generation < generation_max:
             # Evaluate the fitness of the population
             populationScores = self.fitness(population)
             self._childScores.append(populationScores)
@@ -252,14 +252,14 @@ class GeneticAlgorithm(object):
                 )
 
             # Break the loop
-            if score >= scoreMin:
+            if score >= score_threshold:
                 # if the score exceeds the minimal required
                 log.info(
                     'Minimal required score reached at '
                     f'generation {self.generation}.'
                 )
                 break
-            elif (nStag==maxStag) and (self._bestScore!=0):
+            elif (nStag==max_stagnating_generations) and (self._bestScore!=0):
                 # If the genome is no longer evolving
                 log.info(
                     f'Maximal score has stagnated for {nStag} '
@@ -291,13 +291,13 @@ class GeneticAlgorithm(object):
                 parents = self._selectPair(
                     population=population,
                     scores=populationScores,
-                    method=parentSelection
+                    method=parent_selection
                 )
                 # Make two children out of the parents by crossing
                 # their genomes
                 child1, child2 = self._crossOver(
                     parents=parents,
-                    method=crossoverMethod
+                    method=crossover_method
                 )
                 # Randomly mutate one gene of each child
                 child1 = self.mutation(
@@ -313,8 +313,8 @@ class GeneticAlgorithm(object):
             # Add some randomness to avoid local minima by replacing
             # the last member of the next generation by an individual
             # with random genome
-            if addRandom > 0:
-                nextGeneration[-addRandom:] = self.populate(addRandom)
+            if random_individuals > 0:
+                nextGeneration[-random_individuals:] = self.populate(random_individuals)
 
             # Do the loop again
             population = nextGeneration
@@ -324,7 +324,7 @@ class GeneticAlgorithm(object):
         else:
             log.info(
                 'Genetic algorithm reached maximal generation '
-                f'{maxGen}. Best score: {self._bestScore}.'
+                f'{generation_max}. Best score: {self._bestScore}.'
             )
             self.generation -= 1
 
@@ -334,7 +334,7 @@ class GeneticAlgorithm(object):
     def plot(self, **kwargs):
         """
             kwargs:
-                figName
+                figname
                 figsize
                 grid
         """
@@ -385,15 +385,15 @@ class GeneticAlgorithm(object):
         cb.set_label('Children')
 
         # Save or show the figure
-        figName = kwargs.get('figName', '')
-        if figName != '':
+        figname = kwargs.get('figname', '')
+        if figname != '':
             plt.savefig(
-                figName,
+                figname,
                 dpi=300,
                 bbox_inches='tight',
                 transparent=True
             )
-            log.info(f"Figure '{figName}' saved.")
+            log.info(f"Figure '{figname}' saved.")
         else:
             plt.show()
         plt.close('all')

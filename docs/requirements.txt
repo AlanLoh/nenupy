@@ -1,0 +1,13 @@
+numpy
+scipy
+astropy
+matplotlib
+healpy
+reproject
+numba
+numexpr
+pyproj
+mocpy
+dask
+sqlalchemy
+docutils<0.18

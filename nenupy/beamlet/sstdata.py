@@ -39,7 +39,7 @@ r"""
 
     If the :attr:`~nenupy.beamlet.sstdata.SST_Data.altazA` attribute
     is filled with a valid ``'*.altazA'`` file, it returns an instance
-    of :class:`~nenupy.observation.pointing.AnalogPointing` that
+    of :class:`~nenupy.observation.pointing_obs.AnalogPointing` that
     is appropriate to handle the analog pointing(s) of the Mini-Arrays
     during the analyzed observation.
 
@@ -170,9 +170,9 @@ from astropy.time import Time
 import astropy.units as u
 import numpy as np
 
-from nenupy.base import MiniArrays
+from nenupy.instru import NenuFAR
+from nenupy.astro.pointing import Pointing
 from nenupy.beamlet import SData
-from nenupy.observation import AnalogPointing
 
 import logging
 log = logging.getLogger(__name__)
@@ -302,7 +302,7 @@ class SST_Data(object):
         # .altazA file comparison
         if (self.altazA==[]) and (other.altazA==[]):
             sameAltazA = True
-        elif isinstance(self.altazA, AnalogPointing) and isinstance(other.altazA, AnalogPointing):
+        elif isinstance(self.altazA, Pointing) and isinstance(other.altazA, Pointing):
             selfBaseNames = list(map(basename, self.altazA.filename))
             otherBaseNames = list(map(basename, other.altazA.filename))
             sameAltazA = all(
@@ -363,7 +363,7 @@ class SST_Data(object):
         if (a is None) or (a==[]):
             self._altazA = []
         else:
-            self._altazA = AnalogPointing(filename=a)
+            self._altazA = Pointing.from_file(file_name=a)
 
 
     @property
@@ -643,8 +643,10 @@ class SST_Data(object):
             'fMax': ins['frq'].max()*u.MHz,
             'freqs': ins['frq'][0]*u.MHz,
             'polars': ins['spol'][0],
-            'MAs': MiniArrays(ins['noMROn'][0]),
-            'AllMAs': MiniArrays(ins['noMR'][0])
+            # 'MAs': MiniArrays(ins['noMROn'][0]),
+            # 'AllMAs': MiniArrays(ins['noMR'][0])
+            'MAs': NenuFAR()[ins['noMROn'][0]],
+            'AllMAs': NenuFAR()[ins['noMR'][0]]
         }
 
 

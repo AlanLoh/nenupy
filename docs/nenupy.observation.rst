@@ -7,7 +7,7 @@ nenupy.observation
 
    nenupy.observation.obs_config
    nenupy.observation.parset
-   nenupy.observation.pointing
+   nenupy.observation.pointing_obs
    nenupy.observation.sqldatabase
    nenupy.observation.tapdatabase
 

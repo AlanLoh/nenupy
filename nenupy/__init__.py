@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 __author__ = 'Alan Loh'
-__copyright__ = 'Copyright 2020, nenupy'
+__copyright__ = 'Copyright 2021, nenupy'
 __credits__ = ['Alan Loh']
 __license__ = 'MIT'
-__version__ = '1.3.4'
+__version__ = '2.0.5'
 __maintainer__ = 'Alan Loh'
 __email__ = 'alan.loh@obspm.fr'
 
@@ -32,7 +32,8 @@ logging.basicConfig(
     stream=sys.stdout,
     level=logging.WARNING,
     #format='%(asctime)s -- %(levelname)s: %(message)s',
-    format='\033[1m%(asctime)s\033[0m | %(levelname)s: \033[34m%(message)s\033[0m',
+    #format='\033[1m%(asctime)s\033[0m | %(levelname)s: \033[34m%(message)s\033[0m',
+    format='%(asctime)s | %(levelname)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 log = logging.getLogger(__name__)
@@ -70,6 +71,7 @@ with open(join(dirname(__file__), "telescopes.json")) as array_file:
         lon=arrays["nenufar"]["lon"] * u.deg,
         height=arrays["nenufar"]["height"] * u.m
     )
+    log.debug("NenuFAR position loaded.")
 # ============================================================= #
 # ============================================================= #
 

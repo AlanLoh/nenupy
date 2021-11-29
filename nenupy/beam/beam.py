@@ -361,6 +361,8 @@ class ABeam(Beam):
             raise TypeError(
                 'coords should be ICRS or SkyCoord object'
             )
+        if coords.isscalar:
+            raise ValueError('coords should not be a scalar.')
         if not isinstance(time, Time):
             raise TypeError(
                 'time should be Time object'
