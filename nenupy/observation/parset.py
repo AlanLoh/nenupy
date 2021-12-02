@@ -219,8 +219,9 @@ class Parset(object):
         key_mapping = {
             "title": "title",
             "contactName": "contact_name",
+            "name": "name"
             # "contactEmail": "contact_email",
-            "topic": "topic"
+            # "topic": "topic"
         }
         for key, value in self.observation.items():
             if key in key_mapping:
@@ -241,6 +242,7 @@ class Parset(object):
             
             fov["idx"] = ana_idx
             fov["pointings"] = []
+            fov["name"] = anabeam["target"]
             fov["center"] = self._get_pointing_center_dict(anabeam)
             fov["time"] = self._get_time_dict(anabeam)
             fov["beamsquint"] = {
@@ -261,6 +263,7 @@ class Parset(object):
         for digi_idx, digibeam in self.digibeams.items():
             pointing = {}
             pointing['idx'] = digi_idx
+            pointing["name"] = digibeam["target"]
             pointing["center"] = self._get_pointing_center_dict(digibeam)
             pointing["time"] = self._get_time_dict(digibeam)
 
@@ -369,6 +372,7 @@ class Parset(object):
                             },
                             "obs_direction_type": "zenith"
                         },
+                        "name": "",
                         "time": fov["time"],
                         "receiver": {
                             "name": None,
