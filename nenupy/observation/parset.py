@@ -246,9 +246,9 @@ class Parset(object):
             fov["center"] = self._get_pointing_center_dict(anabeam)
             fov["time"] = self._get_time_dict(anabeam)
             fov["beamsquint"] = {
-                "correction": anabeam["beamSquint"],
+                "correction": anabeam.get("beamSquint", False),
                 "frequency": {
-                    "value": anabeam["optFrq"],
+                    "value": anabeam.get("optFrq", None),
                     "unit": "MHz"
                 }
             }
@@ -345,7 +345,7 @@ class Parset(object):
             associated_fov["pointings"].append(pointing)
         
         # Add a pointing per anabeam if XST data have been taken
-        if self.output['xst_userfile']:
+        if self.output.get("xst_userfile", False):
             for i, fov in enumerate(data["field_of_views"]):
                 start = Time(fov["time"]["gte"])
                 duration = TimeDelta(fov["time"]["duration"]["value"], format="sec")
