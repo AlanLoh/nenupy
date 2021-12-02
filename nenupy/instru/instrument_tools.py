@@ -33,14 +33,14 @@ from nenupy.astro.astro_tools import sky_temperature
 # ============================================================= #
 # ------------------------- freq2sb --------------------------- #
 # ============================================================= #
-def freq2sb(frequency):
+def freq2sb(frequency: u.Quantity):
     r""" Conversion between the frequency :math:`\nu` and the
         NenuFAR sub-band index :math:`n_{\rm SB}`.
         Each NenuFAR sub-band has a bandwidth of
         :math:`\Delta \nu = 195.3125\, \rm{kHz}`:
 
         .. math::
-            n_{\rm SB} = \frac{512 \times \nu}{\Delta \nu}
+            n_{\rm SB} = \frac{\nu}{\Delta \nu}
 
         :param frequency:
             Frequency to convert in sub-band index.
@@ -65,8 +65,8 @@ def freq2sb(frequency):
             "'frequency' should be between 0 and 100 MHz."
         )
     frequency = frequency.to(u.MHz)
-    sb_width = 100. * u.MHz
-    sb_idx = np.floor((frequency * 512) / sb_width)
+    sb_width = 100. * u.MHz / 512
+    sb_idx = np.floor(frequency / sb_width)
     return sb_idx.astype(int).value
 # ============================================================= #
 # ============================================================= #
@@ -80,7 +80,7 @@ def sb2freq(subband):
         to sub-band starting frequency :math:`\nu_{\rm start}`.
 
         .. math::
-            \nu_{\rm start} = \frac{n_{\rm SB} \times \Delta \nu}{512}
+            \nu_{\rm start} = n_{\rm SB} \times \Delta \nu
 
         Each NenuFAR sub-band has a bandwidth of
         :math:`\Delta \nu = 195.3125\, \rm{kHz}`, therefore, the
@@ -117,8 +117,8 @@ def sb2freq(subband):
         raise ValueError(
             "'sb' should be between 0 and 511."
         )
-    sb_width = 100. * u.MHz
-    freq_start = (subband * sb_width) / 512
+    sb_width = 100. * u.MHz / 512
+    freq_start = subband * sb_width
     return freq_start
 # ============================================================= #
 # ============================================================= #
