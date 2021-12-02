@@ -209,7 +209,7 @@ class Parset(object):
                 "unit": "s"
             }
         }
-        topic = self.observation["topic"]
+        topic = self.observation.get("topic", "ES00 DEBUG")
         data["topic"] = {
             "code": topic[:3] if topic.startswith('ES') else "ES00",
             "name": topic[5:] if topic.startswith('ES') else topic
@@ -345,7 +345,6 @@ class Parset(object):
         # Add a pointing per anabeam if XST data have been taken
         if self.output['xst_userfile']:
             for i, fov in enumerate(data["field_of_views"]):
-                print(fov)
                 start = Time(fov["time"]["gte"])
                 duration = TimeDelta(fov["time"]["duration"]["value"], format="sec")
                 zenith = SkyCoord(
