@@ -356,9 +356,13 @@ class Parset(object):
                         location=nenufar_position
                     )
                 ).transform_to(ICRS)
+                try:
+                    last_dig_idx = digi_idx
+                except:
+                    last_dig_idx = -1
                 fov["pointings"].append(
                     {
-                        "idx": digi_idx + 1 + i,
+                        "idx": last_dig_idx + 1 + i,
                         "center": {
                             "ra": {
                                 "value": zenith.ra.deg,
