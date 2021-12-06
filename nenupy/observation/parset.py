@@ -378,6 +378,7 @@ class Parset(object):
                         }
                     }
                 )
+
         
         data['parset_user'] = self.parset_user
 
@@ -435,10 +436,12 @@ class Parset(object):
     def _decodeParset(self):
         """
         """
+        
         with open(self.parset, 'r') as file_object:
             line = file_object.readline()
             
             while line:
+                self.txt = self.txt + line 
                 try:
                     dicoName, content = line.split('.', 1)
                 except ValueError:
@@ -468,7 +471,7 @@ class Parset(object):
                     self.digibeams[digiIdx][key] = value
                 
                 line = file_object.readline()
-
+            
             log.info(
                 f"Parset '{self._parset}' loaded."
             )
