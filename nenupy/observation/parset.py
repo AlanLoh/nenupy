@@ -303,7 +303,7 @@ class Parset(object):
                 pointing["receiver"] = {
                     "name": "undysputed",
                     "mode": "waveform",
-                    "source_name": config["src"],
+                    # "source_name": config["src"],
                     "frequency": self._get_frequency_dict(digibeam, field="subbandList")
                 }
             elif digibeam["toDo"].lower() == "dynamicspectrum":
@@ -441,7 +441,6 @@ class Parset(object):
             line = file_object.readline()
             
             while line:
-                self.txt = self.txt + line 
                 try:
                     dicoName, content = line.split('.', 1)
                 except ValueError:
