@@ -591,6 +591,11 @@ class Parset(object):
         start_time = property['startTime']
         stop_time = (property['startTime'] + duration)
 
+        if "azelFile" in property:
+            # In case of pointing described by an azelfile
+            # it will be treated as a zenith pointing (wrong but best compromise for the database)
+            property["directionType"] = "azelgeo_azelfile"
+
         # Deal with coordinates and pointing types
         direction_type = property['directionType'].lower()
         if direction_type == "j2000":
@@ -632,6 +637,19 @@ class Parset(object):
             ).transform_to(ICRS)
             right_ascension = radec.ra.deg + float(property.get("decal_ra", 0.0))
             declination = radec.dec.deg + float(property.get("decal_dec", 0.0))
+        
+        elif direction_type == "azelgeo_azelfile":
+            # This observation was made using an azelfile
+            radec = SkyCoord(
+                0.*u.deg,
+                90*u.deg,
+                frame=AltAz(
+                    obstime=start_time + duration/2.,
+                    location=nenufar_position
+                )
+            ).transform_to(ICRS)
+            right_ascension = radec.ra.deg
+            declination = radec.dec.deg
         
         elif direction_type == "natif":
             # This is a test observation, unable to parse the RA/Dec

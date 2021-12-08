@@ -1,8 +1,19 @@
 Changelog
 =========
 
-1.2.0 (WIP)
-^^^^^^^^^^^
+
+x.x.x
+^^^^^
+* Methods to compute the intersection of celestial sources and NenuFAR beam (:mod:`~nenupy.schedule.contamination`, see :ref:`src_in_lobes_doc`).
+
+
+2.0.0
+^^^^^
+* Major refactoring of simulation modules 
+
+
+1.2.0
+^^^^^
 
 * Addition of the :mod:`~nenupy.observation.obs_config` module to estimate data volumes of NenuFAR observations. This can be done for all the receivers and configuration modes. Observation configurations can either be set individualy for each receiver or given as parset files or list of parset files [`#43 <https://github.com/AlanLoh/nenupy/issues/43>`_].
 * Module :mod:`~nenupy.schedule` to automatically schedule observation bookings via deterministic or genetic algorithm.
