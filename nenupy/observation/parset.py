@@ -308,21 +308,25 @@ class Parset(object):
                 }
             elif digibeam["toDo"].lower() == "dynamicspectrum":
                 _, config = self._parse_parameters(digibeam["parameters"], pulsar=False)
-                pointing["receiver"] = {
-                    "name": "undysputed",
-                    "mode": "tf",
-                    # "dt_ms": float(re.search(r'((DT)|(dt))=\d*.\d*', parameters).group(0).split("=")[1]),
-                    # "df_khz": float(re.search(r'((DF)|(df))=\d*.\d*', parameters).group(0).split("=")[1]),
-                    "dt": {
-                        "value": float(config["dt"]),
-                        "unit": "ms"
-                    },
-                    "df": {
-                        "value": float(config["df"]),
-                        "unit": "kHz"
-                    },
-                    "frequency": self._get_frequency_dict(digibeam, field="subbandList")
-                }
+                try:
+                    pointing["receiver"] = {
+                        "name": "undysputed",
+                        "mode": "tf",
+                        "dt": {
+                            "value": float(config["dt"]),
+                            "unit": "ms"
+                        },
+                        "df": {
+                            "value": float(config["df"]),
+                            "unit": "kHz"
+                        },
+                        "frequency": self._get_frequency_dict(digibeam, field="subbandList")
+                    }
+                except KeyError:
+                    log.warning(
+                        f"Parset '{self.parset}'' has a wrong '{digibeam['toDo']}' configuration."
+                    )
+                    continue
             elif (digibeam["toDo"].lower() == "tbd") and ("nickel" in self.output.get("nri_receivers", [])):
             # elif digibeam["toDo"].lower() == "imaging": # to be implemented?
                 pointing["receiver"] = {
