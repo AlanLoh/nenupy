@@ -40,7 +40,7 @@ def freq2sb(frequency: u.Quantity):
         :math:`\Delta \nu = 195.3125\, \rm{kHz}`:
 
         .. math::
-            n_{\rm SB} = \frac{\nu}{\Delta \nu}
+            n_{\rm SB} = \lfloor*{ \frac{\nu}{\Delta \nu} + \frac{1}{2} \rfloor
 
         :param frequency:
             Frequency to convert in sub-band index.
@@ -55,9 +55,9 @@ def freq2sb(frequency: u.Quantity):
         :example:
             >>> from nenupy.instru import freq2sb
             >>> freq2sb(frequency=50.5*u.MHz)
-            258
+            259
             >>> freq2sb(frequency=[50.5, 51]*u.MHz)
-            array([258, 261])
+            array([259, 261])
 
     """
     if (frequency.min() < 0 * u.MHz) or (frequency.max() > 100 * u.MHz):
@@ -66,7 +66,7 @@ def freq2sb(frequency: u.Quantity):
         )
     frequency = frequency.to(u.MHz)
     sb_width = 100. * u.MHz / 512
-    sb_idx = np.floor(frequency / sb_width)
+    sb_idx = np.floor(frequency/sb_width + 0.5)
     return sb_idx.astype(int).value
 # ============================================================= #
 # ============================================================= #
@@ -100,10 +100,9 @@ def sb2freq(subband):
         :example:
             >>> from nenupy.instru import sb2freq
             >>> sb2freq(subband=1)
-            [0.1953125] MHz
+            [0.09765625] MHz
             >>> sb2freq(subband=[1, 2, 3, 4])
-            [0.1953125, 0.390625, 0.5859375, 0.78125] MHz
-
+            [0.09765625, 0.29296875, 0.48828125, 0.68359375] MHz
     """
     if np.isscalar(subband):
         subband = np.array([subband])
@@ -117,8 +116,8 @@ def sb2freq(subband):
         raise ValueError(
             "'sb' should be between 0 and 511."
         )
-    sb_width = 100. * u.MHz / 512
-    freq_start = subband * sb_width
+    sb_width = 100.*u.MHz/512
+    freq_start = subband*sb_width - sb_width/2
     return freq_start
 # ============================================================= #
 # ============================================================= #
