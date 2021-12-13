@@ -268,7 +268,7 @@ class Parset(object):
 
             if "toDo" not in digibeam:
                 pointing["receiver"] = {
-                    "name": None,
+                    "name": "LaNewBa",
                     "frequency": self._get_frequency_dict(digibeam, field="subbandList")
                 }
             elif digibeam["toDo"].lower() == "pulsar":
@@ -395,7 +395,7 @@ class Parset(object):
                         "name": "",
                         "time": fov["time"],
                         "receiver": {
-                            "name": None,
+                            "name": "LaNewBa",
                             "frequency": self._get_frequency_dict(self.output, field="xst_sbList")
                         }
                     }
@@ -604,6 +604,20 @@ class Parset(object):
     def _get_pointing_center_dict(property) -> dict:
         """ Returns a RA, Dec whatever the pointing type is. """
 
+        def _constrain_angle(
+                angle: u.Quantity,
+                valmin: u.Quantity = 0.*u.deg,
+                valmax: u.Quantity = 90*u.deg
+            ):
+            """ Constrain an angle between two values. """
+            if angle < valmin:
+                angle = valmin 
+            elif angle > valmax:
+                angle = valmax
+            else:
+                pass
+            return angle
+
         # Sort out the beam start and stop times
         duration = TimeDelta(property['duration'] , format='sec')
         start_time = property['startTime']
@@ -627,8 +641,16 @@ class Parset(object):
                     )
                 )
                 radec = SkyCoord(
-                    altaz.az + float(property.get("decal_az", 0.0))*u.deg,
-                    altaz.alt + float(property.get("decal_el", 0.0))*u.deg,
+                    _constrain_angle(
+                        altaz.az + float(property.get("decal_az", 0.0))*u.deg,
+                        valmin=0.*u.deg,
+                        valmax=360.*u.deg
+                    ),
+                    _constrain_angle(
+                        altaz.alt + float(property.get("decal_el", 0.0))*u.deg,
+                        valmin=0.*u.deg,
+                        valmax=90.*u.deg
+                    ),
                     frame=AltAz(
                         obstime=start_time + duration/2.,
                         location=nenufar_position
@@ -639,22 +661,46 @@ class Parset(object):
             # Nothing else to do
             decal_ra = float(property.get("decal_ra", 0.0))*u.deg
             decal_dec = float(property.get("decal_dec", 0.0))*u.deg
-            right_ascension = (ra + decal_ra).value
-            declination = (dec + decal_dec).value
+            right_ascension = _constrain_angle(
+                (ra + decal_ra).value,
+                valmin=0.,
+                valmax=360.
+            )
+            declination = _constrain_angle(
+                (dec + decal_dec).value,
+                valmin=-90.,
+                valmax=90.
+            )
 
         elif direction_type == "azelgeo":
             # This is a transit observation, compute the mean RA/Dec
             # Convert AltAz to RA/Dec
             radec = SkyCoord(
-                property['angle1'] + float(property.get("decal_az", 0.0))*u.deg,
-                property['angle2'] + float(property.get("decal_el", 0.0))*u.deg,
+                _constrain_angle(
+                    property['angle1'] + float(property.get("decal_az", 0.0))*u.deg,
+                    valmin=0.*u.deg,
+                    valmax=360.*u.deg
+                ),
+                _constrain_angle(
+                    property['angle2'] + float(property.get("decal_el", 0.0))*u.deg,
+                    valmin=0.*u.deg,
+                    valmax=90.*u.deg
+                ),
                 frame=AltAz(
                     obstime=start_time + duration/2.,
                     location=nenufar_position
                 )
             ).transform_to(ICRS)
-            right_ascension = radec.ra.deg + float(property.get("decal_ra", 0.0))
-            declination = radec.dec.deg + float(property.get("decal_dec", 0.0))
+            right_ascension = _constrain_angle(
+                radec.ra.deg + float(property.get("decal_ra", 0.0)),
+                valmin=0.,
+                valmax=360.
+            )
+            declination = _constrain_angle(
+                radec.dec.deg + float(property.get("decal_dec", 0.0)),
+                valmin=-90.,
+                valmax=90.
+            )
         
         elif direction_type == "azelgeo_azelfile":
             # This observation was made using an azelfile
@@ -684,8 +730,16 @@ class Parset(object):
             if ("decal_az" in property) or ("decal_el" in property):
                 altaz = solar_system_target.horizontal_coordinates[0]
                 radec = SkyCoord(
-                    altaz.az + float(property.get("decal_az", 0.0))*u.deg,
-                    altaz.alt + float(property.get("decal_el", 0.0))*u.deg,
+                    _constrain_angle(
+                        altaz.az + float(property.get("decal_az", 0.0))*u.deg,
+                        valmin=0.*u.deg,
+                        valmax=360.*u.deg
+                    ),
+                    _constrain_angle(
+                        altaz.alt + float(property.get("decal_el", 0.0))*u.deg,
+                        valmin=0.*u.deg,
+                        valmax=90.*u.deg
+                    ),
                     frame=AltAz(
                         obstime=start_time + duration/2.,
                         location=nenufar_position
@@ -693,8 +747,16 @@ class Parset(object):
                 ).transform_to(ICRS)
             decal_ra = float(property.get("decal_ra", 0.0))*u.deg
             decal_dec = float(property.get("decal_dec", 0.0))*u.deg
-            right_ascension = radec.ra.deg + decal_ra.value
-            declination = radec.dec.deg + decal_dec.value
+            right_ascension = _constrain_angle(
+                radec.ra.deg + decal_ra.value,
+                valmin=0.,
+                valmax=360.
+            )
+            declination = _constrain_angle(
+                radec.dec.deg + decal_dec.value,
+                valmin=-90.,
+                valmax=90.
+            )
 
         return {
             "ra": {
