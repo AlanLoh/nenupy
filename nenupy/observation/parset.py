@@ -272,7 +272,14 @@ class Parset(object):
                     "frequency": self._get_frequency_dict(digibeam, field="subbandList")
                 }
             elif digibeam["toDo"].lower() == "pulsar":
-                mode, config = self._parse_parameters(digibeam["parameters"], pulsar=True)
+                try:
+                    mode, config = self._parse_parameters(digibeam["parameters"], pulsar=True)
+                except KeyError:
+                    log.warning(
+                        f"Parset '{self.parset}' doesn't have any 'parameters' for numerical beam {digibeam['noBeam']})."
+                    )
+                    continue
+
                 if mode == "fold":
                     pointing["receiver"] = {
                         "name": "undysputed",
@@ -307,7 +314,14 @@ class Parset(object):
                     "frequency": self._get_frequency_dict(digibeam, field="subbandList")
                 }
             elif digibeam["toDo"].lower() == "dynamicspectrum":
-                _, config = self._parse_parameters(digibeam["parameters"], pulsar=False)
+                try:
+                    _, config = self._parse_parameters(digibeam["parameters"], pulsar=False)
+                except KeyError:
+                    log.warning(
+                        f"Parset '{self.parset}' doesn't have any 'parameters' for numerical beam {digibeam['noBeam']})."
+                    )
+                    continue
+
                 try:
                     pointing["receiver"] = {
                         "name": "undysputed",
@@ -324,7 +338,7 @@ class Parset(object):
                     }
                 except KeyError:
                     log.warning(
-                        f"Parset '{self.parset}'' has a wrong '{digibeam['toDo']}' configuration."
+                        f"Parset '{self.parset}' has a wrong '{digibeam['toDo']}' configuration."
                     )
                     continue
             elif (digibeam["toDo"].lower() == "tbd") and ("nickel" in self.output.get("nri_receivers", [])):
