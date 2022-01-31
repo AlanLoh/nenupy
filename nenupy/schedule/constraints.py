@@ -9,18 +9,6 @@ r"""
     Observation constraints
     ***********************
 
-    Automatic scheduling of astronomical observations relies on
-    the definition of constraints that govern identification of
-    optimal time periods to observe a given celestial target.
-    The different classes implemented in the 
-    :mod:`~nenupy.schedule.constraints` module allow for an easy
-    way of specifying these constraints.
-
-    Each :class:`~nenupy.schedule.constraints.Constraint` object
-    is `callable` and requires an argument of type
-    :class:`~nenupy.schedule.targets.ESTarget` or 
-    :class:`~nenupy.schedule.targets.SSTarget` in order to evaluate
-    the constraint's 'score' over a given time range.
     
     In the following, an instance of :class:`~nenupy.schedule.targets.ESTarget`
     is initialized for the source *Cygnus A* and stored in the variable
@@ -175,6 +163,7 @@ __all__ = [
 ]
 
 
+from abc import ABC, abstractmethod
 import numpy as np
 from astropy.time import Time, TimeDelta
 from astropy.coordinates import Angle
@@ -190,12 +179,8 @@ log = logging.getLogger(__name__)
 # ============================================================= #
 # ------------------------ Constraint ------------------------- #
 # ============================================================= #
-class Constraint(object):
+class Constraint(ABC):
     """ Base class for all the constraint definitions.
-
-        .. warning::
-            :class:`~nenupy.schedule.constraints.Constraint`
-            should not be used on its own.
 
         .. versionadded:: 1.2.0
     """
@@ -246,9 +231,9 @@ class Constraint(object):
     def plot(self, **kwargs):
         """ Plots the constraint's score previously evaluated.
 
-            :param figSize:
+            :param figsize:
                 Size of the figure. Default: ``(10, 5)``.
-            :type figSize:
+            :type figsize:
                 `tuple`
             :param figname:
                 Name of the figure to be stored. Default: ``''``,
@@ -274,7 +259,7 @@ class Constraint(object):
         fig = plt.figure(
             figsize=kwargs.get('figsize', (10, 5))
         )
-        self._plotConstraint(**kwargs)
+        self._plot_constraint(**kwargs)
         plt.xlabel('Time index')
         plt.ylabel('Constraint score')
         plt.title(f'{self.__class__}')
@@ -296,7 +281,7 @@ class Constraint(object):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _plotConstraint(self, **kwargs):
+    def _plot_constraint(self, **kwargs):
         """ Internal method to plot a single constraint without
             initializing the figure object.
         """
@@ -314,7 +299,7 @@ class Constraint(object):
 
 
     @staticmethod
-    def _isArray(arr):
+    def _is_numpy_instance(arr):
         """ Check that arr is a genuine numpy array.
         """
         if not isinstance(arr, np.ndarray):
@@ -345,7 +330,7 @@ class TargetConstraint(Constraint):
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     @staticmethod
-    def _isTarget(target):
+    def _is_target_instance(target):
         """
         """
         if not isinstance(target, _Target):
@@ -355,7 +340,7 @@ class TargetConstraint(Constraint):
 
 
     @staticmethod
-    def _checkAngle(angle):
+    def _pass_angle_instance(angle):
         """
         """
         if not isinstance(angle, Angle):
@@ -385,7 +370,7 @@ class ScheduleConstraint(Constraint):
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     @staticmethod
-    def _isTime(time):
+    def _is_time_instance(time):
         """
         """
         if not isinstance(time, Time):
@@ -418,11 +403,25 @@ class ElevationCnst(TargetConstraint):
             `int` or `float`
 
         .. versionadded:: 1.2.0
+
+        :Example:
+            >>> from astropy.time import Time, TimeDelta
+            >>> from nenupy.schedule.targets import ESTarget
+            >>> from nenupy.schedule.constraints import ElevationCnst
+            >>> dt = TimeDelta(3600, format='sec')
+            >>> times = Time('2021-01-01 00:00:00') + np.arange(24)*dt
+            >>> cas_a = ESTarget.fromName('Cas A')
+            >>> cas_a.computePosition(times)
+            >>> elevation_constraint = ElevationCnst()
+            >>> score = elevation_constraint(target, None)
+            >>> c.plot()
+
     """
 
-    def __init__(self, elevationMin=0., weight=1):
+    def __init__(self, elevationMin=0., scale_elevation=True, weight=1):
         super().__init__(weight=weight)
         self.elevationMin = elevationMin
+        self.scale_elevation = scale_elevation
 
 
     # --------------------------------------------------------- #
@@ -436,7 +435,7 @@ class ElevationCnst(TargetConstraint):
         return self._elevationMin
     @elevationMin.setter
     def elevationMin(self, emin):
-        emin = self._checkAngle(emin)
+        emin = self._pass_angle_instance(emin)
         if (emin.deg < 0.) or (emin.deg > 90):
             raise ValueError(
                 f'`elevationMin`={emin.deg} deg must fall '
@@ -447,7 +446,7 @@ class ElevationCnst(TargetConstraint):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def getScore(self, indices):
+    def get_score(self, indices):
         r""" Computes the :class:`~nenupy.schedule.constraint.ElevationCnst`'s
             score for the given ``indices``.
 
@@ -505,7 +504,7 @@ class ElevationCnst(TargetConstraint):
                 Constraint's score.
             :rtype: :class:`~numpy.ndarray`
         """
-        self._isTarget(target)
+        self._is_target_instance(target)
 
         elevation = target.elevation.deg
         elevMean = (elevation[1:] + elevation[:-1])/2
@@ -521,6 +520,8 @@ class ElevationCnst(TargetConstraint):
             )
             # self.score = elevation[1:]*0.
             self.score = elevation[1:]*np.nan
+        elif not self.scale_elevation:
+            self.score = elevMean/elevMean
         else:
             elevMax = np.nanmax(elevMean)
             self.score = elevMean/elevMax
@@ -544,7 +545,7 @@ class MeridianTransitCnst(TargetConstraint):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def getScore(self, indices):
+    def get_score(self, indices):
         r""" Computes the :class:`~nenupy.schedule.constraint.MeridianTransitCnst`'s
             score for the given ``indices``.
 
@@ -572,7 +573,7 @@ class MeridianTransitCnst(TargetConstraint):
                 Constraint score.
             :rtype: `float`
         """
-        self._isArray(indices)
+        self._is_numpy_instance(indices)
         #return np.sum(self.score[indices], axis=-1)
         return int((self.score[indices]>0.7).any())
 
@@ -580,7 +581,7 @@ class MeridianTransitCnst(TargetConstraint):
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     def _evaluate(self, target, nslots):
-        self._isTarget(target)
+        self._is_target_instance(target)
 
         hourAngle = target.hourAngle
         transitIdx = np.where(
@@ -633,7 +634,7 @@ class AzimuthCnst(TargetConstraint):
         return self._azimuth
     @azimuth.setter
     def azimuth(self, az):
-        az = self._checkAngle(az)
+        az = self._pass_angle_instance(az)
         if (az.deg < 0.) or (az.deg > 360):
             raise ValueError(
                 f'`azimuth`={az.deg} deg must fall '
@@ -644,10 +645,10 @@ class AzimuthCnst(TargetConstraint):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def getScore(self, indices):
+    def get_score(self, indices):
         """
         """
-        self._isArray(indices)
+        self._is_numpy_instance(indices)
         # return np.sum(self.score[indices], axis=-1)
         return int((self.score[indices]>0.7).any())
 
@@ -655,12 +656,13 @@ class AzimuthCnst(TargetConstraint):
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     def _evaluate(self, target, nslots):
-        self._isTarget(target)
+        self._is_target_instance(target)
         
         azimuths = target.azimuth.rad
         az = self.azimuth.rad
         
         if target.isCircumpolar:
+            az = np.angle(np.cos(az) + 1j*np.sin(az))
             complexAzStarts = np.angle(
                 np.cos(azimuths[:-1]) + 1j*np.sin(azimuths[:-1])
             )
@@ -750,10 +752,10 @@ class LocalTimeCnst(ScheduleConstraint):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def getScore(self, indices):
+    def get_score(self, indices):
         """
         """
-        self._isArray(indices)
+        self._is_numpy_instance(indices)
         return np.mean(self.score[indices], axis=-1)
 
 
@@ -762,7 +764,7 @@ class LocalTimeCnst(ScheduleConstraint):
     def _evaluate(self, time, nslots):
         """
         """
-        self._isTime(time)
+        self._is_time_instance(time)
         
         # Convert time to France local time (take into account
         # daylight savings)
@@ -839,10 +841,10 @@ class TimeRangeCnst(ScheduleConstraint):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def getScore(self, indices):
+    def get_score(self, indices):
         """
         """
-        self._isArray(indices)
+        self._is_numpy_instance(indices)
         return np.mean(self.score[indices], axis=-1)
 
 
@@ -851,7 +853,7 @@ class TimeRangeCnst(ScheduleConstraint):
     def _evaluate(self, time, nslots):
         """ time: dim + 1
         """
-        self._isTime(time)
+        self._is_time_instance(time)
         
         jds = time.jd
         
@@ -1004,7 +1006,7 @@ class Constraints(object):
         )
         for cnt in self:
             # Overplot each constraint
-            cnt._plotConstraint(**kwargs)
+            cnt._plot_constraint(**kwargs)
 
         plt.plot(
             self.score,

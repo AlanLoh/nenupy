@@ -149,7 +149,7 @@ Later, they will be distributed efficiently in the schedule while taking into ac
 A minimal set of parameters are required during an :class:`~nenupy.schedule.obsblocks.ObsBlock` instantiation:
 
 * the ``name`` of the observation, for further reference,
-* * the NenuFAR scientific ``program``,
+* the NenuFAR scientific ``program``,
 * a celestial target (either fixed :class:`~nenupy.schedule.targets.ESTarget` in the equatorial grid or from the Solar System :class:`~nenupy.schedule.targets.SSTarget`),
 * the requested ``duration`` of the observation.
 
@@ -162,8 +162,16 @@ A minimal set of parameters are required during an :class:`~nenupy.schedule.obsb
     >>>     duration=TimeDelta(3600, format='sec')
     >>> )
 
+.. note:: 
+    Observation blocks will be booked in the schedule according to their :attr:`~nenupy.schedule.obsblocks.ObsBlock.duration` on an integer number of time slots defined by :attr:`~nenupy.schedule.schedule.Schedule.dt`.
+
+
 Combining observation blocks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+:class:`~nenupy.schedule.obsblocks.ObsBlock` objects accept ``+`` and ``*`` operations.
+This enable observation block requests to be appended and duplicated, respectively.
+Note, that it is computationnaly more efficient to use the duplicate block option  (``*``) instead of creating an other block with the same target and constraints. 
 
 .. code-block:: python
 

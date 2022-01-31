@@ -127,7 +127,7 @@ class ScheduleBlock(ObsBlock):
         else:
             scores = []
             for constraint in self.constraints:
-                scores.append(constraint.getScore(self.indices))
+                scores.append(constraint.get_score(self.indices))
             return np.nanmean(scores, axis=0)
 
 

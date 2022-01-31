@@ -1,0 +1,24 @@
+{
+    "FixedSources": [
+        "Cas A",
+        "Cyg A",
+        "Vir A",
+        "Tau A",
+        "Her A",
+        "Hya A",
+        "3C 218",
+        "3C 348",
+        "3C 273",
+        "3C 196",
+        "3C 380",
+        "3C 295",
+        "3C 338",
+        "3C 10"
+    ],
+    "SolarSystemSources": [
+        "Sun",
+        "Moon",
+        "Jupiter",
+        "Saturn"
+    ]
+}

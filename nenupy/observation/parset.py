@@ -861,8 +861,8 @@ class _BeamParsetBlock(_ParsetBlock):
 
     def is_above_horizon(self) -> bool:
         """ Checks that the numerical beam is pointed above the horizon. """
-        beam_start_time = Time(self["startTime"], format="isot")
-        beam_duration = self._get_duration()
+        # beam_start_time = Time(self["startTime"], format="isot")
+        # beam_duration = self._get_duration()
         return True
 
 
@@ -1087,9 +1087,11 @@ class ParsetUser:
             
             # Retrieve the value that needs to be checked
             value = all_configurations[key]["value"]
+            if str(value) == '':
+                log.warning(f"Empty value for key '{key}'.")
 
             # Perform a regex full match check, send a warning if invalid
-            if re.fullmatch(pattern=syntax_pattern, string=value) is None:
+            if re.fullmatch(pattern=syntax_pattern, string=str(value)) is None:
                 log.warning(
                     f"Syntax error on '{value}' (key '{key}')."
                 )
@@ -1099,7 +1101,9 @@ class ParsetUser:
         """ Writes the current instance of :class:`~nenupy.observation.parset.ParsetUser`
             to a file called ``file_name``. 
         """
-        return str(self)
+        with open(file_name, "w") as wfile:
+            wfile.write(str(self))
+        log.debug(f"Parset written in file {file_name}.")
 
 
     def _updates_numbeams_indices(self):

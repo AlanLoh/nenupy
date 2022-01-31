@@ -24,6 +24,9 @@ __all__ = [
     "sky_temperature",
     "dispersion_delay",
     "wavelength",
+    "l93_to_etrs",
+    "geo_to_etrs",
+    "etrs_to_enu",
     "AstroObject"
 ]
 
@@ -47,6 +50,7 @@ from astropy.coordinates import (
     FK5,
     ICRS
 )
+from pyproj import Transformer
 
 from nenupy import nenufar_position
 
@@ -447,6 +451,105 @@ def wavelength(frequency: u.Quantity = 50*u.MHz):
 
 
 # ============================================================= #
+# ------------------------ l93_to_etrs ------------------------ #
+# ============================================================= #
+def l93_to_etrs(positions= np.ndarray):
+    """
+    """
+    t = Transformer.from_crs(
+        crs_from='EPSG:2154', # RGF93
+        crs_to='EPSG:4896'# ITRF2005 / ETRS used in MS
+    )
+    positions[:, 0], positions[:, 1], positions[:, 2] = t.transform(
+        xx=positions[:, 0],
+        yy=positions[:, 1],
+        zz=positions[:, 2]
+    )
+    return positions
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------ geo_to_etrs ------------------------ #
+# ============================================================= #
+def geo_to_etrs(location: EarthLocation = nenufar_position) -> np.ndarray:
+    """
+    """
+    gps_b = 6356752.31424518
+    gps_a = 6378137
+    e_squared = 6.69437999014e-3
+    lat_rad = location.lat.rad
+    lon_rad = location.lon.rad
+    alt = location.height.value
+    if location.isscalar:
+        xyz = np.zeros((1, 3))
+    else:
+        xyz = np.zeros((location.size, 3))
+    gps_n = gps_a / np.sqrt(1 - e_squared * np.sin(lat_rad) ** 2)
+    xyz[:, 0] = (gps_n + alt) * np.cos(lat_rad) * np.cos(lon_rad)
+    xyz[:, 1] = (gps_n + alt) * np.cos(lat_rad) * np.sin(lon_rad)
+    xyz[:, 2] = (gps_b**2/gps_a**2*gps_n + alt) * np.sin(lat_rad)
+    return xyz
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------ etrs_to_enu ------------------------ #
+# ============================================================= #
+def etrs_to_enu(positions: np.ndarray, location: EarthLocation = nenufar_position) -> np.ndarray:
+    r""" Local east, north, up (ENU) coordinates centered on the 
+        position ``location`` (default is at the location of
+        NenuFAR).
+
+        The conversion from cartesian coordinates :math:`(x, y, z)`
+        to ENU :math:`(e, n, u)` is done as follows:
+
+        .. math::
+                \pmatrix{
+                    e \\
+                    n \\
+                    u
+                } =
+                \pmatrix{
+                    -\sin(b) & \cos(l) & 0\\
+                    -\sin(l) \cos(b) & -\sin(l) \sin(b) & \cos(l)\\
+                    \cos(l)\cos(b) & \cos(l) \sin(b) & \sin(l)
+                }
+                \pmatrix{
+                    \delta x\\
+                    \delta y\\
+                    \delta z
+                }
+
+        where :math:`b` is the longitude, :math:`l` is the
+        latitude and :math:`(\delta x, \delta y, \delta z)` are
+        the cartesian coordinates with respect to the center
+        ``location``.
+    """
+    assert (len(positions.shape)==2) and positions.shape[1]==3,\
+        'positions should be an array of shape (n, 3)'
+    xyz = positions.copy()
+    xyz_center = geo_to_etrs(location)
+    xyz -= xyz_center
+
+    cos_lat = np.cos(location.lat.rad)
+    sin_lat = np.sin(location.lat.rad)
+    cos_lon = np.cos(location.lon.rad)
+    sin_lon = np.sin(location.lon.rad)
+    transformation = np.array([
+        [        -sin_lon,           cos_lon,       0],
+        [-sin_lat*cos_lon, - sin_lat*sin_lon, cos_lat],
+        [ cos_lat*cos_lon,   cos_lat*sin_lon, sin_lat]
+    ])
+
+    return np.matmul(xyz, transformation.T)
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
 # ------------------------ AstroObject ------------------------ #
 # ============================================================= #
 class AstroObject(ABC):
@@ -547,7 +650,14 @@ class AstroObject(ABC):
             axis=(1, 2)
         )
 
-        return ground_proj
+        # return ground_proj
+        visible_mask = altaz.alt.deg < 0.
+        visible_mask = np.repeat(visible_mask[:, None, :], 3, axis=1)
+        visible_mask = np.expand_dims(
+            visible_mask,
+            axis=(1, 2)
+        )
+        return np.ma.masked_array(ground_proj, mask=visible_mask)
 
 
     # --------------------------------------------------------- #

@@ -563,6 +563,14 @@ class Interferometer(ABC, metaclass=CombinedMeta):
                 pointing=pointing
             ) for gain in self.antenna_gains
         )
+        # antenna_gain = np.sum(
+        #     np.fromiter(
+        #         gain(
+        #             sky=sky,
+        #             pointing=pointing
+        #         ) for gain in self.antenna_gains
+        #     )
+        # )
 
         # Rechunk the Dask Array before the computation
         # coord_chunk = array_factor.shape[-1]//cpu_count()

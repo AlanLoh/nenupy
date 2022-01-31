@@ -133,6 +133,8 @@ This time, the :meth:`~nenupy.astro.sky.SkySliceBase.plot` from a different slic
     The horizontal coordinates are displayed as an orange grid.
 
 
+.. _beam_squint_simu_sec:
+
 Beam squint correction
 ^^^^^^^^^^^^^^^^^^^^^^
 

@@ -6,6 +6,7 @@ nenupy.schedule
 .. toctree::
 
    nenupy.schedule.constraints
+   nenupy.schedule.contamination
    nenupy.schedule.geneticalgo
    nenupy.schedule.obsblocks
    nenupy.schedule.schedule

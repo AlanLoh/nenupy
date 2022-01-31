@@ -585,8 +585,34 @@ class SData(object):
                         if (ptime < self.datetime[0]) or (ptime > self.datetime[-1]):
                             continue
                         plt.axvline(ptime.datetime, linestyle='-.', color='black')
-            cbar = plt.colorbar()#format='%.1e')
+            cbar = plt.colorbar(pad=0.03)#format='%.1e')
             cbar.set_label(kwargs['cblabel'])
+
+            if kwargs.get("overlay", None) is not None:
+                ax = plt.gca()
+                xlim = ax.get_xlim()
+                ylim = ax.get_ylim()
+                overlay_time, overlay_frequency, overlay_values = kwargs["overlay"]
+                plt.pcolor(
+                    overlay_time.datetime,
+                    overlay_frequency.to(u.MHz).value,
+                    overlay_values,
+                    #color="tab:red",
+                    #edgecolor="tab:red",
+                    #linewidth=0.5,
+                    hatch='/',
+                    alpha=0.
+                )
+                # plt.pcolormesh(
+                #     overlay_time.datetime,
+                #     overlay_frequency.to(u.MHz).value,
+                #     overlay_values,
+                #     cmap='Reds',
+                #     alpha=0.3
+                # )
+                ax.set_xlim(xlim)
+                ax.set_ylim(ylim)
+
             plt.xlabel(
                 f'Time (since {self.time[0].isot})'
             )

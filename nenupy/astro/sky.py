@@ -213,7 +213,7 @@ class SkySliceBase(AstroObject):
         radius = kwargs.get("radius", None)
         ticks_color = kwargs.get("ticks_color", "0.9")
         colorbar_label = kwargs.get("colorbar_label", "")
-        title = kwargs.get("title", f"{self.time.isot}, {self.frequency}")
+        title = kwargs.get("title", f"{self.time.isot.split('.')[0]}, {self.frequency:.2f}")
         visible_sky = kwargs.get("only_visible", True)
         decibel = kwargs.get("decibel", False)
         altaz_overlay = kwargs.get("altaz_overlay", False)
@@ -248,7 +248,7 @@ class SkySliceBase(AstroObject):
         im = ax.imshow(
             data,
             origin="lower",
-            interpolation="none",
+            interpolation="quadric",
             cmap=cmap,
             vmin=vmin,
             vmax=vmax
@@ -262,7 +262,7 @@ class SkySliceBase(AstroObject):
         dec_axis = ax.coords[1]
         ra_axis.set_ticks_visible(False)
         ra_axis.set_ticklabel_visible(True)
-        ra_axis.set_ticklabel(color=ticks_color, path_effects=path_effects)
+        ra_axis.set_ticklabel(color=ticks_color, exclude_overlapping=True, path_effects=path_effects)
         ra_axis.set_axislabel("RA", color=ticks_color, path_effects=path_effects)
         ra_axis.set_major_formatter("d")
         
@@ -338,6 +338,61 @@ class SkySliceBase(AstroObject):
             cb.formatter.set_powerlimits((0, 0))
 
         # Overplot
+        # if kwargs.get("circle", None) is not None:
+        #     from matplotlib.patches import Circle
+        #     frame = AltAz(obstime=self.time, location=self.observer)
+        #     c = Circle(
+        #         (0, 75),
+        #         20,
+        #         edgecolor='yellow',
+        #         linewidth=5,
+        #         facecolor='none',
+        #         #transform=ax.get_transform('world')
+        #         #transform=ax.get_transform('fk5')
+        #         transform=ax.get_transform(frame)
+        #     )
+        #     ax.add_patch(c)
+        if kwargs.get("moc", None) is not None:
+            # In order fo that to work; I had to comment #axis_viewport.set(ax, wcs)
+            # from add_patches_to_mpl_axe() in mocpy/moc/plot/fill.py
+            # OR re-set the limits (done here)
+            try:
+                frame = AltAz(obstime=self.time, location=self.observer)
+                xlimits = ax.get_xlim()
+                ylimits = ax.get_ylim()
+                mocs = kwargs["moc"] if isinstance(kwargs["moc"], list) else [kwargs["moc"]]
+                for moc, color in zip(mocs, ["tab:red", "tab:green"]):
+                    moc.fill(
+                        ax=ax,
+                        wcs=wcs,
+                        alpha=0.5,
+                        fill=True,
+                        color=color,
+                        linewidth=0,
+                    )
+                ax.set_xlim(xlimits)
+                ax.set_ylim(ylimits)
+            except AttributeError:
+                log.warning("A 'MOC' object, generated from mocpy is expected.")
+                raise
+
+        if kwargs.get("altaz_moc", None) is not None:
+            xlimits = ax.get_xlim()
+            ylimits = ax.get_ylim()
+            altaz = self.horizontal_coordinates
+            mask = kwargs["altaz_moc"].contains(altaz.az, altaz.alt)
+            ax.scatter(
+                x=self.coordinates[mask].ra.deg,
+                y=self.coordinates[mask].dec.deg,
+                s=0.1,#[marker_size]*coords.size,
+                facecolor="red",
+                edgecolor=None,
+                alpha=0.5,
+                transform=ax.get_transform("world")
+            )
+            ax.set_xlim(xlimits)
+            ax.set_ylim(ylimits)
+
         if kwargs.get("scatter", None) is not None:
             parameters = kwargs["scatter"]
             if len(parameters) != 3:
@@ -356,6 +411,7 @@ class SkySliceBase(AstroObject):
                 color=marker_color,
                 transform=ax.get_transform("world")
             )
+
         if kwargs.get("text", None) is not None:
             parameters = kwargs["text"]
             if len(parameters) != 3:
@@ -377,6 +433,7 @@ class SkySliceBase(AstroObject):
                     transform=ax.get_transform("world"),
                     clip_on=True
                 )
+
         if kwargs.get("contour", None) is not None:
             parameters = kwargs["contour"]
             data = parameters[0]
@@ -726,6 +783,47 @@ class Sky(AstroObject):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+    def compute_lmn(self, phase_center: SkyCoord, coordinate_mask: np.ndarray = None):
+        r""" (l, m, n) image domain coordinates computed from 
+            HEALPix equatorial coordinates (in Right-Ascension
+            :math:`\alpha` and Declination :math:`\delta`, see
+            :attr:`~nenupy.astro.sky.Sky.coordinates`) with
+            respect to the ``phase_center`` (of equatorial 
+            coordinates :math:`\alpha_0`, :math:`\delta_0`).
+
+            .. math::
+                \cases{
+                    l = \cos(\delta) \sin( \Delta \alpha)\\
+                    m = \sin(\delta) \cos(\delta_0) - \cos(\delta) \sin(\delta_0) \cos(\Delta \alpha)\\
+                    n = \sqrt{ 1 - l^2 - m^2 }
+                }
+
+            where :math:`\Delta \alpha = \alpha - \alpha_0`.
+
+            :param phase_center:
+                Image phase center.
+            :type phase_center:
+                :class:`~astropy.coordinates.SkyCoord`
+            :param coordinate_mask:
+                Mask applied to coordinates before computing (l,m,n) values.
+            :type coordinate_mask:
+                :class:`~numpy.ndarray`
+
+            :returns: (l, m, n)
+            :rtype: `tuple` of 3 :class:`~numpy.ndarray`
+        """
+        ra = self.coordinates[coordinate_mask].ra.rad
+        dec = self.coordinates[coordinate_mask].dec.rad
+        ra_0 = phase_center.ra.rad
+        dec_0 = phase_center.dec.rad
+        ra_delta = ra - ra_0
+        # ra_delta = ra_0 - ra
+        l = np.cos(dec)*np.sin(ra_delta)
+        m = np.sin(dec)*np.cos(dec_0) -\
+            np.cos(dec)*np.sin(dec_0)*np.cos(ra_delta)
+        n = np.sqrt(1 - l**2 - m**2)
+        return l, m, n
+
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #

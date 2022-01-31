@@ -10,6 +10,7 @@ nenupy.astro
    nenupy.astro.sky
    nenupy.astro.skymodel
    nenupy.astro.target
+   nenupy.astro.uvw
 
 
 

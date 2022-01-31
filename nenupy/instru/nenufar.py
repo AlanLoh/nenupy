@@ -771,7 +771,7 @@ class MiniArray(Interferometer):
         # Squint is limited at 20 deg elevation, otherwise the
         # pointing can vary drasticaly as the available pointing
         # positions become sparse at low elevation.
-        # elevations[elevations < 20] = 20
+        elevations[elevations < 20] = 20
 
         return SkyCoord(
             azimuths,

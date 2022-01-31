@@ -1097,6 +1097,7 @@ class _TFBeamConfig(_BackendConfig):
         """
         """
         log.debug(str(self))
+        print(self.nPolars, self.freqRes, self.timeRes, self.nSubBands, self.durationSec)
         ratePerSB = self.nPolars * float32 * (200.e6/1024./self.freqRes) / self.timeRes
         rateObs = ratePerSB * self.nSubBands
         return (rateObs * self.durationSec).to(u.Gibyte)

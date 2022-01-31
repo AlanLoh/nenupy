@@ -44,6 +44,7 @@ import astropy.units as u
 from nenupy import nenufar_position
 from nenupy.astro import AstroObject, altaz_to_radec, radec_to_altaz
 from nenupy.astro.target import Target
+# from nenupy.io.bst import BST
 
 
 # ============================================================= #
@@ -357,10 +358,62 @@ class Pointing(AstroObject):
         plt.close('all')
 
 
+    # def to_stmoc(self):
+    #     """ """
+
+
+    @classmethod
+    def from_bst(cls,
+            bst,
+            beam: int = 0,
+            analog: bool = True,
+            max_points: int = 100
+        ):
+        """ """
+        bst.beam = beam
+
+        if analog:
+            time, az, el = bst.analog_pointing
+        else:
+            time, az, el = bst.digital_pointing
+        
+        if time.size == 1:
+            # for a transit with multiple ABeams
+            az = np.append(az, [0]*u.deg)
+            el = np.append(el, [90]*u.deg)
+            time = time.insert(1, bst.time[-1])
+
+        if time.size > max_points:
+            julian_days = time.jd
+            jd_rebin = np.linspace(julian_days[0], julian_days[-1], max_points)
+            az = np.interp(jd_rebin, julian_days, az)
+            el = np.interp(jd_rebin, julian_days, el)
+            time = Time(jd_rebin, format='jd')
+
+        altaz_coords = SkyCoord(
+            az[:-1],
+            el[:-1],
+            frame=AltAz(
+                obstime=time[:-1],
+                location=nenufar_position
+            )
+        )
+        pointing = cls(
+            coordinates=altaz_to_radec(altaz=altaz_coords),
+            time=time[:-1],
+            duration=time[1:] - time[:-1],
+            observer=nenufar_position
+        )
+        pointing.custom_ho_coordinates = altaz_coords
+
+        return pointing
+
+
     @classmethod
     def from_file(cls,
             file_name,
-            beam_index: int = 0
+            beam_index: int = 0,
+            include_corrections: bool = True
         ):
         """ Instantiates a :class:`~nenupy.astro.pointing.Pointing` object from
             a NenuFAR pointing file.
@@ -392,28 +445,54 @@ class Pointing(AstroObject):
 
         """
         if file_name.endswith('.altazA'):
-            pointing = np.loadtxt(
-                file_name,
-                skiprows=3,
-                comments=";",
-                dtype={
-                    'names': ('time', 'anabeam', 'az', 'el', 'az_cor', 'el_cor', 'freq', 'el_eff'),
-                    'formats': ('U20', 'i4', 'f4', 'f4', 'f4', 'f4', 'U5', 'f4')
-                }
-            )
-            pointing = pointing[pointing["anabeam"] == beam_index]
-            # pointing['freq'] = list(
-            #     map(
-            #         lambda x: x.replace('MHz', ''),
-            #         pointing['freq']
-            #     )
-            # )
+            try:
+                pointing = np.loadtxt(
+                    file_name,
+                    skiprows=3,
+                    comments=";",
+                    dtype={
+                        'names': ('time', 'anabeam', 'az', 'el', 'az_cor', 'el_cor', 'freq', 'el_eff'),
+                        'formats': ('U20', 'i4', 'f4', 'f4', 'f4', 'f4', 'U5', 'f4')
+                    }
+                )
+                pointing = pointing[pointing["anabeam"] == beam_index]
+                azimuths = pointing["az_cor"][:-1] if include_corrections else pointing["az"][:-1]
+                elevations = pointing["el_eff"][:-1] if include_corrections else pointing["el"][:-1]
+            except ValueError:
+                # No correction
+                pointing = np.loadtxt(
+                    file_name,
+                    skiprows=3,
+                    comments=";",
+                    dtype={
+                        'names': ('time', 'anabeam', 'az', 'el', 'freq', 'el_eff'),
+                        'formats': ('U20', 'i4', 'f4', 'f4', 'U5', 'f4')
+                    }
+                )
+                pointing = pointing[pointing["anabeam"] == beam_index]
+                azimuths = pointing["az"][:-1]
+                elevations = pointing["el_eff"][:-1] if include_corrections else pointing["el"][:-1]
+            except IndexError:
+                # No beamsquint
+                pointing = np.loadtxt(
+                    file_name,
+                    skiprows=3,
+                    comments=";",
+                    dtype={
+                        'names': ('time', 'anabeam', 'az', 'el', 'az_cor', 'el_cor'),
+                        'formats': ('U20', 'i4', 'f4', 'f4', 'f4', 'f4')
+                    }
+                )
+                pointing = pointing[pointing["anabeam"] == beam_index]
+                azimuths = pointing["az_cor"][:-1] if include_corrections else pointing["az"][:-1]
+                elevations = pointing["el_cor"][:-1] if include_corrections else pointing["el"][:-1]
+
             times = Time(pointing["time"])
             duration = times[1:] - times[:-1]
             times = times[:-1]
             altaz_coords = SkyCoord(
-                pointing['az_cor'][:-1],
-                pointing["el_eff"][:-1],
+                azimuths,
+                elevations,
                 unit="deg",
                 frame=AltAz(
                     obstime=times,
@@ -445,12 +524,20 @@ class Pointing(AstroObject):
                 )
             )
         
-        return cls(
+        # return cls(
+        #     coordinates=altaz_to_radec(altaz=altaz_coords),
+        #     time=times,
+        #     duration=duration,
+        #     observer=nenufar_position
+        # )
+        pointing = cls(
             coordinates=altaz_to_radec(altaz=altaz_coords),
             time=times,
             duration=duration,
             observer=nenufar_position
         )
+        pointing.custom_ho_coordinates = altaz_coords
+        return pointing
 
 
     @classmethod

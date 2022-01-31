@@ -102,6 +102,7 @@ Finally, observations can then be simulated using the simulated beam and a sky m
    :maxdepth: 1
 
    obs/obs_scheduling
+   obs/src_in_lobes
    obs/obs_configuration
 
 .. _data-reading:
@@ -111,7 +112,6 @@ Finally, observations can then be simulated using the simulated beam and a sky m
    :maxdepth: 2
 
    nenupy.beamlet
-   nenupy.crosslet
    nenupy.undysputed
 
 .. _data-analysis:

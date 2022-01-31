@@ -33,6 +33,11 @@
             "required": false,
             "value": "calibration_file"
         },
+        "corAzel": {
+            "required": false,
+            "value": "enable",
+            "syntax": "(?i)^enable|disable$"
+        },
         "topic": {
             "required": true,
             "value": "key_project_name"
@@ -143,7 +148,7 @@
             "syntax": "(?i)^j2000|azelgeo|mercury|venus|mars|jupiter|saturn|uranus|neptune|sun|moon$"
         },
         "transitDate": {
-            "required": true,
+            "required": false,
             "value": "2021-01-01T00:00:00Z",
             "syntax": "^20[1-2][0-9]-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[1-9]|2[0-4]):[0-5][0-9]:[0-5][0-9]Z$"
         },
@@ -187,7 +192,8 @@
         },
         "antState": {
             "required": false,
-            "value": "ON"
+            "value": "ON",
+            "syntax": "(?i)^ON|OFF$"
         },
         "antList": {
             "required": false,
@@ -216,11 +222,13 @@
         },
         "beamSquint": {
             "required": false,
-            "value": "enable"
+            "value": "enable",
+            "syntax": "(?i)^enable|disable$"
         },
         "optFreq": {
             "required": false,
-            "value": "beamsquint_frequency"
+            "value": "beamsquint_frequency",
+            "syntax": "^[1-8]0$"
         }
     },
     "Beam": {

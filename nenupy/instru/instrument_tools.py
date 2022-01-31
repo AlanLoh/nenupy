@@ -19,15 +19,23 @@ __status__ = "Production"
 __all__ = [
     "freq2sb",
     "sb2freq",
-    "instrument_temperature"
+    "instrument_temperature",
+    "miniarrays_rotated_like",
+    "read_cal_table"
 ]
 
 
 import numpy as np
 import astropy.units as u
+from typing import List
+from os.path import join, dirname
 
 from nenupy.instru import lna_gain
 from nenupy.astro.astro_tools import sky_temperature
+from nenupy.instru import nenufar_miniarrays
+
+import logging
+log = logging.getLogger(__name__)
 
 
 # ============================================================= #
@@ -116,7 +124,7 @@ def sb2freq(subband):
         raise ValueError(
             "'sb' should be between 0 and 511."
         )
-    sb_width = 100.*u.MHz/512
+    sb_width = 100.*u.MHz/512 #200e6*192/1024# + 195312.5/2
     freq_start = subband*sb_width - sb_width/2
     return freq_start
 # ============================================================= #
@@ -171,6 +179,96 @@ def instrument_temperature(frequency: u.Quantity = 50*u.MHz, lna_filter: int = 0
     t_inst = t_sky * np.interp(frequency, lna["frequency"]*u.MHz, lna["gain"])
 
     return t_inst
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------ miniarrays_rotated_like ------------------ #
+# ============================================================= #
+def miniarrays_rotated_like(rotations: List[int] = [0]) -> np.ndarray:
+    r""" Returns the Mini-Array indices whose rotations match the ``rotations`` argument.
+        A :math:`60^{\circ}` modulo is automatically applied to all rotation parameters.
+
+        :param rotations:
+            Mini-Array rotation(s) to select.
+            A ``ValueError`` is raised if the values are not integers and/or if they are not multiples of 10.
+        :type rotations:
+            `list`[`int`]
+
+        :returns:
+            Mini-Array indices.
+        :rtype:
+            :class:`~numpy.ndarray`
+
+        :Example:
+
+            >>> from nenupy.instru import miniarrays_rotated_like
+            >>> miniarrays_rotated_like([10])
+            array([11, 12, 18, 22, 43, 47, 54, 56, 60, 66, 70, 77])
+
+    """
+    # Check that the rotation format is correct
+    if not all([rot%10 == 0 for rot in rotations]):
+        raise ValueError(
+            f"Syntax error: miniarray_rotations={rotations}. It should be a list of integers, multiples of 10."
+        )
+    ma_rotations = np.array([nenufar_miniarrays[ma]["rotation"] for ma in nenufar_miniarrays])%60
+    ma_indices = np.array([nenufar_miniarrays[ma]["id"] for ma in nenufar_miniarrays])
+
+    return ma_indices[np.isin(ma_rotations, np.array(rotations)%60)]
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ---------------------- read_cal_table ----------------------- #
+# ============================================================= #
+def read_cal_table(calibration_file=None):
+    """ Reads NenuFAR antenna delays calibration file.
+
+        :param calibration_file: 
+            Name of the calibration file to read. If ``None`` or
+            ``'default'`` the standard calibration file is read.
+        :type calibration_file: `str`
+
+        :returns: 
+            Antenna delays shaped as 
+            (frequency, mini-arrays, polarizations).
+        :rtype: :class:`~numpy.ndarray`
+    """
+    if (calibration_file is None) or (calibration_file.lower() == "default"):
+        calibration_file = join(
+            dirname(__file__),
+            'cal_pz_2_multi_2019-02-23.dat',
+        )
+    with open(calibration_file, 'rb') as f:
+        log.info(
+            "Loading calibration table {}".format(
+                calibration_file
+            )
+        )
+        header = []
+        while True:
+            line = f.readline()
+            header.append(line)
+            if line.startswith(b"HeaderStop"):
+                break
+    hd_size = sum([len(s) for s in header])
+    dtype = np.dtype(
+        [
+            ('data', 'float64', (512, 96, 2, 2))
+        ]
+    )
+    tmp = np.memmap(
+        filename=calibration_file,
+        dtype="int8",
+        mode="r",
+        offset=hd_size
+    )
+    decoded = tmp.view(dtype)[0]["data"]
+    data = decoded[..., 0] + 1.j*decoded[..., 1]
+    return data
 # ============================================================= #
 # ============================================================= #
 

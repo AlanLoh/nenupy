@@ -1456,11 +1456,12 @@ class Dynspec(object):
                 )
             dm = self.dispersion_measure.value # pc/cm^3
             delays = dispersion_delay(
-                freq=freqs,
-                dm=self.dispersion_measure)
+                frequency=freqs,
+                dispersion_measure=self.dispersion_measure
+            )
             delays -= dispersion_delay( # relative delays
-                freq=self.freq_range[1],
-                dm=self.dispersion_measure
+                frequency=self.freq_range[1],
+                dispersion_measure=self.dispersion_measure
             )
             cell_delays = np.round((delays/dt)).astype(int)
             for i in range(freqs.size):

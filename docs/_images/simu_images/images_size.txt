@@ -8,3 +8,12 @@ plt.savefig(
     bbox_inches="tight",
     dpi=300
 )
+
+  install:
+
+    - method: pip
+      path: .
+      requirements: docs/requirements.txt
+      extra_requirements:
+        - docs
+        - all

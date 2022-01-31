@@ -73,6 +73,8 @@ In this example, ``pointing`` targets the source Cas A, and contains 10 successi
         Cas A tracking (in horizontal coordinates), spread across 10 time steps. The duration is highlighted as grey windows.
 
 
+.. _transit_pointing_sec:
+
 Source transit pointing
 ^^^^^^^^^^^^^^^^^^^^^^^
 
