@@ -416,7 +416,7 @@ class XST_Slice:
             )
         )
         grid_delays = ground_distances[ma1] - ground_distances[ma2] # (nvis, npix, npix)
-        grid_delays = da.from_array(grid_delays[cross_mask])
+        grid_delays = da.from_array(grid_delays[cross_mask], chunks=(np.floor(ma1[cross_mask].size/os.cpu_count()), npix, npix))
     
         # Mean in time the visibilities
         vis = np.mean(
