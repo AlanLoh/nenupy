@@ -273,11 +273,19 @@ class XST_Slice:
             coordinate_mask=image_mask
         )
         lmn = np.array([l, m, (n - 1)], dtype=np.float32).T
+        n_pix = l.size
+        lmn = da.from_array(
+            lmn,
+            chunks=(np.floor(n_pix/os.cpu_count()), 3)
+        )
 
         # Transform to Dask array
+        n_bsl = uvw.shape[1]
+        n_freq = self.frequency.size
+        n_pix = l.size
         uvw = da.from_array(
             uvw.astype(np.float32),
-            chunks=np.floor(l.size/os.cpu_count())#( (1, 1,) + uvw.shape[2:])
+            chunks=(n_freq, np.floor(n_bsl/os.cpu_count()), 3)
         )
 
         # Compute the phase
@@ -416,21 +424,32 @@ class XST_Slice:
             )
         )
         grid_delays = ground_distances[ma1] - ground_distances[ma2] # (nvis, npix, npix)
-        grid_delays = da.from_array(grid_delays[cross_mask], chunks=(np.floor(ma1[cross_mask].size/os.cpu_count()), npix, npix))
+        n_bsl = ma1[cross_mask].size
+        grid_delays = da.from_array(
+            grid_delays[cross_mask],
+            chunks=(np.floor(n_bsl/os.cpu_count()), npix, npix)
+        )
     
         # Mean in time the visibilities
         vis = np.mean(
             self.value,
             axis=0
         )[..., cross_mask] # (nfreqs, nvis)
-        vis = da.from_array(vis, chunks=self.frequency.size)
+        vis = da.from_array(
+            vis,
+            chunks=(self.frequency.size, np.floor(n_bsl/os.cpu_count()))
+        )
 
         # Make the nearfield image
+        log.info(
+            f"Computing nearfield (time: {self.time.size}, frequency: {self.frequency.size}, baselines: {vis.shape[1]}, pixels: {posx.size})... "
+        )
         wvl = wavelength(self.frequency).to(u.m).value
         phase = np.exp(2.j * np.pi * (grid_delays[None, ...]/wvl[:, None, None, None]))
         log.debug("Computing the phase term...")
         with ProgressBar() if log.getEffectiveLevel() <= logging.INFO else DummyCtMgr():
             phase = phase.compute()
+        log.debug("Computing the nearf-field...")
         nearfield = compute_nearfield_imprint(vis, phase)
 
         # Compute nearfield imprints for other sources
@@ -445,7 +464,7 @@ class XST_Slice:
                 src = SolarSystemTarget.from_name(name=src_name, time=obs_time)
             altaz = src.horizontal_coordinates#[0]
             if altaz.alt.deg <= 10:
-                log.debug(f"{src_name}'s elevation {altaz.alt.deg}<=10deg, not considered for nearfield imprint.")
+                log.debug(f"{src_name}'s elevation {altaz[0].alt.deg}<=10deg, not considered for nearfield imprint.")
                 continue
 
             # Projection from AltAz to ENU vector
@@ -467,6 +486,7 @@ class XST_Slice:
             # Simulate visibilities
             src_vis = np.exp(2.j * np.pi * (src_delays/wvl))
             src_vis = np.swapaxes(src_vis, 1, 0)
+            log.debug(f"Computing the nearf-field imprint of {src_name}...")
             simu_sources[src_name] = compute_nearfield_imprint(src_vis, phase)
 
         return nearfield, simu_sources
