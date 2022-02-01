@@ -437,7 +437,7 @@ class XST_Slice:
         )[..., cross_mask] # (nfreqs, nvis)
         vis = da.from_array(
             vis,
-            chunks=(self.frequency.size, np.floor(n_bsl/os.cpu_count()))
+            chunks=(1, np.floor(n_bsl/os.cpu_count()))#(self.frequency.size, np.floor(n_bsl/os.cpu_count()))
         )
 
         # Make the nearfield image
@@ -453,34 +453,49 @@ class XST_Slice:
         nearfield = compute_nearfield_imprint(vis, phase)
 
         # Compute nearfield imprints for other sources
-        wvl = wavelength(self.frequency).to(u.m).value # (nfreqs,)
         simu_sources = {}
         for src_name in sources:
 
             # Check that the source is visible
-            try:
-                src = FixedTarget.from_name(name=src_name, time=obs_time)
-            except:
+            if src_name.lower() in ["sun", "moon", "venus", "mars", "jupiter", "saturn", "uranus", "neptune"]:
                 src = SolarSystemTarget.from_name(name=src_name, time=obs_time)
+            else:
+                src = FixedTarget.from_name(name=src_name, time=obs_time)
             altaz = src.horizontal_coordinates#[0]
             if altaz.alt.deg <= 10:
                 log.debug(f"{src_name}'s elevation {altaz[0].alt.deg}<=10deg, not considered for nearfield imprint.")
                 continue
 
             # Projection from AltAz to ENU vector
-            cos_az = np.cos(altaz.az.rad)
-            sin_az = np.sin(altaz.az.rad)
-            cos_el = np.cos(altaz.alt.rad)
-            sin_el = np.sin(altaz.alt.rad)
+            az_rad = altaz.az.rad
+            el_rad = altaz.alt.rad
+            cos_az = np.cos(az_rad)
+            sin_az = np.sin(az_rad)
+            cos_el = np.cos(el_rad)
+            sin_el = np.sin(el_rad)
             to_enu = np.array(
                 [cos_el*sin_az, cos_el*cos_az, sin_el]
             )
-            src_delays = np.matmul(
-                ma_enu[ma1] - ma_enu[ma2],
-                to_enu
+            # src_delays = np.matmul(
+            #     ma_enu[ma1] - ma_enu[ma2],
+            #     to_enu
+            # )
+            # src_delays = da.from_array(
+            #     src_delays[cross_mask, :],
+            #     chunks=((np.floor(n_bsl/os.cpu_count()), npix, npix), 1)
+            # )
+            
+            ma1_enu = da.from_array(
+                ma_enu[ma1[cross_mask]],
+                chunks=np.floor(n_bsl/os.cpu_count())
             )
-            src_delays = da.from_array(
-                src_delays[cross_mask, :]
+            ma2_enu = da.from_array(
+                ma_enu[ma2[cross_mask]],
+                chunks=np.floor(n_bsl/os.cpu_count())
+            )
+            src_delays = np.matmul(
+                ma1_enu - ma2_enu,
+                to_enu
             )
 
             # Simulate visibilities

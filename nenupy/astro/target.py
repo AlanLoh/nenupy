@@ -45,6 +45,7 @@ from astropy.time import Time, TimeDelta
 from astropy.coordinates import SkyCoord, EarthLocation, FK5, AltAz
 
 from nenupy import nenufar_position
+from nenupy.astro import common_sources
 from nenupy.astro.astro_tools import (
     AstroObject,
     hour_angle,
@@ -937,7 +938,7 @@ class FixedTarget(Target):
             name: str,
             time: Time = Time.now(),
             observer: EarthLocation = nenufar_position
-        ) -> SolarSystemTarget:
+        ) -> FixedTarget:
         """ Instantiates a :class:`~nenupy.astro.target.FixedTarget`
             object from a name that could be resolved by `Simbad <http://simbad.u-strasbg.fr/simbad/>`_.
 
@@ -967,8 +968,12 @@ class FixedTarget(Target):
 
         """
 
-        # Retrieve the Simbad coordinates
-        source = SkyCoord.from_name(name)
+        if name.lower() in common_sources.keys():
+            src = common_sources[name.lower()]
+            source = SkyCoord(src["ra"], src["dec"], unit="deg")
+        else:
+            # Retrieve the Simbad coordinates
+            source = SkyCoord.from_name(name)
 
         return cls(
             coordinates=source,
