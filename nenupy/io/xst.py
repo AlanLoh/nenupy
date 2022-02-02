@@ -979,7 +979,8 @@ class TV_Image:
                     src_names.append(name)
                     src_position.append(src.coordinates)
 
-            kwargs["text"] = (SkyCoord(src_position), src_names, "white")
+            if len(src_position) != 0:
+                kwargs["text"] = (SkyCoord(src_position), src_names, "white")
 
         if beam_contours:
             # Simulate the array factor
