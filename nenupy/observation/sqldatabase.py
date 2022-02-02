@@ -77,7 +77,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Session, sessionmaker, relationship
 
-from nenupy.instru_old import sb2freq
+from nenupy.instru import sb2freq
 from nenupy import nenufar_position
 
 import logging
