@@ -456,8 +456,8 @@ class Pointing(AstroObject):
                     }
                 )
                 pointing = pointing[pointing["anabeam"] == beam_index]
-                azimuths = pointing["az_cor"][:-1] if include_corrections else pointing["az"][:-1]
-                elevations = pointing["el_eff"][:-1] if include_corrections else pointing["el"][:-1]
+                azimuths = pointing["az_cor"] if include_corrections else pointing["az"]
+                elevations = pointing["el_eff"] if include_corrections else pointing["el"]
             except ValueError:
                 # No correction
                 pointing = np.loadtxt(
@@ -470,8 +470,8 @@ class Pointing(AstroObject):
                     }
                 )
                 pointing = pointing[pointing["anabeam"] == beam_index]
-                azimuths = pointing["az"][:-1]
-                elevations = pointing["el_eff"][:-1] if include_corrections else pointing["el"][:-1]
+                azimuths = pointing["az"]
+                elevations = pointing["el_eff"] if include_corrections else pointing["el"]
             except IndexError:
                 # No beamsquint
                 pointing = np.loadtxt(
@@ -484,16 +484,23 @@ class Pointing(AstroObject):
                     }
                 )
                 pointing = pointing[pointing["anabeam"] == beam_index]
-                azimuths = pointing["az_cor"][:-1] if include_corrections else pointing["az"][:-1]
-                elevations = pointing["el_cor"][:-1] if include_corrections else pointing["el"][:-1]
+                azimuths = pointing["az_cor"] if include_corrections else pointing["az"]
+                elevations = pointing["el_cor"] if include_corrections else pointing["el"]
 
             times = Time(pointing["time"])
+            azimuths *= u.deg
+            elevations *= u.deg
+            if times.size == 1:
+                # for a transit with multiple ABeams
+                azimuths = np.append(azimuths, [0]*u.deg)
+                elevations = np.append(elevations, [90]*u.deg)
+                times = times.insert(1, times[-1] + TimeDelta(1, format="sec"))
+
             duration = times[1:] - times[:-1]
             times = times[:-1]
             altaz_coords = SkyCoord(
-                azimuths,
-                elevations,
-                unit="deg",
+                azimuths[:-1],
+                elevations[:-1],
                 frame=AltAz(
                     obstime=times,
                     location=nenufar_position
