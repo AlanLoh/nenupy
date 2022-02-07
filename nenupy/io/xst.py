@@ -946,7 +946,7 @@ class TV_Image:
         )
 
 
-    def save_png(self, figname: str, beam_contours: bool = True, show_sources: bool = True):
+    def save_png(self, figname: str, beam_contours: bool = True, show_sources: bool = True, **kwargs):
         """ """
         image_center = altaz_to_radec(
             SkyCoord(
@@ -959,7 +959,7 @@ class TV_Image:
             )
         )
 
-        kwargs = {}
+        #kwargs = {}
 
         if show_sources:
             src_names = []

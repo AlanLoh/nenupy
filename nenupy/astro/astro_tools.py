@@ -82,7 +82,39 @@ def solar_system_source(
         time: Time = Time.now(),
         observer: EarthLocation = nenufar_position
     ) -> SkyCoord:
-    """ Returns a Solar System body in the ICRS reference system. """
+    """ Returns a Solar System body in the ICRS reference system.
+
+        :param name:
+            Name of the Solar System object (a call is made to
+            :meth:`astropy.coordinates.get_body`).
+        :type name:
+            `str`
+        :param time:
+            Time at which the Solar System object is observed.
+        :type time:
+            :class:`~astropy.time.Time`
+        :param observer:
+            Earth location from which the source is observed.
+        :type observer:
+            :class:`~astropy.coordinates.EarthLocation`
+        
+        :returns:
+            Coordinates object in ICRS reference frame of the Solar System object.
+        :rtype:
+            :class:`~astropy.coordinates.SkyCoord`
+
+        :Example:
+            .. code-block:: python
+
+                from astropy.time import Time
+                from nenupy.astro import solar_system_source
+
+                sun = solar_system_source(
+                    name="Sun",
+                    time=Time("2022-01-01T12:00:00")
+                )
+
+    """
 
     # Get the Solar System object in the GCRS reference system
     with solar_system_ephemeris.set('builtin'):
@@ -93,7 +125,6 @@ def solar_system_source(
         )
 
     # Return the SkyCoord instance converted to ICRS
-    # return source.transform_to('icrs')
     return SkyCoord(source.ra, source.dec)
 # ============================================================= #
 # ============================================================= #
@@ -107,7 +138,44 @@ def local_sidereal_time(
         observer: EarthLocation = nenufar_position,
         fast_compute: bool = True
     ) -> Longitude:
-    """ """
+    """ Computes the Local Sidereal Time.
+        Viewed from ``observer``, a fixed celestial object seen at one
+        position in the sky will be seen at the same position on
+        another night at the same sidereal time. LST angle
+        indicates the Right Ascension on the sky that is
+        currently crossing the Local Meridian.
+
+        :param time:
+            UT Time to be converted.
+        :type time:
+            :class:`~astropy.time.Time`
+        :param observer:
+            Earth location of the observer.
+        :type observer:
+            :class:`~astropy.coordinates.EarthLocation`
+        :param fast_compute:
+            If set to ``True``, this computes an approximation of the local sidereal
+            time, otherwise :meth:`~astropy.time.Time.sidereal_time` is used.
+        :type fast_compute:
+            `bool`
+
+        :returns:
+            Local Sidereal Time angle
+        :rtype:
+            :class:`~astropy.coordinates.Longitude`
+
+        :Example:
+            .. code-block:: python
+
+                from nenupy.astro import local_sidereal_time
+                from astropy.time import Time
+
+                lst = local_sidereal_time(
+                    time=Time("2022-01-01T12:00:00"),
+                    fast_compute=True
+                )
+
+    """
 
     # Fast method to compute an approximation of the LST
     if fast_compute:
@@ -121,7 +189,7 @@ def local_sidereal_time(
         gmst = Longitude(angle=gw_sidereal_hour, unit="hour")
 
         # Conversion at the given longitude
-        return gmst + observer.lon
+        return Longitude(gmst + observer.lon)
 
     # astropy computation accounting for precession and
     # for nutation and using the latest available
@@ -182,11 +250,23 @@ def hour_angle(
         :type fast_compute:
             `bool`
 
-        :returns: LHA time
-        :rtype: :class:`~astropy.coordinates.Longitude`
+        :returns:
+            Local hour angle.
+        :rtype:
+            :class:`~astropy.coordinates.Longitude`
 
         :Example:
-            >>> blabla
+            .. code-block:: python
+
+                from nenupy.astro import hour_angle
+                from astropy.coordinates import SkyCoord
+                from astropy.time import Time
+
+                ha = hour_angle(
+                    radec=SkyCoord(300, 45, unit="deg"),
+                    time=Time("2022-01-01T12:00:00"),
+                    fast_compute=True
+                )
 
     """
     lst = local_sidereal_time(
@@ -208,7 +288,72 @@ def radec_to_altaz(
         observer: EarthLocation = nenufar_position,
         fast_compute: bool = True
     ) -> SkyCoord:
-    """ """
+    r""" Converts a celestial object equatorial coordinates
+        to horizontal coordinates.
+
+        If ``fast_compute=True`` is selected, the computation is
+        accelerated using Local Sidereal Time approximation
+        (see :func:`~nenupy.astro.astro_tools.local_sidereal_time`).
+        The altitude :math:`\theta` and azimuth :math:`\varphi` are computed
+        as follows:
+
+        .. math::
+            \cases{
+                \sin(\theta) = \sin(\delta) \sin(l) + \cos(\delta) \cos(l) \cos(h)\\
+                \cos(\varphi) = \frac{\sin(\delta) - \sin(l) \sin(\theta)}{\cos(l)\cos(\varphi)}
+            }
+
+        with :math:`\delta` the object's declination, :math:`l`
+        the ``observer``'s latitude and :math:`h` the Local Hour Angle
+        (see :func:`~nenupy.astro.astro_tools.hour_angle`).
+        If :math:`\sin(h) \geq 0`, then :math:`\varphi = 2 \pi - \varphi`.
+        Otherwise, :meth:`~astropy.coordinates.SkyCoord.transform_to`
+        is used.
+
+        :param radec:
+            Celestial object equatorial coordinates.
+        :type radec:
+            :class:`~astropy.coordinates.SkyCoord`
+        :param time:
+            Coordinated universal time.
+        :type time:
+            :class:`~astropy.time.Time`
+        :param observer:
+            Earth location where the observer is at.
+            Default is NenuFAR's position.
+        :type observer:
+            :class:`~astropy.coordinates.EarthLocation`
+        :param fast_compute:
+            If set to ``True``, it enables faster computation time for the
+            conversion, mainly relying on an approximation of the
+            local sidereal time. All other values would lead to
+            accurate coordinates computation. Differences in
+            coordinates values are of the order of :math:`10^{-2}`
+            degrees or less.
+        :type fast_compute:
+            `bool`
+
+        :returns:
+            Celestial object's horizontal coordinates.
+            If either ``radec`` or ``time`` are 1D arrays, the
+            resulting object will be of shape ``(time, positions)``.
+        :rtype:
+            :class:`~astropy.coordinates.SkyCoord`
+
+        :Example:
+            .. code-block:: python
+
+                from nenupy.astro import radec_to_altaz
+                from astropy.time import Time
+                from astropy.coordinates import SkyCoord
+
+                altaz = radec_to_altaz(
+                    radec=SkyCoord([300, 200], [45, 45], unit="deg"),
+                    time=Time("2022-01-01T12:00:00"),
+                    fast_compute=True
+                )
+
+    """
     if not time.isscalar:
         time = time.reshape((time.size, 1))
         radec = radec.reshape((1, radec.size))
@@ -283,16 +428,81 @@ def altaz_to_radec(
         altaz: SkyCoord,
         fast_compute: bool = False
     ) -> SkyCoord:
-    """ """
+    r""" Converts a celestial object horizontal coordinates
+        to equatorial coordinates.
+
+        If ``fast_compute=True`` is selected, the computation is
+        accelerated using Local Sidereal Time approximation
+        (see :func:`~nenupy.astro.astro_tools.local_sidereal_time`).
+        The right ascension :math:`\alpha` and declination :math:`\delta` are computed
+        as follows:
+
+        .. math::
+            \cases{
+                \delta = \sin^(-1) \left( \sin l \sin \theta + \cos l \cos \theta \cos \varphi \right)\\
+                h = \cos^{-1} \left( \frac{\sin \theta - \sin l \sin \delta}{\cos l \cos \delta} \right)\\
+                \alpha = t_{\rm{LST}} - h
+            }
+
+        with :math:`\theta` the object's elevation, :math:`\varphi` the azimuth,
+        :math:`l` the ``observer``'s latitude and :math:`h` the Local Hour Angle
+        (see :func:`~nenupy.astro.astro_tools.hour_angle`).
+        If :math:`\sin(h^{\prime}) \geq 0`, then :math:`h = - (h^{\prime} - \pi)`.
+        Otherwise, :meth:`~astropy.coordinates.SkyCoord.transform_to`
+        is used.
+
+        :param altaz:
+            Celestial object horizontal coordinates.
+        :type radec:
+            :class:`~astropy.coordinates.SkyCoord`
+        :param fast_compute:
+            If set to ``True``, it enables faster computation time for the
+            conversion, mainly relying on an approximation of the
+            local sidereal time. All other values would lead to
+            accurate coordinates computation. Differences in
+            coordinates values are of the order of :math:`10^{-2}`
+            degrees or less.
+        :type fast_compute:
+            `bool`
+
+        :returns:
+            Celestial object's equatorial coordinates.
+        :rtype:
+            :class:`~astropy.coordinates.SkyCoord`
+
+        :Example:
+            .. code-block:: python
+
+                from nenupy.astro import altaz_to_radec
+                from nenupy import nenufar_position
+                from astropy.time import Time
+                from astropy.coordinates import SkyCoord, AltAz
+
+                radec = altaz_to_radec(
+                    altaz=SkyCoord(
+                        300, 45, unit="deg",
+                        frame=AltAz(
+                            obstime=Time("2022-01-01T12:00:00"),
+                            location=nenufar_position
+                        )
+                    ),
+                    fast_compute=True
+                )
+
+    """
     if fast_compute: # does not work perfectly, don't know why...
-        sin_lat = np.sin(altaz.location.lat.rad)
-        cos_lat = np.cos(altaz.location.lat.rad)
-        
-        cos_az = np.cos(altaz.az.rad)
-        sin_az = np.sin(altaz.az.rad)
-        
-        sin_alt = np.sin(altaz.alt.rad)
-        cos_alt = np.cos(altaz.alt.rad)
+        if altaz.isscalar:
+            altaz = altaz.reshape((1,))
+
+        lat_rad = altaz.location.lat.rad
+        az_rad = altaz.az.rad
+        el_rad = altaz.alt.rad
+
+        sin_lat = np.sin(lat_rad)
+        cos_lat = np.cos(lat_rad)
+        cos_az = np.cos(az_rad)        
+        sin_alt = np.sin(el_rad)
+        cos_alt = np.cos(el_rad)
         
         sin_dec = sin_lat*sin_alt + cos_lat*cos_alt*cos_az
         dec = np.arcsin(sin_dec)
@@ -322,14 +532,15 @@ def altaz_to_radec(
 # ---------------------- sky_temperature ---------------------- #
 # ============================================================= #
 def sky_temperature(frequency: u.Quantity = 50*u.MHz) -> u.Quantity:
-    r""" Sky temperature at a given frequency ``freq`` (strongly
+    r""" Sky temperature at a given frequency ``frequency`` (strongly
         dominated by Galactic emission).
 
         .. math::
             T_{\rm sky} = T_0 \lambda^{2.55}
 
         with :math:`T_0 = 60 \pm 20\,\rm{K}` for Galactic
-        latitudes between 10 and 90 degrees.
+        latitudes between 10 and 90 degrees and :math:`\lambda`
+        the wavelength.
 
         :param frequency:
             Frequency at which computing the sky temperature.
@@ -342,9 +553,18 @@ def sky_temperature(frequency: u.Quantity = 50*u.MHz) -> u.Quantity:
         :rtype:
             :class:`~astropy.units.Quantity`
 
+        :Example:
+            .. code-block:: python
+
+                from nenupy.astro import sky_temperature
+                import astropy.units as u
+
+                temp = sky_temperature(frequency=50*u.MHz)
+
         .. seealso::
             `LOFAR website <http://old.astron.nl/radio-observatory/astronomers/lofar-imaging-capabilities-sensitivity/sensitivity-lofar-array/sensiti>`_, 
             Haslam et al. (1982) and Mozdzen et al. (2017, 2019)
+
     """
     wavelength = frequency.to(
         u.m,
@@ -360,7 +580,7 @@ def sky_temperature(frequency: u.Quantity = 50*u.MHz) -> u.Quantity:
 # ============================================================= #
 # --------------------- dispersion_delay ---------------------- #
 # ============================================================= #
-def dispersion_delay(frequency, dispersion_measure):
+def dispersion_delay(frequency: u.Quantity, dispersion_measure: u.Quantity) -> u.Quantity:
     r""" Dispersion delay induced to a radio wave of ``frequency``
         (:math:`\nu`) propagating through an electron
         plasma of uniform density :math:`n_e`.
@@ -393,17 +613,21 @@ def dispersion_delay(frequency, dispersion_measure):
         :type dispersion_measure:
             :class:`~astropy.units.Quantity`
 
-        :returns: Dispersion delay in seconds.
-        :rtype: :class:`~astropy.units.Quantity`
+        :returns:
+            Dispersion delay in seconds.
+        :rtype:
+            :class:`~astropy.units.Quantity`
 
         :Example:
-            >>> from nenupy.astro import dispersion_delay
-            >>> import astropy.units as u
-            >>> dispersion_delay(
+            .. code-block:: python
+                
+                from nenupy.astro import dispersion_delay
+                import astropy.units as u
+
+                dispersion_delay(
                     frequency=50*u.MHz,
                     dispersion_measure=12.4*u.pc/(u.cm**3)
                 )
-            20.5344 s
 
     """
     dispersion_measure = dispersion_measure.to(u.pc / (u.cm**3))
@@ -419,7 +643,7 @@ def dispersion_delay(frequency, dispersion_measure):
 # ============================================================= #
 # ------------------------ wavelength ------------------------- #
 # ============================================================= #
-def wavelength(frequency: u.Quantity = 50*u.MHz):
+def wavelength(frequency: u.Quantity = 50*u.MHz) -> u.Quantity:
     r""" Converts an electromagnetic frequency to a wavelength.
 
         .. math::
@@ -434,15 +658,17 @@ def wavelength(frequency: u.Quantity = 50*u.MHz):
             :class:`~astropy.units.Quantity`
         
         :returns:
-            Wavelength in meters.
+            Wavelength in meters, same shape as ``frequency``. 
         :rtype:
             :class:`~astropy.units.Quantity`
         
         :Example:
-            >>> from nenupy.astro import wavelength
-            >>> import astropy.units as u
-            >>> wavelength(frequency=10*u.MHz)
-            29.979246 m
+            .. code-block:: python
+                
+                from nenupy.astro import wavelength
+                import astropy.units as u
+
+                wavelength(frequency=10*u.MHz)
 
     """
     return frequency.to(u.m, equivalencies=u.spectral())
@@ -453,12 +679,39 @@ def wavelength(frequency: u.Quantity = 50*u.MHz):
 # ============================================================= #
 # ------------------------ l93_to_etrs ------------------------ #
 # ============================================================= #
-def l93_to_etrs(positions= np.ndarray):
+def l93_to_etrs(positions: np.ndarray) -> np.ndarray:
+    """ Transforms Lambert93 coordinates to ETRS (European Terrestrial Reference System).
+    
+        :param positions:
+            `Lambert-93 <https://epsg.io/2154>`_ positions (in meters).
+        :type positions:
+            :class:`~numpy.ndarray`
+        
+        :returns:
+            ETRS positions. 
+        :rtype:
+            :class:`~numpy.ndarray`
+        
+        :Example:
+            .. code-block:: python
+
+                from nenupy.astro import l93_to_etrs
+                import numpy as np
+
+                l93 = np.array([
+                    [6.39113316e+05, 6.69766347e+06, 1.81735000e+02],
+                    [6.39094578e+05, 6.69764471e+06, 1.81750000e+02]
+                ])
+                93_to_etrs(positions=l93)
+
     """
-    """
+    if (positions.ndim != 2) or (positions.shape[1] != 3):
+        raise ValueError(
+            f"`possitions` should be a (n, 3) numpy array, got {positions.shape} instead."
+        )
     t = Transformer.from_crs(
-        crs_from='EPSG:2154', # RGF93
-        crs_to='EPSG:4896'# ITRF2005 / ETRS used in MS
+        crs_from="EPSG:2154", # RGF93
+        crs_to="EPSG:4896" # ITRF2005 / ETRS used in MS
     )
     positions[:, 0], positions[:, 1], positions[:, 2] = t.transform(
         xx=positions[:, 0],
@@ -474,7 +727,32 @@ def l93_to_etrs(positions= np.ndarray):
 # ------------------------ geo_to_etrs ------------------------ #
 # ============================================================= #
 def geo_to_etrs(location: EarthLocation = nenufar_position) -> np.ndarray:
-    """
+    """ Transforms geographic coordinates to ETRS (European Terrestrial Reference System).
+
+        :param location:
+            Location to convert.
+        :type location:
+            :class:`~astropy.coordinates.EarthLocation`
+        
+        :returns:
+            ETRS positions. 
+        :rtype:
+            :class:`~numpy.ndarray`
+        
+        :Example:
+            .. code-block:: python
+
+                from nenupy.astro import geo_to_etrs
+                from astropy.coordinates import EarthLocation
+                import astropy.units as u
+
+                locs = EarthLocation(
+                    lat=[30, 40] * u.deg,
+                    lon=[0, 10] * u.deg,
+                    height=[100, 200] * u.m
+                )
+                geo_to_etrs(location=locs)
+
     """
     gps_b = 6356752.31424518
     gps_a = 6378137
@@ -500,8 +778,7 @@ def geo_to_etrs(location: EarthLocation = nenufar_position) -> np.ndarray:
 # ============================================================= #
 def etrs_to_enu(positions: np.ndarray, location: EarthLocation = nenufar_position) -> np.ndarray:
     r""" Local east, north, up (ENU) coordinates centered on the 
-        position ``location`` (default is at the location of
-        NenuFAR).
+        position ``location``.
 
         The conversion from cartesian coordinates :math:`(x, y, z)`
         to ENU :math:`(e, n, u)` is done as follows:
@@ -527,6 +804,36 @@ def etrs_to_enu(positions: np.ndarray, location: EarthLocation = nenufar_positio
         latitude and :math:`(\delta x, \delta y, \delta z)` are
         the cartesian coordinates with respect to the center
         ``location``.
+    
+        :param positions:
+            ETRS positions
+        :type positions:
+            :class:`~numpy.ndarray`
+        :param location:
+            Center of ENU frame. Default is NenuFAR's location.
+        :type location:
+            :class:`~astropy.coordinates.EarthLocation`
+
+        :returns:
+            Wavelength in meters, same shape as ``frequency``. 
+        :rtype:
+            :class:`~numpy.ndarray`
+        
+        :Example:
+            .. code-block:: python
+
+                from nenupy import nenufar_position
+                from nenupy.astro import etrs_to_enu
+
+                etrs_positions = np.array([
+                    [4323934.57369062,  165585.71569665, 4670345.01314493],
+                    [4323949.24009871,  165567.70236494, 4670332.18016874]
+                ])
+                enu = etrs_to_enu(
+                    positions=etrs_positions,
+                    location=nenufar_position
+                )
+
     """
     assert (len(positions.shape)==2) and positions.shape[1]==3,\
         'positions should be an array of shape (n, 3)'

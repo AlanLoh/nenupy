@@ -13,4 +13,7 @@ Astronomy Tools
     ~nenupy.astro.astro_tools.sky_temperature
     ~nenupy.astro.astro_tools.dispersion_delay
     ~nenupy.astro.astro_tools.wavelength
+    ~nenupy.astro.astro_tools.l93_to_etrs
+    ~nenupy.astro.astro_tools.geo_to_etrs
+    ~nenupy.astro.astro_tools.etrs_to_enu
 
