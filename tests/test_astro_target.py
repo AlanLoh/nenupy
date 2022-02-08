@@ -11,12 +11,9 @@ __status__ = 'Production'
 
 
 import pytest
-from unittest.mock import patch
-from os.path import join, dirname
-from astropy.coordinates import SkyCoord, Longitude
+from astropy.coordinates import SkyCoord
 from astropy.time import Time, TimeDelta
 import astropy.units as u
-import numpy as np
 
 from nenupy.astro.target import FixedTarget, SolarSystemTarget
 
@@ -125,6 +122,18 @@ def test_fixedtarget_meridian_transit():
         t_min=Time("2022-01-01T12:00:00")
     )
     assert az_transit.size == 0
+
+    src_circum = FixedTarget.from_name(
+        name="Cas A",
+        time=Time("2022-01-01T12:00:00")
+    )
+    az_transit = src_circum.azimuth_transit(
+        azimuth=350*u.deg,
+        t_min=Time("2022-01-01T12:00:00")
+    )
+    assert az_transit.size == 2
+    assert az_transit[0].jd == pytest.approx(2459581.1987, 1e-4)
+    assert az_transit[1].jd == pytest.approx(2459581.6345, 1e-4)
 # ============================================================= #
 # ============================================================= #
 

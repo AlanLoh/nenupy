@@ -293,6 +293,7 @@ class Target(AstroObject, ABC):
             azimuths = altaz_coordinates.az.rad
             az = azimuth.to(u.rad).value
             if self.is_circumpolar:
+                az = np.angle(np.cos(az) + 1j*np.sin(az))
                 complexAzStarts = np.angle(
                     np.cos(azimuths[:, :-1]) + 1j*np.sin(azimuths[:, :-1])
                 )
