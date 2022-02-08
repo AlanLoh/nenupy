@@ -90,6 +90,7 @@ class Pointing(AstroObject):
 
             ~Pointing.plot
             ~Pointing.from_file
+            ~Pointing.from_bst
             ~Pointing.target_tracking
             ~Pointing.target_transit
             ~Pointing.zenith_tracking
@@ -119,8 +120,16 @@ class Pointing(AstroObject):
         starts = (self.time).jd
         stops = (self.time + self.duration).jd
         
+        if time.isscalar:
+            time = time.reshape(1,)
+    
         if self.coordinates.isscalar:
-            coordinates = self.coordinates.reshape(1,)
+            # coordinates = self.coordinates.reshape(1,)
+            coordinates = SkyCoord(
+                np.repeat(self.coordinates.ra.deg, self.time.size),
+                np.repeat(self.coordinates.dec.deg, self.time.size),
+                unit="deg"
+            )
         else:
             coordinates = self.coordinates
         ras = coordinates.ra.deg
@@ -369,7 +378,26 @@ class Pointing(AstroObject):
             analog: bool = True,
             max_points: int = 100
         ):
-        """ """
+        """ Instantiates a class:`~nenupy.astro.pointing.Pointing` object from
+            a :class:`~nenupy.io.bst.BST` object.
+
+            :param bst:
+            :type bst:
+            :param beam:
+            :type beam:
+                `int`
+            :param analog:
+            :type analog:
+                `bool`
+            :param max_points:
+            :type max_points:
+
+            :returns:
+                Pointing derived from a NenuFAR BST file.
+            :rtype:
+                :class:`~nenupy.astro.pointing.Pointing`
+
+        """
         bst.beam = beam
 
         if analog:
@@ -430,6 +458,11 @@ class Pointing(AstroObject):
                 Beam number to take into account.
             :type beam_index:
                 `int`
+            :param include_corrections:
+                Include or not the pointing corrections (default is ``True``).
+                Only has an effect on analog beam corrections.
+            :type include_corrections:
+                `bool`
             
             :return:
                 Pointing derived from a NenuFAR pointing file.
@@ -455,7 +488,8 @@ class Pointing(AstroObject):
                         'formats': ('U20', 'i4', 'f4', 'f4', 'f4', 'f4', 'U5', 'f4')
                     }
                 )
-                pointing = pointing[pointing["anabeam"] == beam_index]
+                available_beams = pointing["anabeam"]
+                pointing = pointing[available_beams == beam_index]
                 azimuths = pointing["az_cor"] if include_corrections else pointing["az"]
                 elevations = pointing["el_eff"] if include_corrections else pointing["el"]
             except ValueError:
@@ -469,7 +503,8 @@ class Pointing(AstroObject):
                         'formats': ('U20', 'i4', 'f4', 'f4', 'U5', 'f4')
                     }
                 )
-                pointing = pointing[pointing["anabeam"] == beam_index]
+                available_beams = pointing["anabeam"]
+                pointing = pointing[available_beams == beam_index]
                 azimuths = pointing["az"]
                 elevations = pointing["el_eff"] if include_corrections else pointing["el"]
             except IndexError:
@@ -483,9 +518,16 @@ class Pointing(AstroObject):
                         'formats': ('U20', 'i4', 'f4', 'f4', 'f4', 'f4')
                     }
                 )
-                pointing = pointing[pointing["anabeam"] == beam_index]
+                available_beams = pointing["anabeam"]
+                pointing = pointing[available_beams == beam_index]
                 azimuths = pointing["az_cor"] if include_corrections else pointing["az"]
                 elevations = pointing["el_cor"] if include_corrections else pointing["el"]
+            
+            if pointing.size == 0:
+                raise ValueError(
+                    f"Empty pointing, check the beam_index={beam_index} value "
+                    f"(avalaible beam indices: {np.unique(available_beams)})."
+                )
 
             times = Time(pointing["time"])
             azimuths *= u.deg
@@ -516,7 +558,13 @@ class Pointing(AstroObject):
                     'formats': ('U20', 'i4', 'i4', 'f4', 'f4', 'f4', 'f4', 'f4')
                 }
             )
-            pointing = pointing[pointing["digibeam"] == beam_index]
+            available_beams = pointing["digibeam"]
+            pointing = pointing[available_beams == beam_index]
+            if pointing.size == 0:
+                raise ValueError(
+                    f"Empty pointing, check the beam_index={beam_index} value "
+                    f"(avalaible beam indices: {np.unique(available_beams)})."
+                )
             times = Time(pointing["time"])
             duration = times[1:] - times[:-1]
             # Add the last duration at the end (supposed to be 10 seconds)
@@ -530,13 +578,7 @@ class Pointing(AstroObject):
                     location=nenufar_position
                 )
             )
-        
-        # return cls(
-        #     coordinates=altaz_to_radec(altaz=altaz_coords),
-        #     time=times,
-        #     duration=duration,
-        #     observer=nenufar_position
-        # )
+
         pointing = cls(
             coordinates=altaz_to_radec(altaz=altaz_coords),
             time=times,
@@ -684,7 +726,7 @@ class Pointing(AstroObject):
 
         pointing_times = transit_time + dt_shifts*dt
 
-        return cls(
+        pointing = cls(
             coordinates=SkyCoord(
                 np.repeat(transit_altaz.az.deg, pointing_times.size),
                 np.repeat(transit_altaz.alt.deg, pointing_times.size),
@@ -698,6 +740,8 @@ class Pointing(AstroObject):
             duration=dt,
             observer=observer
         )
+        pointing.custom_ho_coordinates = transit_altaz
+        return pointing
 
 
     # @classmethod
@@ -799,22 +843,25 @@ class Pointing(AstroObject):
         if not time.isscalar:
             az = np.repeat(az, time.size)
             el = np.repeat(el, time.size)
-        return cls(
+        altaz = SkyCoord(
+            az,
+            el,
+            unit="deg",
+            frame=AltAz(
+                obstime=time,
+                location=observer
+            )
+        )
+        pointing = cls(
             coordinates=altaz_to_radec(
-                altaz=SkyCoord(
-                    az,
-                    el,
-                    unit="deg",
-                    frame=AltAz(
-                        obstime=time,
-                        location=observer
-                    )
-                ),
+                altaz=altaz,
                 fast_compute=False
             ),
             time=time,
             duration=duration,
             observer=observer
         )
+        pointing.custom_ho_coordinates = altaz
+        return pointing
 # ============================================================= #
 # ============================================================= #
