@@ -169,6 +169,44 @@ class NenuFAR_Configuration:
 
 
 # ============================================================= #
+# ------------------ MiniArray class errors ------------------- #
+# ============================================================= #
+class MiniArrayUnknownIndex(Exception):
+    """ Error raised when the index doesn't exist. """
+
+    def __init__(self,
+            input_index: int
+        ):
+        self.input_index = input_index
+        self.error_message = f"Mini-Array index {self.input_index} does not exist..."
+        available_mini_arrays = [entry["id"] for entry in nenufar_miniarrays.values()]
+        self.help = f"Valid Mini-Array indices are: {available_mini_arrays}."
+        super().__init__(self.help)
+
+
+    def __str__(self):
+        return f"{self.error_message}\n{self.help}"
+
+
+class MiniArrayBadIndexFormat(Exception):
+    """ Error raised when the index cannot be read. """
+
+    def __init__(self,
+            input_index
+        ):
+        self.input_index = input_index
+        self.error_message = f"No support for {type(self.input_index)} format as a Mini-Array index..."
+        self.help = f"The index should be an integer value."
+        super().__init__(self.help)
+
+
+    def __str__(self):
+        return f"{self.error_message}\n{self.help}"
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
 # ------------------------- MiniArray ------------------------- #
 # ============================================================= #
 class MiniArray(Interferometer):
@@ -254,13 +292,19 @@ class MiniArray(Interferometer):
     def __init__(self, index: int = 0):
         self.index = index
 
-        ma_name = f'MA{self.index:03d}'
+        try:
+            ma_name = f'MA{self.index:03d}'
 
-        position = EarthLocation(
-            lat=nenufar_miniarrays[ma_name]['lat'] * u.deg,
-            lon=nenufar_miniarrays[ma_name]['lon'] * u.deg,
-            height=nenufar_miniarrays[ma_name]['height'] * u.m
-        )
+            position = EarthLocation(
+                lat=nenufar_miniarrays[ma_name]['lat'] * u.deg,
+                lon=nenufar_miniarrays[ma_name]['lon'] * u.deg,
+                height=nenufar_miniarrays[ma_name]['height'] * u.m
+            )
+        except KeyError:
+            raise MiniArrayUnknownIndex(self.index)
+        except:
+            raise MiniArrayBadIndexFormat(self.index)
+
         antenna_names = np.array([ant for ant in miniarray_antennas.keys()])
         antPos = np.array([ant['position'] for ant in miniarray_antennas.values()])
         self.rotation = nenufar_miniarrays[ma_name]['rotation'] * u.deg

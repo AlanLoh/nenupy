@@ -22,7 +22,6 @@ from os.path import join, dirname
 sys.modules["pygsm"] = MagicMock()
 
 from nenupy.astro.skymodel import HpxGSM
-from nenupy.astro.sky import HpxSky
 
 
 @pytest.fixture(scope="module")
@@ -53,18 +52,20 @@ def _init_gsm(request, create_mock_gsm):
 @pytest.mark.usefixtures("_init_gsm")
 class TestHpxGSM:
 
-    # ==========================================================#
+
+    # ========================================================= #
     # -------------------- test_gsm_shape --------------------- #
     def test_gsm_shape(self):
         assert self._gsm.value.shape == (2, 1, 1, 12288)
 
 
-    # ==========================================================#
+    # ========================================================= #
     # -------------------- test_gsm_value --------------------- #
     def test_gsm_value(self):
         assert self._gsm.value[0, 0, 0, 100].compute() == pytest.approx(3251.89, 1e-2)
 
-    # ==========================================================#
+
+    # ========================================================= #
     # --------------------- test_gsm_plot --------------------- #
     @patch("matplotlib.pyplot.show")
     def test_gsm_plot(self, mock_show):

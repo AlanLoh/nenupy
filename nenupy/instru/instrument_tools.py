@@ -21,7 +21,8 @@ __all__ = [
     "sb2freq",
     "instrument_temperature",
     "miniarrays_rotated_like",
-    "read_cal_table"
+    "read_cal_table",
+    "generate_nenufar_subarrays"
 ]
 
 
@@ -29,6 +30,7 @@ import numpy as np
 import astropy.units as u
 from typing import List
 from os.path import join, dirname
+from scipy.interpolate import interp2d
 
 from nenupy.instru import lna_gain
 from nenupy.astro.astro_tools import sky_temperature
@@ -269,6 +271,75 @@ def read_cal_table(calibration_file=None):
     decoded = tmp.view(dtype)[0]["data"]
     data = decoded[..., 0] + 1.j*decoded[..., 1]
     return data
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ---------------- generate_nenufar_subarrays ----------------- #
+# ============================================================= #
+def generate_nenufar_subarrays(
+        n_subarrays: int = 2,
+        include_remote_mas: bool = False
+    ):
+    """ Generates NenuFAR sub-arrays of Mini-Arrays. The sub-arraying
+        is done completely randomly.
+
+        :param n_subarrays:
+            Number of sub-arrays to generate from the NenuFAR
+            Mini-Array distribution. Default is `2`.
+        :type n_subarrays:
+            `int`
+        :param include_remote_mas:
+            Include or not the remote Mini-Arrays.
+        :type include_remote_mas:
+            `bool`
+        
+        :returns:
+            A list of Mini-Array names for each sub-array.
+        :rtype:
+            `list` of `~numpy.ndarray`
+
+        :Example:
+            .. code-block:: python
+
+                from nenupy.instru import generate_nenufar_subarrays
+                from nenupy.instru import NenuFAR
+
+                sub_arrays = generate_nenufar_subarrays(n_subarrays=2)
+                sub_array_1 = NenuFAR()[sub_arrays[0]]
+                sub_array_2 = NenuFAR()[sub_arrays[1]]
+
+    """
+
+    if n_subarrays < 2:
+        raise ValueError(
+            "`n_subarrays` should be at least equal to 2."
+        )
+
+    # Number of Mini-Arrays
+    n_mas = 96
+    if include_remote_mas:
+        n_mas = 102
+
+    # Mini-Arrays names
+    ma_names = np.array([ma_name for ma_name in nenufar_miniarrays.keys()])
+    ma_names = ma_names[:n_mas]
+
+    # Generate random values
+    rng = np.random.default_rng()
+    ma_values = rng.random(n_mas) # floats between [0, 1[
+
+    # Create mask by evaluating the random value per MA
+    edge_values = np.linspace(0, 1, n_subarrays + 1)
+    subarray_masks = (edge_values[:-1][:, None] <= ma_values[None, :]) & (ma_values[None, :] < edge_values[1:][:, None]) 
+
+    # Check that each Mini-Array is counted once
+    if not np.all(np.sum(subarray_masks, axis=0)==1):
+        raise ValueError("Something's wrong.")
+
+    # Return a list of sub-arrays (numpy arrays of Mini-Array names)
+    return [ma_names[subarray_masks[i]] for i in range(n_subarrays)]
 # ============================================================= #
 # ============================================================= #
 
