@@ -274,9 +274,8 @@ class MiniArray(Interferometer):
             ~MiniArray.effective_area
             ~MiniArray.instrument_temperature
             ~MiniArray.attenuation_from_zenith
-            ~MiniArray.order_to_skycoord
-            ~MiniArray.skycoord_to_order
             ~MiniArray.analog_pointing
+            ~MiniArray.beamsquint_correction
             ~nenupy.instru.interferometer.Interferometer.plot
             ~nenupy.instru.interferometer.Interferometer.array_factor
             ~nenupy.instru.interferometer.Interferometer.system_temperature
@@ -741,6 +740,9 @@ class MiniArray(Interferometer):
             :rtype:
                 :class:`~astropy.units.Quantity`
 
+            .. warning::
+                For the time being, only ``lna_filter`` values ``0`` and ``3`` are available.
+
             :Example:
 
                 >>> from nenupy.instru import MiniArray
@@ -815,7 +817,7 @@ class MiniArray(Interferometer):
         # Squint is limited at 20 deg elevation, otherwise the
         # pointing can vary drasticaly as the available pointing
         # positions become sparse at low elevation.
-        elevations[elevations < 20] = 20
+        # elevations[elevations < 20] = 20
 
         return SkyCoord(
             azimuths,

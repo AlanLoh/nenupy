@@ -158,6 +158,9 @@ def instrument_temperature(frequency: u.Quantity = 50*u.MHz, lna_filter: int = 0
             Instrument temperature in Kelvins
         :rtype:
             :class:`~astropy.units.Quantity`
+        
+        .. warning::
+            For the time being, only ``lna_filter`` values ``0`` and ``3`` are available.
 
         :Example:
 
