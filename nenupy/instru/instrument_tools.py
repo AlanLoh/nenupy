@@ -63,13 +63,19 @@ def freq2sb(frequency: u.Quantity):
             `int` or :class:`~numpy.ndarray`
 
         :example:
-            >>> from nenupy.instru import freq2sb
-            >>> freq2sb(frequency=50.5*u.MHz)
-            259
-            >>> freq2sb(frequency=[50.5, 51]*u.MHz)
-            array([259, 261])
+            .. code-block:: python
+                
+                from nenupy.instru import freq2sb
+                import astropy.units as u
+
+                freq2sb(frequency=50.5*u.MHz)
+                freq2sb(frequency=[50.5, 51]*u.MHz)
 
     """
+    if not isinstance(frequency, u.Quantity):
+        raise TypeError(
+            f"`frequency` - {u.Quantity} expected."
+        )
     if (frequency.min() < 0 * u.MHz) or (frequency.max() > 100 * u.MHz):
         raise ValueError(
             "'frequency' should be between 0 and 100 MHz."
@@ -107,12 +113,14 @@ def sb2freq(subband):
         :rtype:
             :class:`~astropy.units.Quantity`
 
-        :example:
-            >>> from nenupy.instru import sb2freq
-            >>> sb2freq(subband=1)
-            [0.09765625] MHz
-            >>> sb2freq(subband=[1, 2, 3, 4])
-            [0.09765625, 0.29296875, 0.48828125, 0.68359375] MHz
+        :Example:
+            .. code-block:: python
+            
+                from nenupy.instru import sb2freq
+
+                sb2freq(subband=1)
+                sb2freq(subband=[1, 2, 3, 4])
+
     """
     if np.isscalar(subband):
         subband = np.array([subband])
@@ -120,11 +128,11 @@ def sb2freq(subband):
         subband = np.array(subband)
     if subband.dtype.name not in ['int32', 'int64']:
         raise TypeError(
-            "'subband' should be integers."
+            "`subband` - Integer(s) expected."
         )
     if (subband.min() < 0) or (subband.max() > 511):
         raise ValueError(
-            "'sb' should be between 0 and 511."
+            "`subband` - Values should be between 0 and 511."
         )
     sb_width = 100.*u.MHz/512 #200e6*192/1024# + 195312.5/2
     freq_start = subband*sb_width - sb_width/2
@@ -163,11 +171,12 @@ def instrument_temperature(frequency: u.Quantity = 50*u.MHz, lna_filter: int = 0
             For the time being, only ``lna_filter`` values ``0`` and ``3`` are available.
 
         :Example:
+            .. code-block:: python
+            
+                from nenupy.instru import instrument_temperature
+                import astropy.units as u
 
-            >>> from nenupy.instru import instrument_temperature
-            >>> import astropy.units as u
-            >>> instrument_temperature(frequency=70*u.MHz)
-            526.11213 K
+                instrument_temperature(frequency=70*u.MHz)
 
         .. seealso::
             :func:`~nenupy.astro.astro_tools.sky_temperature`
@@ -207,10 +216,11 @@ def miniarrays_rotated_like(rotations: List[int] = [0]) -> np.ndarray:
             :class:`~numpy.ndarray`
 
         :Example:
-
-            >>> from nenupy.instru import miniarrays_rotated_like
-            >>> miniarrays_rotated_like([10])
-            array([11, 12, 18, 22, 43, 47, 54, 56, 60, 66, 70, 77])
+            .. code-block:: python
+            
+                from nenupy.instru import miniarrays_rotated_like
+                
+                miniarrays_rotated_like([10])
 
     """
     # Check that the rotation format is correct
@@ -229,7 +239,7 @@ def miniarrays_rotated_like(rotations: List[int] = [0]) -> np.ndarray:
 # ============================================================= #
 # ---------------------- read_cal_table ----------------------- #
 # ============================================================= #
-def read_cal_table(calibration_file=None):
+def read_cal_table(calibration_file: str = None) -> np.ndarray:
     """ Reads NenuFAR antenna delays calibration file.
 
         :param calibration_file: 

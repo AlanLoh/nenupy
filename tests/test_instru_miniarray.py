@@ -91,6 +91,32 @@ class TestMiniArray:
 
 
     # ========================================================= #
+    # ----------------------- test_get ------------------------ #
+    def test_get(self):
+        sub_ma = self.ma[1]
+        assert sub_ma.size == 1
+        sub_ma = self.ma["Ant01", "Ant02"]
+        assert sub_ma.size == 2
+        sub_ma = self.ma[np.arange(10)]
+        assert sub_ma.size == 10
+
+    # ========================================================= #
+    # ----------------------- test_get ------------------------ #
+    def test_add(self):
+        sub_ma = MiniArray()["Ant01", "Ant02", "Ant03"]
+        new_array = self.ma + sub_ma
+        assert new_array.size == 19
+
+
+    # ========================================================= #
+    # ----------------------- test_get ------------------------ #
+    def test_sub(self):
+        sub_ma = MiniArray()["Ant01", "Ant02", "Ant03"]
+        new_array = self.ma - sub_ma
+        assert new_array.size == 16
+
+
+    # ========================================================= #
     # ------------------ test_effective_area ------------------ #
     @pytest.mark.parametrize(
         'frequency, elevation, expected',

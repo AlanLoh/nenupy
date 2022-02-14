@@ -558,19 +558,12 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         # Compute the total antenna gain, i.e. the sum of all
         # antenna gains for beamforming.
         antenna_gain = np.sum(
-            gain(
+            np.array([gain(
                 sky=sky,
                 pointing=pointing
-            ) for gain in self.antenna_gains
+            ) for gain in self.antenna_gains]),
+            axis=0
         )
-        # antenna_gain = np.sum(
-        #     np.fromiter(
-        #         gain(
-        #             sky=sky,
-        #             pointing=pointing
-        #         ) for gain in self.antenna_gains
-        #     )
-        # )
 
         # Rechunk the Dask Array before the computation
         # coord_chunk = array_factor.shape[-1]//cpu_count()

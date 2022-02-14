@@ -1075,12 +1075,25 @@ class NenuFAR(Interferometer):
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
     @property
-    def miniarray_rotations(self):
+    def miniarray_rotations(self) -> u.Quantity:
         """
         """
         return np.array([
             nenufar_miniarrays[ma]['rotation'] for ma in self.antenna_names
-        ])
+        ])*u.deg
+    
+
+    @property
+    def include_remote_mas(self) -> bool:
+        """ """
+        return self._include_remote_mas
+    @include_remote_mas.setter
+    def include_remote_mas(self, include):
+        if not isinstance(include, bool):
+            raise TypeError(
+                "`include_remote_mas` - Boolean value expected."
+            )
+        self._include_remote_mas = include
 
 
     # --------------------------------------------------------- #
@@ -1169,7 +1182,7 @@ class NenuFAR(Interferometer):
         # Finding the unique Mini-Array rotations and the number
         # of MAs corresponding to each rotation.
         rots, indices, counts = np.unique(
-            self.miniarray_rotations%60,
+            self.miniarray_rotations.to(u.deg).value%60,
             return_counts=True,
             return_index=True
         )
@@ -1180,11 +1193,14 @@ class NenuFAR(Interferometer):
         # Even though antGain updates the same sky instance, the
         # value attr * count creates new memeory allocations.
         antenna_gain = np.sum(
-            gain(
-                sky=sky,
-                pointing=analog_pointing,
-                configuration=configuration
-            ).value*count for gain, count in zip(self.antenna_gains[indices], counts)
+            np.array([
+                gain(
+                    sky=sky,
+                    pointing=analog_pointing,
+                    configuration=configuration
+                ).value*count for gain, count in zip(self.antenna_gains[indices], counts)
+            ]),
+            axis=0
         )
 
         # Updating the sky object value array where the the sky

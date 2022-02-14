@@ -575,6 +575,7 @@ class SData(object):
                 self.datetime,
                 self.freq.to(u.MHz).value,
                 dynspec,
+                shading='auto',
                 cmap=kwargs['cmap'],
                 vmin=kwargs['vmin'],
                 vmax=kwargs['vmax']

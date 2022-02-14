@@ -861,7 +861,7 @@ class Pointing(AstroObject):
             duration=duration,
             observer=observer
         )
-        pointing.custom_ho_coordinates = altaz
+        pointing.custom_ho_coordinates = altaz.reshape((1,)) if altaz.isscalar else altaz
         return pointing
 # ============================================================= #
 # ============================================================= #
