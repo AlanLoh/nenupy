@@ -42,7 +42,7 @@ log = logging.getLogger(__name__)
 
 import astropy.units as u
 from astropy.time import Time, TimeDelta
-from astropy.coordinates import SkyCoord, EarthLocation, FK5, AltAz
+from astropy.coordinates import SkyCoord, EarthLocation, FK5, AltAz, Angle
 
 from nenupy import nenufar_position
 from nenupy.astro import common_sources
@@ -75,6 +75,7 @@ class Target(AstroObject, ABC):
 
         .. autosummary::
 
+            ~Target.separation
             ~Target.meridian_transit
             ~Target.next_meridian_transit
             ~Target.previous_meridian_transit
@@ -140,6 +141,47 @@ class Target(AstroObject, ABC):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+    def separation(self, other: Target) -> Angle:
+        """ Computes the angular separation between two :class:`~nenupy.astro.target.Target`
+            instances.
+            This method is a wrapper around :meth:`astropy.coordinates.SkyCoord.separation`.
+
+            :param other:
+                Other :class:`~nenupy.astro.target.Target` from 
+                which the angular separation should be computed.
+            :type other:
+                :class:`~nenupy.astro.target.Target`
+
+            :returns:
+                Angular separation.
+            :rtype:
+                :class:`~astropy.coordinates.Angle`
+
+            :Example:
+                .. code-block:: python
+
+                    from nenupy.astro.target import FixedTarget, SolarSystemTarget
+                    from astropy.time import Time, TimeDelta
+                    import numpy as np
+
+                    src = FixedTarget.from_name("Cyg A")
+                    times = Time("2022-01-01T12:00:00") + np.arange(180)*TimeDelta(2, format="jd")
+                    seps = src.separation(
+                        SolarSystemTarget.from_name(
+                            "Sun",
+                            time=times
+                        )
+                    )
+
+        """
+        if not isinstance(other, Target):
+            raise TypeError(
+                f"The angular separation should be computed against another {Target} object. "
+                f"Got {type(other)} instead."
+            )
+        return self.coordinates.separation(other.coordinates)
+
+
     def meridian_transit(self,
             t_min: Time = Time.now(),
             duration: TimeDelta = TimeDelta(86400, format='sec'),
@@ -897,6 +939,7 @@ class FixedTarget(Target):
         .. autosummary::
 
             ~FixedTarget.from_name
+            ~Target.separation
             ~Target.meridian_transit
             ~Target.next_meridian_transit
             ~Target.previous_meridian_transit
@@ -1021,6 +1064,7 @@ class SolarSystemTarget(Target):
         .. autosummary::
 
             ~SolarSystemTarget.from_name
+            ~Target.separation
             ~Target.meridian_transit
             ~Target.next_meridian_transit
             ~Target.previous_meridian_transit

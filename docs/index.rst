@@ -111,6 +111,7 @@ Finally, observations can then be simulated using the simulated beam and a sky m
    :caption: Data reading
    :maxdepth: 2
 
+   io/bst_reading
    nenupy.beamlet
    nenupy.undysputed
 

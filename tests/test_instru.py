@@ -13,8 +13,6 @@ __status__ = 'Production'
 import pytest
 from unittest.mock import patch
 import astropy.units as u
-from astropy.coordinates import SkyCoord
-from astropy.time import Time, TimeDelta
 import numpy as np
 
 from nenupy.instru import (

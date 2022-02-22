@@ -88,25 +88,25 @@ class StatisticsData(ABC):
         return
 
 
-    @staticmethod
-    def _parse_frequency_condition(conditions: str):
-        """ """
-        condition_list = conditions.replace(" ", "").split("&")
+    # @staticmethod
+    # def _parse_frequency_condition(conditions: str):
+    #     """ """
+    #     condition_list = conditions.replace(" ", "").split("&")
 
-        cond = []
-        for condition in condition_list:
-            op = re.search('((>=)|(<=)|(==)|(<)|(>))', condition).group(0)
-            val = re.search(f'(?<={op})(.*)', condition).group(0)
-            val = u.Quantity(val)
-            op = ops[op]
-            cond.append( lambda x, op=op, val=val: op(x, val) )
+    #     cond = []
+    #     for condition in condition_list:
+    #         op = re.search('((>=)|(<=)|(==)|(<)|(>))', condition).group(0)
+    #         val = re.search(f'(?<={op})(.*)', condition).group(0)
+    #         val = u.Quantity(val)
+    #         op = ops[op]
+    #         cond.append( lambda x, op=op, val=val: op(x, val) )
 
-        if len(cond) == 2:
-            return lambda x, cond1=cond[0], cond2=cond[1]: operator.and_(cond1(x), cond2(x))
-        elif len(cond) == 1:
-            return cond[0]
-        else:
-            raise Exception
+    #     if len(cond) == 2:
+    #         return lambda x, cond1=cond[0], cond2=cond[1]: operator.and_(cond1(x), cond2(x))
+    #     elif len(cond) == 1:
+    #         return cond[0]
+    #     else:
+    #         raise Exception
 
 
     @staticmethod
@@ -116,8 +116,14 @@ class StatisticsData(ABC):
 
         cond = []
         for condition in condition_list:
-            op = re.search('((>=)|(<=)|(==)|(<)|(>))', condition).group(0)
-            val = re.search(f'(?<={op})(.*)', condition).group(0)
+            try:
+                op = re.search('((>=)|(<=)|(==)|(<)|(>))', condition).group(0)
+                val = re.search(f'(?<={op})(.*)', condition).group(0)
+            except AttributeError:
+                log.error(
+                    f"Selection syntax '{condition}' not understood."
+                )
+                raise
             val = converter(val)
             op = ops[op]
             cond.append( lambda x, op=op, val=val: op(converter(x), val) )
