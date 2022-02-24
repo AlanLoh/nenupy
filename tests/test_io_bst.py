@@ -114,7 +114,10 @@ class TestBST:
             beam=0
         )
         assert data.value.shape == (779,)
-        data.plot()
+        data.plot(
+            digital_pointing=True,
+            analog_pointing=True
+        )
         fitted_data, transit_time, chi2 = data.fit_transit()
         assert transit_time.jd == pytest.approx(2459603.964, 1e-3)
         rebin_10s = data.rebin(dt=10*u.s)
@@ -152,7 +155,17 @@ class TestBST:
             beam=8
         )
         assert data.value.shape == (359, 11)
-        data.plot()
+        vals = np.zeros((30, 100), dtype=bool)
+        vals[5:20, 20:70] = True
+        data.plot(
+            digital_pointing=True,
+            analog_pointing=True,
+            hatched_overlay=(
+                Time("2022-01-24T11:01:00")+np.arange(100)*TimeDelta(2, format='sec'),
+                np.linspace(47, 52, 30)*u.MHz,
+                vals
+            )
+        )
         data_rebinned = data.rebin(df=1*u.MHz, dt=2*u.s)
         assert data_rebinned.value.shape == (179, 2)
 # ============================================================= #
