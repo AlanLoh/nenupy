@@ -27,6 +27,7 @@ log = logging.getLogger(__name__)
 import numpy as np
 from astropy.time import Time
 import astropy.units as u
+from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from dask.diagnostics import ProgressBar
 from typing import List
@@ -59,6 +60,23 @@ class SourceInLobes:
         self.value = value
 
 
+    def __add__(self, other):
+        """ Adds two SourceInLobes objects. """
+        same_frequencies = np.all(self.frequency.to(u.MHz) == other.frequency.to(u.MHz))
+        same_times = np.all(self.time.jd == other.time.jd)
+        if (not same_frequencies) or (not same_times):
+            raise Exception(
+                f"Addition of {SourceInLobes} objects with different time and/or frequency ranges."
+            )
+        return SourceInLobes(
+            time=self.time.copy(),
+            frequency=self.frequency.copy(),
+            value=self.value + other.value 
+        )
+
+
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
     def plot(self, **kwargs):
         """ """
         fig = plt.figure(figsize=kwargs.get("figsize", (10, 6)))
@@ -100,6 +118,46 @@ class SourceInLobes:
         else:
             plt.show()
         plt.close("all")
+
+
+    def export(self, filename: str):
+        """ Exports the time-frequency contamination array in FITS.
+            
+            :param filename:
+                FITS file name.
+            :type filename:
+                `str`
+        """
+        t_size, f_size = self.time.size, self.frequency.size
+        dtype = [
+            ('time_jd', 'f8', (t_size,)),
+            ('frequency_mhz', 'f8'),
+            ('contamination', 'i8', (t_size,))
+        ]
+        data = np.zeros(f_size, dtype=dtype)
+        data["time_jd"] = self.time.jd
+        data["frequency_mhz"] = self.frequency.to(u.MHz).value
+        data["contamination"] = self.value
+        hdu = fits.BinTableHDU(data)
+        hdu.writeto(filename, overwrite=True)
+        log.info(
+            f"{SourceInLobes} object saved in {filename}."
+        )
+
+
+    @classmethod
+    def from_fits(cls, filename: str):
+        """ """
+        with fits.open(filename) as hdus:
+            time_jd = hdus[1].data["time_jd"][0, :]
+            frequency_mhz = hdus[1].data["frequency_mhz"]
+            values = hdus[1].data["contamination"]
+
+        return cls(
+            time=Time(time_jd, format="jd"),
+            frequency=frequency_mhz*u.MHz,
+            value=values
+        )
 # ============================================================= #
 # ============================================================= #
 
