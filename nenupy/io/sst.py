@@ -7,13 +7,12 @@
     SST file
     ********
 
-    .. inheritance-diagram:: nenupy.io.sst.BST nenupy.io.sst.BST_Slice
+    .. inheritance-diagram:: nenupy.io.sst.SST
         :parts: 3
 
     .. autosummary::
 
-        ~BST
-        ~BST_Slice
+        ~SST
 
 """
 
@@ -31,7 +30,6 @@ __all__ = [
 
 import numpy as np
 import astropy.units as u
-from astropy.time import Time
 
 from nenupy.io.io_tools import StatisticsData, ST_Slice
 

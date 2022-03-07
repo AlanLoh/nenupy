@@ -49,6 +49,8 @@ def compute_uvw(
     xyz = baselines_itrf[np.tril_indices(interferometer.size)].T
     #xyz = np.array(baselines_itrf).T
 
+    log.info(f"Computing UVW (time steps: {time.size}, baselines: {xyz.shape[0]})...")
+
     # Select zenith phase center if nothing is provided
     if phase_center is None:
         log.debug("Default zenith phase center selected.")

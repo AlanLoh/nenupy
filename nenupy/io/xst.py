@@ -4,8 +4,19 @@
 
 """
     ********
-    BST file
+    XST file
     ********
+
+    .. inheritance-diagram:: nenupy.io.xst.XST nenupy.io.xst.NenufarTV
+        :parts: 3
+
+    .. autosummary::
+
+        ~XST
+        ~NenufarTV
+        TV_Image
+        TV_Nearfield
+
 """
 
 
@@ -16,7 +27,12 @@ __maintainer__ = 'Alan'
 __email__ = 'alan.loh@obspm.fr'
 __status__ = 'Production'
 __all__ = [
-    "XST"
+    "XST_Slice",
+    "Crosslet",
+    "XST",
+    "TV_Image",
+    "TV_Nearfield",
+    "NenufarTV"
 ]
 
 from abc import ABC
@@ -43,8 +59,7 @@ from dask.diagnostics import ProgressBar
 import nenupy
 from os.path import join, dirname
 from nenupy.astro.target import FixedTarget, SolarSystemTarget
-from nenupy.io.io_tools import StatisticsData
-from nenupy.io.bst import BST_Slice
+from nenupy.io.io_tools import StatisticsData, ST_Slice
 from nenupy.astro import wavelength, altaz_to_radec, l93_to_etrs, etrs_to_enu
 from nenupy.astro.uvw import compute_uvw
 from nenupy.astro.sky import HpxSky
@@ -60,7 +75,20 @@ log = logging.getLogger(__name__)
 # ------------------------- XST_Slice ------------------------- #
 # ============================================================= #
 class XST_Slice:
-    """ """
+    """ Class to handle the result of selection upon XST-like data.
+
+        .. rubric:: Methods Summary
+
+        .. autosummary::
+
+            ~XST_Slice.plot_correlaton_matrix
+            ~XST_Slice.rephase_visibilities
+            ~XST_Slice.make_image
+            ~XST_Slice.make_nearfield
+
+        .. rubric:: Attributes and Methods Documentation
+
+    """
 
     def __init__(self, mini_arrays, time, frequency, value):
         self.mini_arrays = mini_arrays
@@ -72,7 +100,75 @@ class XST_Slice:
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def plot_correlaton_matrix(self, mask_autocorrelations: bool = False, **kwargs):
-        """
+        """ Plots the cross-correlation matrix.
+
+            :param mask_autocorrelations:
+                If set to ``True``, the auto-correlation diagnoal
+                is hidden.
+                Default is ``False``.
+            :type mask_autocorrelations:
+                `bool`
+            
+            Several parameters, listed below, can be tuned to adapt the plot
+            to the user requirements:
+
+            .. rubric:: Data display keywords
+
+            :param decibel:
+                If set to ``True``, the data will be displayed in
+                a decibel scale (i.e., :math:`{\rm dB} = 10 \log_{10}({\rm data})`).
+                Default is ``True``.
+            :type decibel:
+                `bool`
+            :param vmin:
+                *Dynamic spectrum plot only*.
+                Minimal data value to display.
+            :type vmin:
+                `float`
+            :param vmax:
+                *Dynamic spectrum plot only*.
+                Maximal data value to display.
+            :type vmax:
+                `float`
+
+            .. rubric:: Plotting layout keywords
+
+            :param figname:
+                Name of the file (absolute or relative path) to save the figure.
+                Default is ``''`` (i.e., only show the figure).
+            :type figname:
+                `str`
+            :param figsize:
+                Set the figure size.
+                Default is ``(10, 10)``.
+            :type figsize:
+                `tuple`
+            :param title:
+                Set the figure title.
+                Default is ``''``.
+            :type title:
+                `str`
+            :param colorbar_label:
+                *Dynamic spectrum plot only*.
+                Label of the color bar.
+                Default is ``'Amp'`` if ``decibel=False`` and ``'dB'`` otherwise.
+            :type colorbar_label:
+                `str`
+            :param cmap:
+                *Dynamic spectrum plot only*.
+                Color map used to represent the data.
+                Default is ``'YlGnBu_r'``.
+            :type cmap:
+                `str`
+            
+            :Example:
+                .. code-block:: python
+
+                    from nenupy.io.xst import XST
+
+                    xst = XST("/path/to/XST.fits")
+                    data = xst.get....
+
         """
         max_ma_index = self.mini_arrays.max() + 1
         all_mas = np.arange(max_ma_index)
@@ -138,6 +234,10 @@ class XST_Slice:
 
     def rephase_visibilities(self, phase_center, uvw):
         """ """
+
+        log.info(
+            f"Rephasing the visibilities towards {phase_center}..."
+        )
 
         # Compute the zenith original phase center
         zenith = SkyCoord(
@@ -214,7 +314,7 @@ class XST_Slice:
             fov_radius: u.Quantity = 25*u.deg,
             phase_center: SkyCoord = None,
             stokes: str = "I"
-        ):
+        ) -> HpxSky:
         """
             :Example:
 
@@ -241,10 +341,20 @@ class XST_Slice:
         )
 
         # Prepare visibilities rephasing
-        rephase_matrix, uvw = self.rephase_visibilities(
-            phase_center=phase_center,
-            uvw=uvw
-        )
+        if phase_center is None:
+            phase_center = SkyCoord(
+                0, 90, unit="deg",
+                frame=AltAz(
+                    obstime=self.time[0] + exposure/2,
+                    location=nenufar_position
+                )
+            ).transform_to("icrs")
+            rephase_matrix = 1.
+        else:
+            rephase_matrix, uvw = self.rephase_visibilities(
+                phase_center=phase_center,
+                uvw=uvw
+            )
 
         # Mask auto-correlations
         ma1, ma2 = np.tril_indices(self.mini_arrays.size, 0)
@@ -266,6 +376,9 @@ class XST_Slice:
         )
 
         # Compute LMN coordinates
+        log.info(
+            "Preparing the sky..."
+        )
         image_mask = sky.visible_mask[0, 0, 0]
         image_mask *= sky.coordinates.separation(phase_center) <= fov_radius
         l, m, n = sky.compute_lmn(
@@ -285,7 +398,7 @@ class XST_Slice:
         n_pix = l.size
         uvw = da.from_array(
             uvw.astype(np.float32),
-            chunks=(n_freq, np.floor(n_bsl/os.cpu_count()), 3)
+            chunks=(n_freq, max(1, np.floor(n_bsl/os.cpu_count())), 3)
         )
 
         # Compute the phase
@@ -328,7 +441,7 @@ class XST_Slice:
             statistics data :math:`\mathcal{V}`.
 
             The distances between each Mini-Array :math:`{\rm MA}_i`
-            and the ground positions :math:`Delta` is:
+            and the ground positions :math:`\Delta` is:
 
             .. math::
                 d_{\rm{MA}_i} (x, y) = \sqrt{
@@ -376,13 +489,16 @@ class XST_Slice:
                 Tuple of near-field image and a dictionnary 
                 containing all source footprints. 
             :rtype:
-                `tuple`(:class:`~numpy.ndarray`, `dict`)
+                (:class:`~numpy.ndarray`, `dict`)
 
             :Example:
+                .. code-block:: python
 
-                from nenupy.io.xst import XST
-                xst = XST("xst_file.fits")
-                nearfield, src_dict = xst.make_nearfield(sources=["Cas A", "Sun"])
+                    from nenupy.io.xst import XST
+
+                    xst = XST("xst_file.fits")
+                    nearfield, src_dict = xst.make_nearfield(sources=["Cas A", "Sun"])
+
 
             .. versionadded:: 1.1.0
 
@@ -427,7 +543,7 @@ class XST_Slice:
         n_bsl = ma1[cross_mask].size
         grid_delays = da.from_array(
             grid_delays[cross_mask],
-            chunks=(np.floor(n_bsl/os.cpu_count()), npix, npix)
+            chunks=(max(1, np.floor(n_bsl/os.cpu_count())), npix, npix)
         )
     
         # Mean in time the visibilities
@@ -437,7 +553,7 @@ class XST_Slice:
         )[..., cross_mask] # (nfreqs, nvis)
         vis = da.from_array(
             vis,
-            chunks=(1, np.floor(n_bsl/os.cpu_count()))#(self.frequency.size, np.floor(n_bsl/os.cpu_count()))
+            chunks=(1, max(1, np.floor(n_bsl/os.cpu_count())))#(self.frequency.size, np.floor(n_bsl/os.cpu_count()))
         )
 
         # Make the nearfield image
@@ -487,11 +603,11 @@ class XST_Slice:
             
             ma1_enu = da.from_array(
                 ma_enu[ma1[cross_mask]],
-                chunks=np.floor(n_bsl/os.cpu_count())
+                chunks=max(1, np.floor(n_bsl/os.cpu_count()))
             )
             ma2_enu = da.from_array(
                 ma_enu[ma2[cross_mask]],
-                chunks=np.floor(n_bsl/os.cpu_count())
+                chunks=max(1, np.floor(n_bsl/os.cpu_count()))
             )
             src_delays = np.matmul(
                 ma1_enu - ma2_enu,
@@ -513,7 +629,26 @@ class XST_Slice:
 # ------------------------- Crosslet -------------------------- #
 # ============================================================= #
 class Crosslet(ABC):
-    """ """
+    """ Crosslet abstract class (both for XST and NenuFAR TV dat files).
+
+        .. rubric:: Attributes Summary
+
+        .. autosummary::
+
+            ~Crosslet.frequencies
+            ~Crosslet.mini_arrays
+
+        .. rubric:: Methods Summary
+
+        .. autosummary::
+
+            ~Crosslet.get
+            ~Crosslet.get_stokes
+            ~Crosslet.get_beamform
+
+        .. rubric:: Attributes and Methods Documentation
+
+    """
 
     # def __init__(self,
     #         mini_arrays: np.ndarray,
@@ -533,67 +668,69 @@ class Crosslet(ABC):
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def get(self,
-            frequency_selection: str = None,
-            time_selection: str = None,
             polarization: str = "XX",
-        ):
-        """ """
-        # Polarization selection
-        allowed_polarizations = ["XX", "XY", "YX", "YY"]
-        if polarization not in allowed_polarizations:
-            raise ValueError(
-                f"'polarization' argument must be equal to one of the following: {allowed_polarizations}."
-            )
-
-        # Frequency selection
+            miniarray_selection: np.ndarray = None,
+            frequency_selection: str = None,
+            time_selection: str = None
+        ) -> XST_Slice:
+        """
+        """
+        mas = self._select_mini_arrays(miniarray_selection)
         frequency_mask = self._get_freq_mask(frequency_selection)
-
-        # Time selection
         time_mask = self._get_time_mask(time_selection)
 
-        ma1, ma2 = np.tril_indices(self.mini_arrays.size, 0)
-        auto_mask = ma1 == ma2
-        cross_mask = ~auto_mask
-
-        if polarization == "XY":
-            # Deal with lack of auto XY cross in XST-like data
-            yx = self.data[
-                np.ix_(
-                    time_mask,
-                    frequency_mask,
-                    self._get_cross_idx("Y", "X")
-                )
-            ]
-            _xy = np.zeros(
-                (list(yx.shape[:-1]) + [ma1.size]),
-                dtype=np.complex
+        return XST_Slice(
+            mini_arrays=mas,
+            time=self.time[time_mask],
+            frequency=self.frequencies[frequency_mask],
+            value=self._get(
+                frequency_selection=frequency_selection,
+                time_selection=time_selection,
+                polarization=polarization,
+                mini_arrays=mas
             )
-            _xy[:, :, auto_mask] = yx[:, :, auto_mask].conj()
-            # Get XY correlations
-            _xy[:, :, cross_mask] = self.data[
-                np.ix_(
-                    time_mask,
-                    frequency_mask,
-                    self._get_cross_idx("X", "Y")
-                )
-            ]
-            return _xy
-        else:
-            return self.data[
-                np.ix_(
-                    time_mask,
-                    frequency_mask,
-                    self._get_cross_idx(*list(polarization))
-                )
-            ]
+        )
 
 
     def get_stokes(self,
             stokes: str = "I",
+            miniarray_selection: np.ndarray = None,
             frequency_selection: str = None,
             time_selection: str = None
-        ):
-        """ """
+        ) -> XST_Slice:
+        r""" 
+             ``frequency_selection`` and ``time_selection``
+            arguments accept `str` values formatted as, e.g.,
+            ``'>={value}'`` or ``'>={value_1} & <{value_2}'`` or ``'=={value}'``.
+
+            :param frequency_selection:
+                Frequency selection. The expected ``'{value}'`` format is frequency units, e.g. ``'>=50MHz'`` or ``'< 1 GHz'``.
+                Default is ``None`` (i.e., no selection upon frequency).
+            :type frequency_selection:
+                `str`
+            :param time_selection:
+                Time selection. The expected ``'{value}'`` format is ISOT, e.g. ``'>=2022-01-01T12:00:00'``.
+                Default is ``None`` (i.e., no selection upon time).
+            :type time_selection:
+                `str`
+            :param stokes:
+                Stokes parameters to return
+            :type stokes:
+                `str`
+
+            .. math::
+
+                \begin{cases}
+                    \rm{I} = \frac{1}{2}(\rm{XX} + \rm{YY})\\
+                    \rm{Q} = \frac{1}{2}(\rm{XX} - \rm{YY})\\
+                    \rm{U} = \frac{1}{2}(\rm{XY} + \rm{YX})\\
+                    \rm{V} = \frac{-i}{2}(\rm{XY} - \rm{YX})\\
+                    \frac{\rm{L}}{\rm{I}} = \frac{\sqrt{\rm{Q}^2 + \rm{U}^2}}{\rm{I}}\\
+                    \frac{\rm{V}}{\rm{I}} = \frac{\rm{V}}{\rm{I}}\\
+                \end{cases}
+
+        """
+        mas = self._select_mini_arrays(miniarray_selection)
         frequency_mask = self._get_freq_mask(frequency_selection)
         time_mask = self._get_time_mask(time_selection)
 
@@ -628,17 +765,19 @@ class Crosslet(ABC):
             selected_stokes = stokes_parameters[stokes]
         except KeyError:
             log.warning(f"Available polarizations are: {stokes_parameters.keys()}.")
+            raise
 
         return XST_Slice(
-            mini_arrays=self.mini_arrays,
+            mini_arrays=mas,
             time=self.time[time_mask],
             frequency=self.frequencies[frequency_mask],
             value=selected_stokes["compute"](
                 *map(
-                    lambda pol: self.get(
+                    lambda pol: self._get(
                         frequency_selection=frequency_selection,
                         time_selection=time_selection,
-                        polarization=pol
+                        polarization=pol,
+                        mini_arrays=mas
                     ),
                     selected_stokes["cross"]
                 )
@@ -653,7 +792,7 @@ class Crosslet(ABC):
             mini_arrays: np.ndarray = np.array([0, 1]),
             polarization: str = "NW",
             calibration: str = "default"
-        ):
+        ) -> ST_Slice:
         """
             :Example:
 
@@ -700,7 +839,7 @@ class Crosslet(ABC):
             )].squeeze(axis=2)
 
         # Load and filter the data
-        vis = self.get(
+        vis = self._get(
             frequency_selection=frequency_selection,
             time_selection=time_selection,
             polarization= "XX" if polarization.upper() == "NW" else "YY",
@@ -778,7 +917,7 @@ class Crosslet(ABC):
         phase[:, :, tri_y, tri_x] = phase[:, :, tri_x, tri_y].conj().copy()
         data = np.sum((vis_matrix * phase).real, axis=(2, 3))
 
-        return BST_Slice(
+        return ST_Slice(
             time=self.time[time_mask],
             frequency=self.frequencies[frequency_mask],
             value=data.squeeze()
@@ -787,6 +926,17 @@ class Crosslet(ABC):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
+    def _select_mini_arrays(self, mini_arrays):
+        """ """
+        if mini_arrays is None:
+            mini_arrays = self.mini_arrays
+        if np.any( ~np.isin(mini_arrays, self.mini_arrays) ):
+            raise IndexError(
+                f"Selected Mini-Arrays {mini_arrays} are outside possible values: {self.mini_arrays}."
+            )
+        return mini_arrays
+
+
     def _get_freq_mask(self, frequency_selection=None):
         """ """
         # Frequency selection
@@ -818,15 +968,88 @@ class Crosslet(ABC):
         return time_mask
 
 
-    def _get_cross_idx(self, c1='X', c2='X'):
+    def _get_cross_idx(self, c1="X", c2="X", mini_arrays=None):
         """ Retrieves visibilities indices for the given cross polarizations
         """
+
         mini_arrays_size = self.mini_arrays.size
-        corr = np.array(['X', 'Y']*mini_arrays_size)
+
+        # Mini-arrays selection
+        ma_indices = np.arange(mini_arrays_size, dtype="int")[np.isin(self.mini_arrays, mini_arrays)]
+
+        # Polarization array
+        corr = np.array(["X", "Y"]*mini_arrays_size)
         i_ant1, i_ant2 = np.tril_indices(mini_arrays_size*2, 0)
+        
+        # Define polarization and mini-arrays masks
         corr_mask = (corr[i_ant1] == c1) & (corr[i_ant2] == c2)
-        indices = np.arange(i_ant1.size)[corr_mask]
+        ma_mask = np.isin(i_ant1//2, ma_indices) & np.isin(i_ant2//2, ma_indices)
+
+        indices = np.arange(i_ant1.size)[corr_mask & ma_mask]
+
         return indices
+
+
+    def _get(self,
+            frequency_selection: str = None,
+            time_selection: str = None,
+            polarization: str = "XX",
+            mini_arrays: np.ndarray = None,
+        ) -> np.ndarray:
+        """ """
+        # Polarization selection
+        allowed_polarizations = ["XX", "XY", "YX", "YY"]
+        if polarization not in allowed_polarizations:
+            raise ValueError(
+                f"'polarization' argument must be one of the following: {allowed_polarizations}."
+            )
+
+        # Frequency selection
+        frequency_mask = self._get_freq_mask(frequency_selection)
+
+        # Time selection
+        time_mask = self._get_time_mask(time_selection)
+
+        # Final shape
+        if mini_arrays is None:
+            mini_arrays = self.mini_arrays
+        ma1, ma2 = np.tril_indices(mini_arrays.size, 0)
+        final_shape = (np.sum(time_mask), np.sum(frequency_mask), ma1.size)
+
+        if polarization == "XY":
+            # Deal with lack of auto XY cross in XST-like data
+            auto_mask = ma1 == ma2
+            cross_mask = ~auto_mask
+
+            yx = self.data[
+                np.ix_(
+                    time_mask,
+                    frequency_mask,
+                    self._get_cross_idx("Y", "X", mini_arrays)
+                )
+            ]
+            _xy = np.zeros(
+                (list(yx.shape[:-1]) + [ma1.size]),
+                dtype=np.complex
+            )
+            _xy[:, :, auto_mask] = yx[:, :, auto_mask].conj()
+            # Get XY correlations
+            _xy[:, :, cross_mask] = self.data[
+                np.ix_(
+                    time_mask,
+                    frequency_mask,
+                    self._get_cross_idx("X", "Y", mini_arrays)
+                )
+            ]
+            return _xy.reshape(final_shape)
+        else:
+            return self.data[
+                np.ix_(
+                    time_mask,
+                    frequency_mask,
+                    self._get_cross_idx(*list(polarization), mini_arrays)
+                )
+            ].reshape(final_shape)
 # ============================================================= #
 # ============================================================= #
 
@@ -835,12 +1058,41 @@ class Crosslet(ABC):
 # ---------------------------- XST ---------------------------- #
 # ============================================================= #
 class XST(StatisticsData, Crosslet):
-    """ """
+    """ Crosslet STatistics reading class.
+
+        .. rubric:: Attributes Summary
+
+        .. autosummary::
+
+            ~XST.mini_arrays
+
+        .. rubric:: Methods Summary
+
+        .. autosummary::
+
+            ~Crosslet.get
+            ~Crosslet.get_stokes
+            ~Crosslet.get_beamform
+
+        .. rubric:: Attributes and Methods Documentation
+
+    """
 
     def __init__(self, file_name):
         super().__init__(file_name=file_name)
-        self.mini_arrays = self._meta_data['ins']['noMROn'][0]
 
+
+    # --------------------------------------------------------- #
+    # --------------------- Getter/Setter --------------------- #
+    @property
+    def mini_arrays(self):
+        """ Retrieves the list of Mini-Arrays used to get the cross-correlations.
+
+            :getter: Mini-Arrays list.
+
+            :type: :class:`~numpy.ndarray`
+        """
+        return self._meta_data['ins']['noMROn'][0]
 # ============================================================= #
 # ============================================================= #
 
@@ -946,7 +1198,7 @@ class TV_Image:
         )
 
 
-    def save_png(self, figname: str, beam_contours: bool = True, show_sources: bool = True, **kwargs):
+    def save_png(self, figname: str = "", beam_contours: bool = True, show_sources: bool = True, **kwargs):
         """ """
         image_center = altaz_to_radec(
             SkyCoord(
@@ -1009,7 +1261,6 @@ class TV_Image:
             colorbar_label=f"Stokes {self.tv_image.polarization[0]}",
             **kwargs
         )
-        return
 # ============================================================= #
 # ============================================================= #
 
@@ -1342,7 +1593,26 @@ class TV_Nearfield:
 # ------------------------- NenufarTV ------------------------- #
 # ============================================================= #
 class NenufarTV(StatisticsData, Crosslet):
-    """ """
+    """ Crosslet abstract class (both for XST and NenuFAR TV dat files).
+
+        .. rubric:: Attributes Summary
+
+        .. autosummary::
+
+            ~Crosslet.frequencies
+            ~Crosslet.mini_arrays
+
+        .. rubric:: Methods Summary
+
+        .. autosummary::
+
+            ~Crosslet.get
+            ~Crosslet.get_stokes
+            ~Crosslet.get_beamform
+
+        .. rubric:: Attributes and Methods Documentation
+
+    """
 
     def __init__(self, file_name):
         self.file_name = file_name
@@ -1357,7 +1627,12 @@ class NenufarTV(StatisticsData, Crosslet):
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def compute_nenufar_tv(self, analog_pointing_file: str = None, **kwargs):
-        """ """
+        """
+            kwargs
+            fov_radius
+            resolution
+            stokes
+        """
 
         obs_time = self.time[0] + (self.time[-1] - self.time[0])/2
         fov_radius = kwargs.get("fov_radius", 27*u.deg)
@@ -1395,6 +1670,11 @@ class NenufarTV(StatisticsData, Crosslet):
 
     def compute_nearfield_tv(self, sources: list = [], **kwargs):
         """ 
+            kwargs
+                stokes
+                radius
+                npix
+
             :Example:
 
                 from nenupy.io.xst import NenufarTV

@@ -868,7 +868,7 @@ class Schedule(_TimeSlots):
         else:
             # Block are booked iteratively 
             for i, blk in enumerate(self.observation_blocks):
-                if not self._toSchedule[i]:
+                if (not self._toSchedule[i]) or (blk.isBooked):
                     continue
                 # Construct a mask to avoid setting the obsblock where it cannot fit
                 freeSlotsShifted = self.freeSlots.copy()
