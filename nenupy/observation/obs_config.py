@@ -350,14 +350,14 @@ backendProperties = {
             'desc': 'Number of polarizations'
         },
         'timeRes': {
-            'min': (0.30*u.ms).to(u.s).value,
+            'min': (0.32*u.ms).to(u.s).value,
             'max': (83.89*u.ms).to(u.s).value,
             'default': (5.00*u.ms).to(u.s).value,
             'type': '`float` or :class:`~astropy.time.TimeDelta`',
             'desc': 'Time resolution in seconds'
         },
         'freqRes': {
-            'min': (0.10*u.kHz).to(u.Hz).value,
+            'min': (0.095*u.kHz).to(u.Hz).value,
             'max': (12.21*u.kHz).to(u.Hz).value,
             'default': (6.10*u.kHz).to(u.Hz).value,
             'type': '`float` or :class:`~astropy.units.Quantity`',
@@ -743,22 +743,12 @@ class _BackendConfig(object):
         defaultVal = attrProp['default']
         if value > maxVal:
             log.warning(
-                "Maximal value of {0} is {1}. Setting to default '{2}={3}'.".format(
-                    name,
-                    maxVal,
-                    key,
-                    defaultVal
-                )
+                f"Maximal value of {name} is {maxVal} (<{value}). Setting to default '{key}={defaultVal}'."
             )
             value = defaultVal
         elif value < minVal:
             log.warning(
-                "Minimal value for {0} is {1}. Setting to default '{2}={3}'.".format(
-                    name,
-                    minVal,
-                    key,
-                    defaultVal
-                )
+                f"Minimal value for {name} is {minVal} (>{value}). Setting to default '{key}={defaultVal}'."
             )
             value = defaultVal
         return value
@@ -1097,7 +1087,6 @@ class _TFBeamConfig(_BackendConfig):
         """
         """
         log.debug(str(self))
-        print(self.nPolars, self.freqRes, self.timeRes, self.nSubBands, self.durationSec)
         ratePerSB = self.nPolars * float32 * (200.e6/1024./self.freqRes) / self.timeRes
         rateObs = ratePerSB * self.nSubBands
         return (rateObs * self.durationSec).to(u.Gibyte)
