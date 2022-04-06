@@ -252,7 +252,8 @@ class Parset(object):
                 }
             }
             fov["mini_arrays"] = anabeam["maList"]
-            fov["antennas"] = anabeam["antList"]
+            # fov["antennas"] = anabeam["antList"]
+            fov["antennas"] = self._array_to_dict_array(anabeam["antList"])
             fov["filter"] = [{"name": int(fil), "start": tim.isot} for fil, tim in zip(anabeam["filter"], anabeam["filterTime"])]
 
             data["field_of_views"].append(fov)
@@ -543,6 +544,18 @@ class Parset(object):
 
 
     @staticmethod
+    def _array_to_dict_array(array: list, unit: str = "") -> list:
+        """ """
+        if unit != "":
+            return [
+                {"value": val, "unit": unit} for val in array
+            ]
+        else:
+            return [
+                {"value": val} for val in array
+            ]
+
+    @staticmethod
     def _get_time_dict(property) -> dict:
         """ """
         # Sort out the beam start and stop times
@@ -579,16 +592,6 @@ class Parset(object):
             subband_list,
             np.where(np.diff(subband_list) != 1)[0] + 1
         )
-        # return {
-        #     "fmin": {
-        #         "value": sb2freq(np.min(subband_list))[0].to(u.MHz).value,
-        #         "unit": "MHz"
-        #     },
-        #     "fmax": {
-        #         "value": sb2freq(np.max(subband_list))[0].to(u.MHz).value ,
-        #         "unit": "MHz"
-        #     }
-        # }
         return {
             "value": [
                 {
@@ -597,6 +600,25 @@ class Parset(object):
                 } for group in subband_list_groups
             ],
             "unit": "MHz"
+        }
+
+
+    @staticmethod
+    def _get_miniarray_dict(mini_arrays: np.ndarray) -> dict:
+        """ """
+        # Find consecutive Mini-Arrays groups
+        ma_groups = np.split(
+            mini_arrays,
+            np.where(np.diff(mini_arrays) != 1)[0] + 1
+        )
+        return {
+            "value": [
+                {
+                    "gte": group[0],
+                    "lte": group[-1] 
+                } for group in ma_groups
+            ],
+            "unit": ""
         }
 
 
