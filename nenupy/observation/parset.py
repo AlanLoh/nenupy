@@ -593,15 +593,24 @@ class Parset(object):
             subband_list,
             np.where(np.diff(subband_list) != 1)[0] + 1
         )
-        return {
-            "value": [
-                {
+        # return {
+        #     "value": [
+        #         {
+        #             "gte": sb2freq(group.min())[0].to(u.MHz).value,
+        #             "lt": (sb2freq(group.max()) + SB_WIDTH)[0].to(u.MHz).value,
+        #         } for group in subband_list_groups
+        #     ],
+        #     "unit": "MHz"
+        # }
+        return [
+            {
+                "value": {
                     "gte": sb2freq(group.min())[0].to(u.MHz).value,
                     "lt": (sb2freq(group.max()) + SB_WIDTH)[0].to(u.MHz).value,
-                } for group in subband_list_groups
-            ],
-            "unit": "MHz"
-        }
+                },
+                "unit": "MHz"
+            } for group in subband_list_groups
+        ]
 
 
     @staticmethod
