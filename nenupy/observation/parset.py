@@ -251,7 +251,8 @@ class Parset(object):
                     "unit": "MHz"
                 }
             }
-            fov["mini_arrays"] = anabeam["maList"]
+            # fov["mini_arrays"] = anabeam["maList"]
+            fov["antennas"] = self._array_to_dict_array(anabeam["maList"])
             # fov["antennas"] = anabeam["antList"]
             fov["antennas"] = self._array_to_dict_array(anabeam["antList"])
             fov["filter"] = [{"name": int(fil), "start": tim.isot} for fil, tim in zip(anabeam["filter"], anabeam["filterTime"])]
