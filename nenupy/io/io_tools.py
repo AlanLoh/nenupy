@@ -24,8 +24,12 @@ __all__ = [
 from abc import ABC
 import operator
 import re
+from typing import Callable
 from astropy.io import fits
-from astropy.time import Time
+from astropy.time import Time, TimeDelta
+from scipy.signal import find_peaks
+from astropy.modeling import fitting
+from astropy.modeling.models import custom_model
 import astropy.units as u
 import numpy as np
 import matplotlib.pyplot as plt
@@ -133,6 +137,23 @@ class StatisticsData(ABC):
 # ============================================================= #
 # ------------------------- ST_Slice -------------------------- #
 # ============================================================= #
+class InconsistentShapeError(Exception):
+    """ Error raised when an operation between two ST_Slice
+        objects is performed although they have different time
+        and freequency axes.
+    """
+
+    def __init__(self):
+        self.message = (
+            "Operation between two ST_Slice instances with "
+            "un-identical time and frequency axes is prohibited."
+        )
+        super().__init__(self.message)
+
+    def __str__(self):
+        return f"{self.message}"
+
+
 class ST_Slice:
     """ Class to handle data sub-set from Statistical data.
 
@@ -153,6 +174,9 @@ class ST_Slice:
             ~ST_Slice.plot
             ~ST_Slice.rebin
             ~ST_Slice.fit_transit
+            ~ST_Slice.flatten_frequency
+            ~ST_Slice.flatten_time
+            ~ST_Slice.clear_pointing_switch
 
         .. rubric:: Attributes and Methods Documentation
 
@@ -244,6 +268,43 @@ class ST_Slice:
             analog_pointing_times=new_ana_times,
             digital_pointing_times=new_digi_times
         )
+
+
+    def __getitem__(self, slice_tuple):
+        """ (time, frequency) """
+        # Expects an explicit tuple of length 2
+        if not (isinstance(slice_tuple, tuple) and\
+                (len(slice_tuple) == 2) and\
+                all([isinstance(s, slice) for s in slice_tuple])
+            ):
+            raise IndexError("Only tuple of two slices allowed.")
+        return ST_Slice(
+            time=self.time[slice_tuple[0]],
+            frequency=self.frequency[slice_tuple[1]],
+            value=self.value[slice_tuple],
+            analog_pointing_times=self.analog_pointing_times,
+            digital_pointing_times=self.digital_pointing_times
+        )
+
+
+    def __add__(self, other):
+        """ """
+        return self._operation_with_other(other, np.add)
+
+
+    def __sub__(self, other):
+        """ """
+        return self._operation_with_other(other, np.subtract)
+
+
+    def __mul__(self, other):
+        """ """
+        return self._operation_with_other(other, np.multiply)
+    
+
+    def __truediv__(self, other):
+        """ """
+        return self._operation_with_other(other, np.divide)
 
 
     # --------------------------------------------------------- #
@@ -491,7 +552,7 @@ class ST_Slice:
         plt.close("all")
 
 
-    def rebin(self, dt: u.Quantity = None, df: u.Quantity = None):
+    def rebin(self, dt: u.Quantity = None, df: u.Quantity = None, method: str = "mean"):
         """ Rebins the data in time and frequency.
 
             :param dt:
@@ -504,6 +565,11 @@ class ST_Slice:
                 Default is ``None`` (i.e., no rebin in frequency).
             :type df:
                 :class:`~astropy.units.Quantity`
+            :param method:
+                Type of method for rebin purpose (either ``'mean'`` or ``'median'``).
+                Default is ``'mean'``.
+            :type method:
+                `str`
 
             :returns:
                 Rebinned data.
@@ -528,18 +594,26 @@ class ST_Slice:
         frequency = self.frequency.copy()
         value = self.value.copy()
 
+        # Define the type of rebin
+        if method.lower() == "mean":
+            rebin_method = np.nanmean
+        elif method.lower() == "median":
+            rebin_method = np.nanmedian
+        else:
+            raise ValueError("`method` should either be 'mean' or 'median'.")
+
         # Dynamic spectrum
         if len(value.shape) == 2:
             rebin_t_indices = self._rebin_time_indices(dt=dt)
             if rebin_t_indices is not None:
-                value = np.nanmean(
+                value = rebin_method(
                     value[rebin_t_indices, :],
                     axis=1
                 )
                 time = Time(np.nanmean(time.jd[rebin_t_indices], axis=1), format='jd')
             rebin_f_indices = self._rebin_frequency_indices(df=df)
             if rebin_f_indices is not None:
-                value = np.nanmean(
+                value = rebin_method(
                     value[:, rebin_f_indices],
                     axis=2
                 )
@@ -550,14 +624,14 @@ class ST_Slice:
         elif (len(value.shape) == 1) and (value.size == frequency.size):
             rebin_indices = self._rebin_frequency_indices(df=df)
             if rebin_indices is not None:
-                value = np.nanmean(value[rebin_indices], axis=1)
+                value = rebin_method(value[rebin_indices], axis=1)
                 frequency = np.nanmean(frequency[rebin_indices], axis=1)
 
         # Light curve
         elif (len(value.shape) == 1) and (value.size == time.size):
             rebin_indices = self._rebin_time_indices(dt=dt)
             if rebin_indices is not None:
-                value = np.nanmean(value[rebin_indices], axis=1)
+                value = rebin_method(value[rebin_indices], axis=1)
                 time = Time(np.nanmean(time.jd[rebin_indices], axis=1), format='jd')
         else:
             raise ValueError("Problem...")
@@ -628,6 +702,91 @@ class ST_Slice:
         ), transit_time, chi_square
 
 
+    def flatten_frequency(self):
+        """ """
+        return self/np.nanmedian(self.value, axis=0)[None, :]
+
+
+    def flatten_time(self):
+        """ """
+        return self/np.nanmedian(self.value, axis=1)[:, None]
+
+
+    def clear_pointing_switch(self,
+            flatten_frequency: bool = True,
+            pointing_dt: TimeDelta = TimeDelta(6*60, format="sec"),
+            peak_sample_error: int = 2,
+            return_correction: bool = False
+        ):
+        r"""
+
+        .. math::
+            p(t) = a \log(t) + bt^2 + ct + d
+
+
+        """
+
+        # Prepare the data by computing the median time profile
+        if flatten_frequency:
+            # The median time profile is computed after the data have been flattened in frequency.
+            # This decreases fit domination by the most sensitive part of the spectrum.
+            median_frequency_profile = np.nanmedian(self.value, axis=0)
+            median_time_profile = np.nanmedian(self.value/median_frequency_profile[None, :], axis=1)
+        else:
+            # Keep the frequency responce while performing the median in time.
+            median_time_profile = np.nanmedian(self.value, axis=1)
+        time_profile_max = median_time_profile.max()
+        median_time_profile_normalized = median_time_profile/time_profile_max
+
+        # ------ Find fixed analog pointing time slots ------
+        # NenuFar analog pointing is applied once every `pointing_dt` (usually 6 min).
+        # Find the minimal distance, in sample unit, between two peaks.
+        data_dt_sec = (self.time[1] - self.time[0]).sec
+        pointing_dt_sec = pointing_dt.sec
+        pointing_dstance = int(np.round(pointing_dt_sec/data_dt_sec))
+        # The minimal distance is taken `peak_sample_error` samples short to give an error margin
+        minimal_sample_distance_between_peaks = pointing_dstance - peak_sample_error
+        # Find peaks over the gradient of the time profile
+        time_profile_gradient = np.gradient(median_time_profile_normalized)
+        peak_indices, _ = find_peaks(
+            -time_profile_gradient,
+            height=np.std(time_profile_gradient)*2,
+            distance=minimal_sample_distance_between_peaks
+        )
+        # The gradient shift the peak indices by -1
+        peak_indices += 1
+        # Add first and last indices if they have not been picked up
+        peak_indices = np.insert(peak_indices, 0, 0)
+        peak_indices = np.append(peak_indices, self.value.shape[0])
+        peak_indices = np.unique(peak_indices)
+
+        # ------ Fit each pointing interval ------
+        # Define the fitting function
+        @custom_model
+        def nenufar_switch_load(time, a=1., b=1., c=1., d=1.):
+            """ """
+            return a*np.log10(time) + b + c*time**2 + d*time
+        # Loop over each pointing slot to fit the function
+        switch_correction = np.ones(self.time.size)
+        for start_idx, stop_idx in zip(peak_indices[:-1], peak_indices[1:]):
+            # Select the time profile portion between two peaks
+            interval_profile = median_time_profile_normalized[start_idx:stop_idx]
+            # Perform the fitting
+            switch_model = nenufar_switch_load(1., interval_profile.min())
+            fitter = fitting.LevMarLSQFitter()
+            times = 1 + np.arange(interval_profile.size)
+            switch_model_fit = fitter(switch_model, times, interval_profile)
+            # Update the fit correction
+            switch_correction[start_idx:stop_idx] *= switch_model_fit(times)
+
+        # ------ Return the corrected data ------
+        new_st_slice = self/switch_correction[:, None]
+        if return_correction:
+            return new_st_slice, switch_correction
+        else:
+            return new_st_slice
+
+
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     def _overplot_pointings(self, ax, **kwargs):
@@ -635,10 +794,10 @@ class ST_Slice:
         """
         if kwargs.get("analog_pointing", False):
             for time_i in self.analog_pointing_times:
-                ax.axvline(time_i.datetime, color="black", linestyle="-.")
+                ax.axvline(time_i.datetime, color="black", linestyle="-.", alpha=0.5)
         if kwargs.get("digital_pointing", False):
             for time_i in self.digital_pointing_times:
-                ax.axvline(time_i.datetime, color="black", linestyle=":")
+                ax.axvline(time_i.datetime, color="black", linestyle=":", alpha=0.5)
 
 
     def _plot_spectrum(self, data, ax, fig, **kwargs):
@@ -774,6 +933,48 @@ class ST_Slice:
             )
             return None
         return np.arange(n_bins)[None, :] + n_bins*np.arange(self.time.size//n_bins)[:, None]
+
+
+    def _operation_with_other(self, other, operation: Callable):
+        """ """
+        if type(other) is type(self):
+            # If `other` is a ST_Slice
+
+            # Check if they have the same frequency and time axes
+            same_frequency_size = self.frequency.size == other.frequency.size
+            same_time_size = self.time.size == other.time.size
+            if (not same_frequency_size) or (not same_time_size):
+                raise InconsistentShapeError
+
+            # Check if they have the same frequency and time axes
+            same_frequencies = np.all(self.frequency == other.frequency)
+            same_times = np.all(self.time == other.time)
+            if (not same_frequencies) or (not same_times):
+                raise InconsistentShapeError
+            
+            # Find out if any of the instances have their pointings filled up
+            analog_pointings = [self.analog_pointing_times, other.analog_pointing_times]
+            digital_pointings = [self.digital_pointing_times, other.digital_pointing_times]
+            analog_id_max = np.argmax(list(map(len, analog_pointings)))
+            digital_id_max = np.argmax(list(map(len, digital_pointings)))
+    
+            # Return a new object, while performing a numpy operation
+            return ST_Slice(
+                time=self.time,
+                frequency=self.frequency,
+                value=operation(self.value, other.value),
+                analog_pointing_times=analog_pointings[analog_id_max],
+                digital_pointing_times=digital_pointings[digital_id_max]
+            )
+        else:
+            # Perform a normal numpy operation
+            return ST_Slice(
+                time=self.time,
+                frequency=self.frequency,
+                value=operation(self.value, other),
+                analog_pointing_times=self.analog_pointing_times,
+                digital_pointing_times=self.digital_pointing_times
+            )
 # ============================================================= #
 # ============================================================= #
 

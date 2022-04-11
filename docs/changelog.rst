@@ -5,6 +5,7 @@ Changelog
 x.x.x
 ^^^^^
 * Methods to compute the intersection of celestial sources and NenuFAR beam (:mod:`~nenupy.schedule.contamination`, see :ref:`src_in_lobes_doc`).
+* Added :meth:`~nenupy.io.io_tools.ST_Slice.rebin`, :meth:`~nenupy.io.io_tools.ST_Slice.fit_transit`, :meth:`~nenupy.io.io_tools.ST_Slice.flatten_frequency`, :meth:`~nenupy.io.io_tools.ST_Slice.flatten_time` and :meth:`~nenupy.io.io_tools.ST_Slice.clear_pointing_switch` methods.
 
 
 2.0.0
