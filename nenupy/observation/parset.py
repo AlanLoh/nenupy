@@ -403,6 +403,29 @@ class Parset(object):
                     }
                 )
 
+        # Remove the remote Mini-Arrays if they are not used
+        for i, fov in enumerate(data["field_of_views"]):
+
+            # Check if remote MA are there
+            mas_in_fov = np.array([ma_in_fov["value"] for ma_in_fov in fov["mini_arrays"]])
+            if not np.any(mas_in_fov > 96):
+                continue
+
+            # Find out the receivers used
+            receivers_in_fov = []
+            for pointing in fov["pointings"]:
+                receivers_in_fov.append(pointing["receiver"]["name"])
+
+            # Check if one of the associated pointings implies NICKEL
+            if "nickel" in receivers_in_fov:
+                continue
+            
+            # Remove the remote Mini-Arrays
+            remote_mas_in_fov_mask = mas_in_fov > 96
+            fov["mini_arrays"] = np.array(fov["mini_arrays"])[~remote_mas_in_fov_mask].tolist()
+            log.info(
+                f"Remote Mini-Arrays have been removed for 'field_of_view' #{fov['idx']} because no associated 'pointing' is using the NICKEL receiver."
+            )
         
         data['parset_user'] = self.parset_user
 
@@ -414,12 +437,6 @@ class Parset(object):
                 json.dump(data, wf, ensure_ascii=False, indent=4)
         else:
             return data
-
-
-    def createDatabase(self):
-        """
-        """
-        return
 
 
     def add_to_database(self, data_base):#dataBaseName):
