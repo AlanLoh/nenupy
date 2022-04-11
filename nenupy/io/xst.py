@@ -338,7 +338,7 @@ class XST_Slice:
             interferometer=NenuFAR()[self.mini_arrays],
             phase_center=None, # will be zenith
             time=self.time,
-        )
+        ).to(u.m).value
 
         # Prepare visibilities rephasing
         if phase_center is None:
@@ -854,7 +854,7 @@ class Crosslet(ABC):
                 ma_indices.size,
                 ma_indices.size
             ),
-            dtype=np.complex
+            dtype=complex
         )
         vis_matrix[:, :, tri_x, tri_y] = vis
         vis_matrix[:, :, tri_y, tri_x] = vis_matrix[:, :, tri_x, tri_y].conj()
@@ -874,7 +874,7 @@ class Crosslet(ABC):
                 ma_indices.size,
                 ma_indices.size
             ),
-            dtype=np.complex
+            dtype=complex
         )
         altaz_pointing = pointing.horizontal_coordinates
         if altaz_pointing.size == 1:
@@ -1030,7 +1030,7 @@ class Crosslet(ABC):
             ]
             _xy = np.zeros(
                 (list(yx.shape[:-1]) + [ma1.size]),
-                dtype=np.complex
+                dtype=complex
             )
             _xy[:, :, auto_mask] = yx[:, :, auto_mask].conj()
             # Get XY correlations

@@ -402,6 +402,14 @@ class Interferometer(ABC, metaclass=CombinedMeta):
                 Y-axis limits. Default is auto-scaling.
             :type ylim:
                 `tuple`
+            :param show_names:
+                Print the antenna names. Default is ``True``.
+            :type show_names:
+                `bool`
+            :param patches:
+                Matplotlib Polygons
+            :type patches:
+                `tuple`(`list`, colors) of Polygons
         """
         fig, ax = plt.subplots(
             figsize=kwargs.get('figsize', (10, 10))
@@ -411,17 +419,27 @@ class Interferometer(ABC, metaclass=CombinedMeta):
             self.antenna_positions[:, 1],
             kwargs.get('s', 30)
         )
+
+        if kwargs.get("patches", None) is not None:
+            from matplotlib.collections import PatchCollection
+            patches, colors = kwargs.get("patches")
+            p = PatchCollection(patches, alpha=0.5)
+            p.set_array(colors)
+            ax.add_collection(p)
+
         ax.set_xlim(kwargs.get('xlim', ax.get_xlim()))
         ax.set_ylim(kwargs.get('ylim', ax.get_ylim()))
-        for i, antenna_name in enumerate(self.antenna_names):
-            ax.annotate(
-                antenna_name,
-                (
-                    self.antenna_positions[i, 0],
-                    self.antenna_positions[i, 1]
-                ),
-                ha='center'
-            )
+
+        if kwargs.get("show_names", True):
+            for i, antenna_name in enumerate(self.antenna_names):
+                ax.annotate(
+                    antenna_name,
+                    (
+                        self.antenna_positions[i, 0],
+                        self.antenna_positions[i, 1]
+                    ),
+                    ha='center'
+                )
         ax.set_aspect('equal', adjustable='datalim')
 
         if kwargs.get('figname', '') != '':
