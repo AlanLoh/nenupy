@@ -39,7 +39,7 @@ from mocpy import MOC
 from nenupy import DummyCtMgr
 from nenupy.astro.pointing import Pointing
 from nenupy.astro.sky import HpxSky
-from nenupy.astro.astro_tools import SolarSystemSource, solar_system_source
+from nenupy.astro.astro_tools import SolarSystemSource, solar_system_source, local_sidereal_time
 from nenupy.instru import MiniArray, NenuFAR_Configuration
 
 
@@ -131,11 +131,14 @@ class SourceInLobes:
         t_size, f_size = self.time.size, self.frequency.size
         dtype = [
             ('time_jd', 'f8', (t_size,)),
+            ('time_lst_deg', 'f8', (t_size,)),
             ('frequency_mhz', 'f8'),
             ('contamination', 'i8', (t_size,))
+            
         ]
         data = np.zeros(f_size, dtype=dtype)
         data["time_jd"] = self.time.jd
+        data["time_lst_deg"] = local_sidereal_time(self.time).deg
         data["frequency_mhz"] = self.frequency.to(u.MHz).value
         data["contamination"] = self.value
         hdu = fits.BinTableHDU(data)
