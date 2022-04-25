@@ -134,7 +134,6 @@ class SourceInLobes:
             ('time_lst_deg', 'f8', (t_size,)),
             ('frequency_mhz', 'f8'),
             ('contamination', 'i8', (t_size,))
-            
         ]
         data = np.zeros(f_size, dtype=dtype)
         data["time_jd"] = self.time.jd

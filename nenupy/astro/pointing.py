@@ -164,11 +164,11 @@ class Pointing(AstroObject):
                     custom_el.append(90*u.deg)
             else:
                 # there is a match
-                ra.append(ras[mask][0])
-                dec.append(decs[mask][0])
+                ra.append(ras[mask][-1]) # -1 because there may be several matches
+                dec.append(decs[mask][-1])
                 if hasattr(self, "custom_ho_coordinates"):
-                    custom_az.append(self.custom_ho_coordinates[mask].az[0])
-                    custom_el.append(self.custom_ho_coordinates[mask].alt[0])
+                    custom_az.append(self.custom_ho_coordinates[mask].az[-1])
+                    custom_el.append(self.custom_ho_coordinates[mask].alt[-1])
 
         pointing = Pointing(
             coordinates=SkyCoord(
