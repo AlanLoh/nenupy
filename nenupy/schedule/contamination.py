@@ -22,6 +22,7 @@ __all__ = [
 
 
 import logging
+from xmlrpc.client import Boolean, boolean
 log = logging.getLogger(__name__)
 
 import numpy as np
@@ -149,18 +150,37 @@ class SourceInLobes:
 
 
     @classmethod
-    def from_fits(cls, filename: str):
-        """ """
+    def from_fits(cls, filename: str, time_lst: bool = False):
+        """ Imports a FITS file as a SourceInLobes object.
+            :param filename:
+                FITS filename
+            :type filename:
+                'str'
+            :param time_lst:
+                Set to True to obtain the time in lst along with the SourceInLobe object. Default, False.
+            :type time_lst:
+                bool
+        """
         with fits.open(filename) as hdus:
             time_jd = hdus[1].data["time_jd"][0, :]
+            time_lst= hdus[1].data["time_lst_deg"][0,:]
             frequency_mhz = hdus[1].data["frequency_mhz"]
             values = hdus[1].data["contamination"]
 
-        return cls(
-            time=Time(time_jd, format="jd"),
-            frequency=frequency_mhz*u.MHz,
-            value=values
-        )
+        if time_lst == True :
+            return (cls(
+                time=Time(time_jd, format="jd"),
+                frequency=frequency_mhz*u.MHz,
+                value=values
+            ), time_lst)
+        else :
+            return cls(
+                time=Time(time_jd, format="jd"),
+                frequency=frequency_mhz*u.MHz,
+                value=values
+            )
+        
+        
 # ============================================================= #
 # ============================================================= #
 
@@ -307,7 +327,13 @@ class BeamLobes:
 
 
     def sources_in_lobes(self, sources: List[str]) -> SourceInLobes:
-        """ """
+        """ Evaluates the presence given sources in the time-frequency plane associated with the grating lobes of NenuFAR.
+        
+            :param sources:
+                List of the sources of interest
+            :type sources:
+                list ['str']
+        """
         # Get an array of sky positions (including all sources, all times)
         sky_positions = self._get_skycoord_array(sources)
 
