@@ -75,6 +75,13 @@ class SourceInLobes:
             value=self.value + other.value 
         )
 
+    # --------------------------------------------------------- #
+    # --------------------- Getter/Setter --------------------- # 
+
+    @property
+    def lst_time(self):
+        """ Returns the times associated with the SourceInLobe object in Local Sidereal Time."""
+        return local_sidereal_time(self.time)
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -139,7 +146,7 @@ class SourceInLobes:
         ]
         data = np.zeros(f_size, dtype=dtype)
         data["time_jd"] = self.time.jd
-        data["time_lst_deg"] = local_sidereal_time(self.time).deg
+        data["time_lst_deg"] = self.lst_time.deg
         data["frequency_mhz"] = self.frequency.to(u.MHz).value
         data["contamination"] = self.value
         hdu = fits.BinTableHDU(data)
@@ -150,7 +157,7 @@ class SourceInLobes:
 
 
     @classmethod
-    def from_fits(cls, filename: str, time_lst: bool = False):
+    def from_fits(cls, filename: str):
         """ Imports a FITS file as a SourceInLobes object.
             :param filename:
                 FITS filename
@@ -163,18 +170,10 @@ class SourceInLobes:
         """
         with fits.open(filename) as hdus:
             time_jd = hdus[1].data["time_jd"][0, :]
-            time_lst= hdus[1].data["time_lst_deg"][0,:]
             frequency_mhz = hdus[1].data["frequency_mhz"]
             values = hdus[1].data["contamination"]
 
-        if time_lst == True :
-            return (cls(
-                time=Time(time_jd, format="jd"),
-                frequency=frequency_mhz*u.MHz,
-                value=values
-            ), time_lst)
-        else :
-            return cls(
+        return cls(
                 time=Time(time_jd, format="jd"),
                 frequency=frequency_mhz*u.MHz,
                 value=values
@@ -418,6 +417,7 @@ class BeamLobes:
                     configuration=self.configuration
                 )#self.pointing
             )
+        #af *= ma._antenna_gain(sky=self.sky, pointing=self.pointing)
         log.info("Computing the array factor...")
         with ProgressBar() if log.getEffectiveLevel() <= logging.INFO else DummyCtMgr():
             return af.compute()
