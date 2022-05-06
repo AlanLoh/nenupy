@@ -22,9 +22,11 @@ __all__ = [
 ]
 
 
+from ast import parse
 from os.path import abspath, isfile, join, basename, dirname
 from collections.abc import MutableMapping
 from copy import deepcopy
+from typing import Tuple, Callable
 import re
 import json
 from astropy.time import Time, TimeDelta
@@ -120,7 +122,7 @@ class _ParsetProperty(MutableMapping):
         elif ':' in value:
             # Might be a time object
             try:
-                value = Time(value, precision=0)
+                value = Time(value.strip(), precision=0)
             except ValueError:
                 pass
 
@@ -145,6 +147,587 @@ class _ParsetProperty(MutableMapping):
 
 
 # ============================================================= #
+# ------------------------ _JsonEntry ------------------------- #
+# ============================================================= #
+def _parse_parameters(parameters: str, pulsar: bool = False) -> Tuple[str, dict]:
+    """ Parse values from the digital beam 'parameters'
+        entry.
+        E.g. 'TF: DF=3.05 DT=10.0 HAMM'
+    """
+    parameters = parameters.lower()
+    mode = parameters.split(':')[0]
+    if pulsar:
+        configs = {
+            param.split('=')[0]: param.split('=')[1]\
+            for param in parameters.split('--')\
+            if '=' in param
+        }
+        configs.update({
+            param.rstrip(): True\
+            for param in parameters.split('--')\
+            if '=' not in param
+        })
+    else:
+        configs = {
+            param.split('=')[0]: param.split('=')[1]\
+            for param in parameters.split()\
+            if '=' in param
+        }
+        configs.update({
+            param.rstrip(): True\
+            for param in parameters.split('--')\
+            if '=' not in param
+        })
+    return mode, configs
+
+def _array_to_dict_array(array: list, unit: str = "") -> list:
+    """ """
+    if unit != "":
+        return [
+            {"value": val, "unit": unit} for val in array
+        ]
+    else:
+        return [
+            {"value": val} for val in array
+        ]
+
+def _get_pointing_center_dict(property: _ParsetProperty) -> dict:
+    """ Returns a RA, Dec whatever the pointing type is. """
+
+    def _constrain_angle(
+            angle: u.Quantity,
+            valmin: u.Quantity = 0.*u.deg,
+            valmax: u.Quantity = 90*u.deg
+        ):
+        """ Constrain an angle between two values. """
+        if angle < valmin:
+            angle = valmin 
+        elif angle > valmax:
+            angle = valmax
+        else:
+            pass
+        return angle
+
+    # Sort out the beam start and stop times
+    duration = TimeDelta(property['duration'] , format='sec')
+    start_time = property['startTime']
+    stop_time = (property['startTime'] + duration)
+
+    if "azelFile" in property:
+        # In case of pointing described by an azelfile
+        # it will be treated as a zenith pointing (wrong but best compromise for the database)
+        property["directionType"] = "azelgeo_azelfile"
+
+    # Deal with coordinates and pointing types
+    direction_type = property['directionType'].lower()
+    if direction_type == "j2000":
+        ra = property['angle1'].to(u.deg)
+        dec = property['angle2'].to(u.deg)
+        if ("decal_az" in property) or ("decal_el" in property):
+            altaz = SkyCoord(ra, dec).transform_to(
+                AltAz(
+                    obstime=start_time + duration/2.,
+                    location=nenufar_position
+                )
+            )
+            radec = SkyCoord(
+                _constrain_angle(
+                    altaz.az + float(property.get("decal_az", 0.0))*u.deg,
+                    valmin=0.*u.deg,
+                    valmax=360.*u.deg
+                ),
+                _constrain_angle(
+                    altaz.alt + float(property.get("decal_el", 0.0))*u.deg,
+                    valmin=0.*u.deg,
+                    valmax=90.*u.deg
+                ),
+                frame=AltAz(
+                    obstime=start_time + duration/2.,
+                    location=nenufar_position
+                )
+            ).transform_to(ICRS)
+            ra = radec.ra
+            dec = radec.dec
+        # Nothing else to do
+        decal_ra = float(property.get("decal_ra", 0.0))*u.deg
+        decal_dec = float(property.get("decal_dec", 0.0))*u.deg
+        right_ascension = _constrain_angle(
+            (ra + decal_ra).value,
+            valmin=0.,
+            valmax=360.
+        )
+        declination = _constrain_angle(
+            (dec + decal_dec).value,
+            valmin=-90.,
+            valmax=90.
+        )
+
+    elif direction_type == "azelgeo":
+        # This is a transit observation, compute the mean RA/Dec
+        # Convert AltAz to RA/Dec
+        radec = SkyCoord(
+            _constrain_angle(
+                property['angle1'] + float(property.get("decal_az", 0.0))*u.deg,
+                valmin=0.*u.deg,
+                valmax=360.*u.deg
+            ),
+            _constrain_angle(
+                property['angle2'] + float(property.get("decal_el", 0.0))*u.deg,
+                valmin=0.*u.deg,
+                valmax=90.*u.deg
+            ),
+            frame=AltAz(
+                obstime=start_time + duration/2.,
+                location=nenufar_position
+            )
+        ).transform_to(ICRS)
+        right_ascension = _constrain_angle(
+            radec.ra.deg + float(property.get("decal_ra", 0.0)),
+            valmin=0.,
+            valmax=360.
+        )
+        declination = _constrain_angle(
+            radec.dec.deg + float(property.get("decal_dec", 0.0)),
+            valmin=-90.,
+            valmax=90.
+        )
+    
+    elif direction_type == "azelgeo_azelfile":
+        # This observation was made using an azelfile
+        radec = SkyCoord(
+            0.*u.deg,
+            90*u.deg,
+            frame=AltAz(
+                obstime=start_time + duration/2.,
+                location=nenufar_position
+            )
+        ).transform_to(ICRS)
+        right_ascension = radec.ra.deg
+        declination = radec.dec.deg
+    
+    elif direction_type == "natif":
+        # This is a test observation, unable to parse the RA/Dec
+        right_ascension = None
+        declination = None
+
+    else:
+        # Dealing with a Solar System source
+        solar_system_target = SolarSystemTarget.from_name(
+            name=direction_type,
+            time=start_time + duration/2.
+        )
+        radec = solar_system_target.coordinates
+        if ("decal_az" in property) or ("decal_el" in property):
+            altaz = solar_system_target.horizontal_coordinates[0]
+            radec = SkyCoord(
+                _constrain_angle(
+                    altaz.az + float(property.get("decal_az", 0.0))*u.deg,
+                    valmin=0.*u.deg,
+                    valmax=360.*u.deg
+                ),
+                _constrain_angle(
+                    altaz.alt + float(property.get("decal_el", 0.0))*u.deg,
+                    valmin=0.*u.deg,
+                    valmax=90.*u.deg
+                ),
+                frame=AltAz(
+                    obstime=start_time + duration/2.,
+                    location=nenufar_position
+                )
+            ).transform_to(ICRS)
+        decal_ra = float(property.get("decal_ra", 0.0))*u.deg
+        decal_dec = float(property.get("decal_dec", 0.0))*u.deg
+        right_ascension = _constrain_angle(
+            radec.ra.deg + decal_ra.value,
+            valmin=0.,
+            valmax=360.
+        )
+        declination = _constrain_angle(
+            radec.dec.deg + decal_dec.value,
+            valmin=-90.,
+            valmax=90.
+        )
+
+    return {
+        "ra": {
+            "value": right_ascension,
+            "unit": "deg"
+        },
+        "dec": {
+            "value": declination,
+            "unit": "deg"
+        },
+        "obs_direction_type": property["directionType"].lower()
+    }
+
+def _get_time_dict(property: _ParsetProperty) -> dict:
+    """ """
+    # Sort out the beam start and stop times
+    duration = TimeDelta(property['duration'] , format='sec')
+    start_time = property['startTime']
+    stop_time = (property['startTime'] + duration)
+    return {
+        "startstop":
+            {
+                "gte": start_time.isot,
+                "lte": stop_time.isot
+            },
+        "duration": {
+            "value": np.round(duration.sec, 3),
+            "unit": "s"
+        }
+    }
+
+def _get_frequency_dict(property: _ParsetProperty, field: str = "subbandList") -> dict:
+        """ """
+        subband_list = property[field]
+        # Find consecutive subbands groups:
+        subband_list_groups = np.split(
+            subband_list,
+            np.where(np.diff(subband_list) != 1)[0] + 1
+        )
+        return [
+            {
+                "value": {
+                    "gte": sb2freq(group.min())[0].to(u.MHz).value,
+                    "lt": (sb2freq(group.max()) + SB_WIDTH)[0].to(u.MHz).value,
+                },
+                "unit": "MHz"
+            } for group in subband_list_groups
+        ]
+
+def _default_setting(digibeam: _ParsetProperty, output: _ParsetProperty, version: tuple) -> dict:
+    return {
+        "name": "LaNewBa",
+        "dt": {
+            "value": 1,
+            "unit": "s"
+        },
+        "df": {
+            "value": SB_WIDTH.to(u.kHz).value,
+            "unit": "kHz"
+        },
+        "frequency": _get_frequency_dict(digibeam, field="subbandList")
+    }
+
+def _pulsar_setting(digibeam: _ParsetProperty, output: _ParsetProperty, version: tuple) -> dict:
+    # Parse the parameters
+    try:
+        mode, config = _parse_parameters(digibeam["parameters"], pulsar=True)
+    except KeyError:
+        log.warning(
+            f"No 'parameters' for numerical beam {digibeam['noBeam']})."
+        )
+        return {}
+    
+    # Fill out the receiver configuration depending on the observing mode
+    if mode == "fold":
+        return {
+            "name": "undysputed",
+            "mode": "pulsar_fold",
+            "source_name": config["src"],
+            "n_polars": 1 if config.get("onlyi", False) else 4,
+            "frequency": _get_frequency_dict(digibeam, field="subbandList")
+        }
+    elif mode == "single":
+        return {
+            "name": "undysputed",
+            "mode": "pulsar_single",
+            "source_name": config["src"],
+            "downsampling": int(config["dstime"]),
+            "n_polars": 1 if config.get("onlyi", False) else 4,
+            "frequency": _get_frequency_dict(digibeam, field="subbandList")
+        }
+    elif mode == "waveolaf":
+        return {
+            "name": "undysputed",
+            "mode": "pulsar_waveolaf",
+            "source_name": config["src"],
+            "frequency": _get_frequency_dict(digibeam, field="subbandList")
+        }
+    elif mode == "wave":
+        return {
+            "name": "undysputed",
+            "mode": "pulsar_wave",
+            "source_name": config["src"],
+            "frequency": _get_frequency_dict(digibeam, field="subbandList")
+        }
+    else:
+        log.warning("Pulsar mode '{mode}' not recognized.")
+        return {}
+
+def _waveform_setting(digibeam: _ParsetProperty, output: _ParsetProperty, version: tuple) -> dict:
+    return {
+        "name": "undysputed",
+        "mode": "waveform",
+        "frequency": _get_frequency_dict(digibeam, field="subbandList")
+    }
+
+def _dynamicspectrum_setting(digibeam: _ParsetProperty, output: _ParsetProperty, version: tuple) -> dict:
+    # Parse the parameters
+    try:
+        _, config = _parse_parameters(digibeam["parameters"], pulsar=False)
+    except KeyError:
+        log.warning(
+            f"No 'parameters' for numerical beam {digibeam['noBeam']}). Setting to default values."
+        )
+        # Set default value for the configuration
+        config = {
+            "dt": 5.00,
+            "df": 6.1
+        }
+    try:
+        if config.get("tf: rawrt", False):
+            # This shouldnt be the case though...
+            return _waveform_setting(digibeam, output, version)
+        return {
+            "name": "undysputed",
+            "mode": "tf",
+            "dt": {
+                "value": float(config["dt"]),
+                "unit": "ms"
+            },
+            "df": {
+                "value": float(config["df"]),
+                "unit": "kHz"
+            },
+            "frequency": _get_frequency_dict(digibeam, field="subbandList")
+        }
+    except KeyError:
+        log.warning(
+            f"Wrong '{digibeam['toDo']}' configuration: {config}."
+        )
+        return {}
+
+def _nickel_setting(phasecenter: _ParsetProperty, output: _ParsetProperty, version: tuple) -> dict:
+    nickel_config = {
+        "name": "nickel",
+            "channelization": {
+                "value": output["nri_channelization"],
+                "unit": None
+            },
+            "dumptime": {
+                "value": output["nri_dumpTime"],
+                "unit": "s"
+            }
+    }
+    if version >= (1, 0):
+        # Parse the parameters
+        try:
+            mode, config = _parse_parameters(phasecenter["parameters"], pulsar=True)
+            log.warning("NICKEL parameters not taken into account. Needs to be implemented!")
+        except KeyError:
+            log.warning(
+                f"No 'parameters' for phase center {phasecenter['noBeam']})."
+            )
+            #return {}
+        nickel_config["frequency"] = _get_frequency_dict(phasecenter, "subbandList")
+        return nickel_config
+    else:
+        nickel_config["frequency"] = _get_frequency_dict(output, "nri_subbandList")
+        return nickel_config
+
+def _tbd_setting(digibeam: _ParsetProperty, output: _ParsetProperty, version: tuple) -> dict:
+    if ("nickel" in output.get("nri_receivers", [])) and (version < (1, 0)):
+        return _nickel_setting(digibeam, output, version)
+    else:
+        return _default_setting(digibeam, output, version)
+
+BEAM_SETTINGS = {
+    "none": _default_setting,
+    "pulsar": _pulsar_setting,
+    "waveform": _waveform_setting,
+    "dynamicspectrum": _dynamicspectrum_setting,
+    "tbd": _tbd_setting,
+    "nickel": _nickel_setting
+}
+
+class _JsonEntry:
+
+
+    def __init__(self, output: _ParsetProperty):
+        self.obs_metadata = {}
+        self.output = output
+        self.fovs = []
+        self.pointings = []
+
+
+    @property
+    def fov_indices(self) -> np.ndarray:
+        return np.array([fov["idx"] for fov in self.fovs])
+
+
+    @property
+    def data(self) -> dict:
+        """ """
+        # Fill the Field of Views with their associated pointings
+        fovs = self.fovs.copy()
+        for fov_idx, pointing in self.pointings:
+            fovs[fov_idx]["pointings"].append(pointing)
+
+        # Build the dictionnary of field of views        
+        fov_dict = {
+            "field_of_views": fovs
+        }
+
+        # Return a dictionnary that can be transformed to JSON
+        return {**self.obs_metadata, **fov_dict}
+
+
+    def add_observation_metadata(self, observation: _ParsetProperty, parset_file: str, parset_user: str = "") -> None:
+        """ """
+        self.obs_metadata["@timestamp"] = observation["startTime"].isot
+
+        # Fill out observation tab
+        self.obs_metadata["file_name"] = {
+            "name": basename(parset_file),
+            "path": dirname(parset_file)
+        }
+        self.obs_metadata["time"] = {
+            "startstop": 
+               {
+                  "gte": observation["startTime"].isot, 
+                  "lt": observation["stopTime"].isot
+               },
+            "duration": {
+                "value": np.round((observation["stopTime"] - observation["startTime"]).sec, 3),
+                "unit": "s"
+            }
+        }
+        topic = observation.get("topic", "ES00 DEBUG")
+        self.obs_metadata["topic"] = {
+            "code": topic[:4] if topic.startswith('ES') else "ES00",
+            "name": topic[5:] if topic.startswith('ES') else topic
+        }
+        key_mapping = {
+            "title": "title",
+            "contactName": "contact_name",
+            "name": "name"
+        }
+        for key, value in observation.items():
+            if key in key_mapping:
+                self.obs_metadata[key_mapping[key]] = value
+        self.obs_metadata["parset_user"] = parset_user
+
+
+    def add_field_of_view(self, index: int, anabeam: _ParsetProperty) -> None:
+        """ """
+        fov = {}
+        fov["idx"] = index
+        fov["pointings"] = []
+        fov["name"] = anabeam["target"]
+        fov["center"] = _get_pointing_center_dict(anabeam)
+        fov["time"] = _get_time_dict(anabeam)
+        fov["beamsquint"] = {
+            "correction": anabeam.get("beamSquint", False),
+            "frequency": {
+                "value": anabeam.get("optFrq", None),
+                "unit": "MHz"
+            }
+        }
+        fov["mini_arrays"] = _array_to_dict_array(anabeam["maList"])
+        fov["antennas"] = _array_to_dict_array(anabeam["antList"])
+        fov["filter"] = [{"name": int(fil), "start": tim.isot} for fil, tim in zip(anabeam["filter"], anabeam["filterTime"])]
+        self.fovs.append(fov)
+
+
+    def add_pointing(self, index: int, beam: _ParsetProperty, parset_version: tuple, pointing_setting_func: Callable = None) -> None:
+        """ """
+        pointing = {}
+
+        # Mandatory keys
+        pointing["idx"] = index
+        pointing["name"] = beam["target"]
+        pointing["center"] = _get_pointing_center_dict(beam)
+        pointing["time"] = _get_time_dict(beam)
+
+        # Select the correct function to store the receiver configuration
+        if pointing_setting_func is None:
+            # Automatically choose the function
+            pointing_setting_func = BEAM_SETTINGS[beam.get("toDo", "none").lower()]
+        pointing["receiver"] = pointing_setting_func(beam, self.output, parset_version)
+
+        # Assign the FoV index to each pointing
+        fov_idx = np.where(self.fov_indices == beam["noBeam"])[0][0]
+
+        self.pointings.append((fov_idx, pointing))
+
+
+    def add_xst_pointings(self) -> None:
+        """ """
+        # Get the last pointing index, before adding more
+        last_pointing_idx = len(self.pointings) - 1
+
+        for i, fov in enumerate(self.fovs):
+            start = Time(fov["time"]["startstop"]["gte"])
+            duration = TimeDelta(fov["time"]["duration"]["value"], format="sec")
+            zenith = SkyCoord(
+                0, 90,
+                unit="deg",
+                frame=AltAz(
+                    obstime=start + duration/2,
+                    location=nenufar_position
+                )
+            ).transform_to(ICRS)
+            
+            # Prepare the pointing configuration
+            xst_pointing = {
+                "idx": last_pointing_idx + 1 + i,
+                "center": {
+                    "ra": {
+                        "value": zenith.ra.deg,
+                        "unit": "deg"
+                    },
+                    "dec": {
+                        "value": zenith.dec.deg,
+                        "unit": "deg"
+                    },
+                    "obs_direction_type": "zenith_xst"
+                },
+                "name": "",
+                "time": fov["time"],
+                "receiver": {
+                    "name": "LaNewBa",
+                    "frequency": _get_frequency_dict(self.output, field="xst_sbList")
+                }
+            }
+
+            # Add the pointing to the list, with its associated fov index
+            self.pointings.append((i, xst_pointing))
+
+
+    def remove_unused_miniarrays(self) -> None:
+        """ """
+        for fov in self.fovs:
+            # Check if remote MA are there, loop out if not
+            mas_in_fov = np.array([ma_in_fov["value"] for ma_in_fov in fov["mini_arrays"]])
+            if not np.any(mas_in_fov > 96):
+                continue
+
+            # Find out the receivers used
+            for pointing in fov["pointings"]:
+                if "nickel" == pointing["receiver"]["name"]:
+                    # Check if one of the associated pointings implies NICKEL
+                    continue
+
+            # Remove the remote Mini-Arrays
+            remote_mas_in_fov_mask = mas_in_fov > 96
+            fov["mini_arrays"] = np.array(fov["mini_arrays"])[~remote_mas_in_fov_mask].tolist()
+            log.info(
+                f"Remote Mini-Arrays have been removed for 'field_of_view' #{fov['idx']} because no associated 'pointing' is using the NICKEL receiver."
+            )
+
+
+    def save_file(self, file_name: str) -> None:
+        """ Writes the JSON file. """
+        with open(file_name, 'w', encoding='utf-8') as wf:
+            json.dump(self.data, wf, ensure_ascii=False, indent=4)
+        log.info(f"'{file_name}' written.")
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
 # --------------------------- Parset -------------------------- #
 # ============================================================= #
 class Parset(object):
@@ -156,6 +739,7 @@ class Parset(object):
         self.output = _ParsetProperty()
         self.anabeams = {} # dict of _ParsetProperty
         self.digibeams = {} # dict of _ParsetProperty
+        self.phase_centers = {}
         self.parset_user = ""
         self.parset = parset
 
@@ -186,9 +770,77 @@ class Parset(object):
         self._decodeParset()
 
 
+    @property
+    def version(self) -> tuple:
+        """ """
+        version_str = self.observation.get("parsetVersion", "0")
+        version_tuple = tuple(map(lambda x: int(x), version_str.split(".")))
+        return version_tuple
+
+
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def to_json(self, path_name=None):
+    def to_json(self, path_name: str = None):
+        """ """
+
+        parset_version = self.version
+
+        json_entry = _JsonEntry(output=self.output)
+
+        json_entry.add_observation_metadata(
+            observation=self.observation,
+            parset_file=self.parset,
+            parset_user=self.parset_user
+        )
+
+        # Parse and store every field of view = analog configurations
+        for ana_idx, anabeam in self.anabeams.items():
+            json_entry.add_field_of_view(ana_idx, anabeam)
+
+        # Parse and store every pointing = digital beam configurations
+        for digi_idx, digibeam in self.digibeams.items():
+            json_entry.add_pointing(digi_idx, digibeam, parset_version)
+
+        # Parse and store every imaging pointing = phase center configurations
+        if parset_version >= (1, 0):
+            # These were introduced with parset version 1.0
+            for center_idx, phase_center in self.phase_centers.items():
+                pc_index = center_idx + digi_idx + 1
+                json_entry.add_pointing(pc_index, phase_center, parset_version)
+
+        # Add extra pointings in some specific cases
+        # If XST are used
+        if self.output.get("xst_userfile", False):
+            # Add a pointing per anabeam if XST data have been taken
+            json_entry.add_xst_pointings()
+        # If NICKEL is used, old parset versions
+        if parset_version < (1, 0):
+            if "nickel" in self.output.get("nri_receivers", []):
+                if "TBD" not in [beam["toDo"] for beam in self.digibeams.values()]:
+                    if len(self.digibeams) > 1:
+                        log.warning("Found more than 1 digi_beam. A NICKEL pointing is added for the first one ONLY.")
+                    # Add a NICKEL pointing corresponding to the analog beam
+                    index = len(json_entry.pointings)
+                    json_entry.add_pointing(
+                        index,
+                        self.digibeams[0],
+                        parset_version,
+                        pointing_setting_func=_nickel_setting
+                    )
+
+        # Remove un-necessary Mini-Arrays indices
+        json_entry.remove_unused_miniarrays()
+
+        # Save or not the data to a file
+        if path_name is not None:
+            json_file_name = basename(self.parset).replace(".parset", ".json")
+            json_file = join(path_name, json_file_name)
+            json_entry.save_file(file_name=json_file)
+        else:
+            return json_entry.data
+
+
+    def to_json_old(self, path_name=None):
         """ """
         
         data = {}
@@ -225,6 +877,12 @@ class Parset(object):
         for key, value in self.observation.items():
             if key in key_mapping:
                 data[key_mapping[key]] = value
+
+        # to_dos = [digibeam["toDo"] for digibeam in self.digibeams.values()]
+        receivers_used = self.output["hd_receivers"] + self.output.get("nri_receivers", [])
+        # to_dos = np.unique(to_dos)
+        # data["receivers"] = {"name": receiver_name for receiver_name in to_dos if receiver_name.lower() != "tbd"}
+        data["receivers"] = [{"name": receiver_name} for receiver_name in receivers_used]
 
         # Fill out outputs
         # data["output"] = {}
@@ -306,13 +964,20 @@ class Parset(object):
                         "source_name": config["src"],
                         "frequency": self._get_frequency_dict(digibeam, field="subbandList")
                     }
+                elif mode == "wave":
+                    pointing["receiver"] = {
+                        "name": "undysputed",
+                        "mode": "pulsar_wave",
+                        "source_name": config["src"],
+                        "frequency": self._get_frequency_dict(digibeam, field="subbandList")
+                    }
                 else:
                     pointing["receiver_configuration"] = {}
             elif digibeam["toDo"].lower() == "waveform":
                 pointing["receiver"] = {
                     "name": "undysputed",
                     "mode": "waveform",
-                    # "source_name": config["src"],
+                    #"source_name": config["src"],
                     "frequency": self._get_frequency_dict(digibeam, field="subbandList")
                 }
             elif digibeam["toDo"].lower() == "dynamicspectrum":
@@ -402,6 +1067,11 @@ class Parset(object):
                         }
                     }
                 )
+        
+        # Add a pointing per anabeam if NiCKEL data have been taken in // with undysputed
+        # to_dos = [digibeam["toDo"] for digibeam in self.digibeams.values()]
+        # if ("nickel" in self.output.get("nri_receivers", [])) & ("TBD" not in to_dos):
+        #     for i, fov in enumerate(data["field_of_views"]):
 
         # Remove the remote Mini-Arrays if they are not used
         for i, fov in enumerate(data["field_of_views"]):
@@ -419,14 +1089,14 @@ class Parset(object):
             # Check if one of the associated pointings implies NICKEL
             if "nickel" in receivers_in_fov:
                 continue
-            
+
             # Remove the remote Mini-Arrays
             remote_mas_in_fov_mask = mas_in_fov > 96
             fov["mini_arrays"] = np.array(fov["mini_arrays"])[~remote_mas_in_fov_mask].tolist()
             log.info(
                 f"Remote Mini-Arrays have been removed for 'field_of_view' #{fov['idx']} because no associated 'pointing' is using the NICKEL receiver."
             )
-        
+
         data['parset_user'] = self.parset_user
 
         if path_name is not None:
@@ -435,6 +1105,7 @@ class Parset(object):
             json_file = join(path_name, json_file_name)
             with open(json_file, 'w', encoding='utf-8') as wf:
                 json.dump(data, wf, ensure_ascii=False, indent=4)
+                log.info(f"'{json_file}' written.")
         else:
             return data
 
@@ -510,6 +1181,13 @@ class Parset(object):
                         self.digibeams[digiIdx]['digiIdx'] = str(digiIdx)
                     self.digibeams[digiIdx][key] = value
                 
+                elif line.startswith('PhaseCenter'):
+                    pcIdx = int(re.search(r'\[(\d*)\]', dicoName).group(1))
+                    if pcIdx not in self.phase_centers.keys():
+                        self.phase_centers[pcIdx] = _ParsetProperty()
+                        self.phase_centers[pcIdx]['pcIdx'] = str(pcIdx)
+                    self.phase_centers[pcIdx][key] = value
+
                 line = file_object.readline()
             
             log.info(
@@ -595,7 +1273,7 @@ class Parset(object):
                   "lte": stop_time.isot
                },
             "duration": {
-                "value": duration.sec,
+                "value": np.round(duration.sec, 3),
                 "unit": "s"
             }
         }
@@ -1132,6 +1810,10 @@ class ParsetUser:
             try:
                 syntax_pattern = all_configurations[key]['syntax']
             except KeyError:
+                continue
+        
+            # Don't check the key if it has not been modified
+            if not all_configurations[key]["modified"]:
                 continue
             
             # Retrieve the value that needs to be checked

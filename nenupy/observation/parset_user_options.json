@@ -225,7 +225,7 @@
             "value": "enable",
             "syntax": "(?i)^enable|disable$"
         },
-        "optFreq": {
+        "optFrq": {
             "required": false,
             "value": "beamsquint_frequency",
             "syntax": "^[1-8]0$"
@@ -303,7 +303,7 @@
             "required": false,
             "value": "0"
         },
-        "todo": {
+        "toDo": {
             "required": true,
             "value": "TBD"
         },
