@@ -653,6 +653,23 @@ class _JsonEntry:
         self.pointings.append((fov_idx, pointing))
 
 
+    def add_nickel_pointing(self, anabeam: _ParsetProperty, index: int) -> None:
+        """ Only for parset < 1.0 """
+        nickel_pointing = {}
+
+        # Mandatory keys
+        nickel_pointing["idx"] = index
+        nickel_pointing["name"] = anabeam["target"]
+        nickel_pointing["center"] = _get_pointing_center_dict(anabeam)
+        nickel_pointing["time"] = _get_time_dict(anabeam)
+        
+        nickel_pointing.update(
+            _nickel_setting(anabeam, self.output, version=(0, 0))
+        )
+
+        # Add the pointing to the list, with its associated fov index
+        self.pointings.append((0, nickel_pointing))
+
     def add_xst_pointings(self) -> None:
         """ """
         # Get the last pointing index, before adding more
@@ -817,16 +834,12 @@ class Parset(object):
         if parset_version < (1, 0):
             if "nickel" in self.output.get("nri_receivers", []):
                 if "TBD" not in [beam["toDo"] for beam in self.digibeams.values()]:
-                    if len(self.digibeams) > 1:
-                        log.warning("Found more than 1 digi_beam. A NICKEL pointing is added for the first one ONLY.")
+                    if len(self.anabeams) > 1:
+                        log.warning("Found more than 1 FoV. A NICKEL pointing is added for the first one ONLY.")
+
                     # Add a NICKEL pointing corresponding to the analog beam
                     index = len(json_entry.pointings)
-                    json_entry.add_pointing(
-                        index,
-                        self.digibeams[0],
-                        parset_version,
-                        pointing_setting_func=_nickel_setting
-                    )
+                    json_entry.add_nickel_pointing(anabeam=self.anabeams[0], index=index)
 
         # Remove un-necessary Mini-Arrays indices
         json_entry.remove_unused_miniarrays()
