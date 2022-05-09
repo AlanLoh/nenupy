@@ -22,7 +22,6 @@ __all__ = [
 
 
 import logging
-from xmlrpc.client import Boolean, boolean
 log = logging.getLogger(__name__)
 
 import numpy as np
@@ -163,10 +162,6 @@ class SourceInLobes:
                 FITS filename
             :type filename:
                 'str'
-            :param time_lst:
-                Set to True to obtain the time in lst along with the SourceInLobe object. Default, False.
-            :type time_lst:
-                bool
         """
         with fits.open(filename) as hdus:
             time_jd = hdus[1].data["time_jd"][0, :]
@@ -331,7 +326,7 @@ class BeamLobes:
             :param sources:
                 List of the sources of interest
             :type sources:
-                list ['str']
+                list[str]
         """
         # Get an array of sky positions (including all sources, all times)
         sky_positions = self._get_skycoord_array(sources)
