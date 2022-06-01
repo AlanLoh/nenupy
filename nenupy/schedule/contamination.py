@@ -9,7 +9,7 @@
 """
 
 
-__author__ = "Alan Loh"
+__author__ = "Alan Loh, Emilie Mauduit"
 __copyright__ = "Copyright 2021, nenupy"
 __credits__ = ["Alan Loh"]
 __maintainer__ = "Alan"
@@ -189,7 +189,8 @@ class BeamLobes:
             time: Time,
             frequency: u.Quantity,
             pointing: Pointing,
-            miniarray_rotations: List[int] = None
+            miniarray_rotations: List[int] = None,
+            use_antenna_gain: bool = True
         ):
         self.time = time
         self.frequency = frequency
@@ -221,7 +222,7 @@ class BeamLobes:
 
         # Fill in the value attribute with the array factor
         # computed over the 6 different MA orientations.
-        self.sky.value = self._compute_array_factor()
+        self.sky.value = self._compute_array_factor(use_antenna_gain=use_antenna_gain)
         # self._array_factor = self._compute_array_factor()
         # self.sky.value = np.sum(self._array_factor, axis=0)
 
@@ -397,8 +398,13 @@ class BeamLobes:
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _compute_array_factor(self) -> np.ndarray:
-        """ Computes the array factor, summed over the 6 different NenuFAR Mini-Array rotations. """
+    def _compute_array_factor(self, use_antenna_gain: bool = True) -> np.ndarray:
+        """ Computes the array factor, summed over the 6 different NenuFAR Mini-Array rotations.
+            :param use_antenna_gain:
+                Default is True. Takes into account the atenna gain when computing the array factor.
+            :type use_antenna_gain:
+                Bool
+        """
         # Mini-Array selection
         ma_mask = np.isin(MA_ROTATIONS, self.miniarray_rotations)
         af = 0
@@ -412,7 +418,8 @@ class BeamLobes:
                     configuration=self.configuration
                 )#self.pointing
             )
-        af *= ma._antenna_gain(sky=self.sky, pointing=self.pointing)
+        if use_antenna_gain :
+            af *= ma._antenna_gain(sky=self.sky, pointing=self.pointing)
         log.info("Computing the array factor...")
         with ProgressBar() if log.getEffectiveLevel() <= logging.INFO else DummyCtMgr():
             return af.compute()
