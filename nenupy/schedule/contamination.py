@@ -412,7 +412,7 @@ class BeamLobes:
                     configuration=self.configuration
                 )#self.pointing
             )
-        #af *= ma._antenna_gain(sky=self.sky, pointing=self.pointing)
+        af *= ma._antenna_gain(sky=self.sky, pointing=self.pointing)
         log.info("Computing the array factor...")
         with ProgressBar() if log.getEffectiveLevel() <= logging.INFO else DummyCtMgr():
             return af.compute()
