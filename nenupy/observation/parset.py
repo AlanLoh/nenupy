@@ -453,7 +453,7 @@ def _pulsar_setting(digibeam: _ParsetProperty, output: _ParsetProperty, version:
             "frequency": _get_frequency_dict(digibeam, field="subbandList")
         }
     else:
-        log.warning("Pulsar mode '{mode}' not recognized.")
+        log.warning(f"Pulsar mode '{mode}' not recognized.")
         return {}
 
 def _waveform_setting(digibeam: _ParsetProperty, output: _ParsetProperty, version: tuple) -> dict:
@@ -791,7 +791,10 @@ class Parset(object):
     def version(self) -> tuple:
         """ """
         version_str = self.observation.get("parsetVersion", "0")
-        version_tuple = tuple(map(lambda x: int(x), version_str.split(".")))
+        if version_str == "":
+            version_tuple = (1, 0) # default version
+        else:
+            version_tuple = tuple(map(lambda x: int(x), version_str.split(".")))
         return version_tuple
 
 
@@ -815,6 +818,7 @@ class Parset(object):
             json_entry.add_field_of_view(ana_idx, anabeam)
 
         # Parse and store every pointing = digital beam configurations
+        digi_idx = 0
         for digi_idx, digibeam in self.digibeams.items():
             json_entry.add_pointing(digi_idx, digibeam, parset_version)
 
@@ -1536,6 +1540,12 @@ class _ParsetBlock:
         return self.configuration[key]["value"]
 
 
+    @property
+    def fields(self):
+        """ Lists the available fields. """
+        return list(self.configuration.keys())
+
+
     def _modify_properties(self, **kwargs):
         """
         """
@@ -1566,6 +1576,7 @@ class _ParsetBlock:
                 log.warning(
                     f"Key '{key}' is invalid. Available keys are: {self.configuration.keys()}."
                 )
+
 
     def _write_block_list(self, index=None) -> str:
         """
@@ -1639,6 +1650,9 @@ class _NumericalBeamParsetBlock(_BeamParsetBlock):
         super().__init__(field="Beam", **kwargs)
 
 
+    def __repr__(self) -> str:
+        return f"<NumericalBeam(target={self['target']}, index={self.index})>"
+
 # ============================================================= #
 
 class _AnalogBeamParsetBlock(_BeamParsetBlock):
@@ -1648,9 +1662,14 @@ class _AnalogBeamParsetBlock(_BeamParsetBlock):
     def __init__(self, **kwargs):
         super().__init__(field="Anabeam", **kwargs)
         self.numerical_beams = []
+        self.phase_centers = []
 
 
-    def _add_numerical_beam(self, **kwargs):
+    def __repr__(self) -> str:
+        return f"<AnalogBeam(target={self['target']}, index={self.index})>"
+
+
+    def _add_numerical_beam(self, **kwargs) -> None:
         """
         """
         self.numerical_beams.append(
@@ -1659,8 +1678,17 @@ class _AnalogBeamParsetBlock(_BeamParsetBlock):
             )
         )
 
+    
+    def _add_phase_center(self, **kwargs) -> None:
+        """ """
+        self.phase_centers.append(
+            _NumericalBeamParsetBlock(
+                **kwargs
+            )
+        )
 
-    def _propagate_index(self):
+
+    def _propagate_index(self) -> None:
         """
         """
         for i, numbeam in enumerate(self.numerical_beams):
@@ -1689,29 +1717,69 @@ class _ObservationParsetBlock(_ParsetBlock):
     def __init__(self, **kwargs):
         super().__init__(field="Observation")
         self._modify_properties(**kwargs)
-        self.analog_beams = []
 
 
     def __str__(self):
         return self._write_block_list()
 
-
-    def _add_analog_beam(self, **kwargs):
-        """
-        """
-        self.analog_beams.append(
-            _AnalogBeamParsetBlock(**kwargs)
-        )
-
 # ============================================================= #
 
 class ParsetUser:
-    """
+    """ Class that handles the formatting of a NenuFAR *parset_user* file.
+
+        :Example:
+            .. code-block:: python
+
+                from nenupy.observation import ParsetUser
+
+                # Create an instance of this class
+                p = ParsetUser()
+
+                # Add an analog beam
+                p.add_analog_beam(target="Analog beam 1")
+
+                # Add two numerical beams associated with this analog beam
+                p.add_numerical_beam(0, target="One")
+                p.add_numerical_beam(0, target="Two")
+
+                # Print the analog beam parset block
+                print(p.analog_beams[0])
+
+                # Validate the parset
+                p.validate()
+
+                # Write the file
+                p.write("my_parset.parset_user")
+
+
+        .. seealso::
+
+            NenuFAR `Parset_User guide <https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html>`_
+
+
+        .. rubric:: Methods Summary
+
+        .. autosummary::
+
+            ~ParsetUser.set_observation_config
+            ~ParsetUser.set_output_config
+            ~ParsetUser.add_analog_beam
+            ~ParsetUser.add_numerical_beam
+            ~ParsetUser.modify_analog_beam
+            ~ParsetUser.modify_numerical_beam
+            ~ParsetUser.remove_analog_beam
+            ~ParsetUser.remove_numerical_beam
+            ~ParsetUser.validate
+            ~ParsetUser.write
+
+        .. rubric:: Attributes and Methods Documentation
+
     """
 
     def __init__(self):
         self.observation = _ObservationParsetBlock()
         self.output = _OutputParsetBlock()
+        self.analog_beams = []
 
 
     def __str__(self):
@@ -1722,68 +1790,272 @@ class ParsetUser:
         output_text = str(self.output)
         return "\n\n".join(
             [observation_text,
-            self.analog_beams_str,
-            self.numerical_beams_str,
+            self._analog_beams_str,
+            self._numerical_beams_str,
             output_text]
         )
 
 
     @property
-    def analog_beams_str(self):
+    def _analog_beams_str(self) -> str:
         """
         """
         return "\n\n".join(
             str(anabeam)
-            for anabeam in self.observation.analog_beams
+            for anabeam in self.analog_beams
         )
 
 
     @property
-    def numerical_beams_str(self):
+    def _numerical_beams_str(self) -> str:
         """
         """
         return "\n\n".join(
             str(numbeam)
-            for anabeam in self.observation.analog_beams
+            for anabeam in self.analog_beams
             for numbeam in anabeam.numerical_beams
         )
 
+    
+    def set_observation_config(self, **kwargs) -> None:
+        """ Sets the configuration of the *parset-user* observation block.
+            This method ingests any valid `keyword argument <https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html>`_ corresponding to an *Observation* configuration.
 
-    def add_analog_beam(self, **kwargs):
+            :Example:
+                .. code-block:: python
+                    :emphasize-lines: 4
+
+                    from nenupy.observation import ParsetUser
+
+                    p = ParsetUser()
+                    p.set_observation_config(
+                        name="My observation",
+                        contactName="AlanLoh",
+                        contactEmail="alan.loh@obspm.fr",
+                        topic="DEBUG"
+                    )
+
         """
+        for key, value in kwargs.items():
+            self.observation[key] = value
+
+
+    def set_output_config(self, **kwargs) -> None:
+        """ Sets the configuration of the *parset-user* output block.
+            This method ingests any valid `keyword argument <https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html>`_ corresponding to an *Output* configuration.
+
+            :Example:
+                .. code-block:: python
+                    :emphasize-lines: 4
+
+                    from nenupy.observation import ParsetUser
+
+                    p = ParsetUser()
+                    p.set_output_config(
+                        hd_bitMode=16,
+                        hd_receivers="[undysputed]"
+                    )
+
         """
-        self.observation._add_analog_beam(**kwargs)
+        for key, value in kwargs.items():
+            self.output[key] = value
+
+
+    def add_analog_beam(self, **kwargs) -> None:
+        """ Adds an analog beam to the :attr:`~nenupy.observation.parset.ParsetUser.analog_beams` attribute and updates its index based on other analog beams.
+            This method ingests any valid `keyword argument <https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html>`_ corresponding to an *Anabeam* configuration.
+
+            :Example:
+                .. code-block:: python
+                    :emphasize-lines: 5
+
+                    from nenupy.observation import ParsetUser
+                    from astropy.time import Time, TimeDelta
+
+                    p = ParsetUser()
+                    p.add_analog_beam(
+                        target="My fav target",
+                        simbadSearch="Cygnus X-3",
+                        trackingType="tracking",
+                        duration=TimeDelta(3600, format="sec"), # or "3600s"
+                        startTime=Time("2022-01-01 12:00:00") # or "2022-01-01T12:00:00Z"
+                    )
+
+        """
+        self.analog_beams.append(
+            _AnalogBeamParsetBlock(**kwargs)
+        )
         self._updates_anabeams_indices()
 
 
-    def remove_analog_beam(self, anabeam_index):
+    def modify_analog_beam(self, anabeam_index: int, **kwargs) -> None:
+        """ Modifies the configuration of the analog beam.
+
+            :param anabeam_index:
+                Index of the analog beam to modify.
+            :type anabeam_index:
+                `int`
+        
+            :Example:
+                .. code-block:: python
+                    :emphasize-lines: 5
+
+                    from nenupy.observation import ParsetUser
+
+                    p = ParsetUser()
+                    p.add_analog_beam(target="First")
+                    p.modify_analog_beam(0, target="Modified_Value")
+
         """
+        self.analog_beams[anabeam_index]._modify_properties(**kwargs)
+
+
+    def remove_analog_beam(self, anabeam_index: int) -> None:
+        """ Removes an analog beam along with its associated numerical beams.
+
+            :param anabeam_index:
+                Index of the analog beam to remove.
+            :type anabeam_index:
+                `int`
+
+            .. note::
+                One can quickly identify the indices of the analog beams:
+
+                .. code-block:: python
+                    :emphasize-lines: 6
+
+                    from nenupy.observation import ParsetUser
+
+                    p = ParsetUser()
+                    p.add_analog_beam(target="First")
+                    p.add_analog_beam(target="Second")
+                    p.analog_beams # prints: [<AnalogBeam(target=First, index=0)>, <AnalogBeam(target=Second, index=1)>] 
+
+
+            :Example:
+                .. code-block:: python
+                    :emphasize-lines: 6
+
+                    from nenupy.observation import ParsetUser
+
+                    p = ParsetUser()
+                    p.add_analog_beam(target="First")
+                    p.add_analog_beam(target="Second")
+                    p.remove_analog_beam(anabeam_index=0) # removes the analog beam "First"
+
         """
-        del self.observation.analog_beams[anabeam_index]
+        del self.analog_beams[anabeam_index]
         self._updates_anabeams_indices()
 
 
-    def add_numerical_beam(self, anabeam_index=0, **kwargs):
+    def add_numerical_beam(self, anabeam_index: int = 0, **kwargs) -> None:
+        """ Adds a numerical beam to the analog beam '``anabeam_index``' and updates its index based on other numerical beams.
+            This method ingests any valid `keyword argument <https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html>`_ corresponding to a *Beam* configuration.
+
+            :Example:
+                .. code-block:: python
+                    :emphasize-lines: 11
+
+                    from nenupy.observation import ParsetUser
+
+                    p = ParsetUser()
+                    p.add_analog_beam(
+                        target="My fav target",
+                        simbadSearch="Cygnus X-3",
+                        trackingType="tracking",
+                        duration="3600s",
+                        startTime="2022-01-01T12:00:00Z"
+                    )
+                    p.add_numerical_beam(
+                        anabeam_index=0,
+                        target="My fav target",
+                        useParentPointing=True,
+                        subbandList="[200..300]"
+                    )
+
         """
-        """
-        # Adds a numerical beam to the analog beam 'anabeam_index'
-        try:
-            anabeam = self.observation.analog_beams[anabeam_index]
-        except IndexError:
-            log.error(
-                f"Requested analog beam index {anabeam_index} is out of range. Only {len(self.observation.analog_beams)} analog beams are set."
+        if anabeam_index >= len(self.analog_beams):
+            raise IndexError(
+                f"Requested analog beam index {anabeam_index} is out of range. Only {len(self.analog_beams)} analog beams are set."
             )
-            raise
+        anabeam = self.analog_beams[anabeam_index]
         anabeam._add_numerical_beam(**kwargs)
         anabeam._propagate_index()
         self._updates_numbeams_indices()
         
 
-    def remove_numerical_beam(self, numbeam_index):
-        """
+    def modify_numerical_beam(self, numbeam_index: int, **kwargs) -> None:
+        """ Modifies the configuration of the numerical beam.
+
+            :param numbeam_index:
+                Index of the numerical beam to modify.
+            :type numbeam_index:
+                `int`
+        
+            :Example:
+                .. code-block:: python
+                    :emphasize-lines: 5
+
+                    from nenupy.observation import ParsetUser
+
+                    p = ParsetUser()
+                    p.add_analog_beam(target="First")
+                    p.add_numerical_beam(0, target="Initial_Value")
+                    p.modify_numerical_beam(0, target="Modified_Value")
+
         """
         counter = 0
-        for anabeam in self.observation.analog_beams:
+        for anabeam in self.analog_beams:
+            for i, _ in enumerate(anabeam.numerical_beams):
+                if counter==numbeam_index:
+                    anabeam.numerical_beams[i]._modify_properties(**kwargs)
+                    break
+                counter += 1
+            else:
+                continue
+            break
+
+
+    def remove_numerical_beam(self, numbeam_index: int) -> None:
+        """ Removes a numerical beam and updates the numerical beam indices.
+
+            :param numbeam_index:
+                Index of the numerical beam to remove.
+            :type numbeam_index:
+                `int`
+            
+            .. note::
+                One can quickly identify the indices of the numerical beams:
+
+                .. code-block:: python
+                    :emphasize-lines: 9
+
+                    from nenupy.observation import ParsetUser
+
+                    p = ParsetUser()
+                    p.add_analog_beam(target="Analog beam 1")
+                    p.add_analog_beam(target="Analog beam 2")
+                    p.add_numerical_beam(0, target="One")
+                    p.add_numerical_beam(0, target="Two")
+                    p.add_numerical_beam(1, target="Three")
+                    [anabeam.numerical_beams for anabeam in p.analog_beams] # prints: [[<NumericalBeam(target=One, index=0)>, <NumericalBeam(target=Two, index=1)>], [<NumericalBeam(target=Three, index=2)>]]
+
+
+            :Example:
+                .. code-block:: python
+                    :emphasize-lines: 6
+
+                    from nenupy.observation import ParsetUser
+
+                    p = ParsetUser()
+                    p.add_analog_beam(target="Analog beam 1")
+                    p.add_numerical_beam(0, target="One")
+                    p.add_numerical_beam(0, target="Two")
+                    p.remove_numerical_beam(numbeam_index=0) # removes the numerical beam "One"
+
+        """
+        counter = 0
+        for anabeam in self.analog_beams:
             for i, _ in enumerate(anabeam.numerical_beams):
                 if counter==numbeam_index:
                     del anabeam.numerical_beams[i]
@@ -1795,84 +2067,112 @@ class ParsetUser:
         self._updates_numbeams_indices()
 
 
-    def validate(self):
+    def validate(self) -> bool:
+        """ Validates the syntax of each field.
+
+            :returns:
+                ``True`` if all the checked keys have a correct syntax.
+            :rtype:
+                `bool`
+
+            .. warning::
+                This is merely just a syntax validation made with regular expressions.
+                The relevance of the parameter values are not checked at all.
+
         """
-        """
+        is_valid = True
+
         # Update the beam numbers on the Observation table
         self._update_beam_numbers()
 
         # Check that the beams are above the horizon during the course of the observation
-        for anabeam in self.observation.analog_beams:
+        for anabeam in self.analog_beams:
             if not anabeam.is_above_horizon():
                 log.warning("")
             for numbeam in anabeam.numerical_beams:
                 if not numbeam.is_above_horizon():
                     log.warning("")
 
-        # Concatenate the different parset fields into one dictionnary
-        all_configurations = dict(self.observation.configuration)
-        all_configurations.update(self.output.configuration)
-        for anabeam in self.observation.analog_beams:
-            all_configurations.update(anabeam.configuration)
-            for numbeam in anabeam.numerical_beams:
-                all_configurations.update(numbeam.configuration)
- 
-        # Check each key and the corresponding regex syntax
-        for key in all_configurations:
-            # Get the regex syntax and if it doesn't exist, go to the next key
-            try:
-                syntax_pattern = all_configurations[key]['syntax']
-            except KeyError:
-                continue
-        
-            # Don't check the key if it has not been modified
-            if not all_configurations[key]["modified"]:
-                continue
+        def check_keys(dictionnary: dict) -> bool:
+            all_keys_ok = True
+
+            # Check each key and the corresponding regex syntax
+            for key in dictionnary:
+                # Get the regex syntax and if it doesn't exist, go to the next key
+                try:
+                    syntax_pattern = dictionnary[key]['syntax']
+                except KeyError:
+                    continue
+
+                # Don't check the key if it has not been modified
+                if not dictionnary[key]["modified"]:
+                    continue
+                
+                # Retrieve the value that needs to be checked
+                value = dictionnary[key]["value"]
+                if str(value) == '':
+                    log.warning(f"Empty value for key '{key}'.")
+
+                # Perform a regex full match check, send a warning if invalid
+                if re.fullmatch(pattern=syntax_pattern, string=str(value)) is None:
+                    log.error(
+                        f"Syntax error on '{value}' (key '{key}')."
+                    )
+                    all_keys_ok &= False
             
-            # Retrieve the value that needs to be checked
-            value = all_configurations[key]["value"]
-            if str(value) == '':
-                log.warning(f"Empty value for key '{key}'.")
+            return all_keys_ok 
 
-            # Perform a regex full match check, send a warning if invalid
-            if re.fullmatch(pattern=syntax_pattern, string=str(value)) is None:
-                log.warning(
-                    f"Syntax error on '{value}' (key '{key}')."
-                )
+        # Check all configurations
+        is_valid &= check_keys(self.observation.configuration)
+        is_valid &= check_keys(self.output.configuration)
+        for anabeam in self.analog_beams:
+            is_valid &= check_keys(anabeam.configuration)
+            for numbeam in anabeam.numerical_beams:
+                is_valid &= check_keys(numbeam.configuration)
+
+        return is_valid
 
 
-    def write(self, file_name):
+    def write(self, file_name: str) -> None:
         """ Writes the current instance of :class:`~nenupy.observation.parset.ParsetUser`
             to a file called ``file_name``. 
+
+            :param file_name:
+                Name of the *parset_user* file to write.
+                The file extension must be ``".parset_user"``.
+            :type file_name:
+                `str`
         """
+        if not file_name.endswith(".parset_user"):
+            raise ValueError(f"file_name='{file_name}' does not end with '.parset_user'.")
         with open(file_name, "w") as wfile:
             wfile.write(str(self))
         log.debug(f"Parset written in file {file_name}.")
 
 
-    def _updates_numbeams_indices(self):
+    def _updates_numbeams_indices(self) -> None:
         """ Updates the indices of numerical beams. """
         numbeams_counter = 0
-        for anabeam in self.observation.analog_beams:
+        for anabeam in self.analog_beams:
             for numbeam in anabeam.numerical_beams:
                 numbeam.index = numbeams_counter
                 numbeams_counter += 1
 
 
-    def _updates_anabeams_indices(self):
+    def _updates_anabeams_indices(self) -> None:
         """ Updates the indices of analog beams. """
         anabeams_counter = 0
-        for anabeam in self.observation.analog_beams:
+        for anabeam in self.analog_beams:
             anabeam.index = anabeams_counter
             anabeam._propagate_index()
             anabeams_counter += 1
         self._updates_numbeams_indices()
 
 
-    def _update_beam_numbers(self):
+    def _update_beam_numbers(self) -> None:
         """ Updates the number of analog and numerical beams. """
-        nb_analog_beams = len(self.observation.analog_beams)
-        nb_numerical_beams = sum(len(anabeam.numerical_beams) for anabeam in self.observation.analog_beams)
+        nb_analog_beams = len(self.analog_beams)
+        nb_numerical_beams = sum(len(anabeam.numerical_beams) for anabeam in self.analog_beams)
         self.observation["nrAnabeams"] = str(nb_analog_beams)
         self.observation["nrBeams"] = str(nb_numerical_beams)
 # ============================================================= #

@@ -104,6 +104,7 @@ Finally, observations can then be simulated using the simulated beam and a sky m
    obs/obs_scheduling
    obs/src_in_lobes
    obs/obs_configuration
+   obs/parset_user
 
 .. _data-reading:
 

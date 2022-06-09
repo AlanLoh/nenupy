@@ -118,7 +118,7 @@ class TestBST:
             digital_pointing=True,
             analog_pointing=True
         )
-        fitted_data, transit_time, chi2 = data.fit_transit()
+        fitted_data, transit_time, chi2, parameters = data.fit_transit()
         assert transit_time.jd == pytest.approx(2459603.964, 1e-3)
         rebin_10s = data.rebin(dt=10*u.s)
         assert rebin_10s.value.shape == (77,)
