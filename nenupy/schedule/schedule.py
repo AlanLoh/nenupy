@@ -73,14 +73,16 @@ class ScheduleBlock(ObsBlock):
         target,
         constraints,
         duration,
-        dt
+        dt,
+        processing_delay
     ):
         super().__init__(
             name=name,
             program=program,
             target=target,
             constraints=constraints,
-            duration=duration
+            duration=duration,
+            processing_delay=processing_delay
         )
 
         self.dt = dt
@@ -88,6 +90,10 @@ class ScheduleBlock(ObsBlock):
         self.time_min = None
         self.time_max = None
         self.nSlots = int(np.ceil(self.duration/self.dt))
+        if self.processing_delay is None:
+            self.n_delay_slots = 0
+        else:
+            self.n_delay_slots = int(np.ceil(self.processing_delay/self.dt))
 
 
     def __del__(self):
@@ -148,7 +154,7 @@ class ScheduleBlock(ObsBlock):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def evaluateScore(self, time):
+    def evaluate_score(self, time):
         """
         """
         # Evaluate the target positions over time and compute the
@@ -328,6 +334,7 @@ class ScheduleBlocks(object):
         self.dt = dt
         self.blocks = []
         self._nSlots = []
+        self._n_delay_slots = []
         self._indices = []
         self._idxCounter = 0
 
@@ -365,6 +372,13 @@ class ScheduleBlocks(object):
         return np.array(self._nSlots, dtype=int)
 
 
+    @property
+    def n_delay_slots(self):
+        """
+        """
+        return np.array(self._n_delay_slots, dtype=int)
+
+
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def insert(self, block):
@@ -382,11 +396,13 @@ class ScheduleBlocks(object):
                     target=blk.target,
                     constraints=blk.constraints,
                     duration=blk.duration,
-                    dt=self.dt 
+                    dt=self.dt,
+                    processing_delay=blk.processing_delay
                 )
             sb.blockIdx = self._idxCounter
             self.blocks.append(sb)
             self._nSlots.append(sb.nSlots)
+            self._n_delay_slots.append(sb.n_delay_slots)
             self._indices.append(0)
             self._idxCounter += 1
 # ============================================================= #
@@ -403,8 +419,8 @@ class _TimeSlots(object):
 
     def __init__(
         self,
-        time_min, #tMin
-        time_max, #tMax,
+        time_min,
+        time_max,
         dt=TimeDelta(3600, format='sec')
     ):
         if not (_isTime(time_min, time_max) and _isTDelta(dt)):
@@ -416,7 +432,7 @@ class _TimeSlots(object):
         self.dt = dt
         
         # Compute the time slots
-        self.starts, self.stops = self._computeTimeSlots(
+        self.starts, self.stops = self._compute_slots_time_range(
             time_min=time_min,
             time_max=time_max,
             dt=dt
@@ -428,6 +444,8 @@ class _TimeSlots(object):
 
         # Initialize array of free time slots
         self.freeSlots = np.ones(self.size, dtype=bool)
+        # Initialize array of free processing time slots
+        self.free_processing_slots = np.ones(self.size, dtype=bool)
         # Initialize array of slot indices
         self.idxSlots = np.arange(self.size, dtype=int)
         self._freeIndices = self.idxSlots
@@ -481,7 +499,8 @@ class _TimeSlots(object):
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def time2idx(self, *time):
-        """
+        """ Converts times to schedule indices.
+            This method expects either one or two :class:`~astropy.time.Time` object(s).
         """
         if not _isTime(*time):
             raise TypeError(
@@ -490,8 +509,8 @@ class _TimeSlots(object):
 
         if len(time) == 1:
             # Find the unique corresponding slot index
-            mask = (self._startsJD <= time.jd) &\
-                (self._stopsJD > time.jd)
+            mask = (self._startsJD <= time[0].jd) &\
+                (self._stopsJD > time[0].jd)
         elif len(time) == 2:
             if time[1] < time[0]:
                 raise ValueError(
@@ -509,7 +528,7 @@ class _TimeSlots(object):
         return self.idxSlots[mask]
 
 
-    def addBooking(self, time_min, time_max):
+    def add_booking(self, time_min: Time, time_max: Time) -> None:
         """ Changes the status of the time slots comprised
             between ``time_min`` and ``time_max`` to 'booked' (i.e., not
             available anymore).
@@ -536,7 +555,7 @@ class _TimeSlots(object):
         self._freeIndices = self.idxSlots[self.freeSlots]
 
 
-    def delBooking(self, time_min, time_max):
+    def remove_booking(self, time_min: Time, time_max: Time) -> None:
         """
         """
         indices = self.time2idx(time_min, time_max)
@@ -547,7 +566,7 @@ class _TimeSlots(object):
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     @staticmethod
-    def _computeTimeSlots(time_min, time_max, dt):
+    def _compute_slots_time_range(time_min: Time, time_max: Time, dt: TimeDelta):
         """
         """
         if time_max <= time_min:
@@ -681,6 +700,11 @@ class Schedule(_TimeSlots):
         self._reserved_blocks = res
 
 
+    @property
+    def score(self) -> float:
+        """ Returns the current schedule score. """
+        return np.mean([block.score for block in self.observation_blocks])
+
     # @property
     # def scheduledBlocks(self):
     #     """
@@ -700,20 +724,25 @@ class Schedule(_TimeSlots):
                 :class:`~nenupy.schedule.obsblocks.Block`, :class:`~nenupy.schedule.obsblocks.ObsBlock` or :class:`~nenupy.schedule.obsblocks.ReservedBlock`
 
             :Example:
-                >>> from nenupy.schedule import Schedule, ESTarget, ObsBlock
-                >>> from astropy.time import Time, TimeDelta
-                >>> schedule = Schedule(
-                >>>     time_min=Time('2021-01-11 00:00:00'),
-                >>>     time_max=Time('2021-01-15 00:00:00'),
-                >>>     dt=TimeDelta(3600, format='sec')
-                >>> )
-                >>> cas_a = ObsBlock(
-                >>>     name="Cas A",
-                >>>     program="ES00",
-                >>>     target=ESTarget.fromName("Cas A"),
-                >>>     duration=TimeDelta(2*3600, format='sec'),
-                >>> )
-                >>> schedule.insert(cas_a)
+                .. code-block:: python
+
+                    from nenupy.schedule import Schedule, ESTarget, ObsBlock
+                    from astropy.time import Time, TimeDelta
+
+                    schedule = Schedule(
+                        time_min=Time('2021-01-11 00:00:00'),
+                        time_max=Time('2021-01-15 00:00:00'),
+                        dt=TimeDelta(3600, format='sec')
+                    )
+
+                    cas_a = ObsBlock(
+                        name="Cas A",
+                        program="ES00",
+                        target=ESTarget.fromName("Cas A"),
+                        duration=TimeDelta(2*3600, format='sec'),
+                    )
+
+                    schedule.insert(cas_a)
 
         """
         for blocks_i in blocks:
@@ -726,7 +755,7 @@ class Schedule(_TimeSlots):
                 self.observation_blocks.insert(blocks_i)
             elif all([blk.__class__ is ReservedBlock for blk in blocks_i]):
                 for blk in blocks_i:
-                    self.addBooking(blk.time_min, blk.time_max)
+                    self.add_booking(blk.time_min, blk.time_max)
                 if self.reserved_blocks is None:
                     self.reserved_blocks = blocks_i
                 else:
@@ -812,10 +841,15 @@ class Schedule(_TimeSlots):
                 ``None`` or :class:`~nenupy.schedule.geneticalgo.GeneticAlgorithm`
 
         """
-        self._evaluateCnst(**kwargs)
+        # Ré-initialize the booking, in case the user calls this method several times
+        self._reset_observation_block_bookings()
 
-        nBlocksUnScheduled = 0
+        # Pre-compute the constraints scores
+        self._compute_block_constraint_scores(**kwargs)
 
+        n_unscheduled_blocks = 0
+
+        # Raise warning if the observation block are impossible to fit
         if sum(self._toSchedule) == 0:
             log.warning(
                 'Required observation blocks have constraints '
@@ -828,7 +862,7 @@ class Schedule(_TimeSlots):
 
         if optimize:
             # All the observation blocks are booked at
-            # once with the genetic agorithm.
+            # once with the genetic algorithm.
             ga = GeneticAlgorithm(
                 populate=self._populate,
                 fitness=self._fitness,
@@ -836,32 +870,37 @@ class Schedule(_TimeSlots):
                 populationSize=kwargs.get('population_size', 20)
             )
 
+            # Find out the best observation schedule
             ga.evolve(
                 **kwargs
             )
 
+            # Book the observation_blocks on the schedule
             k = 0
             for i, blk in enumerate(self.observation_blocks):
                 if not self._toSchedule[i]:
+                    # The observation had a null score over the schedule
                     continue
-                bestStartIdx = ga.bestGenome[k]
-                bestStopIdx = bestStartIdx + blk.nSlots - 1
+                best_start_index = ga.bestGenome[k]
+                best_stop_index = best_start_index + blk.nSlots - 1
                 k += 1
-                if all(self._cnstScores[i, bestStartIdx:bestStopIdx + 1]==0):
-                    nBlocksUnScheduled += 1
+                if all(self._cnstScores[i, best_start_index:best_stop_index + 1] == 0):
+                    n_unscheduled_blocks += 1
                     log.warning(
                         f"<ObsBlock> #{blk.blockIdx} '{blk.name}' cannot be scheduled."
                     )
                     continue
-                blk.startIdx = bestStartIdx
-                blk.time_min = self.starts[bestStartIdx]
-                blk.time_max = self.stops[bestStartIdx + blk.nSlots-1]
+                blk.startIdx = best_start_index
+                blk.time_min = self.starts[best_start_index]
+                blk.time_max = self.stops[best_start_index + blk.nSlots-1]
 
             log.info(
-                f'{sum(self._toSchedule) - nBlocksUnScheduled}/'
+                f'{sum(self._toSchedule) - n_unscheduled_blocks}/'
                 f'{sum(self._toSchedule)} observation blocks scheduled '
                 f'({sum(~self._toSchedule)} impossible to fit).'
             )
+
+            score = self.fine_tune(max_it=kwargs.get("fine_tune_max_iterations", 1000))
 
             return ga
 
@@ -871,14 +910,23 @@ class Schedule(_TimeSlots):
                 if (not self._toSchedule[i]) or (blk.isBooked):
                     continue
                 # Construct a mask to avoid setting the obsblock where it cannot fit
-                freeSlotsShifted = self.freeSlots.copy()
-                for j in range(blk.nSlots):
-                    freeSlotsShifted *= np.roll(self.freeSlots, -j)
-                freeSlotsShifted[-blk.nSlots:] = self.freeSlots[-blk.nSlots:]
+                if blk.n_delay_slots != 0:
+                    freeSlotsShifted = self.freeSlots.copy() * self.free_processing_slots
+                else:
+                    freeSlotsShifted = self.freeSlots.copy()
+                
+                # for j in range(blk.nSlots):
+                #     freeSlotsShifted *= np.roll(self.freeSlots, -j)
+                # freeSlotsShifted[-blk.nSlots:] = self.freeSlots[-blk.nSlots:]
+                mask_idx = (np.where(~freeSlotsShifted)[0][:, None] - np.arange(blk.nSlots)[None, ::-1]).ravel()
+                mask_idx = np.unique(mask_idx)
+                mask_idx = mask_idx[mask_idx >= 0]
+                freeSlotsShifted[mask_idx] = False
+                
                 # Find the best spot
                 score = self._cnstScores[i, :] * self.freeSlots * freeSlotsShifted
                 if all(score==0):
-                    nBlocksUnScheduled += 1
+                    n_unscheduled_blocks += 1
                     log.warning(
                         f"<ObsBlock> #{i} '{blk.name}' cannot be scheduled."
                     )
@@ -890,14 +938,102 @@ class Schedule(_TimeSlots):
                 blk.startIdx = bestStartIdx
                 bestStopIdx = bestStartIdx + blk.nSlots - 1
                 self.freeSlots[bestStartIdx:bestStopIdx + 1] = False
+                if blk.n_delay_slots != 0:
+                    # Update the processing reserved slots
+                    self.free_processing_slots[bestStartIdx - blk.n_delay_slots:bestStopIdx + blk.n_delay_slots + 1] = False
                 blk.time_min = self.starts[bestStartIdx]
                 blk.time_max = self.stops[bestStopIdx]
 
             log.info(
-                f'{sum(self._toSchedule) - nBlocksUnScheduled}/'
+                f'{sum(self._toSchedule) - n_unscheduled_blocks}/'
                 f'{sum(self._toSchedule)} observation blocks scheduled '
                 f'({sum(~self._toSchedule)} impossible to fit).'
             )
+
+
+    def fine_tune(self, max_it: int = 1000) -> None:
+        """
+        """
+        log.info("Launching fine tunning...")
+
+        scores = []
+
+        # Loop until the score drops
+        while len(scores) <= max_it:
+            # Gather starting index and size of each schedule obsblock
+            start_indices = []
+            nslots = []
+            delay_nslots = []
+            indices = []
+            for block in self.observation_blocks:
+                if not block.isBooked:
+                    continue
+                start_indices.append(block.startIdx)
+                nslots.append(block.nSlots)
+                indices.append(block.blockIdx)
+                delay_nslots.append(block.n_delay_slots)
+
+            # Sort the by increasing index
+            start_indices_sorted = np.argsort(start_indices)
+            start_indices = np.array(start_indices, dtype=int)[start_indices_sorted]
+            nslots = np.array(nslots, dtype=int)[start_indices_sorted]
+            indices = np.array(indices, dtype=int)[start_indices_sorted]
+            delay_nslots = np.array(delay_nslots, dtype=int)[start_indices_sorted]
+
+            # Associate each observation blocks with its score before and after
+            max_scores = np.zeros((len(indices), 2)) # (number of booked blocks, score just before/score just after)
+            for i in range(start_indices_sorted.size):
+                block_index = indices[i]
+                block_score = self._cnstScores[block_index, start_indices[i]]
+                id1 = i - 1 # index of previous before
+                gap1 = np.arange(start_indices[id1] + nslots[id1] + 1 if id1 > 0 else 0, start_indices[i])
+                score1 = -1 if gap1.size == 0 else self._cnstScores[block_index, gap1[-1]] - block_score
+                id2 = i + 1 # index of next block
+                gap2 = np.arange(start_indices[i] + 1, start_indices[id2] - nslots[i] + 1 if id2 < (len(indices) - 1) else self.size - 1)
+                score2 = -1 if gap2.size == 0 else self._cnstScores[block_index, gap2[0]] - block_score
+                if delay_nslots[i] != 0:
+                    # If this is requires a processing delay, we must check for the previous and next similar
+                    # observation, which may not be the very previous or very next.
+                    delay_obs = np.argwhere(delay_nslots != 0)
+                    # Left
+                    prev_delay_idx = delay_obs[np.roll(delay_obs == i, -1)][0]
+                    if prev_delay_idx > i:
+                        # This is the first observation block with a delay constraint
+                        pass
+                    elif start_indices[prev_delay_idx] + nslots[prev_delay_idx] + delay_nslots[prev_delay_idx] >= start_indices[i]:
+                        score1 = -1
+                    # Right
+                    next_delay_idx = delay_obs[np.roll(delay_obs == i, +1)][0]
+                    if next_delay_idx < i:
+                        # This is the last observation block with delay constraint
+                        pass
+                    elif start_indices[i] + nslots[i] + delay_nslots[i] >= start_indices[next_delay_idx]:
+                        score2 = -1
+
+                # Score 'gradients'
+                max_scores[i, :] = np.array([
+                    score1,
+                    score2
+                ])
+
+            # Find out the maximal score difference
+            left_right_max = np.argmax(max_scores, axis=1)
+            max_score_diff = np.max(max_scores[np.arange(left_right_max.size), left_right_max])
+            max_score_block_idx = np.argmax(max_scores[np.arange(left_right_max.size), left_right_max])
+            if max_score_diff <= 0:
+                log.debug("No positive gradient available. End of fine-tunning loop.")
+                break
+
+            # Shift the block 1dt left or right
+            block = self.observation_blocks[indices[max_score_block_idx]]
+            block.startIdx += -1 if left_right_max[max_score_block_idx] == 0 else 1
+            block.time_min = self.starts[block.startIdx]
+            block.time_max = self.stops[block.startIdx + block.nSlots - 1]
+
+            # Compute the score
+            scores.append(self.score)
+        
+        return scores
 
 
     def export(self, score_min=0):
@@ -950,14 +1086,14 @@ class Schedule(_TimeSlots):
             starts.append(blk.time_min.isot)
             stops.append(blk.time_max.isot)
             programs.append(blk.program)
-        startArray = Time(starts, format='isot')
-        chron = np.argsort(startArray)
+        start_array = Time(starts, format='isot')
+        chron = np.argsort(start_array)
 
         tab = Table()
         tab['obsid'] = np.array(index, dtype=int)[chron]
         tab['name'] = np.array(names, dtype=str)[chron]
         tab['program'] = np.array(programs, dtype=str)[chron]
-        tab['start'] = startArray[chron]
+        tab['start'] = start_array[chron]
         tab['stop'] = Time(stops, format='isot')[chron]
         tab['score'] = np.array(scores)[chron]
 
@@ -1007,13 +1143,13 @@ class Schedule(_TimeSlots):
                 days_per_line,
                 format='jd'
             )
-        nSubPlots = int(np.ceil((time_max - time_min)/days_per_line))
+        n_subplots = int(np.ceil((time_max - time_min)/days_per_line))
 
         # Initialize the figure
         fig, axs = plt.subplots(
-            nrows=nSubPlots,
+            nrows=n_subplots,
             ncols=1,
-            figsize=kwargs.get('figsize', (15, 3*nSubPlots))
+            figsize=kwargs.get('figsize', (15, 3*n_subplots))
         )
 
         # Iterate over the sub-plots
@@ -1034,9 +1170,9 @@ class Schedule(_TimeSlots):
             if kwargs.get('grid', True):
                 tMask = (self._startsJD >= tiMin.jd) *\
                     (self._stopsJD <= tiMax.jd)
-                for slotStart in self.starts[tMask]:
+                for slot_start in self.starts[tMask]:
                     ax.axvline(
-                        slotStart.datetime,
+                        slot_start.datetime,
                         color='gray',
                         linestyle='-',
                         linewidth=0.5
@@ -1050,6 +1186,8 @@ class Schedule(_TimeSlots):
             # Display observation blocks
             if self.observation_blocks is not None:
                 for obsBlock in self.observation_blocks:
+                    if not obsBlock.isBooked:
+                        continue
                     obsBlock._display(ax=ax)
 
             # Formating
@@ -1074,7 +1212,7 @@ class Schedule(_TimeSlots):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _evaluateCnst(self, **kwargs):
+    def _compute_block_constraint_scores(self, **kwargs):
         """
         """
         log.info(
@@ -1092,7 +1230,7 @@ class Schedule(_TimeSlots):
             if blk.constraints.score is None:
                 # If != 1, the constraint score has already been computed
                 # Append the last time slot to get the last slot top
-                blk.evaluateScore(
+                blk.evaluate_score(
                     time=Time(
                         np.append(
                             self._startsJD,
@@ -1106,15 +1244,15 @@ class Schedule(_TimeSlots):
             blk.nSlots = int(np.ceil(blk.duration/self.dt))
 
             # Get the constraint and maximum possible score
-            slidingIdx = np.arange(blk.nSlots)[None, :] +\
+            sliding_indices = np.arange(blk.nSlots)[None, :] +\
                 np.arange(self.size - blk.nSlots)[:, None]
             self._cnstScores[i, :-blk.nSlots] = np.mean(
-                blk.constraints.score[slidingIdx],
+                blk.constraints.score[sliding_indices],
                 axis=1
             )
             # Set constraint score to zero if forbidden index
-            forbiddenMask = np.any(~self.freeSlots[slidingIdx], axis=1)
-            self._cnstScores[i, :-blk.nSlots][forbiddenMask] *= 0
+            forbidden_mask = np.any(~self.freeSlots[sliding_indices], axis=1)
+            self._cnstScores[i, :-blk.nSlots][forbidden_mask] *= 0
             self._maxScores[i] = np.max(self._cnstScores[i, :])
 
             # Check that the constraints are non zero
@@ -1131,7 +1269,24 @@ class Schedule(_TimeSlots):
         )        
 
 
-    def _bounds(self, indices):
+    def _reset_observation_block_bookings(self) -> None:
+        """ Loops through all observation_blocks,
+            if they are booked, set them as brand new and
+            release the corresponding schedule booking slots.
+        """
+        for block in self.observation_blocks:
+            if block.startIdx is None:
+                # The observation block has not been booked, skip
+                continue
+            # Free the schedule slots
+            self.freeSlots[block.startIdx:block.startIdx + block.nSlots] = True
+            if block.n_delay_slots != 0:
+                self.free_processing_slots[block.startIdx - block.n_delay_slots - 1: block.startIdx + block.nSlots + block.n_delay_slots] = True
+            # Reset the observation block as un-booked
+            block.startIdx = None
+
+
+    def _bound_to_schedule(self, indices: np.ndarray) -> np.ndarray:
         """
             startIndices = (schedule_size)
             
@@ -1155,24 +1310,23 @@ class Schedule(_TimeSlots):
         #         dtype=np.int64
         #     )
         # )
-        nBlocks = np.sum(self._toSchedule)
+        n_obs_blocks = np.sum(self._toSchedule)
         # population = np.zeros(
         #     (n, self.observation_blocks.size),
         #     dtype=int
         # )
         population = np.zeros(
-            (n, nBlocks),
+            (n, n_obs_blocks),
             dtype=int
         )
-        # for i in range(self.observation_blocks.size):
-        for i in range(nBlocks):
+        for i in range(n_obs_blocks):
             population[:, i] = randGen.choice(
                 np.where(self._cnstScores[self._toSchedule][i] != 0)[0],
                 # replace=False,
                 size=n,
             )
 
-        return self._bounds(population)
+        return self._bound_to_schedule(population)
 
 
     def _fitness(self, population):
@@ -1180,22 +1334,61 @@ class Schedule(_TimeSlots):
             population : np.array((children, genome))
         """
         # Evaluate the fitness of all the observation blocks over
-        # the cumulative (on nSlots) constraint scores and noormalize
+        # the cumulative (on nSlots) constraint scores and normalize
         # by the maximum available score within the schedule
+        genome_fitness = np.diagonal(
+            self._cnstScores[self._toSchedule].T[population],
+            axis1=1,
+            axis2=2
+        )/self._maxScores[self._toSchedule]
+        #has_zeros = np.any(genome_fitness==0., axis=1)
         fitness = np.mean(
-            np.diagonal(
-                self._cnstScores[self._toSchedule].T[population],
-                axis1=1,
-                axis2=2
-            )/self._maxScores[self._toSchedule],
+            genome_fitness,
             axis=1
         )
-        # Find out which inidicual in the population contains blocks
+        #fitness[has_zeros] = 0.
+        # Find out which individual in the population contains blocks
         # that overlaps with one another.
         # Sort the population block indices because we don't care
         # about the last one 
+        # sortedIdx = np.argsort(population)
+        # overlaps = np.any(
+        #     np.diff(
+        #         np.take_along_axis(
+        #             population,
+        #             sortedIdx,
+        #             axis=1
+        #         ),
+        #         axis=1
+        #     ) - self.observation_blocks.nSlots[self._toSchedule][sortedIdx][:, :-1] < 0,
+        #     axis=1
+        # )
+        # # The fitness is the product of the constraint score and
+        # # is set to 0 whenever there are overlapping blocks.
+        # return fitness * ~overlaps
+
+       
+        # Reduce the fitness if blocks with n_delay_slots != 0 overlap
+        are_delay_constrained = self.observation_blocks.n_delay_slots[self._toSchedule] > 0
+        population_delay = population[:, are_delay_constrained]
+        sorted_indices = np.argsort(population_delay)
+        delays = self.observation_blocks.n_delay_slots[self._toSchedule][sorted_indices][:, :-1]
+        nslots = self.observation_blocks.nSlots[self._toSchedule][sorted_indices][:, :-1]
+        overlaps_delay = np.sum(
+            np.diff(
+                np.take_along_axis(
+                    population_delay,
+                    sorted_indices,
+                    axis=1
+                ),
+                axis=1
+            ) - (delays + nslots) < 0,
+            axis=1
+        )        
+
+        # Reduce the fitness if observations temporally overlap
         sortedIdx = np.argsort(population)
-        overlaps = np.any(
+        overlaps = np.sum(
             np.diff(
                 np.take_along_axis(
                     population,
@@ -1207,8 +1400,8 @@ class Schedule(_TimeSlots):
             axis=1
         )
         # The fitness is the product of the constraint score and
-        # is set to 0 whenever there are overlapping blocks.
-        return fitness * ~overlaps
+        # is reduced whenever there are overlapping blocks.
+        return fitness/(overlaps + overlaps_delay + 1)
 
 
     def _mutation(self, genome):#, scaleOnFitness=False):
@@ -1222,7 +1415,7 @@ class Schedule(_TimeSlots):
             low=0,
             high=self.idxSlots.size
         )
-        return self._bounds(genome)
+        return self._bound_to_schedule(genome)
         # if scaleOnFitness:
         #     fitness = self._fitness(genome[None, :])[0]
         #     nMutations = int(np.ceil(genome.size * (1 - fitness)))

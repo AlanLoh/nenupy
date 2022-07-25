@@ -133,7 +133,7 @@ class Block(object):
 
     def __init__(self, *blocks):
         self._blocks = blocks
-        self._assignIndices()
+        self._assign_indices()
 
 
     def __len__(self):
@@ -149,17 +149,17 @@ class Block(object):
         blocks = []
         for block in self._blocks:
             for i in range(n):
-                copiedBlock = deepcopy(block)
+                copied_block = deepcopy(block)
                 try:
                     # Do not get a copy of the target attribute
                     # if it exists. Therefore any costly computation
                     # on target coordinates will not happen n times.
-                    copiedBlock.target = block.target
-                    copiedBlock.constraints = block.constraints
+                    copied_block.target = block.target
+                    copied_block.constraints = block.constraints
                 except AttributeError:
                     # Attribute target is not found for ReservedBlock
                     pass
-                blocks.append(copiedBlock)
+                blocks.append(copied_block)
         return Block(*blocks)
 
 
@@ -218,7 +218,7 @@ class Block(object):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _assignIndices(self):
+    def _assign_indices(self):
         """
         """
         for i, block in enumerate(self._blocks):
@@ -253,6 +253,12 @@ class ObsBlock(Block):
             The requested duration of the observation.
         :type duration:
             :class:`~astropy.time.TimeDelta`
+        :param processing_delay:
+            Time delay needed after the observation for the processing to take place.
+            Only :class:`~nenupy.schedule.obsblocks.ObsBlock`s with this parameter set are compared with each other while computing the scheduling.
+            This parameter particularly suits the imaging data.
+        :type processing_delay:
+            :class:`~astropy.time.TimeDelta`
 
         .. seealso::
             :ref:`observation_request_sec`
@@ -272,13 +278,15 @@ class ObsBlock(Block):
     def __init__(
         self, name, program, target,
         constraints=None,
-        duration=TimeDelta(3600, format='sec')
+        duration=TimeDelta(3600, format='sec'),
+        processing_delay: TimeDelta = None
     ):
         self.name = name
         self.program = program
         self.target = target
         self.constraints = constraints
         self.duration = duration
+        self.processing_delay = processing_delay
 
         self.blockIdx = 0
         
@@ -339,17 +347,15 @@ class ObsBlock(Block):
     def title(self):
         """
         """
-        _charLimit = 23
-        blkId = f'ID: {self.blockIdx}'
-        kpInfos = ' - '.join(
-            [
-                self.program.upper(),
-                KPS[self.program]['name']
-            ]
-        )
-        kpInfos = kpInfos[:_charLimit]
-        obsName = self.name[:_charLimit]
-        return f'{blkId}\n{kpInfos}\n{obsName}'
+        _char_limit = 23
+        block_id = f'ID: {self.blockIdx}'
+        kp_infos = ' - '.join([
+            self.program.upper(),
+            KPS[self.program]['name']
+        ])
+        kp_infos = kp_infos[:_char_limit]
+        obs_name = self.name[:_char_limit]
+        return f'{block_id}\n{kp_infos}\n{obs_name}'
 
 
     # --------------------------------------------------------- #

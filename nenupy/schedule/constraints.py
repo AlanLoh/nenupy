@@ -314,7 +314,7 @@ class Constraint(ABC):
 # --------------------- TargetConstraint ---------------------- #
 # ============================================================= #
 class TargetConstraint(Constraint):
-    """ Base class for constraints involving target propertiy checks.
+    """ Base class for constraints involving target property checks.
 
         .. warning::
             :class:`~nenupy.schedule.constraints.TargetConstraint`
@@ -682,6 +682,10 @@ class AzimuthCnst(TargetConstraint):
         azIndices = np.where(mask)[0]
         # Set neighbor slots to non-zero to maximize centering
         slotShifts = np.arange(nslots) - int(np.floor(nslots/2))
+        if nslots%2 == 0:
+            # if nslots is even, we have to think which slot to include in addition to the max one.
+            # print(np.abs(azimuths[azIndices] - az))
+            pass
         neighborIdx = (azIndices[:, None] + slotShifts[None, :]).ravel()
         outOfBounds = (neighborIdx < 0) + (neighborIdx >= scores.size)
         neighborIdx = np.delete(
