@@ -167,8 +167,17 @@ class Pointing(AstroObject):
                 ra.append(ras[mask][-1]) # -1 because there may be several matches
                 dec.append(decs[mask][-1])
                 if hasattr(self, "custom_ho_coordinates"):
-                    custom_az.append(self.custom_ho_coordinates[mask].az[-1])
-                    custom_el.append(self.custom_ho_coordinates[mask].alt[-1])
+                    if self.custom_ho_coordinates.shape == (1, 1):
+                        # Transit observation
+                        custom_az.append(self.custom_ho_coordinates.az[0, 0].deg*u.deg)
+                        custom_el.append(self.custom_ho_coordinates.alt[0, 0].deg*u.deg)
+                    elif self.custom_ho_coordinates.shape == (1,):
+                        # Transit observation
+                        custom_az.append(self.custom_ho_coordinates.az[0].deg*u.deg)
+                        custom_el.append(self.custom_ho_coordinates.alt[0].deg*u.deg)
+                    else:
+                        custom_az.append(self.custom_ho_coordinates[mask].az[-1].deg*u.deg)
+                        custom_el.append(self.custom_ho_coordinates[mask].alt[-1].deg*u.deg)
 
         pointing = Pointing(
             coordinates=SkyCoord(
@@ -716,10 +725,12 @@ class Pointing(AstroObject):
         elif transit_time.size != 1:
             # Possibly 2 crossings if the source is circumpolar
             # get the one at maximal elevation
-            target_altaz = radec_to_altaz(radec=target.coordinates, time=transit_time)[:, 0]
-            transit_time = transit_time[target_altaz.alt.argmax()]
+            # target_altaz = radec_to_altaz(radec=target.coordinates, time=transit_time, fast_compute=True)[:, 0]
+            # transit_time = transit_time[target_altaz.alt.argmax()]
+            print(transit_time.isot)
+            transit_time = transit_time[0].reshape((1,))
         
-        transit_altaz = radec_to_altaz(radec=target.coordinates, time=transit_time)
+        transit_altaz = radec_to_altaz(radec=target.coordinates, time=transit_time, fast_compute=True)
         time_steps = np.floor(duration/dt)
         time_steps = time_steps + 1 if time_steps%2 == 0 else time_steps
         dt_shifts = np.arange(time_steps) - (time_steps - 1)/2
