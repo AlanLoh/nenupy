@@ -292,7 +292,7 @@ class UV_Coverage:
             vv = (self.uvw[..., 1][:, None, :] / wavel[None, :, None]).to(u.dimensionless_unscaled)
         else:
             uu = self.uvw[..., 0].to(u.m).value
-            vv = self.uvw[..., 1].to(u.m).value
+            vv = self.uvw[..., 1].to(u.m).value        
 
         # Only work on the upper part of the plot since its symmetrical
         positive_v = vv > 0.
@@ -358,6 +358,72 @@ class UV_Coverage:
             plt.close("all")
 
         return angle, density, np.std((density, mean_value), axis=0)
+
+
+    def psf(self,
+            frequency: u.Quantity = None,
+            grid_size: int = 1000,
+            plot: bool = True,
+            **kwargs
+        ):
+        """ """
+
+        if frequency is not None:
+            wavel = wavelength(frequency)
+            if wavel.isscalar:
+                wavel = wavel.reshape((1,))
+            x_label = r"uv distance ($\lambda$)"
+            uu = (self.uvw[..., 0][:, None, :] / wavel[None, :, None]).to(u.dimensionless_unscaled)
+            vv = (self.uvw[..., 1][:, None, :] / wavel[None, :, None]).to(u.dimensionless_unscaled)
+        else:
+            x_label = "uv distance (m)"
+            uu = self.uvw[..., 0].to(u.m).value
+            vv = self.uvw[..., 1].to(u.m).value
+        
+
+        # Remove auto-correlations
+        auto_corr = (uu == 0.) * (vv == 0.)
+
+        # Grid the UV coverage
+        uv_grid, x_edges, y_edges = np.histogram2d(
+            uu[..., ~auto_corr].ravel(),
+            vv[..., ~auto_corr].ravel(),
+            bins=grid_size
+        )
+
+        # Fourrier transform
+        psf = np.fft.fft2(uv_grid)
+        psf = np.fft.fftshift(psf)
+
+        # Plot
+        if plot:
+            fig = plt.figure(figsize=kwargs.get("figsize", (10, 10)))
+            ax = fig.add_subplot(1, 1, 1)
+
+            abs_psf = np.abs(psf)
+            im = ax.imshow(
+                abs_psf,
+                origin="lower",
+                cmap=kwargs.get("cmap", "Blues"),
+                interpolation="nearest",
+                norm=LogNorm(vmin=abs_psf.min(), vmax=abs_psf.max()) if kwargs.get("log", False) else None
+            )
+
+            # Colorbar
+            cax = inset_axes(
+                ax,
+                width='3%',
+                height='100%',
+                loc='lower left',
+                bbox_to_anchor=(1.05, 0., 1, 1),
+                bbox_transform=ax.transAxes,
+                borderpad=0,
+            )
+            cb = fig.colorbar(im, cax=cax)
+            cb.solids.set_edgecolor("face")
+            cb.set_label(kwargs.get("colorbar_label", ""))
+
+        return psf
 
 
     def plot(self, frequency: u.Quantity = None, **kwargs) -> None:

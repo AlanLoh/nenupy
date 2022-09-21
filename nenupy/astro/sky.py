@@ -134,6 +134,11 @@ class SkySliceBase(AstroObject):
                 Default is ``False``.
             :type decibel:
                 `bool`
+            :param inteprolation:
+                Matplotlib `imshow interpolation <https://matplotlib.org/stable/gallery/images_contours_and_fields/interpolation_methods.html>`_ method.
+                Default is ``'quadric'``.
+            :type interpolation:
+                `str`
 
             .. rubric:: Overplot keywords
 
@@ -248,7 +253,7 @@ class SkySliceBase(AstroObject):
         im = ax.imshow(
             data,
             origin="lower",
-            interpolation="quadric",
+            interpolation=kwargs.get("interpolation", "quadric"),
             cmap=cmap,
             vmin=vmin,
             vmax=vmax
