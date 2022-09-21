@@ -12,6 +12,7 @@ from .constraints import (
     AzimuthCnst,
     LocalTimeCnst,
     TimeRangeCnst,
+    NightTimeCnst,
     Constraints
 )
 from .obsblocks import Block, ObsBlock, ReservedBlock

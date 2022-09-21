@@ -159,18 +159,20 @@ __all__ = [
     'AzimuthCnst',
     'LocalTimeCnst',
     'TimeRangeCnst',
+    'NightTimeCnst',
     'Constraints'
 ]
 
 
 from abc import ABC, abstractmethod
 import numpy as np
+from functools import lru_cache
 from astropy.time import Time, TimeDelta
 from astropy.coordinates import Angle
 import pytz
 import matplotlib.pyplot as plt
 
-from nenupy.schedule.targets import _Target
+from nenupy.schedule.targets import _Target, SSTarget
 
 import logging
 log = logging.getLogger(__name__)
@@ -877,6 +879,55 @@ class TimeRangeCnst(ScheduleConstraint):
 
 
 # ============================================================= #
+# ----------------------- NightTimeCnst ----------------------- #
+# ============================================================= #
+class NightTimeCnst(Constraint):
+    """ """
+
+    def __init__(self, sun_elevation_max=0., scale_elevation=True, weight=1):
+        super().__init__(weight=weight)
+        self.sun_elevation_max = sun_elevation_max
+        self.scale_elevation = scale_elevation
+
+
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+    def get_score(self, indices):
+        """ """
+        return np.mean(
+            np.where(
+                self.score[indices]>0.,
+                1,
+                0
+            )
+        )
+
+
+    # --------------------------------------------------------- #
+    # ----------------------- Internal ------------------------ #
+    def _evaluate(self, sun_elevation):
+        """
+        """
+        sun_elevation[sun_elevation > self.sun_elevation_max] = np.nan
+
+        if all(np.isnan(sun_elevation)):
+            log.warning(
+                "Constraint <NightTimeCnst(sun_elevation_max="
+                f"{self.sun_elevation_max})> cannot be satisfied"
+                "over the given time range."
+            )
+            self.score = sun_elevation[1:]*np.nan
+        elif not self.scale_elevation:
+            self.score = sun_elevation/sun_elevation
+        else:
+            elevation_min = np.nanmin(sun_elevation)
+            self.score = sun_elevation/elevation_min
+        return self.score
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
 # ------------------------ Constraints ------------------------ #
 # ============================================================= #
 class Constraints(object):
@@ -970,7 +1021,7 @@ class Constraints(object):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def evaluate(self, target, time, nslots=1):
+    def evaluate(self, target, time, nslots=1, sun_elevation=None):
         """
         """
         cnts = np.zeros((self.size, time.size - 1))
@@ -979,7 +1030,9 @@ class Constraints(object):
             if isinstance(cnt, TargetConstraint) and (target is not None):
                 cnts[i, :] = cnt(target, nslots)
             elif isinstance(cnt, ScheduleConstraint):
-                cnts[i, :] = cnt(time, nslots)
+                cnts[i, :] = cnt(tuple(time), nslots)
+            elif isinstance(cnt, NightTimeCnst):
+                cnts[i, :] = cnt(sun_elevation)
             else:
                 unEvaluatedCnst += 1
         if unEvaluatedCnst == self.size:

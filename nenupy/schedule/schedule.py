@@ -29,8 +29,9 @@ from copy import deepcopy, copy
 from nenupy.schedule.obsblocks import (
     Block,
     ObsBlock,
-    ReservedBlock
+    ReservedBlock,
 )
+from nenupy.schedule.targets import SSTarget
 from nenupy.schedule.geneticalgo import GeneticAlgorithm
 
 import logging
@@ -154,7 +155,7 @@ class ScheduleBlock(ObsBlock):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def evaluate_score(self, time):
+    def evaluate_score(self, time, sun_elevation):
         """
         """
         # Evaluate the target positions over time and compute the
@@ -168,7 +169,8 @@ class ScheduleBlock(ObsBlock):
             self.constraints.evaluate(
                 target=self.target,
                 time=time,
-                nslots=self.nSlots
+                nslots=self.nSlots,
+                sun_elevation=sun_elevation
             )
 
             log.debug(
@@ -658,6 +660,20 @@ class Schedule(_TimeSlots):
         self.observation_blocks = ScheduleBlocks(dt=self.dt)
         self.reserved_blocks = None
 
+        # Store the Sun's elevation
+        sun = SSTarget.fromName('Sun')
+        sun.computePosition(
+            Time(
+                np.append(
+                    self._startsJD,
+                    self._startsJD[-1] + self.dt.jd
+                ),
+                format='jd'
+            )
+        )
+        elevation = sun.elevation.deg
+        self.sun_elevation = (elevation[1:] + elevation[:-1])/2
+
 
     def __getitem__(self, n):
         """
@@ -954,12 +970,12 @@ class Schedule(_TimeSlots):
     def fine_tune(self, max_it: int = 1000) -> None:
         """
         """
-        log.info("Launching fine tunning...")
+        log.info("(Fine tunning) Launching...")
 
         scores = []
 
         # Loop until the score drops
-        while len(scores) <= max_it:
+        while len(scores) < max_it:
             # Gather starting index and size of each schedule obsblock
             start_indices = []
             nslots = []
@@ -986,14 +1002,16 @@ class Schedule(_TimeSlots):
                 block_index = indices[i]
                 block_score = self._cnstScores[block_index, start_indices[i]]
                 id1 = i - 1 # index of previous before
-                gap1 = np.arange(start_indices[id1] + nslots[id1] + 1 if id1 > 0 else 0, start_indices[i])
+                gap1 = np.arange(start_indices[id1] + nslots[id1] if id1 > 0 else 0, start_indices[i])
                 score1 = -1 if gap1.size == 0 else self._cnstScores[block_index, gap1[-1]] - block_score
                 id2 = i + 1 # index of next block
-                gap2 = np.arange(start_indices[i] + 1, start_indices[id2] - nslots[i] + 1 if id2 < (len(indices) - 1) else self.size - 1)
+                gap2 = np.arange(start_indices[i] + 1, start_indices[id2] - nslots[i] + 1 if id2 <= (len(indices) - 1) else self.size - 1)
                 score2 = -1 if gap2.size == 0 else self._cnstScores[block_index, gap2[0]] - block_score
+
                 if delay_nslots[i] != 0:
                     # If this is requires a processing delay, we must check for the previous and next similar
                     # observation, which may not be the very previous or very next.
+                    # Override immediate left/right slot if a similar observation is too close.
                     delay_obs = np.argwhere(delay_nslots != 0)
                     # Left
                     prev_delay_idx = delay_obs[np.roll(delay_obs == i, -1)][0]
@@ -1021,7 +1039,7 @@ class Schedule(_TimeSlots):
             max_score_diff = np.max(max_scores[np.arange(left_right_max.size), left_right_max])
             max_score_block_idx = np.argmax(max_scores[np.arange(left_right_max.size), left_right_max])
             if max_score_diff <= 0:
-                log.debug("No positive gradient available. End of fine-tunning loop.")
+                log.info("(Fine tunning) No positive gradient available. End of fine-tunning loop.")
                 break
 
             # Shift the block 1dt left or right
@@ -1030,9 +1048,17 @@ class Schedule(_TimeSlots):
             block.time_min = self.starts[block.startIdx]
             block.time_max = self.stops[block.startIdx + block.nSlots - 1]
 
+            direction = 'left' if left_right_max[max_score_block_idx] == 0 else 'right'
+            log.debug(f'Shifting block #{indices[max_score_block_idx]} to the {direction}.')
+
             # Compute the score
             scores.append(self.score)
-        
+
+        else:
+            log.info("(Fine tunning) Maximum number of iterations reached.")
+
+        log.info(f"(Fine tunning) End after {len(scores)} iterations.")
+
         return scores
 
 
@@ -1226,19 +1252,18 @@ class Schedule(_TimeSlots):
 
         # Compute the constraint score over the schedule if it
         # has not been previously been done
+        times = Time(
+            np.append(
+                self._startsJD,
+                self._startsJD[-1] + self.dt.jd
+            ),
+            format='jd'
+        )
         for i, blk in enumerate(self.observation_blocks):
             if blk.constraints.score is None:
                 # If != 1, the constraint score has already been computed
                 # Append the last time slot to get the last slot top
-                blk.evaluate_score(
-                    time=Time(
-                        np.append(
-                            self._startsJD,
-                            self._startsJD[-1] + self.dt.jd
-                        ),
-                        format='jd'
-                    )
-                )
+                blk.evaluate_score(time=times, sun_elevation=self.sun_elevation)
 
             # Set other attributes relying on the schedule
             blk.nSlots = int(np.ceil(blk.duration/self.dt))
@@ -1258,7 +1283,7 @@ class Schedule(_TimeSlots):
             # Check that the constraints are non zero
             if self._maxScores[i] == 0:
                 self._toSchedule[i] = False
-                log.info(
+                log.warning(
                     f"<ObsBlock> #{blk.blockIdx} '{blk.name}'"
                     " has a null score over the schedule."
                 )
