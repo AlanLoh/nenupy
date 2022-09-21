@@ -529,6 +529,83 @@ def altaz_to_radec(
 
 
 # ============================================================= #
+# --------------------- parallactic_angle --------------------- #
+# ============================================================= #
+def parallactic_angle(
+        coordinates: SkyCoord,
+        time: Time,
+        observer: EarthLocation = nenufar_position
+    ) -> Angle:
+    r""" TO DO/Done?
+
+        .. math::
+            q = - {\rm atan2 }( -\sin(h) , \cos(\delta) \tan(l) - \sin(\delta)\cos(h))
+
+        where :math:`q` is the parallactic angle, :math:`h` is
+        the hour angle, :math:`\delta` is the declination and
+        :math:`l` is the observers's latitude.
+
+        :param coordinates:
+            Coordinates at which the parallactic angle is evaluated.
+        :type coordinates:
+            :class:`~astropy.coordinates.SkyCoord`
+        :param time:
+            UT time(s) at which the parallactic angle is evaluated.
+        :type time:
+            :class:~`astropy.time.Time`
+        :param observer:
+            Observer location on the Earth.
+        :type observer:
+            :class:`~astropy.coordinates.EarthLocation`
+
+        :returns:
+            The parallactic angle.
+        :rtype:
+            :class:`~astropy.coordinates.Angle`
+
+        :Example:
+            .. code-block:: python
+
+                from nenupy.astro.astro_tools import parallactic_angle
+                from nenupy.astro.target import FixedTarget
+                from astropy.time import TimeDelta
+
+                cyga = FixedTarget.from_name('Cyg A')
+                transit = cyga.next_meridian_transit()
+                dt = TimeDelta(5*3600, format='sec')
+                steps = 20
+                times = transit - dt + np.arange(steps)*(dt*2/steps)
+                pa = parallactic_angle(
+                    ra_j2000=cyga.coordinates.ra,
+                    dec_j2000=cyga.coordinates.dec,
+                    time=times
+                )
+
+    """
+    # sin(parallactic angle)=sin(azimuth) * cos(latitude)/ cos(declination) 
+    # tan(pa) = sin(hour_angle) / (cos delta tan phi - sin delta cos h)
+    # https://astronomy.stackexchange.com/questions/34086/how-to-calculate-parallactic-angle-from-a-fixed-alt-az-position
+    
+    coordinates_precessed = coordinates.transform_to(FK5(equinox=time))
+    ha = hour_angle(
+        radec=coordinates_precessed,
+        time=time,
+        observer=observer,
+        fast_compute=False
+    )
+    pa_angle = - np.arctan2(
+        - np.sin(ha.rad),
+        np.cos(coordinates_precessed.dec.rad)*np.tan(observer.lat.rad) - np.sin(coordinates_precessed.dec.rad)*np.cos(ha.rad)
+    )
+    if np.mean(coordinates_precessed.dec) > observer.lat:
+        pa_angle = (pa_angle + 2*np.pi)%(2*np.pi)
+    pa_angle = Angle(pa_angle, unit='rad')
+    return pa_angle
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
 # ---------------------- sky_temperature ---------------------- #
 # ============================================================= #
 def sky_temperature(frequency: u.Quantity = 50*u.MHz) -> u.Quantity:
