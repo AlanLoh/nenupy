@@ -105,7 +105,7 @@ class BST(StatisticsData):
 
             :type: `int`
         """
-        log.info(
+        log.debug(
             f"Retrieving analog beam index associated with beam #{self.beam}."
         )
         return self._meta_data["bea"]["NoAnaBeam"][self.beam]
@@ -121,7 +121,7 @@ class BST(StatisticsData):
                 `tuple`(:class:`~astropy.time.Time`, :class:`~astropy.units.Quantity`, :class:`~astropy.units.Quantity`)
         """
         analog_beam = self.analog_beam
-        log.info(
+        log.debug(
             f"Retrieving analog pointing associated with analog beam #{analog_beam}."
         )
         analog_mask = self._meta_data["pan"]["noAnaBeam"] == analog_beam
@@ -138,7 +138,7 @@ class BST(StatisticsData):
             :type:
                 `tuple`(:class:`~astropy.time.Time`, :class:`~astropy.units.Quantity`, :class:`~astropy.units.Quantity`)
         """
-        log.info(
+        log.debug(
             f"Retrieving digital pointing associated with beam #{self.beam}."
         )
         digital_mask = self._meta_data["pbe"]["noBeam"] == self.beam
@@ -154,7 +154,7 @@ class BST(StatisticsData):
 
             :type: :class:`~astropy.units.Quantity`
         """
-        log.info(
+        log.debug(
             f"Retrieving frequencies associated with beam #{self.beam}."
         )
         beamlets = self._meta_data["bea"]["nbBeamlet"][self.beam]
@@ -172,7 +172,7 @@ class BST(StatisticsData):
             :type: :class:`~numpy.ndarray`
         """
         analog_beam = self.analog_beam
-        log.info(
+        log.debug(
             f"Retrieving Mini-Arrays associated with analog beam #{analog_beam}."
         )
         analog_config = self._meta_data["ana"][analog_beam]
