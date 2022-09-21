@@ -71,10 +71,12 @@ class _AntennaGain:
     def __init__(self, polarization='NW'):
         self.polarization = polarization
 
-        if self.polarization == 'NW':
+        if self.polarization == 'NE':#'NW':
             fields = np.arange(8)
-        elif self.polarization == 'NE':
+        elif self.polarization == 'NW':#'NE':
             fields = 8 + np.arange(8)
+        else:
+            raise Exception(f"Polarization '{self.polarization}' unknown.")
 
         # Read the gain
         gain = hp.read_map(
@@ -307,8 +309,9 @@ class MiniArray(Interferometer):
         antenna_names = np.array([ant for ant in miniarray_antennas.keys()])
         antPos = np.array([ant['position'] for ant in miniarray_antennas.values()])
         self.rotation = nenufar_miniarrays[ma_name]['rotation'] * u.deg
-        #rotation = np.radians(self.rotation.value - 90)
-        rotation = np.radians(self.rotation.value)
+        #rotation = np.radians(self.rotation.value + 180)
+        rotation = np.radians(360-self.rotation.value)
+        #rotation = np.radians(self.rotation.value)
         rotMatrix = np.array(
             [
                 [np.cos(rotation), -np.sin(rotation), 0],
@@ -887,7 +890,6 @@ class MiniArray(Interferometer):
                     f"Polarization has been set to '{Polarization.NW}' by default."
                 )
                 pol = Polarization.NW
-            t0 = Time.now()
             gain[:, :, i, :] = pol.value[sky]
         return gain
 

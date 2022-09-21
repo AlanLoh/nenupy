@@ -453,6 +453,62 @@ class Interferometer(ABC, metaclass=CombinedMeta):
             plt.show()
         plt.close('all')
 
+        # from nenupy.instru import miniarray_antennas, MiniArray
+        # from nenupy.astro import l93_to_etrs
+        # from pyproj import Transformer
+        # def ma_antenna_positions(ma_index: int = 0):
+        #     ma_name = f'MA{ma_index:03}'
+        #     ma = MiniArray(index=ma_index)
+        #     ant_pos = ma.antenna_positions
+        #     rotation = np.radians(0)##360-ma.rotation.value)#ma.rotation.value +90)
+        #     rot_matrix = np.array(
+        #         [
+        #             [-np.cos(rotation), -np.sin(rotation), 0],
+        #             [-np.sin(rotation), np.cos(rotation), 0],
+        #             [0,           0,           1]
+        #         ]
+        #     )
+        #     ant_pos = np.dot(ant_pos, rot_matrix).astype(np.float32)
+        #     lambert_positions = ant_pos#nenufar_miniarrays[ma_name]['position'] + ant_pos
+        #     return lambert_positions
+        #     #etrs_positions = l93_to_etrs(lambert_positions)
+        #     #return etrs_positions
+        # with open('/Users/aloh/Desktop/antenna_positions.csv', 'w') as wfile:
+        #     wfile.write('Mini-Array,Antenna,x(m),y(m),height(m)')
+        #     for ma_index in range(96):
+        #         positions = ma_antenna_positions(ma_index)
+        #         # plt.scatter(pos[:, 0], pos[:, 1])
+        #         # for i in range(19):
+        #         #     plt.text(pos[i, 0], pos[i, 1], f'{i+1}')
+        #         # plt.gca().set_aspect('equal', adjustable='box')
+        #         # plt.show()
+        #         #plt.savefig('/Users/aloh/Desktop/ma7dist.png', transparent=True)
+        #         # for i, ant in enumerate(pos):
+        #         #     #print(f'{i} {ant[0]:3f} {ant[1]:3f}')
+        #         #     print(f'{ant[0]:3f}')
+        #         # for i, ant in enumerate(pos):
+        #         #     #print(f'{i} {ant[0]:3f} {ant[1]:3f}')
+        #         #     print(f'{ant[1]:3f}')
+        #         # t = Transformer.from_crs(
+        #         #     crs_from="EPSG:2154", # RGF93
+        #         #     crs_to="EPSG:4326" # World Geodetic System 1984, used in GPS
+        #         # )
+        #         # ws84 = t.transform(
+        #         #     xx=positions[:, 0],
+        #         #     yy=positions[:, 1],
+        #         #     zz=positions[:, 2]
+        #         # )
+        #         # lat0 = [47.376595,47.376596,47.376596,47.376552,47.376553,47.376553,47.376554,47.376509,47.376509,47.376510,47.376510,47.376511,47.376466,47.376467,47.376467,47.376468,47.376424,47.376424,47.376425]
+        #         # lon0 = [2.193005,2.193077,2.193150,2.192969,2.193042,2.193115,2.193187,2.192933,2.193006,2.193079,2.193152,2.193224,2.192970,2.193043,2.193116,2.193189,2.193007,2.193080,2.193153]
+        #         # lat7 = [47.376085,47.376123,47.376160,47.376094,47.376132,47.376169,47.376207,47.376103,47.376141,47.376178,47.376216,47.376254,47.376150,47.376187,47.376225,47.376263,47.376197,47.376234,47.376272]
+        #         # lon7 = [2.191337,2.191289,2.191242,2.191408,2.191361,2.191314,2.191266,2.191480,2.191433,2.191385,2.191338,2.191290,2.191504,2.191457,2.191409,2.191362,2.191528,2.191481,2.191434]
+        #         # plt.scatter(lat0, lon0)
+        #         #plt.gca().set_aspect('equal', adjustable='box')
+        #         lon, lat, height = ws84
+        #         for ia, ant in enumerate(positions):
+        #             wfile.write(f'\n{ma_index},{ia+1},{ant[0]:.4f},{ant[1]:.4f},{ant[2]:.4f}')
+
+
 
     def array_factor(self, sky: Sky, pointing: Pointing) -> da.Array:
         r""" Computes the array factor of the antenna distribution.
