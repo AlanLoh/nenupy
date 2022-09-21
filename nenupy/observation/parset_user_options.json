@@ -29,6 +29,11 @@
             "value": "0",
             "syntax": "\\d+"
         },
+        "nrPhaseCenters": {
+            "required": false,
+            "value": "0",
+            "syntax": "\\d+"
+        },
         "calibration": {
             "required": false,
             "value": "calibration_file"
@@ -41,6 +46,10 @@
         "topic": {
             "required": true,
             "value": "key_project_name"
+        },
+        "parsetVersion": {
+            "required": false,
+            "value": "1.0"
         }
     },
     "Output": {
@@ -84,7 +93,8 @@
         },
         "hd_receivers": {
             "required": false,
-            "value": "[undysputed]"
+            "value": "[undysputed]",
+            "syntax": "^\\[[a-z]+(,[a-z]+)*\\]$"
         },
         "nri_receivers": {
             "required": false,
@@ -127,7 +137,8 @@
     "Anabeam": {
         "target": {
             "required": true,
-            "value": "analog_beam_name"
+            "value": "analog_beam_name",
+            "syntax": "^\\S*$"
         },
         "simbadSearch": {
             "required": false,
@@ -154,31 +165,38 @@
         },
         "decal_transit": {
             "required": false,
-            "value": "0"
+            "value": "0",
+            "syntax": "^(-|\\+)*\\d+(\\.\\d*)?(h|m|s)$"
         },
         "azimuth": {
             "required": false,
-            "value": "0"
+            "value": "0",
+            "syntax": "^\\d{1,3}(\\.\\d*)?$"
         },
         "elevation": {
             "required": false,
-            "value": "90"
+            "value": "90",
+            "syntax": "^(-|\\+)?\\d{1,2}(\\.\\d*)?$"
         },
         "ra": {
             "required": false,
-            "value": "right_ascension"
+            "value": "right_ascension",
+            "syntax": "^(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$"
         },
         "dec": {
             "required": false,
-            "value": "declination"
+            "value": "declination",
+            "syntax": "^(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$"
         },
         "startHA": {
             "required": false,
-            "value": "-4h"
+            "value": "-4h",
+            "syntax": "^(-|\\+)*\\d+(\\.\\d*)?(h|m|s)$"
         },
         "stopHA": {
             "required": false,
-            "value": "4h"
+            "value": "4h",
+            "syntax": "^(-|\\+)*\\d+(\\.\\d*)?(h|m|s)$"
         },
         "startTime": {
             "required": true,
@@ -197,12 +215,13 @@
         },
         "antList": {
             "required": false,
-            "value": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]"
+            "value": "[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]",
+            "syntax": "^\\[(\\d|1\\d)(,(\\d|1\\d)|\\.\\.(\\d|1\\d)(?=(,|\\])))*\\]$"
         },
         "maList": {
             "required": false,
             "value": "[0..96]",
-            "syntax": "^\\[([0-9]|[1-8][0-9]|9[0-6]|10[0-5])((,[0-9]|,[1-8][0-9]|,9[0-6]|,10[0-5])|((..[0-9]|..[1-8][0-9]|..9[0-6]|..10[0-5])))*\\]$"
+            "syntax": "^\\[(\\d|[1-8]\\d|9[0-6]|10[0-5])(,(\\d|[1-8]\\d|9[0-6]|10[0-5])|\\.\\.(\\d|[1-8]\\d|9[0-6]|10[0-5])(?=(,|\\])))*\\]$"
         },
         "attList": {
             "required": false,
@@ -234,7 +253,8 @@
     "Beam": {
         "target": {
             "required": true,
-            "value": "numerical_beam_name"
+            "value": "numerical_beam_name",
+            "syntax": "^\\S*$"
         },
         "simbadSearch": {
             "required": false,
@@ -246,7 +266,8 @@
         },
         "trackingType": {
             "required": false,
-            "value": "Tracking"
+            "value": "tracking",
+            "syntax": "(?i)^tracking|pointingto$"
         },
         "directionType": {
             "required": false,
@@ -259,31 +280,38 @@
         },
         "decal_transit": {
             "required": false,
-            "value": "0"
+            "value": "0",
+            "syntax": "^(-|\\+)*\\d+(\\.\\d*)?(h|m|s)$"
         },
         "azimuth": {
             "required": false,
-            "value": "0"
+            "value": "0",
+            "syntax": "^\\d{1,3}(\\.\\d*)?$"
         },
         "elevation": {
             "required": false,
-            "value": "90"
+            "value": "90",
+            "syntax": "^(-|\\+)?\\d{1,2}(\\.\\d*)?$"
         },
         "ra": {
             "required": false,
-            "value": "right_ascension"
+            "value": "right_ascension",
+            "syntax": "^(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$"
         },
         "dec": {
             "required": false,
-            "value": "declination"
+            "value": "declination",
+            "syntax": "^(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$"
         },
         "startHA": {
             "required": false,
-            "value": "-4h"
+            "value": "-4h",
+            "syntax": "^(-|\\+)*\\d+(\\.\\d*)?(h|m|s)$"
         },
         "stopHA": {
             "required": false,
-            "value": "4h"
+            "value": "4h",
+            "syntax": "^(-|\\+)*\\d+(\\.\\d*)?(h|m|s)$"
         },
         "startTime": {
             "required": false,
@@ -297,7 +325,8 @@
         },
         "parameters": {
             "required": false,
-            "value": "parameters"
+            "value": "parameters",
+            "syntax": "^(\\'.+\\')|(\".+\")|(.+)$"
         },
         "noBeam": {
             "required": false,
@@ -305,16 +334,18 @@
         },
         "toDo": {
             "required": true,
-            "value": "TBD"
+            "value": "tbd",
+            "syntax": "^(pulsar)|(dynamicspectrum)|(waveform)|(none)|(tbd)$"
         },
         "subbandList": {
             "required": false,
             "value": "[41..451]",
-            "syntax": "^\\[([1-9]|[0-9][0-9]|[0-4][0-9][0-9]|50[0-9]|51[0-1])((,[1-9]|,[0-9][0-9]|,[0-4][0-9][0-9]|,50[0-9]|,51[0-1])|((..[1-9]|..[0-9][0-9]|..[0-4][0-9][0-9]|..50[0-9]|..51[0-1])))*\\]$"
+            "syntax": "^\\[(\\d{1,2}|[0-4]\\d{2}|50\\d|51[0-1])(,([1-9]|\\d{2}|[0-4]\\d{2}|50\\d|51[0-1])|\\.\\.([1-9]|\\d{2}|[0-4]\\d{2}|50\\d|51[0-1])(?=(,|\\])))*\\]$"
         },
         "subbandFrq": {
             "required": false,
-            "value": "[8.0-88.0]"
+            "value": "[8.0-88.0]",
+            "syntax": "^\\[\\d{1,2}(\\.\\d*)?((,\\d{1,2}(\\.\\d*)?)|(-\\d{1,2}(\\.\\d*)?(?=(,|\\]))))*\\]$"
         },
         "subbandListLoop": {
             "required": false,
@@ -331,11 +362,106 @@
         },
         "decal_az": {
             "required": false,
-            "value": "0.0"
+            "value": "0.0",
+            "syntax": "^(-|\\+)?\\d{1,3}(\\.\\d*)?$"
         },
         "decal_el": {
             "required": false,
-            "value": "0.0"
+            "value": "0.0",
+            "syntax": "^(-|\\+)?\\d{1,2}(\\.\\d*)?$"
+        }
+    },
+    "PhaseCenter": {
+        "target": {
+            "required": true,
+            "value": "numerical_beam_name",
+            "syntax": "^\\S*$"
+        },
+        "simbadSearch": {
+            "required": false,
+            "value": "source_name"
+        },
+        "psrcatSearch": {
+            "required": false,
+            "value": "psr_name"
+        },
+        "trackingType": {
+            "required": false,
+            "value": "tracking",
+            "syntax": "(?i)^tracking|pointingto$"
+        },
+        "directionType": {
+            "required": false,
+            "value": "J2000"
+        },
+        "transitDate": {
+            "required": false,
+            "value": "2021-01-01T00:00:00Z",
+            "syntax": "^20[1-2][0-9]-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[1-9]|2[0-4]):[0-5][0-9]:[0-5][0-9]Z$"
+        },
+        "decal_transit": {
+            "required": false,
+            "value": "0",
+            "syntax": "^(-|\\+)*\\d+(\\.\\d*)?(h|m|s)$"
+        },
+        "ra": {
+            "required": false,
+            "value": "right_ascension",
+            "syntax": "^(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$"
+        },
+        "dec": {
+            "required": false,
+            "value": "declination",
+            "syntax": "^(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$"
+        },
+        "startHA": {
+            "required": false,
+            "value": "-4h",
+            "syntax": "^(-|\\+)*\\d+(\\.\\d*)?(h|m|s)$"
+        },
+        "stopHA": {
+            "required": false,
+            "value": "4h",
+            "syntax": "^(-|\\+)*\\d+(\\.\\d*)?(h|m|s)$"
+        },
+        "startTime": {
+            "required": false,
+            "value": "2021-01-01T00:00:00Z",
+            "syntax": "^20[1-2][0-9]-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])T(0[0-9]|1[1-9]|2[0-4]):[0-5][0-9]:[0-5][0-9]Z$"
+        },
+        "duration": {
+            "required": false,
+            "value": "",
+            "syntax": "^\\d+[smh]$"
+        },
+        "parameters": {
+            "required": false,
+            "value": "parameters",
+            "syntax": "^(\\'.+\\')|(\".+\")|(.+)$"
+        },
+        "noBeam": {
+            "required": false,
+            "value": "0"
+        },
+        "toDo": {
+            "required": true,
+            "value": "nickel",
+            "syntax": "^nickel$"
+        },
+        "subbandList": {
+            "required": false,
+            "value": "[41..451]",
+            "syntax": "^\\[(\\d{1,2}|[0-4]\\d{2}|50\\d|51[0-1])(,([1-9]|\\d{2}|[0-4]\\d{2}|50\\d|51[0-1])|\\.\\.([1-9]|\\d{2}|[0-4]\\d{2}|50\\d|51[0-1])(?=(,|\\])))*\\]$"
+        },
+        "subbandFrq": {
+            "required": false,
+            "value": "[8.0-88.0]",
+            "syntax": "^\\[\\d{1,2}(\\.\\d*)?((,\\d{1,2}(\\.\\d*)?)|(-\\d{1,2}(\\.\\d*)?(?=(,|\\]))))*\\]$"
+        },
+        "useParentPointing": {
+            "required": true,
+            "value": "false",
+            "syntax": "^(true)|(false)$"
         }
     }
 }

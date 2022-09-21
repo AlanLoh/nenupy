@@ -22,7 +22,6 @@ __all__ = [
 ]
 
 
-from ast import parse
 from os.path import abspath, isfile, join, basename, dirname
 from collections.abc import MutableMapping
 from copy import deepcopy
@@ -425,7 +424,7 @@ def _pulsar_setting(digibeam: _ParsetProperty, output: _ParsetProperty, version:
         return {
             "name": "undysputed",
             "mode": "pulsar_fold",
-            "source_name": config["src"],
+            "source_name": config["src"].rstrip(),
             "n_polars": 1 if config.get("onlyi", False) else 4,
             "frequency": _get_frequency_dict(digibeam, field="subbandList")
         }
@@ -433,7 +432,7 @@ def _pulsar_setting(digibeam: _ParsetProperty, output: _ParsetProperty, version:
         return {
             "name": "undysputed",
             "mode": "pulsar_single",
-            "source_name": config["src"],
+            "source_name": config["src"].rstrip(),
             "downsampling": int(config["dstime"]),
             "n_polars": 1 if config.get("onlyi", False) else 4,
             "frequency": _get_frequency_dict(digibeam, field="subbandList")
@@ -442,14 +441,14 @@ def _pulsar_setting(digibeam: _ParsetProperty, output: _ParsetProperty, version:
         return {
             "name": "undysputed",
             "mode": "pulsar_waveolaf",
-            "source_name": config["src"],
+            "source_name": config["src"].rstrip(),
             "frequency": _get_frequency_dict(digibeam, field="subbandList")
         }
     elif mode == "wave":
         return {
             "name": "undysputed",
             "mode": "pulsar_wave",
-            "source_name": config["src"],
+            "source_name": config["src"].rstrip(),
             "frequency": _get_frequency_dict(digibeam, field="subbandList")
         }
     else:
@@ -514,7 +513,7 @@ def _nickel_setting(phasecenter: _ParsetProperty, output: _ParsetProperty, versi
     if version >= (1, 0):
         # Parse the parameters
         try:
-            mode, config = _parse_parameters(phasecenter["parameters"], pulsar=True)
+            mode, config = _parse_parameters(phasecenter["parameters"], pulsar=False)
             log.warning("NICKEL parameters not taken into account. Needs to be implemented!")
         except KeyError:
             log.warning(
@@ -1655,6 +1654,19 @@ class _NumericalBeamParsetBlock(_BeamParsetBlock):
 
 # ============================================================= #
 
+class _PhaseCenterParsetBlock(_BeamParsetBlock):
+    """
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(field="PhaseCenter", **kwargs)
+
+
+    def __repr__(self) -> str:
+        return f"<PhaseCenter(target={self['target']}, index={self.index})>"
+
+# ============================================================= #
+
 class _AnalogBeamParsetBlock(_BeamParsetBlock):
     """
     """
@@ -1682,7 +1694,7 @@ class _AnalogBeamParsetBlock(_BeamParsetBlock):
     def _add_phase_center(self, **kwargs) -> None:
         """ """
         self.phase_centers.append(
-            _NumericalBeamParsetBlock(
+            _PhaseCenterParsetBlock(
                 **kwargs
             )
         )
@@ -1754,8 +1766,17 @@ class ParsetUser:
 
         .. seealso::
 
-            NenuFAR `Parset_User guide <https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html>`_
+            NenuFAR `Parset_User guide <https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html>`_ and the :ref:`tutorial <parset_user_doc>`.
 
+        .. rubric:: Attributes Summary
+
+        .. autosummary::
+
+            ~ParsetUser.analog_beam_fields
+            ~ParsetUser.numerical_beam_fields
+            ~ParsetUser.phase_center_fields
+            ~ParsetUser.observation_fields
+            ~ParsetUser.output_fields
 
         .. rubric:: Methods Summary
 
@@ -1792,8 +1813,39 @@ class ParsetUser:
             [observation_text,
             self._analog_beams_str,
             self._numerical_beams_str,
+            self._phase_center_str,
             output_text]
         )
+
+
+    @property
+    def analog_beam_fields(self) -> list:
+        """ Lists all the available *analog beam* fields. """
+        return _AnalogBeamParsetBlock().fields
+    
+
+    @property
+    def numerical_beam_fields(self) -> list:
+        """ Lists all the available *numerical beam* fields. """
+        return _NumericalBeamParsetBlock().fields
+
+
+    @property
+    def phase_center_fields(self) -> list:
+        """ Lists all the available *phase center* fields. """
+        return _PhaseCenterParsetBlock().fields
+
+
+    @property
+    def observation_fields(self) -> list:
+        """ Lists all the available *observation* fields. """
+        return _ObservationParsetBlock().fields
+
+
+    @property
+    def output_fields(self) -> list:
+        """ Lists all the available *output* fields. """
+        return _OutputParsetBlock().fields
 
 
     @property
@@ -1816,9 +1868,20 @@ class ParsetUser:
             for numbeam in anabeam.numerical_beams
         )
 
+
+    @property
+    def _phase_center_str(self) -> str:
+        """
+        """
+        return "\n\n".join(
+            str(pc)
+            for anabeam in self.analog_beams
+            for pc in anabeam.phase_centers
+        )
+
     
     def set_observation_config(self, **kwargs) -> None:
-        """ Sets the configuration of the *parset-user* observation block.
+        """ Sets the configuration of the *parset_user* observation block.
             This method ingests any valid `keyword argument <https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html>`_ corresponding to an *Observation* configuration.
 
             :Example:
@@ -1841,7 +1904,7 @@ class ParsetUser:
 
 
     def set_output_config(self, **kwargs) -> None:
-        """ Sets the configuration of the *parset-user* output block.
+        """ Sets the configuration of the *parset_user* output block.
             This method ingests any valid `keyword argument <https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html>`_ corresponding to an *Output* configuration.
 
             :Example:
@@ -1862,7 +1925,7 @@ class ParsetUser:
 
 
     def add_analog_beam(self, **kwargs) -> None:
-        """ Adds an analog beam to the :attr:`~nenupy.observation.parset.ParsetUser.analog_beams` attribute and updates its index based on other analog beams.
+        """ Adds an *analog beam* to the :attr:`~nenupy.observation.parset.ParsetUser.analog_beams` attribute and updates its index based on other *analog beams*.
             This method ingests any valid `keyword argument <https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html>`_ corresponding to an *Anabeam* configuration.
 
             :Example:
@@ -1889,10 +1952,10 @@ class ParsetUser:
 
 
     def modify_analog_beam(self, anabeam_index: int, **kwargs) -> None:
-        """ Modifies the configuration of the analog beam.
+        """ Modifies the configuration of the *analog beam*.
 
             :param anabeam_index:
-                Index of the analog beam to modify.
+                Index of the *analog beam* to modify.
             :type anabeam_index:
                 `int`
         
@@ -1911,15 +1974,15 @@ class ParsetUser:
 
 
     def remove_analog_beam(self, anabeam_index: int) -> None:
-        """ Removes an analog beam along with its associated numerical beams.
+        """ Removes an *analog beam* along with its associated *numerical beams* and *phase centers*.
 
             :param anabeam_index:
-                Index of the analog beam to remove.
+                Index of the *analog beam* to remove.
             :type anabeam_index:
                 `int`
 
             .. note::
-                One can quickly identify the indices of the analog beams:
+                One can quickly identify the indices of the *analog beams*:
 
                 .. code-block:: python
                     :emphasize-lines: 6
@@ -1949,7 +2012,7 @@ class ParsetUser:
 
 
     def add_numerical_beam(self, anabeam_index: int = 0, **kwargs) -> None:
-        """ Adds a numerical beam to the analog beam '``anabeam_index``' and updates its index based on other numerical beams.
+        """ Adds a *numerical beam* to the *analog beam* '``anabeam_index``' and updates its index based on other *numerical beams*.
             This method ingests any valid `keyword argument <https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html>`_ corresponding to a *Beam* configuration.
 
             :Example:
@@ -1985,10 +2048,10 @@ class ParsetUser:
         
 
     def modify_numerical_beam(self, numbeam_index: int, **kwargs) -> None:
-        """ Modifies the configuration of the numerical beam.
+        """ Modifies the configuration of the *numerical beam*.
 
             :param numbeam_index:
-                Index of the numerical beam to modify.
+                Index of the *numerical beam* to modify.
             :type numbeam_index:
                 `int`
         
@@ -2017,10 +2080,10 @@ class ParsetUser:
 
 
     def remove_numerical_beam(self, numbeam_index: int) -> None:
-        """ Removes a numerical beam and updates the numerical beam indices.
+        """ Removes a *numerical beam* and updates the *numerical beam* indices.
 
             :param numbeam_index:
-                Index of the numerical beam to remove.
+                Index of the *numerical beam* to remove.
             :type numbeam_index:
                 `int`
             
@@ -2067,6 +2130,125 @@ class ParsetUser:
         self._updates_numbeams_indices()
 
 
+    def add_phase_center(self, anabeam_index: int = 0, **kwargs) -> None:
+        """ Adds a *phase center* to the *analog beam* '``anabeam_index``' and updates its index based on other *phase centers*.
+            This method ingests any valid `keyword argument <https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html>`_ corresponding to a *PhaseCenter* configuration.
+
+            :Example:
+                .. code-block:: python
+                    :emphasize-lines: 11
+
+                    from nenupy.observation import ParsetUser
+
+                    p = ParsetUser()
+                    p.add_analog_beam(
+                        target="My fav target",
+                        simbadSearch="Cygnus X-3",
+                        trackingType="tracking",
+                        duration="3600s",
+                        startTime="2022-01-01T12:00:00Z"
+                    )
+                    p.add_phase_center(
+                        anabeam_index=0,
+                        target="My fav target",
+                        useParentPointing=True,
+                        subbandList="[200..300]"
+                    )
+
+        """
+        if anabeam_index >= len(self.analog_beams):
+            raise IndexError(
+                f"Requested analog beam index {anabeam_index} is out of range. Only {len(self.analog_beams)} analog beams are set."
+            )
+        anabeam = self.analog_beams[anabeam_index]
+        anabeam._add_phase_center(**kwargs)
+        anabeam._propagate_index()
+        self._updates_phasecenter_indices()
+
+
+    def modify_phase_center(self, phasecenter_index: int, **kwargs) -> None:
+        """ Modifies the configuration of the *phase center*.
+
+            :param phasecenter_index:
+                Index of the *phase center* to modify.
+            :type phasecenter_index:
+                `int`
+        
+            :Example:
+                .. code-block:: python
+                    :emphasize-lines: 5
+
+                    from nenupy.observation import ParsetUser
+
+                    p = ParsetUser()
+                    p.add_analog_beam(target="First")
+                    p.add_phase_center(0, target="Initial_Value")
+                    p.modify_phase_center(0, target="Modified_Value")
+
+        """
+        counter = 0
+        for anabeam in self.analog_beams:
+            for i, _ in enumerate(anabeam.phase_centers):
+                if counter==phasecenter_index:
+                    anabeam.phase_centers[i]._modify_properties(**kwargs)
+                    break
+                counter += 1
+            else:
+                continue
+            break
+
+
+    def remove_phase_center(self, phasecenter_index: int) -> None:
+        """ Removes a *phase center* and updates the *phase center* indices.
+
+            :param phasecenter_index:
+                Index of the *phase center* to remove.
+            :type phasecenter_index:
+                `int`
+            
+            .. note::
+                One can quickly identify the indices of the phase centers:
+
+                .. code-block:: python
+                    :emphasize-lines: 9
+
+                    from nenupy.observation import ParsetUser
+
+                    p = ParsetUser()
+                    p.add_analog_beam(target="Analog beam 1")
+                    p.add_analog_beam(target="Analog beam 2")
+                    p.add_phase_center(0, target="One")
+                    p.add_phase_center(0, target="Two")
+                    p.add_phase_center(1, target="Three")
+                    [anabeam.phase_centers for anabeam in p.analog_beams] # prints: [[<PhaseCenter(target=One, index=0)>, <PhaseCenter(target=Two, index=1)>], [<PhaseCenter(target=Three, index=2)>]]
+
+
+            :Example:
+                .. code-block:: python
+                    :emphasize-lines: 6
+
+                    from nenupy.observation import ParsetUser
+
+                    p = ParsetUser()
+                    p.add_analog_beam(target="Analog beam 1")
+                    p.add_phase_center(0, target="One")
+                    p.add_phase_center(0, target="Two")
+                    p.remove_phase_center(phasecenter_index=0) # removes the phase center "One"
+
+        """
+        counter = 0
+        for anabeam in self.analog_beams:
+            for i, _ in enumerate(anabeam.phase_centers):
+                if counter==phasecenter_index:
+                    del anabeam.phase_centers[i]
+                    break
+                counter += 1
+            else:
+                continue
+            break
+        self._updates_phasecenter_indices()
+
+
     def validate(self) -> bool:
         """ Validates the syntax of each field.
 
@@ -2092,6 +2274,9 @@ class ParsetUser:
             for numbeam in anabeam.numerical_beams:
                 if not numbeam.is_above_horizon():
                     log.warning("")
+            for pc in anabeam.phase_centers:
+                if not pc.is_above_horizon():
+                    log.warning("")
 
         def check_keys(dictionnary: dict) -> bool:
             all_keys_ok = True
@@ -2107,7 +2292,7 @@ class ParsetUser:
                 # Don't check the key if it has not been modified
                 if not dictionnary[key]["modified"]:
                     continue
-                
+
                 # Retrieve the value that needs to be checked
                 value = dictionnary[key]["value"]
                 if str(value) == '':
@@ -2116,19 +2301,30 @@ class ParsetUser:
                 # Perform a regex full match check, send a warning if invalid
                 if re.fullmatch(pattern=syntax_pattern, string=str(value)) is None:
                     log.error(
-                        f"Syntax error on '{value}' (key '{key}')."
+                        f"Syntax error on '{value}' (key '{key}'). Please check https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html"
                     )
                     all_keys_ok &= False
-            
+
             return all_keys_ok 
 
         # Check all configurations
+        log.info("Checking 'observation' block...")
         is_valid &= check_keys(self.observation.configuration)
+
+        log.info("Checking 'output' block...")
         is_valid &= check_keys(self.output.configuration)
+
         for anabeam in self.analog_beams:
+            log.info(f"Checking 'anabeam[{anabeam.index}]' block...")
             is_valid &= check_keys(anabeam.configuration)
+
             for numbeam in anabeam.numerical_beams:
+                log.info(f"Checking 'beam[{numbeam.index}]' block...")
                 is_valid &= check_keys(numbeam.configuration)
+            
+            for pc in anabeam.phase_centers:
+                log.info(f"Checking 'phasecenter[{pc.index}]' block...")
+                is_valid &= check_keys(pc.configuration)
 
         return is_valid
 
@@ -2159,6 +2355,15 @@ class ParsetUser:
                 numbeams_counter += 1
 
 
+    def _updates_phasecenter_indices(self) -> None:
+        """ Updates the indices of phase centers. """
+        pc_counter = 0
+        for anabeam in self.analog_beams:
+            for pc in anabeam.phase_centers:
+                pc.index = pc_counter
+                pc_counter += 1
+
+
     def _updates_anabeams_indices(self) -> None:
         """ Updates the indices of analog beams. """
         anabeams_counter = 0
@@ -2170,10 +2375,12 @@ class ParsetUser:
 
 
     def _update_beam_numbers(self) -> None:
-        """ Updates the number of analog and numerical beams. """
+        """ Updates the number of analog, numerical beams and phase centers. """
         nb_analog_beams = len(self.analog_beams)
         nb_numerical_beams = sum(len(anabeam.numerical_beams) for anabeam in self.analog_beams)
+        nb_phase_centers = sum(len(anabeam.phase_centers) for anabeam in self.analog_beams)
         self.observation["nrAnabeams"] = str(nb_analog_beams)
         self.observation["nrBeams"] = str(nb_numerical_beams)
+        self.observation["nrPhaseCenters"] = str(nb_phase_centers)
 # ============================================================= #
 # ============================================================= #
