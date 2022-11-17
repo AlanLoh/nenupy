@@ -25,6 +25,7 @@ __all__ = [
     "dispersion_delay",
     "wavelength",
     "l93_to_etrs",
+    "geo_to_l93",
     "geo_to_etrs",
     "etrs_to_enu",
     "AstroObject"
@@ -794,6 +795,27 @@ def l93_to_etrs(positions: np.ndarray) -> np.ndarray:
         xx=positions[:, 0],
         yy=positions[:, 1],
         zz=positions[:, 2]
+    )
+    return positions
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------ geo_to_l93 ------------------------- #
+# ============================================================= #
+def geo_to_l93(location: EarthLocation = nenufar_position) -> np.ndarray:
+    """ """
+    t = Transformer.from_crs(
+        crs_from='EPSG:4326', # GPS
+        crs_to='EPSG:2154' # RGF93
+    )
+    positions = np.zeros((location.size, 3))
+    positions[:, 0], positions[:, 1], positions[:, 2] = t.transform(
+        xx=location.lat.rad,
+        yy=location.lon.rad,
+        zz=location.height,
+        radians=True
     )
     return positions
 # ============================================================= #
