@@ -133,7 +133,7 @@ class SourceInLobes:
             ('time_jd', 'f8', (t_size,)),
             ('time_lst_deg', 'f8', (t_size,)),
             ('frequency_mhz', 'f8'),
-            ('contamination', 'i8', (t_size,))
+            ('contamination', 'i8' if self.value.dtype==np.int32 else 'f8', (t_size,))
         ]
         data = np.zeros(f_size, dtype=dtype)
         data["time_jd"] = self.time.jd
@@ -236,7 +236,36 @@ class BeamLobes:
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def compute_moc(self, maximum_ratio: float = 0.5):
+    def compute_weight_moc(self, sources: List[str], cuts_number: int = 10) -> np.ndarray:
+        """ """
+
+        # Get an array of sky positions (including all sources, all times)
+        sky_positions = self._get_skycoord_array(sources)
+
+        thresholds = np.linspace(0, 1, cuts_number + 1)
+
+        threshold_moc = np.zeros((cuts_number, self.frequency.size, self.time.size), dtype=bool)
+
+        for i, thr in enumerate(thresholds[1:]):
+
+            moc = self.compute_moc(maximum_ratio=thr, return_array=True)
+            
+            source_in_grating_lobes = np.zeros(moc.shape, dtype=int)
+            for f_idx in range(self.frequency.size):
+                for t_idx in range(self.time.size):
+                    source_in_grating_lobes[f_idx, t_idx] = np.sum(
+                        moc[f_idx, t_idx].contains(
+                            sky_positions[:, t_idx].ra,
+                            sky_positions[:, t_idx].dec
+                        )
+                    )
+            
+            threshold_moc[i, :, :] = source_in_grating_lobes.astype(bool)
+
+        return np.sum(threshold_moc, axis=0)/cuts_number #--> srcinlobes
+
+
+    def compute_moc(self, maximum_ratio: float = 0.5, return_array: bool = False):
         r"""
             Computes the MOC as sky patches where the array factor
             is above :math:`{\rm max}(\mathcal{F}_{\rm MA}) \times r`.
@@ -265,7 +294,10 @@ class BeamLobes:
                     max_norder=5
                 ) for t_idx in range(self.time.size)
             ])
-    
+
+        if return_array:
+            return np.array(mocs)
+
         self.moc = np.array(mocs)
         log.debug("MOC computed (stored in '.moc' attribute).")
 
@@ -391,6 +423,8 @@ class BeamLobes:
                     configuration=self.configuration
                 )#self.pointing
             )
+        # af *= ma._antenna_gain(sky=self.sky, pointing=self.pointing)
+
         log.info("Computing the array factor...")
         with ProgressBar() if log.getEffectiveLevel() <= logging.INFO else DummyCtMgr():
             return af.compute()
