@@ -998,7 +998,7 @@ class Crosslet(ABC):
         ) -> np.ndarray:
         """ """
         # Polarization selection
-        allowed_polarizations = ["XX", "XY", "YX", "YY"]
+        allowed_polarizations = ['XX', 'XY', 'YX', 'YY']
         if polarization not in allowed_polarizations:
             raise ValueError(
                 f"'polarization' argument must be one of the following: {allowed_polarizations}."
@@ -1010,46 +1010,61 @@ class Crosslet(ABC):
         # Time selection
         time_mask = self._get_time_mask(time_selection)
 
+        # Combined mask
+        time_freq_mask = time_mask[:, None] * frequency_mask
+
         # Final shape
         if mini_arrays is None:
             mini_arrays = self.mini_arrays
         ma1, ma2 = np.tril_indices(mini_arrays.size, 0)
-        final_shape = (np.sum(time_mask), np.sum(frequency_mask), ma1.size)
+        # final_shape = (np.sum(time_mask), np.sum(frequency_mask), ma1.size)
+        final_shape = (np.any(time_freq_mask, axis=1).sum(), np.any(time_freq_mask, axis=0).sum(), ma1.size)
 
-        if polarization == "XY":
+        if polarization == 'XY':
             # Deal with lack of auto XY cross in XST-like data
             auto_mask = ma1 == ma2
             cross_mask = ~auto_mask
+            
+            data_tf_selected =  self.data[time_freq_mask]
+            # Deal with dimension cut in case of True over an entire axis
+            if final_shape[0] == 1:
+                data_tf_selected = np.expand_dims(data_tf_selected, axis=0)
+            if final_shape[1] == 1:
+                data_tf_selected = np.expand_dims(data_tf_selected, axis=1)
 
-            yx = self.data[
-                np.ix_(
-                    time_mask,
-                    frequency_mask,
-                    self._get_cross_idx("Y", "X", mini_arrays)
-                )
+            yx = data_tf_selected[
+                :,
+                :,
+                self._get_cross_idx('Y', 'X', mini_arrays)
             ]
+
             _xy = np.zeros(
                 (list(yx.shape[:-1]) + [ma1.size]),
                 dtype=complex
             )
             _xy[:, :, auto_mask] = yx[:, :, auto_mask].conj()
+
             # Get XY correlations
-            _xy[:, :, cross_mask] = self.data[
-                np.ix_(
-                    time_mask,
-                    frequency_mask,
-                    self._get_cross_idx("X", "Y", mini_arrays)
-                )
+            _xy[:, :, cross_mask] = data_tf_selected[
+                :,
+                :,
+                self._get_cross_idx('X', 'Y', mini_arrays)
             ]
             return _xy.reshape(final_shape)
         else:
             return self.data[
-                np.ix_(
-                    time_mask,
-                    frequency_mask,
-                    self._get_cross_idx(*list(polarization), mini_arrays)
-                )
+                time_freq_mask[:, :]
+            ][
+                :,
+                self._get_cross_idx(*list(polarization), mini_arrays)
             ].reshape(final_shape)
+            # return self.data[
+            #     np.ix_(
+            #         time_mask,
+            #         frequency_mask,
+            #         self._get_cross_idx(*list(polarization), mini_arrays)
+            #     )
+            # ].reshape(final_shape)
 # ============================================================= #
 # ============================================================= #
 

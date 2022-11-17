@@ -133,7 +133,7 @@ class TestMiniArray:
         assert beam.value.shape == (1, 1, 1, 3)
         beam_values = beam[0, 0, 0].value.compute()
         assert np.ma.is_masked(beam_values[0])
-        assert beam_values[1] == pytest.approx(253676.684, 1e-3)
+        assert beam_values[1] == pytest.approx(198722, abs=1e0)
         assert beam_values[2] == pytest.approx(105078.590, 1e-3)
 
 

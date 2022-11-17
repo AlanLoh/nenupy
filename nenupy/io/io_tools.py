@@ -34,6 +34,8 @@ import astropy.units as u
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from scipy import ndimage
 
 from nenupy.instru.instrument_tools import sb2freq
 
@@ -86,8 +88,11 @@ class StatisticsData(ABC):
             self.data = f[7].data['data']
             try:
                 # For XST data, the frequencies are in the data extension
+                # self.frequencies = sb2freq(
+                #     np.unique(f[7].data['xstsubband']).astype("int")
+                # ) + 195.3125*u.kHz/2 # mid frequency
                 self.frequencies = sb2freq(
-                    np.unique(f[7].data['xstsubband']).astype("int")
+                    f[7].data['xstsubband'].astype("int")
                 ) + 195.3125*u.kHz/2 # mid frequency
             except KeyError:
                 pass
@@ -245,21 +250,21 @@ class ST_Slice:
         )
 
         if self.time.max() < other.time.min():
-            new_data = np.vstack((self.value, other.value))
-            new_time = Time(np.concatenate((self.time, other.time)))
-            new_ana_times = Time(np.concatenate((self.analog_pointing_times, other.analog_pointing_times)))
-            new_digi_times = Time(np.concatenate((self.digital_pointing_times, other.digital_pointing_times)))
+            new_data = np.hstack((self.value, other.value))
+            new_time = Time(np.hstack((self.time.jd, other.time.jd)), format='jd')
+            new_ana_times = Time(np.hstack((self.analog_pointing_times.jd, other.analog_pointing_times.jd)), format='jd')
+            new_digi_times = Time(np.hstack((self.digital_pointing_times.jd, other.digital_pointing_times.jd)), format='jd')
         else:
-            new_data = np.vstack((other.value, self.value))
-            new_time = Time(np.concatenate((other.time, self.time)))
-            new_ana_times = Time(np.concatenate((other.analog_pointing_times, self.analog_pointing_times)))
-            new_digi_times = Time(np.concatenate((other.digital_pointing_times, self.digital_pointing_times)))
+            new_data = np.hstack((other.value, self.value))
+            new_time = Time(np.hstack((other.time.jd, self.time.jd)), format='jd')
+            new_ana_times = Time(np.hstack((other.analog_pointing_times.jd, self.analog_pointing_times.jd)), format='jd')
+            new_digi_times = Time(np.hstack((other.digital_pointing_times.jd, self.digital_pointing_times.jd)), format='jd')
 
-        unique_times_nb = np.unique(new_time).size
-        if unique_times_nb != new_time.size:
-            log.warning(
-                f"There are {new_time.size - unique_times_nb} overlaps in the time axis."
-            )
+        # unique_times_nb = np.unique(new_time).size
+        # if unique_times_nb != new_time.size:
+        #     log.warning(
+        #         f"There are {new_time.size - unique_times_nb} overlaps in the time axis."
+        #     )
 
         return ST_Slice(
             time=new_time,
@@ -366,7 +371,7 @@ class ST_Slice:
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def plot(self, **kwargs):
+    def plot(self, fig_ax=None, **kwargs):
         r""" Plots the data, while automatically taking into account
             its shape (lightcurve, spectrum or dynamic spectrum). 
 
@@ -478,7 +483,7 @@ class ST_Slice:
             :type cmap:
                 `str`
 
-            :Exampe:
+            :Example:
                 .. code-block:: python
 
                     from nenupy.io.bst import BST
@@ -509,9 +514,12 @@ class ST_Slice:
 
         """
         # Initialize the figure
-        fig = plt.figure(figsize=kwargs.get("figsize", (15, 7)))
-        ax = fig.add_subplot(111)
-        
+        if fig_ax is None:
+            fig = plt.figure(figsize=kwargs.get("figsize", (15, 7)))
+            ax = fig.add_subplot(111)
+        else:
+            fig, ax = fig_ax
+
         data = self.value.T
         if kwargs.get("decibel", True):
             data = 10*np.log10(data)
@@ -547,6 +555,8 @@ class ST_Slice:
                 transparent=True
             )
             log.info(f"Figure '{figname}' saved.")
+        elif fig_ax is not None:
+            return
         else:
             plt.show()
         plt.close("all")
@@ -644,9 +654,97 @@ class ST_Slice:
             digital_pointing_times=self.digital_pointing_times
         )
 
+    # def rebin(array, x_step: int = None, y_step: int = None) -> np.ndarray:
+    #     """
+    #         array: 2D array dimensions=(x, y)
+    #         x_step: integer value such that x//x_step = 0 
+    #         y_step: integer value such that y//y_step = 0 
+    #     """
 
-    def fit_transit(self):
+    #     if x_step is not None:
+    #         x_size_final = array.shape[0]/x_step
+    #         if not x_size_final.is_integer():
+    #             raise ValueError(f'Array x dimension {array.shape[0]} is not divisible by {x_step}.')
+    #         if array.ndim == 2:
+    #             array = np.nanmean(
+    #                 array.reshape((int(x_size_final), x_step, array.shape[1])),
+    #                 axis=1
+    #             )
+    #         elif array.ndim == 1:
+    #             array = np.nanmean(
+    #                 array.reshape((int(x_size_final), x_step)),
+    #                 axis=1
+    #             )
+    #         else:
+    #             raise ValueError(f'Array dimension {array.ndim} is not supported.')
+
+    #     if y_step is not None:
+    #         if array.ndim != 2:
+    #             raise ValueError('Only 2D arrays.')
+    #         y_size_final = array.shape[1]/y_step
+    #         if not y_size_final.is_integer():
+    #             raise ValueError(f'Array y dimension {array.shape[1]} is not divisible by {y_step}.')
+    #         array = np.nanmean(
+    #             array.reshape((array.shape[0], int(y_size_final), y_step)),
+    #             axis=2
+    #         )
+
+    #     return array
+
+    # def rebin(array: np.ndarray, new_shape: tuple):
+    #     def get_compressor(old_dimension, new_dimension):
+    #         dim_compressor = np.zeros((new_dimension, old_dimension))
+    #         bin_size = float(old_dimension) / new_dimension
+    #         next_bin_break = bin_size
+    #         row_i = 0
+    #         column_i = 0
+    #         while row_i < dim_compressor.shape[0] and column_i < dim_compressor.shape[1]:
+    #             if round(next_bin_break - column_i, 10) >= 1:
+    #                 dim_compressor[row_i, column_i] = 1
+    #                 column_i += 1
+    #             elif next_bin_break == column_i:
+    #                 row_i += 1
+    #                 next_bin_break += bin_size
+    #             else:
+    #                 partial_credit = next_bin_break - column_i
+    #                 dim_compressor[row_i, column_i] = partial_credit
+    #                 row_i += 1
+    #                 dim_compressor[row_i, column_i] = 1 - partial_credit
+    #                 column_i += 1
+    #                 next_bin_break += bin_size
+    #         dim_compressor /= bin_size
+    #         return dim_compressor
+    #     row_compressor = get_compressor(array.shape[0], new_shape[0])
+    #     if array.ndim == 2:
+    #         column_compressor = get_compressor(array.shape[1], new_shape[1]).T
+    #         return np.matmul(np.matmul(row_compressor, array), column_compressor)
+    #     elif array.ndim == 1:
+    #         return np.matmul(row_compressor, array)
+    #     else:
+    #         raise ValueError('Only 1D or 2D arrays are allowed.')   
+
+    def clean_rfi(self, t_sigma: float = 1, f_sigma: float = 1):
+        """ """
+        cleaned_values = self.value.copy()
+        std = np.nanstd(cleaned_values)
+        frequency_median = np.nanmedian(cleaned_values, axis=0)
+        time_median = np.nanmedian(cleaned_values, axis=1)
+        cleaned_values[cleaned_values >= frequency_median[None, :] + std*f_sigma] = np.nan
+        cleaned_values[cleaned_values >= time_median[:, None] + std*t_sigma] = np.nan
+        return ST_Slice(
+            time=self.time,
+            frequency=self.frequency,
+            value=cleaned_values,
+            analog_pointing_times=self.analog_pointing_times,
+            digital_pointing_times=self.digital_pointing_times
+        )
+
+
+    def fit_transit(self, only_gaussian: bool = False, upper_threshold=None, **kwargs):
         """ Do a fit.
+
+            kwargs
+                filter_window (default (200))
         """
         from scipy.optimize import curve_fit
 
@@ -666,31 +764,105 @@ class ST_Slice:
             return analog_switch_load(t, coeff_a, coeff_b) + gaussian(t, amp, mu, sig) + poly(c1)
 
         data = self.value.copy()
-        max_data = data.max()
-        data /= max_data
+        x_data_to_fit = np.arange(data.size) + 1
+        if upper_threshold is not None:
+            data_mask = data < upper_threshold
+            data = data[data_mask]
+            x_data_to_fit = x_data_to_fit[data_mask]
+        else:
+            data_mask = np.ones(data.size, dtype=bool)
+        data[np.isnan(data)] = np.nanmedian(data)
 
-        x_data = np.arange(data.size) + 1
+        if only_gaussian:
+            filtered_data = ndimage.median_filter(
+                data,
+                size=kwargs.get("filter_window", (100))
+            )
+            max_data = filtered_data.max()
 
-        popt, pcov = curve_fit(
-            combined,
-            x_data,
-            data,
-            p0=[1e-2, data.min(), 1, np.mean(x_data), 10, 1e-6],
-            method="trf",
-            bounds=(
-                [0,   data.min(), 0,            0,          0.1, -1e3],
-                [1e1, data.max(), 1, x_data.max(), x_data.max(),  1e3])
-        )
+            # Cut around the maximum (and only conserve the values around the peak)
+            # The maximum is computed over a median-smoothed version of the data to get rid of the RFIs.
+            mask = filtered_data >= max_data/2.
+            groups = np.split(np.arange(data.size), np.where(np.diff(mask) != 0)[0]+1)
+            max_in_group_mask = [np.argmax(filtered_data) in group for group in groups]
+            indices = groups[np.argwhere(max_in_group_mask)[0][0]]
+            data = data[indices]
 
-        fitted_values = max_data*combined(x_data, *popt)
+            data /= data.max()#max_data
 
-        # Chi square
-        stdev = np.std(self.value)
-        chi_square = np.sum((self.value - fitted_values/stdev)**2)
-        degree_of_freedom = self.value.size - 6
+            popt, pcov = curve_fit(
+                gaussian,
+                x_data_to_fit,
+                data,
+                p0=[1, np.mean(x_data_to_fit), 10],
+                method="trf",
+                bounds=(
+                    [0.5,            0,          0.1],
+                    [1.2, x_data_to_fit.max(), x_data_to_fit.max()])
+            )
+
+            x_data = np.arange(self.value.size) + 1
+            fitted_values = max_data*gaussian(x_data - indices[0], *popt)
+            interpolated_time_jd = np.interp(
+                popt[1] + indices[0],
+                x_data,
+                self.time.jd
+            )
+
+            # Chi square
+            # stdev = np.std(data)
+            expected = gaussian(x_data_to_fit, *popt)
+            chi_square = np.sum(
+                (data - expected)**2/expected
+            )
+            # p value
+            # from scipy.stats import chi2, ttest_ind
+            # df = x_data_to_fit.size-1 # or dof of the gaussian? 
+            # chi2.sf(chi_2, df)
+
+
+        else:
+            max_data = data.max()
+            data /= max_data
+
+            popt, pcov = curve_fit(
+                combined,
+                x_data_to_fit,
+                data,
+                p0=[1e-3, np.nanmin(data), 1., np.mean(x_data_to_fit), x_data_to_fit.max()/20, 0.],
+                method="trf",
+                bounds=( #coeff_a, coeff_b, amp, mu, sig, c1
+                    [1e-5,   0, 1e-3,            0,              x_data_to_fit.max()/35, -1e3],
+                    [1e3, np.nanmin(data), 1.5, x_data_to_fit.max(), x_data_to_fit.max()/20,  1e3])
+            )
+
+            fitted_values = max_data*combined(np.arange(self.time.size) + 1, *popt)
+            interpolated_time_jd = np.interp(popt[3], x_data_to_fit, self.time.jd[data_mask])
+
+            # Chi square
+            # Evaluate the chis2 on a reduce interval around the transit peak
+            peak_index = int(np.floor(popt[3]))
+            mask = fitted_values >= fitted_values[peak_index] - (fitted_values[peak_index]-max_data*popt[1])/2.
+            groups = np.split(np.arange(fitted_values.size), np.where(np.diff(mask) != 0)[0]+1)
+            peak_in_group_mask = [peak_index in group for group in groups]
+            indices = groups[np.argwhere(peak_in_group_mask)[0][0]]
+            
+            #chi_square = np.sum((self.value - fitted_values)**2/fitted_values)
+            # plt.plot(data[indices]*max_data, label="data")
+            # plt.plot(fitted_values[indices], label="fit")
+            # plt.legend()
+            # plt.show()
+            # stop
+            expected = combined(x_data_to_fit, *popt)
+            chi_square = np.sum(
+                (data[indices] - expected[indices])**2/expected[indices]
+            )
+            # chi_square = np.sum(
+            #     (self.value[indices] - fitted_values[indices])**2/fitted_values[indices]
+            # )
+            #degree_of_freedom = self.value.size - 6
 
         # Compute the fitted transit time
-        interpolated_time_jd = np.interp(popt[3], x_data, self.time.jd)
         transit_time = Time(interpolated_time_jd, format="jd")
 
         return ST_Slice(
@@ -699,7 +871,7 @@ class ST_Slice:
             value=fitted_values,
             analog_pointing_times=self.analog_pointing_times,
             digital_pointing_times=self.digital_pointing_times
-        ), transit_time, chi_square
+        ), transit_time, chi_square, popt
 
 
     def flatten_frequency(self):
@@ -710,6 +882,21 @@ class ST_Slice:
     def flatten_time(self):
         """ """
         return self/np.nanmedian(self.value, axis=1)[:, None]
+
+
+    def median_filter(self,
+            filter_size=None
+        ):
+        """ """
+        if filter_size is None:
+            filter_size = tuple((np.array(self.value.shape)/10).astype(int).tolist())
+        return ST_Slice(
+            time=self.time,
+            frequency=self.frequency,
+            value=ndimage.median_filter(self.value, size=filter_size),
+            analog_pointing_times=self.analog_pointing_times,
+            digital_pointing_times=self.digital_pointing_times
+        )
 
 
     def clear_pointing_switch(self,
@@ -803,7 +990,12 @@ class ST_Slice:
     def _plot_spectrum(self, data, ax, fig, **kwargs):
         """ Plots a spectrum.
         """
-        ax.plot(self.frequency.to(u.MHz).value, data)
+        ax.plot(
+            self.frequency.to(u.MHz).value,
+            data,
+            color=kwargs.get("color", None),
+            label=kwargs.get("label", None)
+        )
 
         # X label
         ax.set_xlabel("Frequency (MHz)")
@@ -815,7 +1007,12 @@ class ST_Slice:
     def _plot_lightcurve(self, data, ax, fig, **kwargs):
         """ Plots a ligthcurve.
         """
-        ax.plot(self.time.datetime, data)
+        ax.plot(
+            self.time.datetime,
+            data,
+            label=kwargs.get("label", None),
+            color=kwargs.get("color", None)
+        )
 
         # Display pointings
         self._overplot_pointings(ax, **kwargs)
@@ -869,7 +1066,17 @@ class ST_Slice:
             ax.set_xlim(xlim)
             ax.set_ylim(ylim)
 
-        cbar = plt.colorbar(im, pad=0.03)
+        cax = inset_axes(
+            ax,
+            width='3%',
+            height='100%',
+            loc='lower left',
+            bbox_to_anchor=(1.03, 0., 1, 1),
+            bbox_transform=ax.transAxes,
+            borderpad=0,
+        )
+        cbar = plt.colorbar(im, cax=cax)
+        # cbar = plt.colorbar(im, pad=0.03)
         cbar.set_label(kwargs.get("colorbar_label", "dB" if kwargs.get("decibel", True) else "Amp"))
 
         # X label
@@ -975,6 +1182,35 @@ class ST_Slice:
                 analog_pointing_times=self.analog_pointing_times,
                 digital_pointing_times=self.digital_pointing_times
             )
+    
+    @staticmethod
+    def _smooth_data(x, window_length=150, sigma_clip=1.5, iterations=2):
+        data = x.copy()
+        if window_length > data.size:
+            raise IndexError(
+                f"window_length: {window_length} > data size: {data.size}."
+            )
+        while iterations != 0:
+            window_indices = np.arange(window_length)
+            slide_indices = np.arange(data.size - window_length + 1)
+            sliding_window_indices = window_indices[None, :] + slide_indices[:, None]
+            windows_stds = np.nanstd(data[sliding_window_indices], axis=1)
+            windows_medians = np.nanmedian(data[sliding_window_indices], axis=1)
+            thresholds = windows_medians + sigma_clip*windows_stds
+            problems_indices = data[sliding_window_indices] >= thresholds[:, None]
+
+            index_problems = np.unique(sliding_window_indices[problems_indices])
+            for pb_idx in index_problems:
+                sliding_windows_affected = np.any(
+                    np.isin(sliding_window_indices, pb_idx),
+                    axis=1
+                )
+                data[pb_idx] = np.median(windows_medians[sliding_windows_affected])
+
+            iterations -= 1
+            window_length = int(window_length//2)
+        
+        return data
 # ============================================================= #
 # ============================================================= #
 

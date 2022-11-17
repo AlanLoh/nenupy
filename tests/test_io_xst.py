@@ -42,7 +42,7 @@ class TestXST:
     # ------------------- test_frequencies -------------------- #
     def test_frequencies(self):
         assert self.xst.frequencies.size == 16
-        assert self.xst.frequencies[0].to(u.MHz).value == pytest.approx(68.55, 1e-2)
+        assert self.xst.frequencies[0][0].to(u.MHz).value == pytest.approx(68.55, 1e-2)
 
 
     # ========================================================= #
