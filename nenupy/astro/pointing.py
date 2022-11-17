@@ -727,7 +727,6 @@ class Pointing(AstroObject):
             # get the one at maximal elevation
             # target_altaz = radec_to_altaz(radec=target.coordinates, time=transit_time, fast_compute=True)[:, 0]
             # transit_time = transit_time[target_altaz.alt.argmax()]
-            print(transit_time.isot)
             transit_time = transit_time[0].reshape((1,))
         
         transit_altaz = radec_to_altaz(radec=target.coordinates, time=transit_time, fast_compute=True)

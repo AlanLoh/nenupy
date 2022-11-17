@@ -414,11 +414,10 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         fig, ax = plt.subplots(
             figsize=kwargs.get('figsize', (10, 10))
         )
-        ax.scatter(
-            self.antenna_positions[:, 0],
-            self.antenna_positions[:, 1],
-            kwargs.get('s', 30)
-        )
+
+        positions = self.antenna_positions
+
+        ax.scatter(positions[:, 0], positions[:, 1], kwargs.get('s', 30))
 
         if kwargs.get("patches", None) is not None:
             from matplotlib.collections import PatchCollection
@@ -430,13 +429,16 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         ax.set_xlim(kwargs.get('xlim', ax.get_xlim()))
         ax.set_ylim(kwargs.get('ylim', ax.get_ylim()))
 
+        ax.set_xlabel(kwargs.get('x_label', ''))
+        ax.set_ylabel(kwargs.get('y_label', ''))
+
         if kwargs.get("show_names", True):
             for i, antenna_name in enumerate(self.antenna_names):
                 ax.annotate(
                     antenna_name,
                     (
-                        self.antenna_positions[i, 0],
-                        self.antenna_positions[i, 1]
+                        positions[i, 0],
+                        positions[i, 1]
                     ),
                     ha='center'
                 )
