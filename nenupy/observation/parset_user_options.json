@@ -45,7 +45,8 @@
         },
         "topic": {
             "required": true,
-            "value": "key_project_name"
+            "value": "key_project_name",
+            "syntax": "^(ES([0]?[0-9]|1[0-7])|LT(?!08)([0]?[0-9]|1[0-3])|RP1[A-C]|SP(16|17))$"
         },
         "parsetVersion": {
             "required": false,

@@ -593,11 +593,22 @@ class _JsonEntry:
                 "unit": "s"
             }
         }
-        topic = observation.get("topic", "ES00 DEBUG")
-        self.obs_metadata["topic"] = {
-            "code": topic[:4] if topic.startswith('ES') else "ES00",
-            "name": topic[5:] if topic.startswith('ES') else topic
-        }
+        topic = observation.get('topic', 'LT00 DEBUG')
+        # Try to capture code and topic name using regular expression
+        pattern = r'^(?P<code>(ES([0]?[0-9]|1[0-7])|LT(?!08)([0]?[0-9]|1[0-3])|RP1[A-C]|SP(16|17))) (?P<name>\w+)$'
+        topic_decoded = re.match(pattern=pattern, string=topic)
+        if topic_decoded is None:
+            log.warning(f'{topic} not properly decoded!!')
+            self.obs_metadata["topic"] = {
+                'code': 'LT00',
+                'name': 'DEBUG'
+            }
+        else:
+            topic_decoded_dict = topic_decoded.groupdict()
+            self.obs_metadata["topic"] = {
+                'code': topic_decoded_dict['code'],
+                'name': topic_decoded_dict['name']
+            }
         key_mapping = {
             "title": "title",
             "contactName": "contact_name",

@@ -29,6 +29,7 @@ import numpy as np
 import astropy.units as u
 from astropy.coordinates import EarthLocation
 import dask.array as da
+from enum import Enum
 
 
 # ============================================================= #

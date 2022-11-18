@@ -47,67 +47,139 @@ KPS = {
         'name': 'Cosmic Dawn',
         'color': '#825A2C'
     },
-    'es02':  {
+    'es02': {
         'name': 'Exoplanets and stars',
         'color': '#87794E'
     },
-    'es03':  {
+    'es03': {
         'name': 'Pulsars',
         'color': '#3F729C'
     },
-    'es04':  {
+    'es04': {
         'name': 'Transients',
         'color': '#8800CC'
     },
-    'es05':  {
+    'es05': {
         'name': 'Fast Radio Bursts',
         'color': '#00ABA9'
     },
-    'es06':  {
+    'es06': {
         'name': 'Planetary Lightning',
         'color': '#D80073'
     },
-    'es07':  {
+    'es07': {
         'name': 'Jupiter',
         'color': '#B8860B'
     },
-    'es08':  {
+    'es08': {
         'name': 'Galaxy clusters and AGNs',
         'color': '#0050EF'
     },
-    'es09':  {
+    'es09': {
         'name': 'Cluster filament and cosmic magnetism',
         'color': '#CC66FF'
     },
-    'es10':  {
+    'es10': {
         'name': 'Recombination Lines',
         'color': '#FA6800'
     },
-    'es11':  {
+    'es11': {
         'name': 'Sun',
         'color': '#008A00'
     },
-    'es12':  {
+    'es12': {
         'name': 'Radio Gamma',
         'color': '#A20025'
     },
-    'es13':  {
+    'es13': {
         'name': 'SETI',
         'color': '#F4A460'
     },
-    'es14':  {
+    'es14': {
         'name': 'Cas A',
         'color': '#517A7A'
     },
-    'es15':  {
+    'es15': {
         'name': 'Large Survey',
         'color': '#6699FF'
     },
-    'es16':  {
+    'es16': {
         'name': 'LOFAR-NenuFAR',
         'color': '#708D23'
     },
-    'es17':  {
+    'es17': {
+        'name': 'Radio-Amateurs',
+        'color': '#424242'
+    },
+    'lt00': {
+        'name': 'Comissioning',
+        'color': '#7DCEA0'
+    },
+    'lt01': {
+        'name': 'Cosmic Dawn',
+        'color': '#825A2C'
+    },
+    'lt02': {
+        'name': 'Exoplanets and stars',
+        'color': '#87794E'
+    },
+    'lt03': {
+        'name': 'Pulsars',
+        'color': '#3F729C'
+    },
+    'lt04': {
+        'name': 'Transients',
+        'color': '#8800CC'
+    },
+    'lt05': {
+        'name': 'Fast Radio Bursts',
+        'color': '#00ABA9'
+    },
+    'lt06': {
+        'name': 'Planetary Lightning',
+        'color': '#D80073'
+    },
+    'lt07': {
+        'name': 'Jupiter joint studies',
+        'color': '#B8860B'
+    },
+    'lt09': {
+        'name': 'Galaxies',
+        'color': '#CC66FF'
+    },
+    'lt10': {
+        'name': 'Recombination Lines',
+        'color': '#FA6800'
+    },
+    'lt11': {
+        'name': 'Sun',
+        'color': '#008A00'
+    },
+    'lt12': {
+        'name': 'Radio Gamma',
+        'color': '#A20025'
+    },
+    'lt13': {
+        'name': 'SETI',
+        'color': '#F4A460'
+    },
+    'rp1a': {
+        'name' : 'Faraday tomography of 3C196 field',
+        'color': '#000000' # TO BE DEFINED
+    },
+    'rp1b': {
+        'name': 'NenuFAR Low-Frequency Sky Survey',
+        'color': '#6699FF'
+    },
+    'rp1c': {
+        'name': 'Free-free absorption in Cassiopeia A',
+        'color': '#517A7A'
+    },
+    'sp16': {
+        'name': 'Student training',
+        'color': '#708D23'
+    },
+    'sp17': {
         'name': 'Radio-Amateurs',
         'color': '#424242'
     }
