@@ -512,7 +512,7 @@ class Interferometer(ABC, metaclass=CombinedMeta):
 
 
 
-    def array_factor(self, sky: Sky, pointing: Pointing) -> da.Array:
+    def array_factor(self, sky: Sky, pointing: Pointing, return_complex: bool = False) -> da.Array:
         r""" Computes the array factor of the antenna distribution.
 
             .. math::
@@ -567,7 +567,7 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         coeff = coeff.reshape(
             (1, 1, wavelength.size, 1, 1)
         ) # (antenna, time, frequency, polar, coord)
-    
+
         exponent = coeff * geometric_delays
         # coord_chunk = exponent.shape[-1]//cpu_count()
         # coord_chunk = 1 if coord_chunk == 0 else coord_chunk
@@ -575,12 +575,16 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         #     exponent,
         #     chunks=exponent.shape[:-1] + (coord_chunk,)
         # )
-
         complex_array_factor = np.sum(
             np.exp(exponent),
             axis=0
         )
-        return (np.real(complex_array_factor * np.conjugate(complex_array_factor)))
+
+        if return_complex:
+            # Normalized complex array factor
+            return complex_array_factor/exponent.shape[0]
+        else:
+            return (np.real(complex_array_factor * np.conjugate(complex_array_factor)))
 
 
     def beam(self, sky: Sky, pointing: Pointing) -> Sky:

@@ -134,7 +134,7 @@ class SkySliceBase(AstroObject):
                 Default is ``False``.
             :type decibel:
                 `bool`
-            :param inteprolation:
+            :param interpolation:
                 Matplotlib `imshow interpolation <https://matplotlib.org/stable/gallery/images_contours_and_fields/interpolation_methods.html>`_ method.
                 Default is ``'quadric'``.
             :type interpolation:
