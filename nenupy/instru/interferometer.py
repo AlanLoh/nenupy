@@ -578,16 +578,15 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         complex_array_factor = np.sum(
             np.exp(exponent),
             axis=0
-        )
+        )/exponent.shape[0] # normalized
 
         if return_complex:
-            # Normalized complex array factor
-            return complex_array_factor/exponent.shape[0]
+            return complex_array_factor
         else:
             return (np.real(complex_array_factor * np.conjugate(complex_array_factor)))
 
 
-    def beam(self, sky: Sky, pointing: Pointing) -> Sky:
+    def beam(self, sky: Sky, pointing: Pointing, return_complex: bool = False) -> Sky:
         r""" Computes the phased-array response :math:`\mathcal{G}` over the ``sky`` for a given
             ``pointing``.
 
@@ -632,7 +631,8 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         # Compute the array factor
         array_factor = self.array_factor(
             sky=sky,
-            pointing=pointing
+            pointing=pointing,
+            return_complex=return_complex
         )
 
         # Compute the total antenna gain, i.e. the sum of all
@@ -643,7 +643,7 @@ class Interferometer(ABC, metaclass=CombinedMeta):
                 pointing=pointing
             ) for gain in self.antenna_gains]),
             axis=0
-        )
+        ) / len(self.antenna_gains) # normalized
 
         # Rechunk the Dask Array before the computation
         # coord_chunk = array_factor.shape[-1]//cpu_count()
@@ -652,7 +652,10 @@ class Interferometer(ABC, metaclass=CombinedMeta):
 
         # Perform the Dask computation of array factor times antenna
         # gains. Update the sky instance values.
-        sky.value = array_factor * antenna_gain
+        if return_complex:
+            sky.value = array_factor * np.sqrt(antenna_gain)
+        else:
+            sky.value = array_factor * antenna_gain
 
         return sky
 

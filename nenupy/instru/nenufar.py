@@ -68,7 +68,7 @@ class _AntennaGain:
     """ NenuFAR antenna gain class. """
 
 
-    def __init__(self, polarization='NW'):
+    def __init__(self, polarization: str = 'NW'):
         self.polarization = polarization
 
         if self.polarization == 'NE':#'NW':
@@ -86,6 +86,7 @@ class _AntennaGain:
             memmap=True,
             dtype=float
         )
+        gain /= gain.max()
 
         # Interpolate the antenna gain on the frequency axis
         freqs = np.arange(10, 90, 10)
@@ -96,6 +97,8 @@ class _AntennaGain:
             z=gain,
             kind='linear'
         )
+
+        log.info(f'NenuFAR antenna model (polarization={polarization}) loaded.')
 
 
     @lru_cache(maxsize=1)
@@ -385,7 +388,8 @@ class MiniArray(Interferometer):
     def beam(self,
             sky: Sky,
             pointing: Pointing,
-            configuration: NenuFAR_Configuration = NenuFAR_Configuration()
+            configuration: NenuFAR_Configuration = NenuFAR_Configuration(),
+            return_complex: bool = False
         ) -> Sky:
         r""" Computes the Mini-Array beam over the ``sky`` for a given
             ``pointing``.
@@ -505,7 +509,8 @@ class MiniArray(Interferometer):
         # The returned value is only divided by Aeff.
         return super().beam(
             sky=sky,
-            pointing=self.analog_pointing(pointing, configuration=configuration)
+            pointing=self.analog_pointing(pointing, configuration=configuration),
+            return_complex=return_complex
         )# / aeff[None, :, None, None]
 
 
@@ -1104,7 +1109,8 @@ class NenuFAR(Interferometer):
             sky: Sky,
             pointing: Pointing,
             analog_pointing: Pointing = None,
-            configuration: NenuFAR_Configuration = NenuFAR_Configuration()
+            configuration: NenuFAR_Configuration = NenuFAR_Configuration(),
+            return_complex: bool = False
         ) -> Sky:
         r""" Computes the NenuFAR beam over the ``sky`` for a given
             ``pointing``.
@@ -1178,7 +1184,8 @@ class NenuFAR(Interferometer):
         # Computing the Array Factor of the whole NenuFAR array.
         array_factor = self.array_factor(
             sky=sky,
-            pointing=pointing
+            pointing=pointing,
+            return_complex=return_complex
         )
 
         # Finding the unique Mini-Array rotations and the number
@@ -1199,11 +1206,12 @@ class NenuFAR(Interferometer):
                 gain(
                     sky=sky,
                     pointing=analog_pointing,
-                    configuration=configuration
+                    configuration=configuration,
+                    return_complex=return_complex
                 ).value*count for gain, count in zip(self.antenna_gains[indices], counts)
             ]),
             axis=0
-        )
+        )/np.sum(counts) # TODO check that this is correct to normalize
 
         # Updating the sky object value array where the the sky
         # is above the horizon as the product of the NenuFAR array
