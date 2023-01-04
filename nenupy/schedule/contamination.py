@@ -244,7 +244,7 @@ class BeamLobes:
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def compute_weight_moc(self, sources: List[str], cuts_number: int = 10) -> np.ndarray:
-        """ """
+        """ Compute moc with arrays of values between 0 and 1."""
 
         # Get an array of sky positions (including all sources, all times)
         sky_positions = self._get_skycoord_array(sources)
