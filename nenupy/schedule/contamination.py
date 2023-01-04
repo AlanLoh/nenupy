@@ -75,6 +75,12 @@ class SourceInLobes:
         )
 
 
+    @property
+    def lst_time(self):
+        """ Returns the times associated with the SourceInLobe object in Local Sidereal Time."""
+        return local_sidereal_time(self.time)
+
+
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def plot(self, **kwargs):
@@ -263,7 +269,11 @@ class BeamLobes:
             
             threshold_moc[i, :, :] = source_in_grating_lobes.astype(bool)
 
-        return np.sum(threshold_moc, axis=0)/cuts_number #--> srcinlobes
+        return SourceInLobes(
+            time=self.time,
+            frequency=self.frequency,
+            value=np.sum(threshold_moc, axis=0)/cuts_number
+        )
 
 
     def compute_moc(self, maximum_ratio: float = 0.5, return_array: bool = False):
