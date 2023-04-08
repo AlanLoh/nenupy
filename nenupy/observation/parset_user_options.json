@@ -249,6 +249,10 @@
             "required": false,
             "value": "beamsquint_frequency",
             "syntax": "^[1-8]0$"
+        },
+        "azelFile": {
+            "required": false,
+            "value": "My_AzEl_File.csv"
         }
     },
     "Beam": {
