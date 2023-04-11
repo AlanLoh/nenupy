@@ -133,9 +133,12 @@ class ScheduleBlock(ObsBlock):
             return 0.
         else:
             scores = []
+            weights = []
             for constraint in self.constraints:
                 scores.append(constraint.get_score(self.indices))
-            return np.nanmean(scores, axis=0)
+                weights.append(constraint.weight)
+            #return np.nanmean(scores, axis=0)
+            return np.average(scores, weights=weights, axis=0)
 
 
     @property
@@ -177,6 +180,13 @@ class ScheduleBlock(ObsBlock):
                 f"<ObsBlock> #{self.blockIdx} named '{self.name}': "
                 "Constraint score evaluated."
             )
+
+    def is_within(self, start: Time, stop: Time) -> bool:
+        """ """
+        return (self.time_min >= start)*(self.time_max < stop)\
+            + (self.time_min < start)*(self.time_max > start)*(self.time_max < stop)\
+            + (self.time_max > stop)*(self.time_min > start)*(self.time_min < stop)\
+            + (self.time_min < start)*(self.time_max > stop)
 
 
     def plot(self, **kwargs):
@@ -772,6 +782,7 @@ class Schedule(_TimeSlots):
             elif all([blk.__class__ is ReservedBlock for blk in blocks_i]):
                 for blk in blocks_i:
                     self.add_booking(blk.time_min, blk.time_max)
+                    log.debug(f'ReservedBlock added from {blk.time_min.isot} to {blk.time_max.isot}.')
                 if self.reserved_blocks is None:
                     self.reserved_blocks = blocks_i
                 else:
@@ -782,6 +793,62 @@ class Schedule(_TimeSlots):
                 )
 
         self._toSchedule = np.ones(self.observation_blocks.size, dtype=bool)
+
+
+    def match_booking(self, booking_file: str, key_program: str) -> None:
+        """ """
+        bookings = np.loadtxt(
+            booking_file,
+            skiprows=1,
+            delimiter=',',
+            dtype={
+                'names': ('start', 'stop', 'kp', 'comment'),
+                'formats': ('U19', 'U19', 'U4', 'U50')
+            }
+        )
+
+        # Check that the selected Key program is valid
+        kp_names = np.unique(bookings['kp'])
+        if key_program not in kp_names:
+            raise ValueError(
+                f'Key program {key_program} does not have any entry in {booking_file}, select a value in {kp_name}.'
+            )
+        valid_booking = bookings[bookings['kp'] == key_program]
+        booking_starts = Time(valid_booking['start'])
+        booking_stops = Time(valid_booking['stop'])
+
+        # Find each time period not in the valid booking rang
+        within_schedule_mask = (booking_starts >= self.time_min)*(booking_stops <= self.time_max)\
+            + (booking_starts < self.time_min)*(booking_stops > self.time_min)\
+            + (booking_starts < self.time_max)*(booking_stops > self.time_max)
+        log.debug(f'{np.sum(within_schedule_mask)} bookings are within the schedule.')
+
+        # Insert corresponding reserved blocks in between the booking periods
+        starts = booking_starts[within_schedule_mask]
+        stops = booking_stops[within_schedule_mask]
+        # Treat the first booking
+        if starts[0] > self.time_min:
+            self.insert(
+                ReservedBlock(
+                    time_min=self.time_min,
+                    time_max=starts[0]
+                )
+            )
+        for reserve_block_start, reserve_block_stop in zip(stops[:-1], starts[1:]):
+            self.insert(
+                ReservedBlock(
+                    time_min=reserve_block_start,
+                    time_max=reserve_block_stop
+                )
+            )
+        # Treat the first booking
+        if stops[-1] < self.time_max:
+            self.insert(
+                ReservedBlock(
+                    time_min=stops[-1],
+                    time_max=self.time_max
+                )
+            )
 
 
     def book(self, optimize=False, **kwargs):
@@ -871,6 +938,7 @@ class Schedule(_TimeSlots):
                 'Required observation blocks have constraints '
                 'unfitted for this schedule.'
             )
+            return
         else:
             log.info(
                 f'Fitting {sum(self._toSchedule)} observation blocks...'
@@ -921,8 +989,16 @@ class Schedule(_TimeSlots):
             return ga
 
         else:
+            block_indices = np.arange(self.observation_blocks.size)
+            if kwargs.get('sort_by_difficulty', False):
+                sort_idx = np.argsort(np.sum(self._cnstScores, axis=1))
+                block_indices = block_indices[sort_idx]
+
             # Block are booked iteratively 
-            for i, blk in enumerate(self.observation_blocks):
+            # for i, blk in enumerate(self.observation_blocks):
+            for i in block_indices:
+                blk = self.observation_blocks[i]
+
                 if (not self._toSchedule[i]) or (blk.isBooked):
                     continue
                 # Construct a mask to avoid setting the obsblock where it cannot fit
@@ -956,7 +1032,12 @@ class Schedule(_TimeSlots):
                 self.freeSlots[bestStartIdx:bestStopIdx + 1] = False
                 if blk.n_delay_slots != 0:
                     # Update the processing reserved slots
-                    self.free_processing_slots[bestStartIdx - blk.n_delay_slots:bestStopIdx + blk.n_delay_slots + 1] = False
+                    start_proc = bestStartIdx - blk.n_delay_slots
+                    start_proc = 0 if start_proc < 0 else start_proc
+                    stop_proc = bestStopIdx + blk.n_delay_slots + 1
+                    stop_proc = self.size if stop_proc > self.size else stop_proc
+                    self.free_processing_slots[start_proc:stop_proc] = False
+
                 blk.time_min = self.starts[bestStartIdx]
                 blk.time_max = self.stops[bestStopIdx]
 
@@ -1124,6 +1205,68 @@ class Schedule(_TimeSlots):
         tab['score'] = np.array(scores)[chron]
 
         return tab
+
+    
+    def plot_range(self, start_time: Time, stop_time: Time, **kwargs) -> None:
+        """ """
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
+
+        # Initialize the figure
+        fig, ax = plt.subplots(
+            figsize=kwargs.get('figsize', (15, 3))
+        )
+
+        # Display granularity
+        if kwargs.get('grid', True):
+            time_mask = (self._startsJD >= start_time.jd)*(self._stopsJD <= stop_time.jd)
+            for slot_start in self.starts[time_mask]:
+                ax.axvline(
+                    slot_start.datetime,
+                    color='gray',
+                    linestyle='-',
+                    linewidth=0.5
+                )
+
+        # Display unavailable slots
+        if self.reserved_blocks is not None:
+            for booked_block in self.reserved_blocks:
+                if not booked_block.is_within(start_time, stop_time):
+                    continue
+                booked_block._display(ax=ax)
+
+        # Display observation blocks
+        if self.observation_blocks is not None:
+            for obs_block in self.observation_blocks:
+                if not obs_block.isBooked:
+                    continue
+                if not obs_block.is_within(start_time, stop_time):
+                    continue
+                obs_block._display(ax=ax)
+
+        ax.set_xlim(
+                left=start_time.datetime,
+                right=stop_time.datetime
+            )
+
+        # Formating
+        ax.yaxis.set_visible(False)
+        h_fmt = mdates.DateFormatter('%y-%m-%d\n%H')
+        ax.xaxis.set_major_formatter(h_fmt)
+
+        # Save or show the figure
+        figname = kwargs.get('figname', '')
+        if figname != '':
+            plt.savefig(
+                figname,
+                dpi=300,
+                bbox_inches='tight',
+                transparent=True
+            )
+            log.info(f"Figure '{figname}' saved.")
+        else:
+            plt.show()
+        plt.close('all')
 
 
     def plot(self, days_per_line=1, **kwargs):
