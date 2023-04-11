@@ -222,6 +222,7 @@ class SkySliceBase(AstroObject):
         visible_sky = kwargs.get("only_visible", True)
         decibel = kwargs.get("decibel", False)
         altaz_overlay = kwargs.get("altaz_overlay", False)
+        alpha = kwargs.get('alpha', None)
 
         # Initialize figure
         wcs, shape = self._compute_wcs(
@@ -241,6 +242,16 @@ class SkySliceBase(AstroObject):
             shape=shape,
             display_visible_sky=visible_sky
         )
+        if alpha is not None:
+            # Use additional data stored in alpha argument to overlap an oppacity mask
+            alpha_image = self._fullsky_projection(
+                wcs=wcs,
+                shape=shape,
+                display_visible_sky=False,
+                value=alpha
+            )
+            alpha_image[np.isnan(alpha_image)] = 0
+            alpha_image /= alpha_image.max()
 
         # Scale the data in decibel
         if decibel:
@@ -256,7 +267,8 @@ class SkySliceBase(AstroObject):
             interpolation=kwargs.get("interpolation", "quadric"),
             cmap=cmap,
             vmin=vmin,
-            vmax=vmax
+            vmax=vmax,
+            alpha=None if alpha is None else alpha_image
         )
 
         # Define ax ticks
@@ -452,11 +464,12 @@ class SkySliceBase(AstroObject):
                 nested=False,
                 shape_out=shape#(ndec, nra)
             )
-            ax.contour(
+            cont = ax.contour(
                 contour,
                 levels=parameters[1],
                 cmap=parameters[2],
             )
+            ax.clabel(cont, inline=1, fontsize=10)
 
         # Other
         im.set_clip_path(ax.coords.frame.patch)
@@ -528,7 +541,7 @@ class SkySlice(SkySliceBase):
         return wcs, (ra_dim, dec_dim)
 
 
-    def _fullsky_projection(self, wcs: WCS, shape: tuple, display_visible_sky: bool):
+    def _fullsky_projection(self, wcs: WCS, shape: tuple, display_visible_sky: bool, value: np.ndarray = None):
         """ """
         x, y = wcs.world_to_pixel(self.coordinates)
 
@@ -544,7 +557,11 @@ class SkySlice(SkySliceBase):
         x_int = x_int[in_image_mask]
         y_int = y_int[in_image_mask]
 
-        values = copy.deepcopy(self.value)
+        if value is None:
+            values = copy.deepcopy(self.value)
+        else:
+            values = da.from_array(value)
+
         if display_visible_sky:
             values[~self.visible_sky] = np.nan
         values = values[in_image_mask]
@@ -612,9 +629,13 @@ class HpxSkySlice(SkySliceBase):
         return wcs, (dec_dim, ra_dim)
 
 
-    def _fullsky_projection(self, wcs: WCS, shape: tuple, display_visible_sky: bool):
+    def _fullsky_projection(self, wcs: WCS, shape: tuple, display_visible_sky: bool, value: np.ndarray = None):
         """ """
-        values = copy.deepcopy(self.value)
+        if value is None:
+            values = copy.deepcopy(self.value)
+        else:
+            values = da.from_array(value)
+
         if display_visible_sky:
             values[~self.visible_sky] = np.nan
         
