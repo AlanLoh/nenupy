@@ -10,6 +10,7 @@ from .constraints import (
     ElevationCnst,
     MeridianTransitCnst,
     AzimuthCnst,
+    LocalSiderealTimeCnst,
     LocalTimeCnst,
     TimeRangeCnst,
     NightTimeCnst,

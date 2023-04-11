@@ -157,6 +157,7 @@ __all__ = [
     'ElevationCnst',
     'MeridianTransitCnst',
     'AzimuthCnst',
+    'LocalSiderealTimeCnst',
     'LocalTimeCnst',
     'TimeRangeCnst',
     'NightTimeCnst',
@@ -164,13 +165,14 @@ __all__ = [
 ]
 
 
-from abc import ABC, abstractmethod
+from abc import ABC
 import numpy as np
 from functools import lru_cache
 from astropy.time import Time, TimeDelta
-from astropy.coordinates import Angle
+from astropy.coordinates import Angle, Longitude
 import pytz
 import matplotlib.pyplot as plt
+from copy import copy
 
 from nenupy.schedule.targets import _Target, SSTarget
 
@@ -512,6 +514,7 @@ class ElevationCnst(TargetConstraint):
         elevMean = (elevation[1:] + elevation[:-1])/2
         # elevMean[elevMean <= self.elevationMin.deg] = 0.
         elevMean[elevMean <= self.elevationMin.deg] = np.nan
+
         # if elevMax == 0.:
         if all(np.isnan(elevMean)):
             log.warning(
@@ -527,6 +530,7 @@ class ElevationCnst(TargetConstraint):
         else:
             elevMax = np.nanmax(elevMean)
             self.score = elevMean/elevMax
+
         return self.score
 # ============================================================= #
 # ============================================================= #
@@ -711,6 +715,97 @@ class AzimuthCnst(TargetConstraint):
 # ============================================================= #
 # ============================================================= #
 
+
+# ============================================================= #
+# ------------------- LocalSiderealTimeCnst ------------------- #
+# ============================================================= #
+class LocalSiderealTimeCnst(TargetConstraint):
+
+    def __init__(self, lst: Longitude, strict_crossing: bool = True, weight: float = 1):
+        super().__init__(weight=weight)
+        self.lst = lst
+        self.strict_crossing = strict_crossing
+
+
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+    def get_score(self, indices):
+        """
+        """
+        self._is_numpy_instance(indices)
+        return np.mean(self.score[indices], axis=-1)
+
+
+    # --------------------------------------------------------- #
+    # ----------------------- Internal ------------------------ #
+    def _evaluate(self, target, nslots):
+        """ time: dim + 1
+        """
+        self._is_target_instance(target)
+
+        pi_lon = Longitude(180, unit='deg')
+        lst_starts = copy(target._lst[:-1])
+        lst_stops = copy(target._lst[1:])
+        lst_desired = np.repeat(self.lst, lst_starts.size)
+
+        # Deal with crossing 360/0 case
+        tricky_mask = lst_starts > lst_stops
+        lst_starts[tricky_mask] = (lst_starts[tricky_mask] - pi_lon).wrap_at('360d')
+        lst_stops[tricky_mask] = (lst_stops[tricky_mask] - pi_lon).wrap_at('360d')
+        lst_desired[tricky_mask] = (lst_desired[tricky_mask] - pi_lon).wrap_at('360d')
+
+        mask = (lst_desired >= lst_starts) & (lst_desired <= lst_stops)
+
+        # Compute the score
+        scores = np.zeros(mask.size)
+        lst_crossing_indices = np.where(mask)[0]
+
+        if self.strict_crossing:
+            # Set neighbor slots to non-zero to maximize centering
+            slot_shifts = np.arange(nslots) - int(np.floor(nslots/2))
+            if nslots%2 == 0:
+                # if nslots is even, we have to think which slot to include in addition to the max one.
+                pass
+            neighbor_idx = (lst_crossing_indices[:, None] + slot_shifts[None, :]).ravel()
+            outOfBounds = (neighbor_idx < 0) + (neighbor_idx >= scores.size)
+            neighbor_idx = np.delete(
+                neighbor_idx,
+                np.argwhere(outOfBounds)
+            )
+            scores = np.where(
+                np.isin(
+                    np.arange(scores.size, dtype=int),
+                    neighbor_idx
+                ),
+                0.5,
+                scores
+            )
+
+            # Set azimuth found slots to maximal score
+            scores[lst_crossing_indices] = 1.
+        else:
+            # Number of consecutive false in the array
+            scores[lst_crossing_indices] = 1 
+            bool_array = ~scores.astype(bool)
+            consecutive_falses = np.diff(
+                np.where(
+                    np.concatenate(
+                        ([bool_array[0]],
+                        bool_array[:-1] != bool_array[1:],
+                        [True])
+                    )
+                )[0]
+            )[::2].max()
+            kernel_size = consecutive_falses + 1 if consecutive_falses%2==0 else consecutive_falses
+            kernel = np.arange(kernel_size) - int(np.floor(kernel_size/2))
+            kernel = 1. - np.abs(kernel)/kernel.max()
+            scores = np.convolve(scores, kernel, mode='same')
+
+        self.score = scores
+        # self.score = mask.astype(float)
+        return self.score
+# ============================================================= #
+# ============================================================= #
 
 # ============================================================= #
 # ----------------------- LocalTimeCnst ----------------------- #
