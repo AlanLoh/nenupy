@@ -811,7 +811,7 @@ class Schedule(_TimeSlots):
         kp_names = np.unique(bookings['kp'])
         if key_program not in kp_names:
             raise ValueError(
-                f'Key program {key_program} does not have any entry in {booking_file}, select a value in {kp_name}.'
+                f'Key program {key_program} does not have any entry in {booking_file}, select a value in {kp_names}.'
             )
         valid_booking = bookings[bookings['kp'] == key_program]
         booking_starts = Time(valid_booking['start'])
