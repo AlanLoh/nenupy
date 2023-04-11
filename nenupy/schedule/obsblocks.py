@@ -921,6 +921,15 @@ class ReservedBlock(Block):
     #     blocks = []
     #     return cls()
 
+
+    def is_within(self, start: Time, stop: Time) -> bool:
+        """ """
+        return (self.time_min >= start)*(self.time_max < stop)\
+            + (self.time_min < start)*(self.time_max > start)*(self.time_max < stop)\
+            + (self.time_max > stop)*(self.time_min > start)*(self.time_min < stop)\
+            + (self.time_min < start)*(self.time_max > stop)
+
+
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     def _display(self, ax):
