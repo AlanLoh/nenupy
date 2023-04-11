@@ -21,11 +21,13 @@ __all__ = [
     "hour_angle",
     "radec_to_altaz",
     "altaz_to_radec",
+    "parallactic_angle",
     "sky_temperature",
     "dispersion_delay",
     "wavelength",
     "l93_to_etrs",
     "geo_to_l93",
+    "l93_to_geo",
     "geo_to_etrs",
     "etrs_to_enu",
     "AstroObject"
@@ -364,12 +366,12 @@ def radec_to_altaz(
             FK5(equinox=time)
         )
 
-        ha = hour_angle(
-            radec=radec,
-            time=time,
-            observer=observer,
-            fast_compute=fast_compute
-        )
+        # ha = hour_angle(
+        #     radec=radec,
+        #     time=time,
+        #     observer=observer,
+        #     fast_compute=fast_compute
+        # )
 
         two_pi = Angle(360.0, unit='deg')
 
@@ -785,7 +787,7 @@ def l93_to_etrs(positions: np.ndarray) -> np.ndarray:
     """
     if (positions.ndim != 2) or (positions.shape[1] != 3):
         raise ValueError(
-            f"`possitions` should be a (n, 3) numpy array, got {positions.shape} instead."
+            f"`positions` should be a (n, 3) numpy array, got {positions.shape} instead."
         )
     t = Transformer.from_crs(
         crs_from="EPSG:2154", # RGF93
@@ -805,7 +807,20 @@ def l93_to_etrs(positions: np.ndarray) -> np.ndarray:
 # ------------------------ geo_to_l93 ------------------------- #
 # ============================================================= #
 def geo_to_l93(location: EarthLocation = nenufar_position) -> np.ndarray:
-    """ """
+    """ Convert geographic coordinates to RGF93 coordinates.
+        This function takes in a location in geographic coordinates
+        (EPSG:4326) and converts it to RGF93 coordinates (EPSG:2154).
+
+        :param location:
+            The location to be converted. Defaults to ``nenufar_position``.
+        :type location: 
+            :class:`~astropy.coordinates.EarthLocation`
+
+        :returns:
+            The location in RGF93 coordinates, as an array of 3 elements.
+        :rtype:
+            :class:`~numpy.ndarray`
+    """
     t = Transformer.from_crs(
         crs_from='EPSG:4326', # GPS
         crs_to='EPSG:2154' # RGF93
@@ -818,6 +833,42 @@ def geo_to_l93(location: EarthLocation = nenufar_position) -> np.ndarray:
         radians=True
     )
     return positions
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------ l93_to_geo ------------------------- #
+# ============================================================= #
+def l93_to_geo(positions: np.ndarray) -> EarthLocation:
+    """ Convert RGF93 to geographic coordinates.
+        This function takes in positions in RGF93 coordinates (EPSG:2154)
+        and converts it to geographic coordinates (EPSG:4326).
+
+        :param positions:
+            The positions to be converted.
+        :type positions: 
+            :class:`~numpy.ndarray`
+
+        :returns:
+            Geographic coordinates.
+        :rtype:
+            :class:`~astropy.coordinates.EarthLocation`
+    """
+    t = Transformer.from_crs(
+        crs_from='EPSG:2154', # RGF93
+        crs_to='EPSG:4326' # GPS
+    )
+    lat, lon, height = t.transform(
+        xx=positions[:, 0],
+        yy=positions[:, 1],
+        zz=positions[:, 2],
+    )
+    return EarthLocation(
+        lon=lon*u.deg,
+        lat=lat*u.deg,
+        height=height*u.m
+    )
 # ============================================================= #
 # ============================================================= #
 
@@ -951,6 +1002,37 @@ def etrs_to_enu(positions: np.ndarray, location: EarthLocation = nenufar_positio
     ])
 
     return np.matmul(xyz, transformation.T)
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------ draw_horizon_ds9_region ------------------ #
+# ============================================================= #
+def draw_horizon_ds9_region(time: Time, regfile: str = 'region.reg') -> None:
+    """ """
+    azimuth_sample = np.linspace(0, 360, 100)
+    elevation = np.zeros(azimuth_sample.size)
+    horizon_radec = altaz_to_radec(
+        AltAz(azimuth_sample*u.deg, elevation*u.deg,
+            obstime=time,
+            location=nenufar_position)
+        )
+    with open(regfile, 'w') as wfile:
+        regfile_header = (
+            "# Region file format: DS9 version 4.1\n"
+            "global color=green\n"
+            "fk5\n"
+        )
+        wfile.write(regfile_header)
+        coords_str = "polygon("
+        for horizon_point in horizon_radec:
+            ra = horizon_point.ra
+            dec = horizon_point.dec
+            coords_str += f"{ra.to_string(u.hour, sep=':')},{dec.to_string(u.degree, sep=':')},"
+        coords_str = coords_str[:-1] # remove the last comma
+        coords_str += ")"
+        wfile.write(coords_str)
 # ============================================================= #
 # ============================================================= #
 
