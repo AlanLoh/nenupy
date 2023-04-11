@@ -15,7 +15,7 @@ Several ``nenupy`` modules are rquired in order to perform bam simulation:
     >>> from nenupy.instru import MiniArray, NenuFAR, Polarization, NenuFAR_Configuration
     >>> from nenupy.astro.sky import HpxSky
     >>> from nenupy.astro.pointing import Pointing
-    >>> from nenupy.astro.target import ExtraSolarTarget, SolarSystemTarget
+    >>> from nenupy.astro.target import FixedTarget, SolarSystemTarget
 
 And below are few other generic packages that are useful to load:
 
