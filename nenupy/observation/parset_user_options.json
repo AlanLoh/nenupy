@@ -45,8 +45,7 @@
         },
         "topic": {
             "required": true,
-            "value": "key_project_name",
-            "syntax": "^(ES([0]?[0-9]|1[0-7])|LT(?!08)([0]?[0-9]|1[0-3])|RP1[A-C]|SP(16|17))$"
+            "value": "key_project_name"
         },
         "parsetVersion": {
             "required": false,
@@ -182,12 +181,12 @@
         "ra": {
             "required": false,
             "value": "right_ascension",
-            "syntax": "^(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
         },
         "dec": {
             "required": false,
             "value": "declination",
-            "syntax": "^(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
         },
         "startHA": {
             "required": false,
@@ -297,12 +296,12 @@
         "ra": {
             "required": false,
             "value": "right_ascension",
-            "syntax": "^(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
         },
         "dec": {
             "required": false,
             "value": "declination",
-            "syntax": "^(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
         },
         "startHA": {
             "required": false,
@@ -408,12 +407,12 @@
         "ra": {
             "required": false,
             "value": "right_ascension",
-            "syntax": "^(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
         },
         "dec": {
             "required": false,
             "value": "declination",
-            "syntax": "^(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
         },
         "startHA": {
             "required": false,
