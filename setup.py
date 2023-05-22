@@ -29,7 +29,8 @@ setup(
     },
     python_requires='>=3.6',
     scripts=[
-        'bin/nenupy_vcr_coordinates'
+        'bin/nenupy_vcr_coordinates',
+        'bin/nenupy_parallactic_correction'
     ],
     version=nenupy.__version__,
     description='NenuFAR Python package',

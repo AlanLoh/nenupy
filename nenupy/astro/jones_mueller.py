@@ -157,9 +157,10 @@ class JonesMatrix(PolarizerMatrix):
 
 
     def __new__(cls, input_array: np.ndarray):
-        if input_array.shape != (2, 2):
+        if input_array.shape[-2:] != (2, 2):
             raise ValueError(
-                'Jones matrix should have the dimension (2, 2).'
+                'Jones matrix should have the dimension (2, 2). '
+                f'Input array is {input_array.shape}.'
             )
         obj = np.asarray(input_array).view(cls)
         return obj
@@ -219,7 +220,21 @@ class JonesMatrix(PolarizerMatrix):
 
     def to_mueller(self):
         """ """
-        return MuellerMatrix(np.matmul(np.matmul(unitary_matrix, np.kron(self, np.conj(self))), unitary_matrix_inv))
+        new_shape = self.shape[:-2] + (4, 4)
+        if len(new_shape) == 2:
+            einsum_transfo = "ij,kl->ikjl"
+        elif len(new_shape) == 3:
+            einsum_transfo = "aij,akl->aikjl"
+        elif len(new_shape) == 4:
+            einsum_transfo = "abij,abkl->abikjl"
+        return MuellerMatrix(
+            np.matmul(
+                np.matmul(
+                    unitary_matrix, np.einsum(einsum_transfo, self, np.conj(self)).reshape(new_shape)# np.kron(self, np.conj(self))
+                ),
+                unitary_matrix_inv
+            )
+        )
 # ============================================================= #
 # ============================================================= #
 
@@ -253,7 +268,7 @@ class MuellerMatrix(PolarizerMatrix):
     """
 
     def __new__(cls, input_array: np.ndarray):
-        if input_array.shape != (4, 4):
+        if input_array.shape[-2:] != (4, 4):
             raise ValueError(
                 'Mueller matrix should have the dimension (4, 4).'
             )
@@ -333,19 +348,39 @@ class MuellerMatrix(PolarizerMatrix):
         # non_zero_index = np.argmax(np.absolute(eigenvalues))
         # return JonesMatrix(np.dot(eigenvectors[non_zero_index], np.moveaxis(pauli_matrices, 0, 1)))
 
+        # # Amplitude derived from Theocaris, Matrix Theory of Photoelasticity, eq. 4.70-4.73, 1979
+        # amplitude = np.sqrt(
+        #     0.5*np.array([
+        #         [self[0, 0] + self[0, 1] + self[1, 0] + self[1, 1], self[0, 0] - self[0, 1] + self[1, 0] - self[1, 1]],
+        #         [self[0, 0] + self[0, 1] - self[1, 0] - self[1, 1], self[0, 0] - self[0, 1] - self[1, 0] + self[1, 1]]
+        #     ])
+        # )
+        # # Polar angles derived from Theocaris, Matrix Theory of Photoelasticity, eq. 4.74-4.76, 1979, assuming theta_11 (i.e. theta_00) = 0
+        # polar_angle = np.array([
+        #     [0, -np.arctan2(self[0, 3] + self[1, 3],  self[0, 2] + self[1, 2])],
+        #     [np.arctan2(self[3, 0] + self[3, 1], self[2, 0] + self[2, 1]), np.arctan2(self[3, 2] - self[2, 3], self[2, 2] + self[3, 3])]
+        # ])
+        # return JonesMatrix(amplitude*np.exp(1j*polar_angle))
+    
         # Amplitude derived from Theocaris, Matrix Theory of Photoelasticity, eq. 4.70-4.73, 1979
         amplitude = np.sqrt(
             0.5*np.array([
-                [self[0, 0] + self[0, 1] + self[1, 0] + self[1, 1], self[0, 0] - self[0, 1] + self[1, 0] - self[1, 1]],
-                [self[0, 0] + self[0, 1] - self[1, 0] - self[1, 1], self[0, 0] - self[0, 1] - self[1, 0] + self[1, 1]]
+                [self[..., 0, 0] + self[..., 0, 1] + self[..., 1, 0] + self[..., 1, 1], self[..., 0, 0] - self[..., 0, 1] + self[..., 1, 0] - self[..., 1, 1]],
+                [self[..., 0, 0] + self[..., 0, 1] - self[..., 1, 0] - self[..., 1, 1], self[..., 0, 0] - self[..., 0, 1] - self[..., 1, 0] + self[..., 1, 1]]
             ])
         )
         # Polar angles derived from Theocaris, Matrix Theory of Photoelasticity, eq. 4.74-4.76, 1979, assuming theta_11 (i.e. theta_00) = 0
         polar_angle = np.array([
-            [0, -np.arctan2(self[0, 3] + self[1, 3],  self[0, 2] + self[1, 2])],
-            [np.arctan2(self[3, 0] + self[3, 1], self[2, 0] + self[2, 1]), np.arctan2(self[3, 2] - self[2, 3], self[2, 2] + self[3, 3])]
+            [np.zeros(self.shape)[..., 0, 0], -np.arctan2(self[..., 0, 3] + self[..., 1, 3],  self[..., 0, 2] + self[..., 1, 2])],
+            [np.arctan2(self[..., 3, 0] + self[..., 3, 1], self[..., 2, 0] + self[..., 2, 1]), np.arctan2(self[..., 3, 2] - self[..., 2, 3], self[..., 2, 2] + self[..., 3, 3])]
         ])
-        return JonesMatrix(amplitude*np.exp(1j*polar_angle))
+        return JonesMatrix(
+            np.moveaxis(
+                amplitude*np.exp(1j*polar_angle),
+                (0, 1),
+                (-2, -1) 
+            )
+        )
 # ============================================================= #
 # ============================================================= #
 
