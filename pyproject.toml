@@ -1,0 +1,39 @@
+[project]
+name = "nenupy"
+description = "NenuFAR Python package"
+version = "2.2.6"
+authors = [
+    { name = "Alan Loh", email = "alan.loh@obspm.fr" }
+]
+requires-python = ">=3.6"
+classifiers=[
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Science/Research"
+]
+readme = "README.md"
+dependencies = [
+    "astropy",
+    "reproject",
+    "pyproj",
+    "dask[array]",
+    "healpy",
+    "pytz",
+    "h5py"
+]
+
+[project.optional-dependencies]
+mocpy = [
+    "mocpy"
+]
+
+[project.urls]
+homepage = "https://github.com/AlanLoh/nenupy"
+documentation = "https://nenupy.readthedocs.io"
+repository = "https://github.com/AlanLoh/nenupy"
+
+[tool.setuptools]
+packages = ["nenupy"]
+script-files = [
+    "bin/nenupy_vcr_coordinates",
+    "bin/nenupy_parallactic_correction"
+]
