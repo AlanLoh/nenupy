@@ -72,7 +72,7 @@ def compute_jones_matrices(
     # times = start_time + TimeDelta(3600, format="sec")*np.arange(12)
     # frequencies = np.array([30e6, 50e6])*u.MHz
     # Jn = np.tile(np.array([[1, 1], [0, 1]]), (times.size, frequencies.size, 1, 1))
-    return times, frequencies, JonesMatrix(Jn)
+    return Time(times, format="datetime"), frequencies*u.Hz, JonesMatrix(Jn)
 # ============================================================= #
 
 
@@ -96,7 +96,7 @@ def matrices_to_hdf5(
     if not file_name.endswith(".hdf5"):
         raise ValueError("The name of the HDF5 file must end with '.hdf5'!")
 
-    if matrices.shape[:-2] != times.shape + frequencies.shape:
+    if matrices.shape[:-2] != frequencies.shape +  times.shape:
         raise IndexError(
             "Inconsistent shapes detected. "
             f"times.shape={times.shape}, "
@@ -108,14 +108,14 @@ def matrices_to_hdf5(
     
     with h5py.File(file_name, "w") as f:
         f["data"] = matrices
-        f["data"].dims[0].label = "time"
-        f["data"].dims[1].label = "frequency"
+        f["data"].dims[0].label = "frequency"
+        f["data"].dims[1].label = "time"
         f["time"] = times.jd
         f["time"].make_scale("Time (JD)")
         f["frequency"] = frequencies.to(u.MHz).value
         f["frequency"].make_scale("Frequency (MHz)")
-        f["data"].dims[0].attach_scale(f["time"])
-        f["data"].dims[1].attach_scale(f["frequency"])
+        f["data"].dims[0].attach_scale(f["frequency"])
+        f["data"].dims[1].attach_scale(f["time"])
     
     log.info(f"{file_name} written!")
 # ============================================================= #
@@ -187,8 +187,8 @@ if __name__ == "__main__":
     # Compute the Jones matrices using DreamBeam
     times, frequencies, output_matrices = compute_jones_matrices(
         start_time=Time(args.time),
-        time_step=TimeDelta(args.tstep),
-        duration=TimeDelta(args.duration),
+        time_step=TimeDelta(args.tstep, format="sec"),
+        duration=TimeDelta(args.duration, format="sec"),
         skycoord=SkyCoord(args.ra, args.dec, unit="deg", frame="icrs"),
         parallactic=args.parallactic_rotation
     )
