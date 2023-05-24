@@ -41,12 +41,6 @@ script-files = [
     "bin/nenupy_parallactic_correction"
 ]
 
-[tool.setuptools]
-script-files = [
-    "bin/nenupy_vcr_coordinates",
-    "bin/nenupy_parallactic_correction"
-]
-
 [tool.setuptools.packages.find]
 include = ["nenupy.*"]
 exclude = []
