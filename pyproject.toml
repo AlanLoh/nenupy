@@ -1,7 +1,11 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "nenupy"
 description = "NenuFAR Python package"
-version = "2.2.6"
+dynamic = ["version"]
 authors = [
     { name = "Alan Loh", email = "alan.loh@obspm.fr" }
 ]
@@ -32,8 +36,20 @@ documentation = "https://nenupy.readthedocs.io"
 repository = "https://github.com/AlanLoh/nenupy"
 
 [tool.setuptools]
-packages = ["nenupy"]
 script-files = [
     "bin/nenupy_vcr_coordinates",
     "bin/nenupy_parallactic_correction"
 ]
+
+[tool.setuptools]
+script-files = [
+    "bin/nenupy_vcr_coordinates",
+    "bin/nenupy_parallactic_correction"
+]
+
+[tool.setuptools.packages.find]
+include = ["nenupy.*"]
+exclude = []
+
+[tool.setuptools.dynamic]
+version = {attr = "nenupy.__version__"}
