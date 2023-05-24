@@ -42,7 +42,7 @@ script-files = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["nenupy.*"]
+include = ["nenupy", "nenupy.*"]
 exclude = []
 
 [tool.setuptools.dynamic]
