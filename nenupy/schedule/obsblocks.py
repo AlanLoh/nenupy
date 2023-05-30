@@ -400,6 +400,9 @@ class ObsBlock(Block):
             raise TypeError(
                 f'`target` should be of type {_Target}.'
             )
+        elif src._lst is not None:
+            # Clear the target from previous computations
+            src.reset()
         self._target = src
 
 

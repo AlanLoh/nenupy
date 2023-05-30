@@ -106,6 +106,20 @@ The schedule visualization displays such reserved blocks as hatched grey time wi
 
     Empty planning with a reserved block inserted.
 
+The reverse operation can also be perfomed thanks to the :meth:`~nenupy.schedule.schedule.Schedule.set_free_slots` method which sets the whole schedule as unavailable except for the time intervals given as inputs:
+
+.. code-block:: python
+
+    >>> schedule = Schedule(
+    >>>     time_min=Time('2021-01-11 00:00:00'),
+    >>>     time_max=Time('2021-01-15 00:00:00'),
+    >>>     dt=TimeDelta(3600, format='sec')
+    >>> )
+    >>> schedule.set_free_slots(
+    >>>     start_times=Time(['2021-01-12 10:00:00', '2021-01-14 08:32:00']),
+    >>>     stop_times=Time(['2021-01-13 03:30:00', '2021-01-15 00:00:00'])
+    >>> )
+
 
 Virtual Control Room bookings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -131,6 +145,9 @@ This file can then be used to instantiates a :class:`~nenupy.schedule.obsblocks.
     :align: center
 
     Five-days NenuFAR planning for which all the active allocated time as been set as 'unavailable for further observation planning'.
+
+The same file can also be used to globally set the schedule slots to unavailable except those belonging to a given Science Key Project.
+The method :meth:`~nenupy.schedule.schedule.Schedule.match_booking` allows one to define a schedule that matches the time slots allocated to a NenuFAR KP.
 
 
 .. _observation_request_sec:
@@ -208,8 +225,10 @@ Available constraints are:
     ~nenupy.schedule.constraints.ElevationCnst
     ~nenupy.schedule.constraints.MeridianTransitCnst
     ~nenupy.schedule.constraints.AzimuthCnst
+    ~nenupy.schedule.constraints.LocalSiderealTimeCnst
     ~nenupy.schedule.constraints.LocalTimeCnst
     ~nenupy.schedule.constraints.TimeRangeCnst
+    ~nenupy.schedule.constraints.NightTimeCnst
 
 
 Adding constraints

@@ -118,6 +118,15 @@ class _Target(object):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+    def reset(self) -> None:
+        """ Clear the Target instance from previous computations. """
+        self._lst = None
+        self._fk5 = None
+        self._hourAngle = None
+        self._elevation = None
+        self._azimuth = None
+
+
     def computePosition(self, time):
         """
         """

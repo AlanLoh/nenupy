@@ -167,14 +167,13 @@ __all__ = [
 
 from abc import ABC
 import numpy as np
-from functools import lru_cache
 from astropy.time import Time, TimeDelta
 from astropy.coordinates import Angle, Longitude
 import pytz
 import matplotlib.pyplot as plt
 from copy import copy
 
-from nenupy.schedule.targets import _Target, SSTarget
+from nenupy.schedule.targets import _Target
 
 import logging
 log = logging.getLogger(__name__)

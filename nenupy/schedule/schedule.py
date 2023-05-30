@@ -645,11 +645,14 @@ class Schedule(_TimeSlots):
 
         .. autosummary::
 
+            ~Schedule.set_free_slots
+            ~Schedule.match_booking
             ~Schedule.insert
             ~Schedule.plot
+            ~Schedule.plot_range
             ~Schedule.book
             ~Schedule.export
-            
+
         .. rubric:: Attributes and Methods Documentation
 
     """
@@ -1107,7 +1110,7 @@ class Schedule(_TimeSlots):
 
 
     def fine_tune(self, max_it: int = 1000) -> None:
-        """
+        """ 
         """
         log.info("(Fine tunning) Launching...")
 
@@ -1266,23 +1269,54 @@ class Schedule(_TimeSlots):
 
     
     def plot_range(self, start_time: Time, stop_time: Time, **kwargs) -> None:
-        """ """
+        """ Plots the current schedule.
+
+            .. rubric:: Data display keywords
+
+            :param start_time:
+                Minimal time to display.
+            :type start_time:
+                :class:`~astropy.time.Time`
+            :param stop_time:
+                Maximal time to display.
+            :type stop_time:
+                :class:`~astropy.time.Time`
+
+            .. rubric:: Plotting layout keywords
+
+            :param grid:
+                If set to ``True``, the time slots are separated by vertical lines.
+                Default is ``True``.
+            :type grid:
+                `bool`
+            :param figname:
+                Name of the file (absolute or relative path) to save the figure.
+                Default is ``''`` (i.e., only show the figure).
+            :type figname:
+                `str`
+            :param figsize:
+                Set the figure size.
+                Default is ``(15, 3)``.
+            :type figsize:
+                `tuple`
+
+        """
         import matplotlib.pyplot as plt
         import matplotlib.dates as mdates
 
         # Initialize the figure
-        fig, ax = plt.subplots(
-            figsize=kwargs.get('figsize', (15, 3))
+        _, ax = plt.subplots(
+            figsize=kwargs.get("figsize", (15, 3))
         )
 
         # Display granularity
-        if kwargs.get('grid', True):
+        if kwargs.get("grid", True):
             time_mask = (self._startsJD >= start_time.jd)*(self._stopsJD <= stop_time.jd)
             for slot_start in self.starts[time_mask]:
                 ax.axvline(
                     slot_start.datetime,
-                    color='gray',
-                    linestyle='-',
+                    color="gray",
+                    linestyle="-",
                     linewidth=0.5
                 )
 
@@ -1309,22 +1343,22 @@ class Schedule(_TimeSlots):
 
         # Formating
         ax.yaxis.set_visible(False)
-        h_fmt = mdates.DateFormatter('%y-%m-%d\n%H')
+        h_fmt = mdates.DateFormatter("%y-%m-%d\n%H")
         ax.xaxis.set_major_formatter(h_fmt)
 
         # Save or show the figure
-        figname = kwargs.get('figname', '')
-        if figname != '':
+        figname = kwargs.get("figname", "")
+        if figname != "":
             plt.savefig(
                 figname,
                 dpi=300,
-                bbox_inches='tight',
+                bbox_inches="tight",
                 transparent=True
             )
             log.info(f"Figure '{figname}' saved.")
         else:
             plt.show()
-        plt.close('all')
+        plt.close("all")
 
 
     def plot(self, days_per_line=1, **kwargs):
