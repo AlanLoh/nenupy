@@ -795,6 +795,49 @@ class Schedule(_TimeSlots):
         self._toSchedule = np.ones(self.observation_blocks.size, dtype=bool)
 
 
+    def set_free_slots(self, start_times: Time, stop_times: Time) -> None:
+        """ Assign a :class:`~nenupy.schedule.obsblocks.ReservedBlock`
+            to every Schedule time interval that is not comprised bewteen
+            ``start_times`` and ``stop_times``.
+        """
+        if start_times.size != stop_times.size:
+            raise ValueError(
+                "start_times and stop_times should have the same length."
+            )
+        elif start_times.isscalar and stop_times.isscalar:
+            start_times = start_times.reshape((1,))
+            stop_times = stop_times.reshape((1,))
+        elif (start_times.ndim != 1) or (stop_times.ndim != 1):
+            raise ValueError(
+                f"start_times ({start_times.ndim}D) and "
+                f"stop_times ({stop_times.ndim}D) should be 1D."
+            )
+        # Treat the first booking
+        if start_times[0] > self.time_min:
+            self.insert(
+                ReservedBlock(
+                    time_min=self.time_min,
+                    time_max=start_times[0]
+                )
+            )
+        # Treat the rest
+        for blk_start, blk_stop in zip(stop_times[:-1], start_times[1:]):
+            self.insert(
+                ReservedBlock(
+                    time_min=blk_start,
+                    time_max=blk_stop
+                )
+            )
+        # Treat the last booking
+        if stop_times[-1] < self.time_max:
+            self.insert(
+                ReservedBlock(
+                    time_min=stop_times[-1],
+                    time_max=self.time_max
+                )
+            )
+
+
     def match_booking(self, booking_file: str, key_program: str) -> None:
         """ """
         bookings = np.loadtxt(
@@ -817,7 +860,7 @@ class Schedule(_TimeSlots):
         booking_starts = Time(valid_booking['start'])
         booking_stops = Time(valid_booking['stop'])
 
-        # Find each time period not in the valid booking rang
+        # Find each time period not in the valid booking range
         within_schedule_mask = (booking_starts >= self.time_min)*(booking_stops <= self.time_max)\
             + (booking_starts < self.time_min)*(booking_stops > self.time_min)\
             + (booking_starts < self.time_max)*(booking_stops > self.time_max)
@@ -826,29 +869,30 @@ class Schedule(_TimeSlots):
         # Insert corresponding reserved blocks in between the booking periods
         starts = booking_starts[within_schedule_mask]
         stops = booking_stops[within_schedule_mask]
-        # Treat the first booking
-        if starts[0] > self.time_min:
-            self.insert(
-                ReservedBlock(
-                    time_min=self.time_min,
-                    time_max=starts[0]
-                )
-            )
-        for reserve_block_start, reserve_block_stop in zip(stops[:-1], starts[1:]):
-            self.insert(
-                ReservedBlock(
-                    time_min=reserve_block_start,
-                    time_max=reserve_block_stop
-                )
-            )
-        # Treat the first booking
-        if stops[-1] < self.time_max:
-            self.insert(
-                ReservedBlock(
-                    time_min=stops[-1],
-                    time_max=self.time_max
-                )
-            )
+        # # Treat the first booking
+        # if starts[0] > self.time_min:
+        #     self.insert(
+        #         ReservedBlock(
+        #             time_min=self.time_min,
+        #             time_max=starts[0]
+        #         )
+        #     )
+        # for reserve_block_start, reserve_block_stop in zip(stops[:-1], starts[1:]):
+        #     self.insert(
+        #         ReservedBlock(
+        #             time_min=reserve_block_start,
+        #             time_max=reserve_block_stop
+        #         )
+        #     )
+        # # Treat the first booking
+        # if stops[-1] < self.time_max:
+        #     self.insert(
+        #         ReservedBlock(
+        #             time_min=stops[-1],
+        #             time_max=self.time_max
+        #         )
+        #     )
+        self.set_free_slots(start_times=starts, stop_times=stops)
 
 
     def book(self, optimize=False, **kwargs):
@@ -978,13 +1022,27 @@ class Schedule(_TimeSlots):
                 blk.time_min = self.starts[best_start_index]
                 blk.time_max = self.stops[best_start_index + blk.nSlots-1]
 
+            score = self.fine_tune(max_it=kwargs.get("fine_tune_max_iterations", 1000))
+
+            # Remove blocks that are overlapping
+            # Lowest scores are removed in priority
+            scores = [blk.score for blk in self.observation_blocks]
+            for _, blk in sorted(zip(scores, self.observation_blocks), key=lambda pair: pair[0]):
+                if blk.startIdx is None: continue
+                start_idx = blk.startIdx
+                stop_idx = blk.startIdx + blk.nSlots
+                if not all(self.freeSlots[start_idx:stop_idx]):
+                    n_unscheduled_blocks += 1
+                    blk.startIdx = None # unbook the block
+                    log.warning(f"<ObsBlock> #{blk.blockIdx} is overlapping other blocks.")
+                    continue
+                self.freeSlots[start_idx:stop_idx] = False
+
             log.info(
                 f'{sum(self._toSchedule) - n_unscheduled_blocks}/'
                 f'{sum(self._toSchedule)} observation blocks scheduled '
                 f'({sum(~self._toSchedule)} impossible to fit).'
             )
-
-            score = self.fine_tune(max_it=kwargs.get("fine_tune_max_iterations", 1000))
 
             return ga
 

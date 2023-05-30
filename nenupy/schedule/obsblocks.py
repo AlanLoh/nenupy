@@ -248,6 +248,14 @@ class Block(object):
         return Block(*blocks)
 
 
+    def __radd__(self, other):
+        if other == 0:
+            return self
+        else:
+            print(other)
+            return self.__add__(other)
+
+
     def __getitem__(self, n):
         """
         """
