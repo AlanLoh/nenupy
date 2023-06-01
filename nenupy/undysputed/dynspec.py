@@ -531,7 +531,9 @@ class _Lane(object):
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def get_stokes(self, stokes='I'):
-        """
+        """ fft0[..., :] = [XX, YY]
+            fft1[..., :] = [Re(XY*), Im(XY*)]
+            XX=I+Q YY=I-Q XY=U+iV YX=U-iV
         """
         stokes_data = {
             'i': np.sum(self.fft0, axis=4),
@@ -671,6 +673,7 @@ class _Lane(object):
                 int(self.fftlen/2)
             )
         )
+        # data = data[:, :, ::-1, :].reshape((n_times, n_freqs-nfb))
         data = data[:, :, ::-1, :].reshape((n_times, n_freqs))
         return data
 
@@ -733,7 +736,21 @@ class _Lane(object):
     #         data *= broadband[np.newaxis, :, np.newaxis]
     #         return data.reshape((ntimes, nfreqs)) / spectrum
     #     elif method.lower() == 'none':
-    #         return data 
+    #         return data
+
+    def _polarization_correction(fft0, fft1, jones):
+        """
+            fft0[..., :] = [XX, YY]
+            fft1[..., :] = [Re(XY*), Im(XY*)]
+            XX=I+Q YY=I-Q XY=U+iV YX=U-iV
+        """
+        # fft0.shape = (time_blocks, subbands, time_per_blocks, channels, 2)
+        # jones.shape = (time, frequency, 2, 2)
+        xx = fft0[..., 0]
+        yy = fft1[..., 1]
+        xy = fft1[..., 0] + 1j*fft1[..., 1]
+        yx = fft1[..., 0] - 1j*fft1[..., 1]
+
 # ============================================================= #
 
 
@@ -766,6 +783,7 @@ class Dynspec(object):
         self.rebin_df = None
         self.jump_correction = False
         self.bp_correction = 'none'
+        self.edge_channels_to_remove = 0
         self.freq_flat = False
         self.clean_rfi = False
 
@@ -1078,6 +1096,44 @@ class Dynspec(object):
 
 
     @property
+    def edge_channels_to_remove(self) -> int:
+        """ Number of channels to remove at each subband edge.
+            Generally, the 2 extreme channels are not taken into account.
+
+            :type: `int`
+        """
+        return self._edge_channels_to_remove
+    @edge_channels_to_remove.setter
+    def edge_channels_to_remove(self, n: int) -> None:
+        default_val = 0
+        if not isinstance(n, int):
+            log.warning(
+                "The number of channels to remove at each subband "
+                f"edge needs to be an integer. Setting default value {default_val}."
+            )
+            n = default_val
+        elif n*2 > self.fftlen:
+            log.warning(
+                f"Each subband is divided in {self.fftlen} channels "
+                f"in this dataset. Removing {n} channels at both "
+                "edge would not leave any data left. Setting default "
+                f"value {default_val}."
+            )
+            n = default_val
+        elif n < 0:
+            log.warning(
+                "The number of channels to remove should be positive. "
+                f"Setting default value {default_val}."
+            )
+            n = default_val
+        if n > 0:
+            log.info(
+                f"{n} channels will be removed at subband edges."
+            )
+        self._edge_channels_to_remove = n
+
+
+    @property
     def jump_correction(self):
         """ Correct or not the known 6-minute gain jumps
             due to analogical Mini-Array pointing orders.
@@ -1302,6 +1358,11 @@ class Dynspec(object):
                 fftlen=li.fftlen
             )
             selfreqs = li._freqs[beam_start:beam_stop][fmin_idx:fmax_idx].compute()*u.Hz
+            # Remove subband edge channels
+            data, selfreqs = self._remove_edge_channels(data=data, frequencies=selfreqs)
+            # mask = np.ones(a.size, dtype=bool)
+            # mask::4] = 0
+            # data = data[:, ]
             # RFI mitigation
             data = self._clean(
                 data=data
@@ -1348,7 +1409,8 @@ class Dynspec(object):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _bandpass(self, fftlen):
+    @staticmethod
+    def _bandpass(fftlen):
         """ Computes the bandpass correction for a beamlet.
         """
         kaiser_file = join(
@@ -1422,6 +1484,30 @@ class Dynspec(object):
             return data.reshape((ntimes, nfreqs))
         elif self.bp_correction == 'none':
             return data
+
+
+    def _remove_edge_channels(self, data, frequencies):
+        """ Remove the N channels at each subband edge.
+        """
+        if self.edge_channels_to_remove > 0:
+            ntimes, nfreqs = data.shape
+            nsubbands = int(nfreqs / self.fftlen)
+            data = data.reshape(
+                (ntimes, nsubbands, self.fftlen)
+            )[:, :, self.edge_channels_to_remove:self.fftlen - self.edge_channels_to_remove]
+            new_nfreqs = nsubbands*(self.fftlen - self.edge_channels_to_remove*2)
+            data = data.reshape((ntimes, new_nfreqs))
+            frequencies = frequencies.reshape(
+                (nsubbands, self.fftlen)
+            )[:, :, self.edge_channels_to_remove:self.fftlen - self.edge_channels_to_remove]
+            frequencies = frequencies.reshape((new_nfreqs,))
+            log.info(
+                f"{self.edge_channels_to_remove} channels have been "
+                "removed at the subband edges. Each subband now "
+                f"contains {self.fftlen - 2*self.edge_channels_to_remove}"
+                f"/{self.fftlen} channels."
+            )
+        return data, frequencies
 
 
     def _freqFlattening(self, data):
