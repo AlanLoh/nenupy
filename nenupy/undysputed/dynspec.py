@@ -204,6 +204,25 @@ r"""
     
     >>> ds.bp_correction = 'standard'
 
+    Edge channels crop
+    ^^^^^^^^^^^^^^^^^^
+
+    By construction, channels at the edges of each sub-band may suffer
+    from bad behaviors. One can thus set the attribute
+    :attr:`~nenupy.undysputed.dynspec.Dynspec.edge_channels_to_remove`
+    to any positive integer value :math:`n_{\rm chan}` (that should be
+    less than half of the subband channels content). The first and last
+    :math:`n_{\rm chan}` channels values of each sub-band are then set to `NaN`.
+    
+    >>> ds.edge_channels_to_remove = 4
+
+    .. note::
+
+        Since they are set to `NaN`, these flagged values do not
+        interfere with any other methods of the :class:`~nenupy.undysputed.dynspec.Dynspec`
+        class, especially the rebinning in which specific averaging
+        methods are used (such as :meth:`~numpy.nanmean`).
+
     Pointing jump correction
     ^^^^^^^^^^^^^^^^^^^^^^^^
     
@@ -1373,9 +1392,7 @@ class Dynspec(object):
             )
             selfreqs = li._freqs[beam_start:beam_stop][fmin_idx:fmax_idx].compute()*u.Hz
             # Remove subband edge channels
-            data, selfreqs = self._remove_edge_channels(
-                data=data, frequencies=selfreqs
-            )
+            data = self._remove_edge_channels(data=data)
             # mask = np.ones(a.size, dtype=bool)
             # mask::4] = 0
             # data = data[:, ]
@@ -1465,15 +1482,15 @@ class Dynspec(object):
                     bp.size
                 )
             )
-            data *= bp[np.newaxis, np.newaxis]
+            data *= bp[np.newaxis, np.newaxis, :]
             return data.reshape((ntimes, nfreqs))
         elif self.bp_correction == 'median':
             ntimes, nfreqs = data.shape
-            spectrum = np.median(data, axis=0)
+            spectrum = np.nanmedian(data, axis=0)
             folded = spectrum.reshape(
                 (int(spectrum.size / fftlen), fftlen)
                 )
-            broadband = np.median(folded, axis=1)
+            broadband = np.nanmedian(folded, axis=1)
             data = data.reshape(
                 (
                     ntimes,
@@ -1492,10 +1509,10 @@ class Dynspec(object):
                     fftlen
                 )
             )
-            freqProfile = np.median(data, axis=0)
-            medianPerSubband = np.median(freqProfile, axis=1)
+            freqProfile = np.nanmedian(data, axis=0)
+            medianPerSubband = np.nanmedian(freqProfile, axis=1)
             subbandProfileNormalized = freqProfile / medianPerSubband[:, None]
-            subbandProfile = np.median(subbandProfileNormalized, axis=0)
+            subbandProfile = np.nanmedian(subbandProfileNormalized, axis=0)
             data /= subbandProfile[None, None, :]
             return data.reshape((ntimes, nfreqs))
         elif self.bp_correction == 'none':
