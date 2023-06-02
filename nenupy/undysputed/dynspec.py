@@ -1112,9 +1112,9 @@ class Dynspec(object):
                 f"edge needs to be an integer. Setting default value {default_val}."
             )
             n = default_val
-        elif n*2 > self.fftlen:
+        elif n*2 > self.nchan:
             log.warning(
-                f"Each subband is divided in {self.fftlen} channels "
+                f"Each subband is divided in {self.nchan} channels "
                 f"in this dataset. Removing {n} channels at both "
                 "edge would not leave any data left. Setting default "
                 f"value {default_val}."
@@ -1253,6 +1253,20 @@ class Dynspec(object):
 
 
     @property
+    def nchan(self) -> int:
+        """ Native number of channels per subband.
+
+            :type: `int`
+ 
+        """
+        nchans = np.array([li.fftlen for li in self.lanes])
+        if not all(nchans == nchans[0]):
+            log.warning(
+                'Lanes have different number of channel values.'
+            )
+        return self.lanes[0].fftlen
+
+    @property
     def beams(self):
         """ Array of unique beam indices recorded during the
             observation over the different lane files.
@@ -1359,7 +1373,9 @@ class Dynspec(object):
             )
             selfreqs = li._freqs[beam_start:beam_stop][fmin_idx:fmax_idx].compute()*u.Hz
             # Remove subband edge channels
-            data, selfreqs = self._remove_edge_channels(data=data, frequencies=selfreqs)
+            data, selfreqs = self._remove_edge_channels(
+                data=data, frequencies=selfreqs
+            )
             # mask = np.ones(a.size, dtype=bool)
             # mask::4] = 0
             # data = data[:, ]
@@ -1486,28 +1502,22 @@ class Dynspec(object):
             return data
 
 
-    def _remove_edge_channels(self, data, frequencies):
-        """ Remove the N channels at each subband edge.
+    def _remove_edge_channels(self, data):
+        """ Remove the N channels at each subband edge (set their values to NaNs).
         """
         if self.edge_channels_to_remove > 0:
+            nchannels = self.nchan
             ntimes, nfreqs = data.shape
-            nsubbands = int(nfreqs / self.fftlen)
-            data = data.reshape(
-                (ntimes, nsubbands, self.fftlen)
-            )[:, :, self.edge_channels_to_remove:self.fftlen - self.edge_channels_to_remove]
-            new_nfreqs = nsubbands*(self.fftlen - self.edge_channels_to_remove*2)
-            data = data.reshape((ntimes, new_nfreqs))
-            frequencies = frequencies.reshape(
-                (nsubbands, self.fftlen)
-            )[:, :, self.edge_channels_to_remove:self.fftlen - self.edge_channels_to_remove]
-            frequencies = frequencies.reshape((new_nfreqs,))
+            nsubbands = int(nfreqs/nchannels)
+            data = data.reshape((ntimes, nsubbands, nchannels))
+            data[:, :, :self.edge_channels_to_remove] = np.nan # lower edge
+            data[:, :, -self.edge_channels_to_remove:] = np.nan # upper edge
+            data = data.reshape((ntimes, nfreqs))
             log.info(
                 f"{self.edge_channels_to_remove} channels have been "
-                "removed at the subband edges. Each subband now "
-                f"contains {self.fftlen - 2*self.edge_channels_to_remove}"
-                f"/{self.fftlen} channels."
+                "set to NaN at the subband edges."
             )
-        return data, frequencies
+        return data
 
 
     def _freqFlattening(self, data):
@@ -1631,8 +1641,8 @@ class Dynspec(object):
             times = times[:-tleftover if tleftover != 0 else ntimes_i].reshape(
                 (ntimes, int((ntimes_i - tleftover)/ntimes))
             )
-            data = np.mean(data, axis=1)
-            times = np.mean(times, axis=1)
+            data = np.nanmean(data, axis=1)
+            times = np.nanmean(times, axis=1)
             ntimes_i, nfreqs_i = data.shape
             log.info(
                 'Data are time-averaged.'
@@ -1654,8 +1664,8 @@ class Dynspec(object):
             freqs = freqs[:-fleftover if fleftover != 0 else nfreqs_i].reshape(
                 (nfreqs, int((nfreqs_i - fleftover)/nfreqs))
             )
-            data = np.mean(data, axis=2)
-            freqs = np.mean(freqs, axis=1)
+            data = np.nanmean(data, axis=2)
+            freqs = np.nanmean(freqs, axis=1)
             log.info(
                 'Data are frequency-averaged.'
             )
@@ -1778,11 +1788,11 @@ class Dynspec(object):
             'Correcting for 6 min pointing jumps...'
         )
 
-        freqProfile = np.median(
+        freqProfile = np.nanmedian(
             data,
             axis=0
         ).compute()
-        timeProfile = np.median(
+        timeProfile = np.nanmedian(
             data / freqProfile[None, :],
             axis=1
         ).compute()
