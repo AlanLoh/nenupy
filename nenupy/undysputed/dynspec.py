@@ -551,14 +551,14 @@ class _Lane(object):
     # ------------------------ Methods ------------------------ #
     def get_stokes(self, stokes='I'):
         """ fft0[..., :] = [XX, YY]
-            fft1[..., :] = [Re(XY*), Im(XY*)]
+            fft1[..., :] = [Re(X*Y), Im(X*Y)]
             XX=I+Q YY=I-Q XY=U+iV YX=U-iV
         """
         stokes_data = {
             'i': np.sum(self.fft0, axis=4),
             'q': self.fft0[..., 0] - self.fft0[..., 1],
             'u': self.fft1[..., 0] * 2,
-            'v': - self.fft1[..., 1] * 2,
+            'v': self.fft1[..., 1] * 2,
             'l': np.sqrt((self.fft0[..., 0] - self.fft0[..., 1])**2 + (self.fft1[..., 0] * 2)**2),
             'xx': self.fft0[..., 0],
             'yy': self.fft0[..., 1]
