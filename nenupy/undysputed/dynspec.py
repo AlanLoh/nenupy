@@ -438,6 +438,7 @@ __all__ = [
 
 
 from os.path import isfile, abspath, join, dirname, basename
+import re
 import numpy as np
 import astropy.units as u
 from astropy.time import Time
@@ -445,7 +446,10 @@ from astropy.modeling import models, fitting
 from astropy.modeling.models import custom_model
 import dask.array as da
 from dask.diagnostics import ProgressBar
+from typing import List
+import h5py
 
+import nenupy
 from nenupy.beamlet import SData
 from nenupy.astro import dispersion_delay
 
@@ -454,321 +458,411 @@ log = logging.getLogger(__name__)
 #log.setLevel(logging.INFO)
 
 
+FREQUENCY_UNIT = "MHz"
+FREQ_QUANTITY = u.Unit(FREQUENCY_UNIT)
+HEADER_STRUCT = [ # of a lane file
+    ("idx", "uint64"), # lane index ?
+    ("TIMESTAMP", "uint64"),
+    ("BLOCKSEQNUMBER", "uint64"),
+    ("fftlen", "int32"),
+    ("nfft2int", "int32"),
+    ("fftovlp", "int32"),
+    ("apodisation", "int32"),
+    ("nffte", "int32"),
+    ("nbchan", "int32")
+]
+
+# ============================================================= #
+# ---------------------- dynspec_to_hdf5 ---------------------- #
+def _time_to_keywords(prefix: str, time: Time) -> dict:
+    """ Returns a dictionnary of keywords in the HDF5 format.
+    """
+    return {
+        f"{prefix.upper()}_MJD": time.mjd,
+        f"{prefix.upper()}_TAI": time.tai.isot,
+        f"{prefix.upper()}_UTC": time.isot + "Z"
+    }
+# ============================================================= #
+# ============================================================= #
+
+
 # ============================================================= #
 # --------------------------- Lane ---------------------------- #
 # ============================================================= #
-class _Lane(object):
+class _Lane():
     """
     """
 
-    def __init__(self, lanefile):
+    def __init__(self, lanefile: str):
+        self.lanefile = lanefile
+        
         self.lane_index = None
         self.data = None
+        self.time_unix = None
+        self.frequency_hz = None
         self.dt = None
         self.df = None
-        self.fft0 = None
-        self.fft1 = None
-        self.beam_arr = None
-        self.chan = None
-        # self.unix = None
-        self.lanefile = lanefile
+        self.n_channels = None
+        
+        self._load()
 
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
     @property
-    def lanefile(self):
+    def lanefile(self) -> str:
         """
         """
         return self._lanefile
     @lanefile.setter
-    def lanefile(self, l):
+    def lanefile(self, l: str):
         l = abspath(l)
         if not isfile(l):
             raise FileNotFoundError(
-                f'{l} not found.'
+                f"{l} not found."
             )
-        if not l.endswith('spectra'):
+        pattern = re.compile(r"_(?P<index>\d).spectra$")
+        index = pattern.findall(l)
+        if len(index) != 1:
             raise ValueError(
-                'Wrong file type, expected *.spectra'
+                "Wrong file name pattern, is should end with *_<lane>.spectra."
             )
+        self.lane_index = int(index[0])
         self._lanefile = l
-        self._load()
-        return
 
 
     @property
-    def data(self):
-        return self._data
-    @data.setter
-    def data(self, d):
-        if d is None:
-            self._data = d
-            return
+    def tmin(self) -> Time:
+        """ """
+        return Time(self.time_unix[0], format='unix', precision=7)
 
 
     @property
-    def subband_width(self):
-        """
-            Should be equal to 0.1953125 MHz
-        """
-        return self.df * self.fftlen
+    def tmax(self) -> Time:
+        """ """
+        return Time(self.time_unix[-1], format='unix', precision=7)
 
 
     @property
-    def tmin(self):
-        """
-        """
-        return Time(self._times[0], format='unix', precision=7)
+    def fmin(self) -> u.Quantity:
+        """ """
+        return self._fmin
 
 
     @property
-    def tmax(self):
-        """
-        """
-        return Time(self._times[-1], format='unix', precision=7)
-
-
-    @property
-    def fmin(self):
-        """
-        """
-        half_sb = self.subband_width/2
-        channels = self.chan[0, :] # Assumed all identical!
-        return np.min(channels).compute()*self.subband_width - half_sb
-
-
-    @property
-    def fmax(self):
-        """
-        """
-        half_sb = self.subband_width/2
-        channels = self.chan[0, :] # Assumed all identical!
-        return np.max(channels).compute()*self.subband_width + half_sb
-    
+    def fmax(self) -> u.Quantity:
+        """ """
+        return self._fmax
+        
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def get_stokes(self, stokes='I'):
-        """ fft0[..., :] = [XX, YY]
-            fft1[..., :] = [Re(X*Y), Im(X*Y)]
-            XX=I+Q YY=I-Q XY=U+iV YX=U-iV
+    # def get_stokes(self, stokes='I'):
+    #     """ fft0[..., :] = [XX, YY]
+    #         fft1[..., :] = [Re(X*Y), Im(X*Y)]
+    #         XX=I+Q YY=I-Q XY=U+iV YX=U-iV
+    #     """
+    #     stokes_data = {
+    #         'i': np.sum(self.fft0, axis=4),
+    #         'q': self.fft0[..., 0] - self.fft0[..., 1],
+    #         'u': self.fft1[..., 0] * 2,
+    #         'v': self.fft1[..., 1] * 2,
+    #         'l': np.sqrt((self.fft0[..., 0] - self.fft0[..., 1])**2 + (self.fft1[..., 0] * 2)**2),
+    #         'xx': self.fft0[..., 0],
+    #         'yy': self.fft0[..., 1],
+    #         'rexy': self.fft1[..., 0],
+    #         'imxy': self.fft1[..., 1]
+    #     }
+    #     try:
+    #         selected_stokes = stokes_data[stokes.lower()]
+    #     except KeyError:
+    #         log.error(
+    #             f'Available Stokes: {stokes_data.keys()}'
+    #         )
+    #         raise
+    #     selected_stokes = self._to2d(selected_stokes)
+    #     return selected_stokes
+
+    def get_stokes(self, stokes="I") -> da.Array:
+        """ Returns the requested Stokes parameter computed from
+            the eJones data matrix.
         """
-        stokes_data = {
-            'i': np.sum(self.fft0, axis=4),
-            'q': self.fft0[..., 0] - self.fft0[..., 1],
-            'u': self.fft1[..., 0] * 2,
-            'v': self.fft1[..., 1] * 2,
-            'l': np.sqrt((self.fft0[..., 0] - self.fft0[..., 1])**2 + (self.fft1[..., 0] * 2)**2),
-            'xx': self.fft0[..., 0],
-            'yy': self.fft0[..., 1]
-        }
-        try:
-            selected_stokes = stokes_data[stokes.lower()]
-        except KeyError:
-            log.error(
-                f'Available Stokes: {stokes_data.keys()}'
-            )
-            raise
-        selected_stokes = self._to2d(selected_stokes)
-        # selected_stokes = self._bp_correct(
-        #     data=selected_stokes,
-        #     method=bpcorr
-        # )
-        return selected_stokes
+
+        data = None
+
+        for stokes_i in stokes:
+
+            # Compute the correct Stokes value
+            if stokes_i.upper() == "I":
+                data_i = self.data[..., 0, 0].real + self.data[..., 1, 1].real
+            elif stokes_i.upper() == "Q":
+                data_i = self.data[..., 0, 0].real - self.data[..., 1, 1].real
+            elif stokes_i.upper() == "U":
+                data_i = self.data[..., 0, 1].real*2
+            elif stokes_i.upper() == "V":
+                data_i = self.data[..., 0, 1].imag*2
+            else:
+                raise NotImplementedError(
+                    f"Stokes parameter {stokes_i} unknown."
+                )
+
+            # Stack everything
+            if data is None:
+                data = data_i[..., None] # time, frequency, pol
+            else: 
+                data = da.concatenate([data, data_i[..., None]], axis=-1)
+
+        return data
 
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _load(self):
-        """
-        """
-        # Lane index just before '.spectra', warning: hardcoded!
-        self.lane_index = self._lanefile[-9]
-        # Header structure to decode it:
-        header_struct = [
-            ('idx', 'uint64'),
-            ('TIMESTAMP', 'uint64'),
-            ('BLOCKSEQNUMBER', 'uint64'),
-            ('fftlen', 'int32'),
-            ('nfft2int', 'int32'),
-            ('fftovlp', 'int32'),
-            ('apodisation', 'int32'),
-            ('nffte', 'int32'),
-            ('nbchan', 'int32')
-        ]
-        with open(self._lanefile, 'rb') as rf:
-            header_dtype = np.dtype(header_struct)
+    def _load(self) -> None:
+        """ """
+
+        # Decode the header
+        header = self._decode_header(file_name=self.lanefile)
+
+        # Extract metadata
+        n_channels = header["fftlen"]
+        nffte = header["nffte"] # n time steps of duration dt per time block
+        nfft2int = header["nfft2int"]
+        n_subbands = header["nbchan"]
+
+        self.dt = 5.12e-6*n_channels*nfft2int*u.s
+        self.df = (1.0/5.12e-6/n_channels)*u.Hz
+        self.n_channels = n_channels
+
+        log.debug(
+            f'Header of {self.lanefile} correctly parsed.'
+        )
+
+        # Read data
+        data = self._decode_data(
+            file_name=self.lanefile,
+            nffte=nffte,
+            n_channels=n_channels,
+            n_subbands=n_subbands
+        )
+
+        # Store reshaped data
+        self.data = self._to2d(
+            data=self._to_ejones(data["fft0"], data["fft1"]),
+            nffte=nffte,
+            n_channels=n_channels
+        )
+        channels = data["channel"][0, :] # Assumed constant over time
+        n_timeblocks, n_subbands = data["lane"].shape
+        log.debug(
+            f"Data of {self.lanefile} correctly parsed."
+        )
+
+        # Time array
+        self.time_unix = self._compute_times(
+            unix_start=header["TIMESTAMP"],
+            dt=self.dt,
+            n_times=n_timeblocks*nffte,
+            block_seq_number=header["BLOCKSEQNUMBER"]
+        )
+
+        # Frequency array
+        self.frequency_hz = self._compute_frequencies(
+            n_channels=n_channels,
+            n_subbands=n_subbands,
+            df=self.df,
+            subband_channels=channels
+        )
+        # Populate the fmin / fmax, which are not equal to the edges
+        # of the frequency array because a beam can be spread over
+        # several lanes.
+        self._fmin = self.df*n_channels*(np.min(channels).compute() - 1/2)
+        self._fmax = self.df*n_channels*(np.max(channels).compute() + 1/2)
+
+        # Beam indices
+        self.beam_idx = self._sort_beam_edges(
+            beam_array=data['beam'][0].compute(), # asummed same for all time step
+            n_channels=n_channels
+        )
+
+
+    @staticmethod
+    def _decode_header(file_name: str) -> np.recarray:
+        """ """
+        log.info(f"Decoding header of {file_name}...")
+        with open(file_name, "rb") as rf:
+            header_dtype = np.dtype(HEADER_STRUCT)
             header = np.frombuffer(
                 rf.read(header_dtype.itemsize),
                 count=1,
                 dtype=header_dtype,
             )[0]
-        # Storing metadata
-        for key in [h[0] for h in header_struct]:
-            setattr(self, key.lower(), header[key])
-        self.dt = 5.12e-6 * self.fftlen * self.nfft2int * u.s
-        self.block_dt = self.dt * self.nffte
-        self.df = (1.0 / 5.12e-6 / self.fftlen) * u.Hz
-        log.debug(
-            f'Header of {self._lanefile} correctly parsed.'
-        )
-        # Read data
+        return header
+
+
+    @staticmethod
+    def _decode_data(file_name: str, nffte: int,
+            n_channels: int, n_subbands: int
+        ) -> da.Array:
+        """ """
+        log.info(f"Decoding data of {file_name}...")
         beamlet_dtype = np.dtype([
-            ('lane', 'int32'),
-            ('beam', 'int32'),
-            ('channel', 'int32'),
-            ('fft0', 'float32', (self.nffte, self.fftlen, 2)),
-            ('fft1', 'float32', (self.nffte, self.fftlen, 2))
+            ("lane", "int32"),
+            ("beam", "int32"),
+            ("channel", "int32"),
+            ("fft0", "float32", (nffte, n_channels, 2)),
+            ("fft1", "float32", (nffte, n_channels, 2))
         ])
-        global_struct = header_struct +\
-            [('data', beamlet_dtype, (self.nbchan))]
+        global_struct = HEADER_STRUCT +\
+            [("data", beamlet_dtype, (n_subbands))]
         global_dtype = np.dtype(global_struct)
         itemsize = global_dtype.itemsize
-        with open(self._lanefile, 'rb') as rf:
-            tmp = np.memmap(rf, dtype='int8', mode='r')
-        n_blocks = tmp.size * tmp.itemsize // (itemsize)
-        data = da.from_array(
-            tmp[: n_blocks * itemsize].view(global_dtype)
-        )['data'] # dask powered
-        # Store data in appropriated attributes
-        self.fft0 = data['fft0']
-        self.fft1 = data['fft1']
-        self.beam_arr = data['beam'][0].compute() # asummed same for all time step
-        self.chan = data['channel']
-        ntb, nfb = data['lane'].shape # time blocks, freq blocks
-        # self.unix = np.arange(ntb, dtype='float64')
-        # self.unix *= self.block_dt.to(u.s).value
-        # self.unix += self.timestamp # Maybe I dont need .unix...
-        log.debug(
-            f'Data of {self._lanefile} correctly parsed.'
+        with open(file_name, "rb") as rf:
+            tmp = np.memmap(rf, dtype="int8", mode="r")
+        n_blocks = tmp.size*tmp.itemsize//(itemsize)
+        return da.from_array(
+            tmp[: n_blocks*itemsize].view(global_dtype)
+        )["data"] # Dask powered
+
+
+    @staticmethod
+    def _compute_times(
+            unix_start: int, dt: u.Quantity,
+            n_times: int, block_seq_number: int
+        ) -> np.ndarray:
+        """
+        """
+        log.info("Computing the time array...")
+        dt = dt.to(u.s).value
+        times = da.from_array(
+            np.arange(n_times, dtype="float64")
         )
-        # Time array
-        n_times = ntb * self.nffte
-        self._times = da.from_array(
-            np.arange(n_times, dtype='float64')
-        )
-        self._times *= self.dt.value
-        self._times += self.timestamp + self.blockseqnumber/195312.5
-        # Frequency array
-        n_freqs = nfb * self.fftlen
-        self._freqs = da.from_array(
-            np.tile(np.arange(self.fftlen) - self.fftlen/2, nfb)
-        )
-        self._freqs = self._freqs.reshape((nfb, self.fftlen))
-        self._freqs *= self.df.to(u.Hz).value
-        self._freqs += self.chan[0, :][:, np.newaxis] * self.subband_width.value # assumed constant over time
-        self._freqs = self._freqs.ravel()
-        # Beam indices
-        unique_b = np.unique(self.beam_arr)
-        self.beam_idx = {}
-        for b in unique_b:
-            b_idx = np.where(self.beam_arr == b)[0]
-            self.beam_idx[str(b)] = (
-                b_idx[0] * self.fftlen, # freq start of beam
-                (b_idx[-1] + 1) * self.fftlen # freq stop of beam
+        times *= dt
+        times += unix_start + block_seq_number/195312.5
+        return times
+
+
+    @staticmethod
+    def _compute_frequencies(
+            n_channels: int, n_subbands: int,
+            df: u.Quantity, subband_channels: np.ndarray
+        ) -> np.ndarray:
+        """
+        """
+        log.info("Computing the frequency array...")
+        df = df.to(u.Hz).value
+        subband_width = df*n_channels # Should be equal to 0.1953125 MHz
+        # Construct the frequency array
+        frequencies = da.from_array(
+            np.tile(
+                np.arange(n_channels) - n_channels/2,
+                n_subbands
             )
-        return
+        )
+        frequencies = frequencies.reshape((n_subbands, n_channels))
+        frequencies *= df
+        frequencies += subband_channels[:, None]*subband_width
+        return frequencies.ravel()
 
 
-    def _to2d(self, data):
+    @staticmethod
+    def _sort_beam_edges(beam_array: np.ndarray, n_channels: int) -> dict:
+        """ Find out where in the frequency axis a beam starts and end.
+            This outputs a dictionnary such as:
+            {
+                "<beam_index>": (freq_axis_start_idx, freq_axis_end_idx,),
+                ...
+            }
+        """
+        indices = {}
+        unique_beams = np.unique(beam_array)
+        for b in unique_beams:
+            b_idx = np.where(beam_array == b)[0]
+            indices[str(b)] = (
+                b_idx[0] * n_channels, # freq start of beam
+                (b_idx[-1] + 1) * n_channels # freq stop of beam
+            )
+        return indices
+
+
+    @staticmethod
+    def _to2d(data, nffte: int, n_channels: int) -> da.Array:
         """ Inverts the halves of each beamlet and reshape the
-            array in 2D (time, frequency).
+            array in 2D (time, frequency) or 4D (time, frequency, 2, 2)
+            if this is an 'ejones' matrix.
         """
         ntb, nfb = data.shape[:2]
-        data = np.swapaxes(data, 1, 2)
-        n_times = ntb * self.nffte
-        n_freqs = nfb * self.fftlen
-        # Invert the halves of the beamlet
-        if self.fftlen % 2. != 0.0:
+        n_times = ntb*nffte
+        n_freqs = nfb*n_channels
+        if n_channels%2. != 0.0:
             raise ValueError(
-                f'Problem with fftlen value: {self.fftlen}!'
+                f'Problem with n_channels value: {n_channels}!'
             )
-        data = data.reshape(
-            (
-                n_times,
-                int(n_freqs/self.fftlen),
-                2,
-                int(self.fftlen/2)
-            )
+
+        # Prepare the various shapes
+        temp_shape = (
+            n_times,
+            int(n_freqs/n_channels),
+            2,
+            int(n_channels/2)
         )
-        # data = data[:, :, ::-1, :].reshape((n_times, n_freqs-nfb))
-        data = data[:, :, ::-1, :].reshape((n_times, n_freqs))
-        return data
+        final_shape = (n_times, n_freqs)
+
+        # Add dimension if this comes in eJones matrix
+        if data.ndim == 4:
+            pass
+        elif data.ndim == 6:
+            final_shape += (2, 2)
+            temp_shape += (2, 2)
+        else:
+            raise IndexError(f"The data has an unexpected shape of {data.shape}.")
+
+        # Swap the subband (1) and nffte (2) dimensions to group
+        # frequency and times dimensions together.
+        # Reshape in order to isolate the halves of every beamlet.
+        data = np.swapaxes(data, 1, 2).reshape(temp_shape)
+        # Invert the halves and reshape to the final form.
+        return data[:, :, ::-1, ...].reshape(final_shape)
 
 
-    # def _bandpass(self):
-    #     """ Computes the bandpass correction for a beamlet.
-    #     """
-    #     kaiser_file = join(
-    #         dirname(abspath(__file__)),
-    #         'bandpass_coeffs.dat'
-    #     )
-    #     kaiser = np.loadtxt(kaiser_file)
-
-    #     n_tap = 16
-    #     over_sampling = self.fftlen // n_tap
-    #     n_fft = over_sampling * kaiser.size
-
-    #     g_high_res = np.fft.fft(kaiser, n_fft)
-    #     mid = self.fftlen // 2
-    #     middle = np.r_[g_high_res[-mid:], g_high_res[:mid]]
-    #     right = g_high_res[mid:mid + self.fftlen]
-    #     left = g_high_res[-mid - self.fftlen:-mid]
-
-    #     midsq = np.abs(middle)**2
-    #     leftsq = np.abs(left)**2
-    #     rightsq = np.abs(right)**2
-    #     g = 2**25/np.sqrt(midsq + leftsq + rightsq)
-    #     return g**2.
-
-
-    # def _bp_correct(self, data, method='standard'):
-    #     """ Applies the bandpass correction to each beamlet
-    #     """
-    #     if method.lower() == 'standard':
-    #         bp = self._bandpass()
-    #         ntimes, nfreqs = data.shape
-    #         data = data.reshape(
-    #             (
-    #                 ntimes,
-    #                 int(nfreqs/bp.size),
-    #                 bp.size
-    #             )
-    #         )
-    #         data *= bp[np.newaxis, np.newaxis]
-    #         return data.reshape((ntimes, nfreqs))
-    #     elif method.lower() == 'median':
-    #         ntimes, nfreqs = data.shape
-    #         spectrum = np.median(data, axis=0)
-    #         folded = spectrum.reshape(
-    #             (int(spectrum.size / self.fftlen), self.fftlen)
-    #             )
-    #         broadband = np.median(folded, axis=1)
-    #         data = data.reshape(
-    #             (
-    #                 ntimes,
-    #                 int(spectrum.size / self.fftlen),
-    #                 self.fftlen
-    #             )
-    #         )
-    #         data *= broadband[np.newaxis, :, np.newaxis]
-    #         return data.reshape((ntimes, nfreqs)) / spectrum
-    #     elif method.lower() == 'none':
-    #         return data
-
-    def _polarization_correction(fft0, fft1, jones):
+    @staticmethod
+    def _to_ejones(fft0, fft1):
+        """ fft0[..., :] = [XX, YY]
+            fft1[..., :] = [Re(X*Y), Im(X*Y)]
+            Returns a (..., 2, 2) matrix (Dask)
         """
-            fft0[..., :] = [XX, YY]
-            fft1[..., :] = [Re(XY*), Im(XY*)]
-            XX=I+Q YY=I-Q XY=U+iV YX=U-iV
-        """
-        # fft0.shape = (time_blocks, subbands, time_per_blocks, channels, 2)
-        # jones.shape = (time, frequency, 2, 2)
-        xx = fft0[..., 0]
-        yy = fft1[..., 1]
-        xy = fft1[..., 0] + 1j*fft1[..., 1]
-        yx = fft1[..., 0] - 1j*fft1[..., 1]
+        row1 = da.stack(
+            [
+                fft0[..., 0], # XX
+                fft1[..., 0] - 1j*fft1[..., 1] # XY*
+            ],
+            axis=-1
+        )
+        row2 = da.stack(
+            [
+                fft1[..., 0] + 1j*fft1[..., 1], # YX*
+                fft0[..., 1] # YY
+            ],
+            axis=-1
+        )
+        return da.stack([row1, row2], axis=-1)
+
+
+    # def _polarization_correction(fft0, fft1, jones):
+    #     """
+    #         fft0[..., :] = [XX, YY]
+    #         fft1[..., :] = [Re(X*Y), Im(X*Y)]
+    #         XX=I+Q YY=I-Q XY*=U+iV YX*=U-iV X*Y=U-iV Y*X=U+iV
+    #     """
+    #     # fft0.shape = (time_blocks, subbands, time_per_blocks, channels, 2)
+    #     # jones.shape = (time, frequency, 2, 2)
+    #     e_jones = da.concatenate(
+    #         [ds.lanes[0].fft0[:100, ...], ds.lanes[0].fft1[:100, ...]],
+    #         axis=-1
+    #     ).shape
+    #     xx = fft0[..., 0]
+    #     yy = fft1[..., 1]
+    #     xy = fft1[..., 0] - 1j*fft1[..., 1]
+    #     yx = fft1[..., 0] + 1j*fft1[..., 1]
 
 # ============================================================= #
 
@@ -1278,12 +1372,12 @@ class Dynspec(object):
             :type: `int`
  
         """
-        nchans = np.array([li.fftlen for li in self.lanes])
+        nchans = np.array([li.n_channels for li in self.lanes])
         if not all(nchans == nchans[0]):
             log.warning(
                 'Lanes have different number of channel values.'
             )
-        return self.lanes[0].fftlen
+        return self.lanes[0].n_channels
 
     @property
     def beams(self):
@@ -1344,86 +1438,94 @@ class Dynspec(object):
             .. versionadded:: 1.1.0
         """
         for li in self.lanes:
+
             try:
                 beam_start, beam_stop = li.beam_idx[str(self.beam)]
             except KeyError:
                 # No beam 'self.beam' found on this lane
                 continue
+
             data = li.get_stokes(
-                stokes=stokes#,
-                #bpcorr=self.bp_correction
+                stokes=stokes
             )
+
             # Time selection
             # way more efficient to compute indices than masking
             tmin_idx = np.argmin(
-                np.abs(li._times - self.time_range[0])
+                np.abs(li.time_unix - self.time_range[0])
             ).compute()
             tmax_idx = np.argmin(
-                np.abs(li._times - self.time_range[1])
+                np.abs(li.time_unix - self.time_range[1])
             ).compute()
             # Freq/beam selection
             # way more efficient to compute indices than masking
             fmin_idx = np.argmin(
-                np.abs(li._freqs[beam_start:beam_stop] - self.freq_range[0].value)
+                np.abs(li.frequency_hz[beam_start:beam_stop] - self.freq_range[0].value)
             ).compute()
             fmax_idx = np.argmin(
-                np.abs(li._freqs[beam_start:beam_stop] - self.freq_range[1].value)
+                np.abs(li.frequency_hz[beam_start:beam_stop] - self.freq_range[1].value)
             ).compute()
             if (fmin_idx - fmax_idx) == 0:
                 # No data selected on this lane
                 continue
             # Ensure that frequency indices are at the bottom and top
             # of a subband (to ease bandpass computation)
-            fmin_idx = (fmin_idx//li.fftlen)*li.fftlen
-            fmax_idx = (fmax_idx//li.fftlen+1)*li.fftlen
+            fmin_idx = (fmin_idx//li.n_channels)*li.n_channels
+            fmax_idx = (fmax_idx//li.n_channels+1)*li.n_channels
 
             log.info(
                 f'Retrieving data selection from lane {li.lane_index}...'
             )
+
             # High-rate data selection
             data = data[:, beam_start:beam_stop][
                 tmin_idx:tmax_idx,
                 fmin_idx:fmax_idx
             ]
+
             # Bandpass correction
             data = self._bp_correct(
                 data=data,
-                fftlen=li.fftlen
+                n_channels=li.n_channels
             )
-            selfreqs = li._freqs[beam_start:beam_stop][fmin_idx:fmax_idx].compute()*u.Hz
+            selfreqs = li.frequency_hz[beam_start:beam_stop][fmin_idx:fmax_idx].compute()*u.Hz
+
             # Remove subband edge channels
             data = self._remove_edge_channels(data=data)
-            # mask = np.ones(a.size, dtype=bool)
-            # mask::4] = 0
-            # data = data[:, ]
+
             # RFI mitigation
             data = self._clean(
                 data=data
             )
+
             # Correct 6 min jumps
             data = self._correct_jumps(
                 data=data,
                 dt=li.dt
             )
+
             # Dedispersion if FRB or Pulsar
             data = self._dedisperse(
                 data=data,
                 freqs=selfreqs,
                 dt=li.dt
             )
+
             # Rebin data to downweight the output
             data, seltimes, selfreqs = self._rebin(
                 data=data,
-                times=li._times[tmin_idx:tmax_idx],
+                times=li.time_unix[tmin_idx:tmax_idx],
                 freqs=selfreqs,
                 dt=li.dt,
                 df=li.df,
             )
+
             with ProgressBar():
                 data = data.compute()
+
             # Build a SData instance
             sd = SData(
-                data=data[..., np.newaxis],
+                data=data,
                 time=seltimes,
                 freq=selfreqs,
                 polar=stokes,
@@ -1440,10 +1542,104 @@ class Dynspec(object):
         return spec
 
 
+    def write_hdf5(
+                self,
+                file_name: str,
+                stokes: List[str] = ["I"],
+                beams: List[int] = [0],
+                **metadata
+            ) -> None:
+        """ Save a NenuFAR dynamic spectrum from the :class:`~nenupy.undysputed.dynspec.Dynspec`
+            class. The processing pipeline set up in the ``dynspec``
+            object is then run before saving everything in a HDF5 file.
+
+            :param file_name:
+                Name of the HDF5 to store.
+            :type file_name:
+                `str`
+            :param stokes:
+                List of Stokes parameters to store. Each Stokes
+                parameter should be written as if given to the
+                :meth:`~nenupy.undysputed.dynspec.Dynspec.get` method.
+                Default is ``["I"]``.
+            :type stokes:
+                `list` of `str`
+            :beams:
+                List of beam indices to store. This will make use of the 
+                :class:`~nenupy.undysputed.dynspec.Dynspec.beam` attribute.
+                Default value is ``[0]``.
+            :type beams:
+                `list` of `int`
+            :param **metadata:
+                Any additional metadata to be written as the HDF5 root attributes.
+        """
+        with h5py.File(file_name, "w") as wf:
+
+            # Metadata
+            wf.attrs.update(metadata)
+            wf.attrs["SOFTWARE_NAME"] = "nenupy"
+            wf.attrs["SOFTWARE_VERSION"] = nenupy.__version__
+            wf.attrs["SOFTWARE_MAINTAINER"] = "alan.loh@obspm.fr"
+            wf.attrs.update(_time_to_keywords("OBSERVATION_START", self.tmin))
+            wf.attrs.update(_time_to_keywords("OBSERVATION_END", self.tmax))
+            wf.attrs["OBSERVATION_FREQUENCY_MIN"] = self.fmin.to(FREQ_QUANTITY).value
+            wf.attrs["OBSERVATION_FREQUENCY_MAX"] = self.fmax.to(FREQ_QUANTITY).value
+            wf.attrs["OBSERVATION_FREQUENCY_CENTER"] = ((self.fmax + self.fmin)/2).to(FREQ_QUANTITY).value
+            wf.attrs["OBSERVATION_FREQUENCY_UNIT"] = FREQUENCY_UNIT
+
+            for beam in beams:
+
+                if beam not in self.beams:
+                    raise IndexError(
+                        f"Invalid beam index request: {beam}. (Available beam indices: {self.beams})"
+                    )
+
+                log.info(f"Working on Beam #{beam}...")
+
+                beam_group = wf.create_group(f"BEAM_{beam:03d}")
+
+                coordinates_group = beam_group.create_group("COORDINATES")
+
+                self.beam = beam
+
+                for stokes_param in stokes:
+
+                    log.info(f"Running Stokes {stokes_param} pipeline...")
+
+                    # Run the pipeline!
+                    stokes_chunk = self.get(stokes_param)
+
+                    dataset = beam_group.create_dataset(
+                        name=f"STOKES_{stokes_param.upper()}",
+                        data=stokes_chunk.amp
+                    )
+
+                    if "frequency" not in coordinates_group:
+                        # Update the attributes
+                        beam_group.attrs.update(_time_to_keywords("TIME_START", stokes_chunk.time[0]))
+                        beam_group.attrs.update(_time_to_keywords("TIME_END", stokes_chunk.time[-1]))
+                        beam_group.attrs["FREQUENCY_MIN"] = stokes_chunk.freq.min().to(FREQ_QUANTITY).value
+                        beam_group.attrs["FREQUENCY_MAX"] = stokes_chunk.freq.max().to(FREQ_QUANTITY).value
+                        beam_group.attrs["FREQUENCY_UNIT"] = FREQUENCY_UNIT
+
+                        # Fill in the coordinates once
+                        coordinates_group["frequency"] = stokes_chunk.freq.to(FREQ_QUANTITY).value
+                        coordinates_group["frequency"].make_scale(f"Frequency ({FREQUENCY_UNIT})")                
+                        coordinates_group["time"] = stokes_chunk.time.jd
+                        coordinates_group["time"].make_scale("Time (JD)")
+
+                    dataset.dims[0].label = "frequency"
+                    dataset.dims[0].attach_scale(coordinates_group["frequency"])
+                    dataset.dims[1].label = "time"
+                    dataset.dims[1].attach_scale(coordinates_group["time"])
+
+        log.info(f"{file_name} written.")
+
+
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     @staticmethod
-    def _bandpass(fftlen):
+    def _bandpass(n_channels: int) -> np.ndarray:
         """ Computes the bandpass correction for a beamlet.
         """
         kaiser_file = join(
@@ -1453,14 +1649,14 @@ class Dynspec(object):
         kaiser = np.loadtxt(kaiser_file)
 
         n_tap = 16
-        over_sampling = fftlen // n_tap
+        over_sampling = n_channels // n_tap
         n_fft = over_sampling * kaiser.size
 
         g_high_res = np.fft.fft(kaiser, n_fft)
-        mid = fftlen // 2
+        mid = n_channels // 2
         middle = np.r_[g_high_res[-mid:], g_high_res[:mid]]
-        right = g_high_res[mid:mid + fftlen]
-        left = g_high_res[-mid - fftlen:-mid]
+        right = g_high_res[mid:mid + n_channels]
+        left = g_high_res[-mid - n_channels:-mid]
 
         midsq = np.abs(middle)**2
         leftsq = np.abs(left)**2
@@ -1469,44 +1665,49 @@ class Dynspec(object):
         return g**2.
 
 
-    def _bp_correct(self, data, fftlen):
+    def _bp_correct(self, data: da.Array, n_channels: int) -> da.Array:
         """ Applies the bandpass correction to each beamlet
         """
-        if self.bp_correction == 'standard':
-            bp = self._bandpass(fftlen=fftlen)
-            ntimes, nfreqs = data.shape
+        if self.bp_correction == "standard":
+            bp = self._bandpass(n_channels=n_channels)
+            ntimes, nfreqs, npols = data.shape
             data = data.reshape(
                 (
                     ntimes,
                     int(nfreqs/bp.size),
-                    bp.size
+                    bp.size,
+                    npols
                 )
             )
-            data *= bp[np.newaxis, np.newaxis, :]
-            return data.reshape((ntimes, nfreqs))
-        elif self.bp_correction == 'median':
-            ntimes, nfreqs = data.shape
+            data *= bp[None, None, :, None]
+            return data.reshape((ntimes, nfreqs, npols))
+
+        elif self.bp_correction == "median":
+            ntimes, nfreqs, npols = data.shape
             spectrum = np.nanmedian(data, axis=0)
             folded = spectrum.reshape(
-                (int(spectrum.size / fftlen), fftlen)
+                (int(spectrum.size / n_channels), n_channels, npols)
                 )
             broadband = np.nanmedian(folded, axis=1)
             data = data.reshape(
                 (
                     ntimes,
-                    int(spectrum.size / fftlen),
-                    fftlen
+                    int(spectrum.size / n_channels),
+                    n_channels,
+                    npols
                 )
             )
-            data *= broadband[np.newaxis, :, np.newaxis]
-            return data.reshape((ntimes, nfreqs)) / spectrum
-        elif self.bp_correction == 'adjusted':
-            ntimes, nfreqs = data.shape
+            data *= broadband[None, :, None, :]
+            return data.reshape((ntimes, nfreqs, npols)) / spectrum
+
+        elif self.bp_correction == "adjusted":
+            ntimes, nfreqs, npols = data.shape
             data = data.reshape(
                 (
                     ntimes,
-                    int(nfreqs/fftlen),
-                    fftlen
+                    int(nfreqs/n_channels),
+                    n_channels,
+                    npols
                 )
             )
             freqProfile = np.nanmedian(data, axis=0)
@@ -1514,22 +1715,23 @@ class Dynspec(object):
             subbandProfileNormalized = freqProfile / medianPerSubband[:, None]
             subbandProfile = np.nanmedian(subbandProfileNormalized, axis=0)
             data /= subbandProfile[None, None, :]
-            return data.reshape((ntimes, nfreqs))
-        elif self.bp_correction == 'none':
+            return data.reshape((ntimes, nfreqs, npols))
+
+        else:
             return data
 
 
-    def _remove_edge_channels(self, data):
+    def _remove_edge_channels(self, data: da.Array) -> da.Array:
         """ Remove the N channels at each subband edge (set their values to NaNs).
         """
         if self.edge_channels_to_remove > 0:
             nchannels = self.nchan
-            ntimes, nfreqs = data.shape
+            ntimes, nfreqs, npols = data.shape
             nsubbands = int(nfreqs/nchannels)
-            data = data.reshape((ntimes, nsubbands, nchannels))
-            data[:, :, :self.edge_channels_to_remove] = np.nan # lower edge
-            data[:, :, -self.edge_channels_to_remove:] = np.nan # upper edge
-            data = data.reshape((ntimes, nfreqs))
+            data = data.reshape((ntimes, nsubbands, nchannels, npols))
+            data[:, :, :self.edge_channels_to_remove, :] = np.nan # lower edge
+            data[:, :, -self.edge_channels_to_remove:, :] = np.nan # upper edge
+            data = data.reshape((ntimes, nfreqs, npols))
             log.info(
                 f"{self.edge_channels_to_remove} channels have been "
                 "set to NaN at the subband edges."
@@ -1578,9 +1780,9 @@ class Dynspec(object):
             )
             cell_delays = np.round((delays/dt)).astype(int)
             for i in range(freqs.size):
-                data[:, i] = np.roll(data[:, i], -cell_delays[i], 0)
+                data[:, i, :] = np.roll(data[:, i, :], -cell_delays[i], 0)
                 # mask right edge of dynspec
-                data[-cell_delays[i]:, i] = np.nan
+                data[-cell_delays[i]:, i, :] = np.nan
             log.info(
                 'Data are de-dispersed.'
             )
@@ -1640,7 +1842,7 @@ class Dynspec(object):
         """
             .. versionadded:: 1.1.0
         """
-        ntimes_i, nfreqs_i = data.shape
+        ntimes_i, nfreqs_i, npols_i = data.shape
         if not (self.rebin_dt is None):
             # Rebin in time
             tbins = int(np.floor(self.rebin_dt/dt))
@@ -1652,15 +1854,15 @@ class Dynspec(object):
             log.info(
                 f'Last {tleftover} spectra are left over for time-averaging.'
             )
-            data = data[:-tleftover if tleftover != 0 else ntimes_i, :].reshape(
-                (ntimes, int((ntimes_i - tleftover)/ntimes), nfreqs_i)
+            data = data[:-tleftover if tleftover != 0 else ntimes_i, :, :].reshape(
+                (ntimes, int((ntimes_i - tleftover)/ntimes), nfreqs_i, npols_i)
             )
             times = times[:-tleftover if tleftover != 0 else ntimes_i].reshape(
                 (ntimes, int((ntimes_i - tleftover)/ntimes))
             )
             data = np.nanmean(data, axis=1)
             times = np.nanmean(times, axis=1)
-            ntimes_i, nfreqs_i = data.shape
+            ntimes_i, nfreqs_i, npols_i = data.shape
             log.info(
                 'Data are time-averaged.'
             )
@@ -1675,8 +1877,8 @@ class Dynspec(object):
             log.info(
                 f'Last {fleftover} channels are left over for frequency-averaging.'
             )
-            data = data[:, :-fleftover if fleftover != 0 else nfreqs_i].reshape(
-                (ntimes_i, nfreqs, int((nfreqs_i - fleftover)/nfreqs))
+            data = data[:, :-fleftover if fleftover != 0 else nfreqs_i, :].reshape(
+                (ntimes_i, nfreqs, int((nfreqs_i - fleftover)/nfreqs), npols_i)
             )
             freqs = freqs[:-fleftover if fleftover != 0 else nfreqs_i].reshape(
                 (nfreqs, int((nfreqs_i - fleftover)/nfreqs))
@@ -1804,71 +2006,72 @@ class Dynspec(object):
         log.info(
             'Correcting for 6 min pointing jumps...'
         )
+        for pol_i in range(data.shape[2]):
+            freqProfile = np.nanmedian(
+                data[:, :, pol_i],
+                axis=0
+            ).compute()
+            timeProfile = np.nanmedian(
+                data[:, :, pol_i] / freqProfile[None, :],
+                axis=1
+            ).compute()
 
-        freqProfile = np.nanmedian(
-            data,
-            axis=0
-        ).compute()
-        timeProfile = np.nanmedian(
-            data / freqProfile[None, :],
-            axis=1
-        ).compute()
+            duration = timeProfile.size * dt.value
+            sixMin = 6*60.000000
+            nIntervals = int(np.ceil(duration / sixMin))
+            nJumps = nIntervals - 1
+            nPointsJump = int(sixMin / dt.value)
+            nPointsTotal = timeProfile.size
 
-        duration = timeProfile.size * dt.value
-        sixMin = 6*60.000000
-        nIntervals = int(np.ceil(duration / sixMin))
-        nJumps = nIntervals - 1
-        nPointsJump = int(sixMin / dt.value)
-        nPointsTotal = timeProfile.size
+            # Finding interval indices
+            meanTProfile = np.nanmean(timeProfile)
+            stdTProfile = np.std(timeProfile)
+            timeProfile[timeProfile > meanTProfile + 4*stdTProfile] = meanTProfile # Get rid of strong RFI
+            derivativeTProfile = np.gradient(timeProfile)
+            jumpIndex = np.argmin(derivativeTProfile)
+            firstJumpIndex = jumpIndex%nPointsJump
+            jumpIndices = firstJumpIndex + np.arange(nJumps) * nPointsJump
+            intervalEdges = np.insert(jumpIndices, 0, 0)
+            intervalEdges = np.append(intervalEdges, nPointsTotal - 1)
 
-        # Finding interval indices
-        meanTProfile = np.mean(timeProfile)
-        stdTProfile = np.std(timeProfile)
-        timeProfile[timeProfile > meanTProfile + 4*stdTProfile] = meanTProfile # Get rid of strong RFI
-        derivativeTProfile = np.gradient(timeProfile)
-        jumpIndex = np.argmin(derivativeTProfile)
-        firstJumpIndex = jumpIndex%nPointsJump
-        jumpIndices = firstJumpIndex + np.arange(nJumps) * nPointsJump
-        intervalEdges = np.insert(jumpIndices, 0, 0)
-        intervalEdges = np.append(intervalEdges, nPointsTotal - 1)
+            # Model fitting for each interval
+            @custom_model
+            def switchLoadFunc(t, a=1., b=1.):
+                """
+                    f(t) = a log_10(t) + b
+                """
+                return a*np.log10(t) + b
+            jumpsFitted = np.ones(timeProfile.size)
+            for i in range(intervalEdges.size - 1):
+                lowEdge = intervalEdges[i]
+                highEdge = intervalEdges[i+1]
+                intervalProfile = timeProfile[lowEdge:highEdge+1]
+                switchModel = switchLoadFunc(1e4, np.mean(intervalProfile))
+                fitter = fitting.LevMarLSQFitter()
+                times = 1 + np.arange(intervalProfile.size)
+                switchModel_fit = fitter(switchModel, times, intervalProfile)
+                jumpsFitted[lowEdge:highEdge+1] *= switchModel_fit(times)
 
-        # Model fitting for each interval
-        @custom_model
-        def switchLoadFunc(t, a=1., b=1.):
-            """
-                f(t) = a log_10(t) + b
-            """
-            return a*np.log10(t) + b
-        jumpsFitted = np.ones(timeProfile.size)
-        for i in range(intervalEdges.size - 1):
-            lowEdge = intervalEdges[i]
-            highEdge = intervalEdges[i+1]
-            intervalProfile = timeProfile[lowEdge:highEdge+1]
-            switchModel = switchLoadFunc(1e4, np.mean(intervalProfile))
-            fitter = fitting.LevMarLSQFitter()
-            times = 1 + np.arange(intervalProfile.size)
-            switchModel_fit = fitter(switchModel, times, intervalProfile)
-            jumpsFitted[lowEdge:highEdge+1] *= switchModel_fit(times)
+            # Model fitting for each interval
+            # @custom_model
+            # def switchLoadFunc(t, a=1., b=1., c=1., d=1., e=1.):
+            #     """
+            #         f(t) = a log_10(t) + b
+            #     """
+            #     return (a*np.log10(t) + b) * (d * t**2 + c * t + e)
+            # jumpsFitted = np.ones(timeProfile.size)
+            # for i in range(intervalEdges.size - 1):
+            #     lowEdge = intervalEdges[i]
+            #     highEdge = intervalEdges[i+1]
+            #     intervalProfile = timeProfile[lowEdge:highEdge+1]
+            #     switchModel = switchLoadFunc(1e4, np.mean(intervalProfile), (intervalProfile[-1]-intervalProfile[0])/sixMin**2, (intervalProfile[-1]-intervalProfile[0])/sixMin, np.mean(intervalProfile))
+            #     fitter = fitting.LevMarLSQFitter()
+            #     times = 1 + np.arange(intervalProfile.size)
+            #     switchModel_fit = fitter(switchModel, times, intervalProfile)
+            #     jumpsFitted[lowEdge:highEdge+1] = switchModel_fit.a.value * np.log10(times) + switchModel_fit.b.value
+            #     jumpsFitted[lowEdge:highEdge+1] /= switchModel_fit.a.value * np.log10(times[-1]) + switchModel_fit.b.value
 
-        # Model fitting for each interval
-        # @custom_model
-        # def switchLoadFunc(t, a=1., b=1., c=1., d=1., e=1.):
-        #     """
-        #         f(t) = a log_10(t) + b
-        #     """
-        #     return (a*np.log10(t) + b) * (d * t**2 + c * t + e)
-        # jumpsFitted = np.ones(timeProfile.size)
-        # for i in range(intervalEdges.size - 1):
-        #     lowEdge = intervalEdges[i]
-        #     highEdge = intervalEdges[i+1]
-        #     intervalProfile = timeProfile[lowEdge:highEdge+1]
-        #     switchModel = switchLoadFunc(1e4, np.mean(intervalProfile), (intervalProfile[-1]-intervalProfile[0])/sixMin**2, (intervalProfile[-1]-intervalProfile[0])/sixMin, np.mean(intervalProfile))
-        #     fitter = fitting.LevMarLSQFitter()
-        #     times = 1 + np.arange(intervalProfile.size)
-        #     switchModel_fit = fitter(switchModel, times, intervalProfile)
-        #     jumpsFitted[lowEdge:highEdge+1] = switchModel_fit.a.value * np.log10(times) + switchModel_fit.b.value
-        #     jumpsFitted[lowEdge:highEdge+1] /= switchModel_fit.a.value * np.log10(times[-1]) + switchModel_fit.b.value
-
-        return data / jumpsFitted[:, None]
+            data[:, :, pol_i] /= jumpsFitted[:, None]
+        return data
 # ============================================================= #
 

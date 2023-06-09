@@ -514,19 +514,28 @@ class SData(object):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def plot(self, figname=None, db=True, **kwargs):
+    def plot(self, polarization=None, figname=None, db=True, **kwargs):
         """
             kwargs keys: cmap, title, cblabel, figsize, altaza, vmin, vmax
         """
         import matplotlib.pyplot as plt
 
-        dynspec = self.db.T if db else self.amp.T
+        if polarization is None:
+            pol_idx = 0
+        else:
+            try:
+                pol_idx = np.argwhere(self.polar == polarization)[0, 0]
+            except IndexError:
+                print(f"Warning, no '{polarization}' polarization recorded.")
+                pol_idx = 0
+
+        dynspec = 10*np.log10(self.data[..., pol_idx]).T if db else self.data[..., pol_idx].T
 
         # Make sure everything is correctly set up
         if 'cmap' not in kwargs.keys():
             kwargs['cmap'] = 'YlGnBu_r'
         if 'title' not in kwargs.keys():
-            kwargs['title'] = None
+            kwargs['title'] = self.polar[pol_idx]
         if 'cblabel' not in kwargs.keys():
             kwargs['cblabel'] = 'dB' if db else 'Amplitude' 
         if 'figsize' not in kwargs.keys():
