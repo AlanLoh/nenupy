@@ -448,6 +448,7 @@ import dask.array as da
 from dask.diagnostics import ProgressBar
 from typing import List
 import h5py
+import warnings
 
 import nenupy
 from nenupy.beamlet import SData
@@ -494,9 +495,9 @@ class _Lane():
     """
 
     def __init__(self, lanefile: str):
-        self.lanefile = lanefile
-        
         self.lane_index = None
+        self.lanefile = lanefile
+
         self.data = None
         self.time_unix = None
         self.frequency_hz = None
@@ -609,7 +610,7 @@ class _Lane():
             # Stack everything
             if data is None:
                 data = data_i[..., None] # time, frequency, pol
-            else: 
+            else:
                 data = da.concatenate([data, data_i[..., None]], axis=-1)
 
         return data
@@ -733,9 +734,7 @@ class _Lane():
         """
         log.info("Computing the time array...")
         dt = dt.to(u.s).value
-        times = da.from_array(
-            np.arange(n_times, dtype="float64")
-        )
+        times = da.arange(n_times, dtype="float64")
         times *= dt
         times += unix_start + block_seq_number/195312.5
         return times
@@ -752,11 +751,9 @@ class _Lane():
         df = df.to(u.Hz).value
         subband_width = df*n_channels # Should be equal to 0.1953125 MHz
         # Construct the frequency array
-        frequencies = da.from_array(
-            np.tile(
-                np.arange(n_channels) - n_channels/2,
-                n_subbands
-            )
+        frequencies = da.tile(
+            np.arange(n_channels) - n_channels/2,
+            n_subbands
         )
         frequencies = frequencies.reshape((n_subbands, n_channels))
         frequencies *= df
@@ -847,6 +844,32 @@ class _Lane():
         return da.stack([row1, row2], axis=-1)
 
 
+    def _polarization_correction(self,
+            jones_matrices_unix_time: np.ndarray,
+            jones_matrices_frequency_hz: np.ndarray,
+            jones_matrices_values: np.ndarray
+        ):
+        """ """
+        # self.data # shape : (time, frequency, 2, 2)
+        # self.time_unix# shape : (time,)
+        # self.frequency_hz# shape (frequency,)
+
+        # Interpolate the jones_matrices
+        # from scipy.interpolate import RegularGridInterpolator
+        # jones_interpolation = RegularGridInterpolator(
+        #     points=(jones_matrices_unix_time, jones_matrices_frequency_hz),
+        #     values=jones_matrices_values,
+        #     method="linear"
+        # )
+        # frequency_grid, time_grid = da.meshgrid(
+        #     self.frequency_hz, self.time_unix
+        # )
+        # jones_data = da.from_array(
+        #     jones_interpolation((time_grid, frequency_grid))
+        # )
+        # return jones_data
+        return
+
     # def _polarization_correction(fft0, fft1, jones):
     #     """
     #         fft0[..., :] = [XX, YY]
@@ -898,7 +921,7 @@ class Dynspec(object):
         self.bp_correction = 'none'
         self.edge_channels_to_remove = 0
         self.freq_flat = False
-        self.clean_rfi = False
+        self.rfi_std_threshold = 0
 
 
     # --------------------------------------------------------- #
@@ -998,6 +1021,8 @@ class Dynspec(object):
             raise ValueError(
                 'time_range start >= stop.'
             )
+        if (t[1] < self.tmin) or (t[0] > self.tmax):
+            log.warning("Requested time-range outside availaible data!")
         log.info(
             f'Time-range set: {t[0].isot} to {t[1].isot}.'
         )
@@ -1076,6 +1101,31 @@ class Dynspec(object):
             f'Beam index set: {b}.'
         )
         return
+
+
+    @property
+    def rfi_std_threshold(self) -> float:
+        r""" Select the background standard deviation factor 
+            above which the data is considered to be Radio
+            Frequency Interference.
+
+            By default, or if set to ``0``, nothing happens.
+            Otherwise, a time-frequency background :math:`\mathbf{B}`
+            is computed, and everything that exceeds 
+            :math:`\mathbf{B} + n \sigma(\mathbf{B})` is set to `NaN`,
+            where :math:`n` is the ``rfi_std_threshold`` and
+            :math:`\sigma(\mathbf{B})` is the backgroun's standard deviation.
+
+            :type: `float`
+        """
+        return self._rfi_std_threshold
+    @rfi_std_threshold.setter
+    def rfi_std_threshold(self, std: float):
+        if not isinstance(std, (int, float)):
+            raise TypeError("Integer of Float value is requested.")
+        if std != 0:
+            log.info(f"RFI set to be above {std} sigmas of the background.")
+        self._rfi_std_threshold = std
 
 
     @property
@@ -1438,57 +1488,19 @@ class Dynspec(object):
             .. versionadded:: 1.1.0
         """
         for li in self.lanes:
-
-            try:
-                beam_start, beam_stop = li.beam_idx[str(self.beam)]
-            except KeyError:
-                # No beam 'self.beam' found on this lane
+            
+            results = self._select_data(lane=li, stokes=stokes)
+            if results is None:
+                # No data selected
                 continue
-
-            data = li.get_stokes(
-                stokes=stokes
-            )
-
-            # Time selection
-            # way more efficient to compute indices than masking
-            tmin_idx = np.argmin(
-                np.abs(li.time_unix - self.time_range[0])
-            ).compute()
-            tmax_idx = np.argmin(
-                np.abs(li.time_unix - self.time_range[1])
-            ).compute()
-            # Freq/beam selection
-            # way more efficient to compute indices than masking
-            fmin_idx = np.argmin(
-                np.abs(li.frequency_hz[beam_start:beam_stop] - self.freq_range[0].value)
-            ).compute()
-            fmax_idx = np.argmin(
-                np.abs(li.frequency_hz[beam_start:beam_stop] - self.freq_range[1].value)
-            ).compute()
-            if (fmin_idx - fmax_idx) == 0:
-                # No data selected on this lane
-                continue
-            # Ensure that frequency indices are at the bottom and top
-            # of a subband (to ease bandpass computation)
-            fmin_idx = (fmin_idx//li.n_channels)*li.n_channels
-            fmax_idx = (fmax_idx//li.n_channels+1)*li.n_channels
-
-            log.info(
-                f'Retrieving data selection from lane {li.lane_index}...'
-            )
-
-            # High-rate data selection
-            data = data[:, beam_start:beam_stop][
-                tmin_idx:tmax_idx,
-                fmin_idx:fmax_idx
-            ]
+            else:
+                selfreqs, seltimes, data = results
 
             # Bandpass correction
             data = self._bp_correct(
                 data=data,
                 n_channels=li.n_channels
             )
-            selfreqs = li.frequency_hz[beam_start:beam_stop][fmin_idx:fmax_idx].compute()*u.Hz
 
             # Remove subband edge channels
             data = self._remove_edge_channels(data=data)
@@ -1514,7 +1526,7 @@ class Dynspec(object):
             # Rebin data to downweight the output
             data, seltimes, selfreqs = self._rebin(
                 data=data,
-                times=li.time_unix[tmin_idx:tmax_idx],
+                times=seltimes,
                 freqs=selfreqs,
                 dt=li.dt,
                 df=li.df,
@@ -1536,9 +1548,15 @@ class Dynspec(object):
                 spec = sd
             else:
                 spec = spec & sd
+
+        if not 'spec' in locals():
+            log.warning("No data gathered, check your time/frequency/beam selections.")
+            return None
+
         log.info(
             f'Stokes {stokes} data gathered.'
         )
+
         return spec
 
 
@@ -1603,6 +1621,7 @@ class Dynspec(object):
                 self.beam = beam
 
                 for stokes_param in stokes:
+                    # Extract one Stokes parameter at a time
 
                     log.info(f"Running Stokes {stokes_param} pipeline...")
 
@@ -1611,7 +1630,7 @@ class Dynspec(object):
 
                     dataset = beam_group.create_dataset(
                         name=f"STOKES_{stokes_param.upper()}",
-                        data=stokes_chunk.amp
+                        data=stokes_chunk.amp[:, :, 0] # (time, freq, 1)
                     )
 
                     if "frequency" not in coordinates_group:
@@ -1638,6 +1657,69 @@ class Dynspec(object):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
+    def _select_data(self, lane: _Lane, stokes):
+        """ Select the data in time and frequency
+        """
+        try:
+            beam_start, beam_stop = lane.beam_idx[str(self.beam)]
+        except KeyError:
+            # No beam 'self.beam' found on this lane
+            return None
+
+        data = lane.get_stokes(
+            stokes=stokes
+        )
+
+        # Time selection
+        # way more efficient to compute indices than masking
+        tmin_idx = np.argmin(
+            np.abs(lane.time_unix - self.time_range[0])
+        ).compute()
+        tmax_idx = np.argmin(
+            np.abs(lane.time_unix - self.time_range[1])
+        ).compute()
+        if (tmin_idx - tmax_idx) == 0:
+            # No data selected on this lane
+            return None
+
+        # Freq/beam selection
+        # way more efficient to compute indices than masking
+        fmin_idx = np.argmin(
+            np.abs(lane.frequency_hz[beam_start:beam_stop] - self.freq_range[0].value)
+        ).compute()
+        fmax_idx = np.argmin(
+            np.abs(lane.frequency_hz[beam_start:beam_stop] - self.freq_range[1].value)
+        ).compute()
+        if (fmin_idx - fmax_idx) == 0:
+            # No data selected on this lane
+            return None
+        # Ensure that frequency indices are at the bottom and top
+        # of a subband (to ease bandpass computation)
+        fmin_idx = (fmin_idx//lane.n_channels)*lane.n_channels
+        fmax_idx = (fmax_idx//lane.n_channels+1)*lane.n_channels
+
+        log.info(
+            f'Retrieving data selection from lane {lane.lane_index}...'
+        )
+
+        # High-rate data selection
+        data = data[:, beam_start:beam_stop][
+            tmin_idx:tmax_idx,
+            fmin_idx:fmax_idx
+        ]
+
+        # Bandpass correction
+        data = self._bp_correct(
+            data=data,
+            n_channels=lane.n_channels
+        )
+
+        selfreqs = lane.frequency_hz[beam_start:beam_stop][fmin_idx:fmax_idx].compute()*u.Hz
+        seltimes = lane.time_unix[tmin_idx:tmax_idx]
+
+        return selfreqs, seltimes, data
+
+
     @staticmethod
     def _bandpass(n_channels: int) -> np.ndarray:
         """ Computes the bandpass correction for a beamlet.
@@ -1745,11 +1827,74 @@ class Dynspec(object):
         return data
 
 
-    def _clean(self, data):
+    @staticmethod
+    def _background(data: da.Array) -> da.Array:
+        """ Computes the background for a 2D array. """
+        log.info("Computing the background...")
+
+        from astropy.convolution import Gaussian1DKernel, convolve
+
+        with warnings.catch_warnings():
+            # All NaN slice encountered RunTimeWarning, it happens
+            # when channels are cropped at the subband edges.
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
+
+            log.info("Computing the frequency profile...")
+            frequency_profile = np.nanmedian(data, axis=0).compute()
+            threshold = np.nanpercentile(frequency_profile, 90)#np.nanmedian(frequency_profile, axis=0) + np.nanstd(frequency_profile)
+            frequency_profile[frequency_profile > threshold] = np.nan
+            kernel_size = int(np.ceil(frequency_profile.size/5))
+            frequency_profile = convolve(
+                frequency_profile,
+                Gaussian1DKernel(stddev=kernel_size/8, x_size=kernel_size),
+                boundary="extend",
+                fill_value=np.nan
+            )
+
+            log.info("Computing the time profile...")
+            time_profile = np.nanmedian(data, axis=1).compute()
+            threshold = np.nanpercentile(time_profile, 90)#np.nanmedian(time_profile, axis=0) + np.nanstd(time_profile)
+            time_profile[time_profile > threshold] = np.nan
+            kernel_size = int(np.ceil(time_profile.size/5))
+            time_profile = convolve(
+                time_profile,
+                Gaussian1DKernel(stddev=kernel_size/8, x_size=kernel_size),
+                boundary="extend",
+                fill_value=np.nan
+            )
+
+        background = da.multiply(
+            frequency_profile[None, :],
+            time_profile[:, None]/np.nanmax(time_profile[:, None])
+        )
+        return background
+
+
+    def _clean(self, data: da.Array) -> da.Array:
+        """ Sets every value above background + n*std(background) at NaN.
+            Where n is the .rfi_std_threshold attribute if n is greater than 0.
         """
-        """
-        if self.clean_rfi:
-            pass
+        if self.rfi_std_threshold > 0:
+
+            log.info(
+                f"Cleaning the data {self.rfi_std_threshold} sigmas "
+                "above the background."
+            )
+
+            for pol_i in range(data.shape[2]):
+                background = self._background(data=data[..., pol_i])
+                background_std = np.nanstd(background)
+
+                nanmask = np.ones(data[..., pol_i].shape)
+                nanmask[data[..., pol_i] > background + self.rfi_std_threshold*background_std] = np.nan
+
+                data[..., pol_i] *= nanmask
+
+                log.info(
+                    f"RFI mitigation (polarization index {pol_i}): "
+                    f"{np.sum(np.isnan(nanmask))/nanmask.size*100:.2f}% data flagged."
+                )
+
         return data
 
 
@@ -1769,10 +1914,9 @@ class Dynspec(object):
                 raise ValueError(
                     'Problem with frequency axis.'
                 )
-            dm = self.dispersion_measure.value # pc/cm^3
             delays = dispersion_delay(
                 frequency=freqs,
-                dispersion_measure=self.dispersion_measure
+                dispersion_measure=self.dispersion_measure # pc/cm^3
             )
             delays -= dispersion_delay( # relative delays
                 frequency=self.freq_range[1],
@@ -2003,18 +2147,21 @@ class Dynspec(object):
         """
         if not self.jump_correction:
             return data
-        log.info(
-            'Correcting for 6 min pointing jumps...'
-        )
         for pol_i in range(data.shape[2]):
-            freqProfile = np.nanmedian(
-                data[:, :, pol_i],
-                axis=0
-            ).compute()
-            timeProfile = np.nanmedian(
-                data[:, :, pol_i] / freqProfile[None, :],
-                axis=1
-            ).compute()
+            log.info(f"Correcting 6min gain jumps for polarization '{pol_i}'...")
+
+            with warnings.catch_warnings():
+                # All NaN slice encountered RunTimeWarning, it happens
+                # when channels are cropped at the subband edges.
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
+                freqProfile = np.nanmedian(
+                    data[:, :, pol_i],
+                    axis=0
+                ).compute()
+                timeProfile = np.nanmedian(
+                    data[:, :, pol_i] / freqProfile[None, :],
+                    axis=1
+                ).compute()
 
             duration = timeProfile.size * dt.value
             sixMin = 6*60.000000
@@ -2022,10 +2169,11 @@ class Dynspec(object):
             nJumps = nIntervals - 1
             nPointsJump = int(sixMin / dt.value)
             nPointsTotal = timeProfile.size
+            log.info(f"{nIntervals} 6min-intervals found.")
 
             # Finding interval indices
             meanTProfile = np.nanmean(timeProfile)
-            stdTProfile = np.std(timeProfile)
+            stdTProfile = np.nanstd(timeProfile)
             timeProfile[timeProfile > meanTProfile + 4*stdTProfile] = meanTProfile # Get rid of strong RFI
             derivativeTProfile = np.gradient(timeProfile)
             jumpIndex = np.argmin(derivativeTProfile)
@@ -2043,6 +2191,7 @@ class Dynspec(object):
                 return a*np.log10(t) + b
             jumpsFitted = np.ones(timeProfile.size)
             for i in range(intervalEdges.size - 1):
+                log.info(f"Fitting interval #{i} (polarization '{pol_i}') profile...")
                 lowEdge = intervalEdges[i]
                 highEdge = intervalEdges[i+1]
                 intervalProfile = timeProfile[lowEdge:highEdge+1]
