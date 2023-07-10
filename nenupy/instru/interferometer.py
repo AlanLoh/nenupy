@@ -583,7 +583,8 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         if return_complex:
             return complex_array_factor
         else:
-            return (np.real(complex_array_factor * np.conjugate(complex_array_factor)))
+            # return np.sqrt(np.real(complex_array_factor * np.conjugate(complex_array_factor)))
+            return np.real(complex_array_factor * np.conjugate(complex_array_factor))
 
 
     def beam(self, sky: Sky, pointing: Pointing, return_complex: bool = False) -> Sky:

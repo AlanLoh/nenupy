@@ -59,7 +59,8 @@ from nenupy.astro.pointing import Pointing
 # ---------------- Polarization / Antenna Gain ---------------- #
 # ============================================================= #
 import healpy as hp
-from scipy.interpolate import interp2d
+#from scipy.interpolate import interp2d
+from scipy.interpolate import RegularGridInterpolator
 import os
 from enum import Enum
 
@@ -91,11 +92,16 @@ class _AntennaGain:
         # Interpolate the antenna gain on the frequency axis
         freqs = np.arange(10, 90, 10)
         self.healpix_coords = np.arange(hp.pixelfunc.nside2npix(64))
-        self.interpolated_gain = interp2d(
-            x=self.healpix_coords,
-            y=freqs,
-            z=gain,
-            kind='linear'
+        # self.interpolated_gain = interp2d(
+        #     x=self.healpix_coords,
+        #     y=freqs,
+        #     z=gain,
+        #     kind='linear'
+        # )
+        self.interpolated_gain = RegularGridInterpolator(
+            points=(freqs, self.healpix_coords),
+            values=gain,
+            method="linear"
         )
 
         log.info(f'NenuFAR antenna model (polarization={polarization}) loaded.')
@@ -117,7 +123,8 @@ class _AntennaGain:
         freqs = sky.frequency.to(u.MHz).value
 
         # Find the interpolated gain at the desired frequency
-        gain = self.interpolated_gain(self.healpix_coords, freqs)
+        #gain = self.interpolated_gain(self.healpix_coords, freqs)
+        gain = self.interpolated_gain((freqs, self.healpix_coords))
         if gain.ndim == 1:
             gain = gain.reshape((1, gain.size))
 
@@ -133,7 +140,8 @@ class _AntennaGain:
         ])
 
         # Return something shaped as (time, freq, coord)
-        return np.moveaxis(gain, 0, 1)
+        #return np.moveaxis(gain, 0, 1)
+        return gain.reshape((1,) + gain.shape)
 
 
 class Polarization(Enum):
@@ -840,7 +848,7 @@ class MiniArray(Interferometer):
             on a grid due to analog cable delays.
         """
         # Put the horizontal coordinates in a good shape
-        pointing_ho_coords = pointing.horizontal_coordinates
+        pointing_ho_coords = pointing.horizontal_coordinates # TODO try to copy instead of using a pointer which modifies the top object
         if pointing_ho_coords.isscalar:
             pointing_ho_coords = pointing_ho_coords.reshape((1,))
 
