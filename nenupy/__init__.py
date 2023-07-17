@@ -46,9 +46,11 @@ log = logging.getLogger(__name__)
 # ============================================================= #
 class HiddenPrints:
     """ Hides unwanted prints nd warning.
-        Usage:
+
+        :Example:
             >>> with HiddenPrints():
-            >>>    function_with_prints()
+            >>>     function_with_prints()
+
     """
     def __enter__(self):
         self._original_stdout = sys.stdout

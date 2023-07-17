@@ -1016,7 +1016,7 @@ class NenuFAR(Interferometer):
 
             ~NenuFAR.miniarray_antennas
             ~NenuFAR.include_remote_mas
-            ~nenuFAR.miniarray_rotations
+            ~NenuFAR.miniarray_rotations
             ~nenupy.instru.interferometer.Interferometer.position
             ~nenupy.instru.interferometer.Interferometer.antenna_names
             ~nenupy.instru.interferometer.Interferometer.antenna_positions
@@ -1097,6 +1097,15 @@ class NenuFAR(Interferometer):
             nenufar_miniarrays[ma]['rotation'] for ma in self.antenna_names
         ])*u.deg
     
+
+    @property
+    def miniarray_antennas(self):
+        """ List of Mini-Array antennas. """
+        return self._miniarray_antennas
+    @miniarray_antennas.setter
+    def miniarray_antennas(self, antennas):
+        self._miniarray_antennas = antennas
+
 
     @property
     def include_remote_mas(self) -> bool:

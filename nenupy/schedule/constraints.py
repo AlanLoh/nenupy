@@ -5,9 +5,9 @@
 r"""
     .. _schedule_constraints:
 
-    ***********************
-    Observation constraints
-    ***********************
+    *******************************
+    Observation constraints classes
+    *******************************
 
     
     In the following, an instance of :class:`~nenupy.schedule.targets.ESTarget`
@@ -134,6 +134,8 @@ r"""
         ~nenupy.schedule.constraints.AzimuthCnst
         ~nenupy.schedule.constraints.LocalTimeCnst
         ~nenupy.schedule.constraints.TimeRangeCnst
+        ~nenupy.schedule.constraints.LocalSiderealTimeCnst
+        ~nenupy.schedule.constraints.NightTimeCnst
 
 
     .. inheritance-diagram:: nenupy.schedule.constraints

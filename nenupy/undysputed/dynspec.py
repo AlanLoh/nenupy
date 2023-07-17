@@ -844,49 +844,57 @@ class _Lane():
         return da.stack([row1, row2], axis=-1)
 
 
-    def _polarization_correction(self,
-            jones_matrices_unix_time: np.ndarray,
-            jones_matrices_frequency_hz: np.ndarray,
-            jones_matrices_values: np.ndarray
-        ):
-        """ """
-        # self.data # shape : (time, frequency, 2, 2)
-        # self.time_unix# shape : (time,)
-        # self.frequency_hz# shape (frequency,)
+    def _polarization_correction(
+            self,
+            jones_matrices_time_unix: np.ndarray = None,
+            jones_matrices_frequency_hz: np.ndarray = None,
+            jones_matrices_values: np.ndarray = None
+        ) -> None:
+        """
+            from nenupy.astro.beam_correction import compute_jones_matrices
+            time, frequency, jones = compute_jones_matrices(
+                start_time=Time("2023-07-14 12:00:00"),
+                time_step=TimeDelta(60, format="sec"),
+                duration=TimeDelta(3600, format="sec"),
+                skycoord=SkyCoord.from_name("Cas A"),
+                parallactic=True
+            )
+            ds = Dynspec(...)
+            ds.dreambeam_inputs=(time.unix, frequency.to(u.Hz).value, jones)
+        """
 
-        # Interpolate the jones_matrices
-        # from scipy.interpolate import RegularGridInterpolator
-        # jones_interpolation = RegularGridInterpolator(
-        #     points=(jones_matrices_unix_time, jones_matrices_frequency_hz),
-        #     values=jones_matrices_values,
-        #     method="linear"
-        # )
-        # frequency_grid, time_grid = da.meshgrid(
-        #     self.frequency_hz, self.time_unix
-        # )
-        # jones_data = da.from_array(
-        #     jones_interpolation((time_grid, frequency_grid))
-        # )
-        # return jones_data
-        return
+        if (jones_matrices_time_unix is None) or\
+            (jones_matrices_frequency_hz is None) or\
+            (jones_matrices_values is None):
+            # Nothing to be done.
+            return
 
-    # def _polarization_correction(fft0, fft1, jones):
-    #     """
-    #         fft0[..., :] = [XX, YY]
-    #         fft1[..., :] = [Re(X*Y), Im(X*Y)]
-    #         XX=I+Q YY=I-Q XY*=U+iV YX*=U-iV X*Y=U-iV Y*X=U+iV
-    #     """
-    #     # fft0.shape = (time_blocks, subbands, time_per_blocks, channels, 2)
-    #     # jones.shape = (time, frequency, 2, 2)
-    #     e_jones = da.concatenate(
-    #         [ds.lanes[0].fft0[:100, ...], ds.lanes[0].fft1[:100, ...]],
-    #         axis=-1
-    #     ).shape
-    #     xx = fft0[..., 0]
-    #     yy = fft1[..., 1]
-    #     xy = fft1[..., 0] - 1j*fft1[..., 1]
-    #     yx = fft1[..., 0] + 1j*fft1[..., 1]
+        import xarray as xr
 
+        log.info("Correcting the polarization...")
+
+        # Convert the jones matrices in Dask array
+        # Insert in a xarray object to take into the dimensions
+        jones_xarray = xr.DataArray(
+            da.from_array(jones_matrices_values),
+            dims=["time", "frequency", "jones_row", "jones_col"],
+            coords={
+                "time": jones_matrices_time_unix,
+                "frequency": jones_matrices_frequency_hz,
+            }
+        )
+
+        # Interpolate the jones matrices at the same sampling as
+        # the original data without doing the computation (Dask)
+        jones_xarray_interpolated = jones_xarray.interp(
+            {
+                "time": self.time_unix,
+                "frequency": self.frequency_hz
+            }
+        )
+
+        # This will need to be (inversely?) multiplied to the data # TODO test the correct operation
+        self.data *= jones_xarray_interpolated
 # ============================================================= #
 
 
@@ -918,6 +926,7 @@ class Dynspec(object):
         self.rebin_dt = None
         self.rebin_df = None
         self.jump_correction = False
+        self.dreambeam_inputs = (None, None, None)
         self.bp_correction = 'none'
         self.edge_channels_to_remove = 0
         self.freq_flat = False
@@ -1259,6 +1268,26 @@ class Dynspec(object):
 
 
     @property
+    def dreambeam_inputs(self) -> tuple:
+        """ DreamBeam inputs, if different than (None, None, None)
+            the calibration will be applied to the data at the Lane level.
+        """
+        return self._dreambeam_inputs
+    @dreambeam_inputs.setter
+    def dreambeam_inputs(self, inputs: tuple) -> None:
+        if len(inputs) != 3:
+            raise IndexError("dreambeam_inputs should be a length-3 tuple")
+        time, frequency, jones = inputs
+        if jones.shape != (time.size, frequency.size, 2, 2):
+            raise Exception("Incoherent sizes (dreambeam inputs).")
+        if isinstance(time, Time):
+            time = time.unix
+        if isinstance(frequency, u.Quantity):
+            frequency = frequency.to(u.Hz).value
+        self._dreambeam_inputs = (time, frequency, jones)
+
+
+    @property
     def edge_channels_to_remove(self) -> int:
         """ Number of channels to remove at each subband edge.
             Generally, the 2 extreme channels are not taken into account.
@@ -1489,6 +1518,9 @@ class Dynspec(object):
         """
         for li in self.lanes:
             
+            # Correct the polarization before calling for a specific Stokes parameter
+            li._polarization_correction(*self.dreambeam_inputs)
+
             results = self._select_data(lane=li, stokes=stokes)
             if results is None:
                 # No data selected
@@ -1707,12 +1739,6 @@ class Dynspec(object):
             tmin_idx:tmax_idx,
             fmin_idx:fmax_idx
         ]
-
-        # Bandpass correction
-        data = self._bp_correct(
-            data=data,
-            n_channels=lane.n_channels
-        )
 
         selfreqs = lane.frequency_hz[beam_start:beam_stop][fmin_idx:fmax_idx].compute()*u.Hz
         seltimes = lane.time_unix[tmin_idx:tmax_idx]

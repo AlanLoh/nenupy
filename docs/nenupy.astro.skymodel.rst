@@ -1,5 +1,5 @@
- nenupy.astro.skymodel
-======================
+nenupy.astro.skymodel
+=====================
 
 .. automodule:: nenupy.astro.skymodel
    :members:

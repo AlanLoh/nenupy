@@ -1,5 +1,5 @@
- nenupy.instru.instrument\_tools
-================================
+nenupy.instru.instrument\_tools
+===============================
 
 .. automodule:: nenupy.instru.instrument_tools
    :members:

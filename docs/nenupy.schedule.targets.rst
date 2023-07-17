@@ -1,5 +1,5 @@
- nenupy.schedule.targets
-========================
+nenupy.schedule.targets
+=======================
 
 .. automodule:: nenupy.schedule.targets
    :members:

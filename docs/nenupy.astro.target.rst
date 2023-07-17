@@ -1,5 +1,5 @@
- nenupy.astro.target
-====================
+nenupy.astro.target
+===================
 
 .. automodule:: nenupy.astro.target
    :members:

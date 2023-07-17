@@ -1,5 +1,5 @@
- nenupy.io.sst
-==============
+nenupy.io.sst
+=============
 
 .. automodule:: nenupy.io.sst
    :members:

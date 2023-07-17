@@ -1,5 +1,5 @@
- nenupy.schedule.geneticalgo
-============================
+nenupy.schedule.geneticalgo
+===========================
 
 .. automodule:: nenupy.schedule.geneticalgo
    :members:

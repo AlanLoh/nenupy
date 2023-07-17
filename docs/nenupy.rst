@@ -12,14 +12,12 @@ Subpackages
    nenupy.io
    nenupy.observation
    nenupy.schedule
-   nenupy.skymodel
    nenupy.undysputed
 
 
 
 .. toctree::
 
-   nenupy.base
    nenupy.miscellaneous
 
 

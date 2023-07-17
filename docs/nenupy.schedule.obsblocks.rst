@@ -1,5 +1,5 @@
- nenupy.schedule.obsblocks
-==========================
+nenupy.schedule.obsblocks
+=========================
 
 .. automodule:: nenupy.schedule.obsblocks
    :members:

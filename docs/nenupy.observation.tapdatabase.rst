@@ -1,5 +1,5 @@
- nenupy.observation.tapdatabase
-===============================
+nenupy.observation.tapdatabase
+==============================
 
 .. automodule:: nenupy.observation.tapdatabase
    :members:

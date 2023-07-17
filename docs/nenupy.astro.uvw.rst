@@ -1,5 +1,5 @@
- nenupy.astro.uvw
-=================
+nenupy.astro.uvw
+================
 
 .. automodule:: nenupy.astro.uvw
    :members:

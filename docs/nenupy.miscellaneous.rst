@@ -1,5 +1,5 @@
- nenupy.miscellaneous
-=====================
+nenupy.miscellaneous
+====================
 
 .. automodule:: nenupy.miscellaneous
    :members:

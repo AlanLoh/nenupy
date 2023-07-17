@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.abspath('.'))
 # -- Project information -----------------------------------------------------
 from nenupy import __version__
 project = 'nenupy'
-copyright = '2021, Alan Loh'
+copyright = '2023, Alan Loh'
 author = 'Alan Loh'
 version = __version__ 
 

@@ -1,7 +1,7 @@
 .. _instru_tools_doc:
 
 Instrument Tools
-===============
+================
 
 .. autosummary::
 

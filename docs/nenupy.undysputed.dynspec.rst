@@ -1,5 +1,5 @@
- nenupy.undysputed.dynspec
-==========================
+nenupy.undysputed.dynspec
+=========================
 
 .. automodule:: nenupy.undysputed.dynspec
    :members:

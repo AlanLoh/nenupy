@@ -16,7 +16,7 @@ Nonetheless, bright radio sources could still fall within the NenuFAR grating lo
 This results in specific artefacts such as time-frequency 'granularities' seen in dynamic spectra obtained from beamforming observations or causes visibilities mixing for imaging observations.
 
 :ref:`Predicting <predicting_contamination_sec>` such contamination may be helpful while scheduling NenuFAR observations.
-Alternatively, *a posteriori* :ref:`identification <contamination_identification_sec>`` of artefacts origin may ease scientific analysis.
+Alternatively, *a posteriori* :ref:`identification <contamination_identification_sec>` of artefacts origin may ease scientific analysis.
 The module :mod:`nenupy.schedule.contamination` aims at addressing both issues.
 
 For the following examples illustrated in this page, a few packages should be loaded: 

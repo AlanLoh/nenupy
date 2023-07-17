@@ -1,5 +1,5 @@
- nenupy.instru.interferometer
-=============================
+nenupy.instru.interferometer
+============================
 
 .. automodule:: nenupy.instru.interferometer
    :members:

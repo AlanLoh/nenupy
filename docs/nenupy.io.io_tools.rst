@@ -1,5 +1,5 @@
- nenupy.io.io\_tools
-====================
+nenupy.io.io\_tools
+===================
 
 .. automodule:: nenupy.io.io_tools
    :members:
