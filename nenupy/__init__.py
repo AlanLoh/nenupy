@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 __author__ = 'Alan Loh'
-__copyright__ = 'Copyright 2021, nenupy'
+__copyright__ = 'Copyright 2023, nenupy'
 __credits__ = ['Alan Loh']
 __license__ = 'MIT'
-__version__ = '2.3.6'
+__version__ = '2.3.7'
 __maintainer__ = 'Alan Loh'
 __email__ = 'alan.loh@obspm.fr'
 
@@ -132,15 +132,15 @@ class LogMethodMetaClass(type):
         return type.__new__(cls, name, bases, local)
 
     """
-    or add this to the class
-        def __new__(cls, *args, **kwargs):
-            instance = super().__new__(cls)
-            local = cls.__dict__#.items()
-            
-            for attr in cls.__dict__:
-                if callable(getattr(cls, attr)) and not attr.startswith("_"):
-                    setattr(cls, attr, logdebug(getattr(cls, attr)))
-            return instance
+        or add this to the class
+            def __new__(cls, *args, **kwargs):
+                instance = super().__new__(cls)
+                local = cls.__dict__#.items()
+                
+                for attr in cls.__dict__:
+                    if callable(getattr(cls, attr)) and not attr.startswith("_"):
+                        setattr(cls, attr, logdebug(getattr(cls, attr)))
+                return instance
     """
 # ============================================================= #
 # ============================================================= #

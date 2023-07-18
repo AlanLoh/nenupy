@@ -22,7 +22,9 @@ __all__ = [
 
 from astropy.time import Time
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 import numpy as np
+from typing import Union
 
 from nenupy.astro.astro_tools import SolarSystemSource
 from nenupy.astro.target import FixedTarget, SolarSystemTarget
@@ -33,8 +35,8 @@ from nenupy.instru import MiniArray
 # ---------------- Interferometer class errors ---------------- #
 # ============================================================= #
 def in_analog_beam_max_frequency(
-        source1: str,
-        source2: str,
+        source1: Union[str, SkyCoord],
+        source2: Union[str, SkyCoord],
         time: Time = Time.now(),
     ) -> u.Quantity:
     """ Given two sources at any time(s), computes the maximal
@@ -65,6 +67,8 @@ def in_analog_beam_max_frequency(
     """
 
     def _select_target_type(source_name):
+        if isinstance(source_name, SkyCoord):
+            return FixedTarget(source_name, time=time)
         # Check whether the source name matches a solar system object
         if source_name.upper() in SolarSystemSource._member_names_:
             return SolarSystemTarget.from_name(source_name, time=time)
