@@ -115,7 +115,7 @@ Finally, observations can then be simulated using the simulated beam and a sky m
    io/sst_reading
    io/bst_reading
    io/xst_reading
-   nenupy.undysputed
+   io/undysputed_reading
 
 .. _data-analysis:
 
