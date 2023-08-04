@@ -3,7 +3,7 @@
 UnDySPuTeD Time-Frequency Data
 ==============================
 
-:mod:`~nenupy.undysputed.Dynspec` is the module designed to
+:mod:`~nenupy.undysputed.dynspec.Dynspec` is the module designed to
 read and analyze *UnDySPuTeD* DynSpec high-rate data. It
 benefits from `Dask <https://docs.dask.org/en/latest/>`_, with
 the possibility of reading and applying complex pipelines
@@ -91,8 +91,8 @@ in order to create ``ds``, an instance of
     and then filling in :attr:`~nenupy.undysputed.dynspec.Dynspec.lanefiles`
     with ``dynspec_files``.
 
-Observation properties
-----------------------
+Access to observation properties
+--------------------------------
 
 Once the two *DynSpec* files 'lazy'-read/loaded (i.e., without
 being directly stored in memory), and before any data
@@ -167,8 +167,8 @@ array([0])
 to help selecting available beam indices. On the current example,
 only one beam has been recorded, hence the single index ``0``.
 
-Data selection
---------------
+Configuring the data selection
+------------------------------
 
 >>> ds.time_range = [
         '2020-02-14T09:08:55.0000000',
@@ -255,7 +255,7 @@ value other than ``None`` input to the
 :attr:`~nenupy.undysputed.dynspec.Dynspec.dispersion_measure` attribute
 triggers the de-dispersion process of the dynamic spectrum by
 correcting the data for frequency-dependent pulse delay
-(see :func:`~nenupy.astro.astro.dispersion_delay`).
+(see :func:`~nenupy.astro.astro_tools.dispersion_delay`).
 
 >>> ds.dispersion_measure = 12.4 * u.pc / (u.cm**3)
 

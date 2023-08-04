@@ -3,9 +3,9 @@
 
 
 """
-    ********
-    BST file
-    ********
+    *********************
+    Statistics file tools
+    *********************
 """
 
 
@@ -65,7 +65,16 @@ class StatisticsData(ABC):
 
         self._meta_data = {}
         self._lazy_load()
-    
+
+
+    @property
+    def frequencies(self) -> u.Quantity:
+        """Returns the mid frequency of the recorded subbands."""
+        return self._frequencies
+    @frequencies.setter
+    def frequencies(self, freqs: u.Quantity) -> None:
+        self._frequencies = freqs
+
 
     def _lazy_load(self):
         """ """
