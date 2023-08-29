@@ -379,150 +379,150 @@ class _Lane:
         )
         return da.stack([row1, row2], axis=-1)
 
-    def _polarization_correction(
-        self,
-        jones_matrices_time_unix: np.ndarray = None,
-        jones_matrices_frequency_hz: np.ndarray = None,
-        jones_matrices_values: np.ndarray = None,
-    ) -> None:
-        """
-        from nenupy.astro.beam_correction import compute_jones_matrices
-        time, frequency, jones = compute_jones_matrices(
-            start_time=Time("2023-07-14 12:00:00"),
-            time_step=TimeDelta(60, format="sec"),
-            duration=TimeDelta(3600, format="sec"),
-            skycoord=SkyCoord.from_name("Cas A"),
-            parallactic=True
-        )
-        ds = Dynspec(...)
-        ds.dreambeam_inputs=(time.unix, frequency.to(u.Hz).value, jones)
-        """
+    # def _polarization_correction(
+    #     self,
+    #     jones_matrices_time_unix: np.ndarray = None,
+    #     jones_matrices_frequency_hz: np.ndarray = None,
+    #     jones_matrices_values: np.ndarray = None,
+    # ) -> None:
+    #     """
+    #     from nenupy.astro.beam_correction import compute_jones_matrices
+    #     time, frequency, jones = compute_jones_matrices(
+    #         start_time=Time("2023-07-14 12:00:00"),
+    #         time_step=TimeDelta(60, format="sec"),
+    #         duration=TimeDelta(3600, format="sec"),
+    #         skycoord=SkyCoord.from_name("Cas A"),
+    #         parallactic=True
+    #     )
+    #     ds = Dynspec(...)
+    #     ds.dreambeam_inputs=(time.unix, frequency.to(u.Hz).value, jones)
+    #     """
 
-        if (
-            (jones_matrices_time_unix is None)
-            or (jones_matrices_frequency_hz is None)
-            or (jones_matrices_values is None)
-        ):
-            # Nothing to be done.
-            return
+    #     if (
+    #         (jones_matrices_time_unix is None)
+    #         or (jones_matrices_frequency_hz is None)
+    #         or (jones_matrices_values is None)
+    #     ):
+    #         # Nothing to be done.
+    #         return
 
-        log.info("Correcting the polarization...")
+    #     log.info("Correcting the polarization...")
 
-        # Check that the time and frequency arrays are sorted
-        if not (np.diff(jones_matrices_time_unix) >= 0).all():
-            raise ValueError("The time array is not sorted.")
-        if not (np.diff(jones_matrices_frequency_hz) >= 0).all():
-            raise ValueError("The frequency array is not sorted.")
+    #     # Check that the time and frequency arrays are sorted
+    #     if not (np.diff(jones_matrices_time_unix) >= 0).all():
+    #         raise ValueError("The time array is not sorted.")
+    #     if not (np.diff(jones_matrices_frequency_hz) >= 0).all():
+    #         raise ValueError("The frequency array is not sorted.")
 
-        # Build d Dask array from Jones matrices that is the same size as the data
-        def prepare_intervals(data_array, thresholds):
-            """Generate the half-steps, i.e. a jones matrix at a given timestamp
-            will be valid down to and up to the mid range between this timstamp
-            and the previous/next one.
-            """
-            intervals = (thresholds[:-1] + np.diff(thresholds)/2)
-            if data_array[0] < thresholds[0]:
-                intervals = np.insert(intervals, 0, data_array[0], 0)
-            else:
-                intervals = np.insert(intervals, 0, thresholds[0], 0)
-            if data_array[-1] > thresholds[-1]:
-                intervals = np.append(intervals, data_array[-1] + 0.1) # 0.1 = fill value for < to work
-            else:
-                intervals = np.append(intervals, thresholds[-1])
-            return intervals
+    #     # Build d Dask array from Jones matrices that is the same size as the data
+    #     def prepare_intervals(data_array, thresholds):
+    #         """Generate the half-steps, i.e. a jones matrix at a given timestamp
+    #         will be valid down to and up to the mid range between this timstamp
+    #         and the previous/next one.
+    #         """
+    #         intervals = (thresholds[:-1] + np.diff(thresholds)/2)
+    #         if data_array[0] < thresholds[0]:
+    #             intervals = np.insert(intervals, 0, data_array[0], 0)
+    #         else:
+    #             intervals = np.insert(intervals, 0, thresholds[0], 0)
+    #         if data_array[-1] > thresholds[-1]:
+    #             intervals = np.append(intervals, data_array[-1] + 0.1) # 0.1 = fill value for < to work
+    #         else:
+    #             intervals = np.append(intervals, thresholds[-1])
+    #         return intervals
         
-        data_time = self.time_unix.compute()
-        data_frequency = self.frequency_hz.compute()
+    #     data_time = self.time_unix.compute()
+    #     data_frequency = self.frequency_hz.compute()
         
-        time_intervals = prepare_intervals(data_time, jones_matrices_time_unix)
-        frequency_intervals = prepare_intervals(data_frequency, jones_matrices_frequency_hz)
+    #     time_intervals = prepare_intervals(data_time, jones_matrices_time_unix)
+    #     frequency_intervals = prepare_intervals(data_frequency, jones_matrices_frequency_hz)
         
-        for i in range(time_intervals.size - 1):
-            time_mask = (data_time >= time_intervals[i]) & (data_time < time_intervals[i+1])
-            if time_mask.sum() == 0:
-                continue
-            time_win_start, time_win_stop = np.argmax(time_mask), time_mask.size - np.argmax(time_mask[::-1])
-            for j in range(frequency_intervals.size - 1):
-                frequency_mask = (data_frequency >= frequency_intervals[j]) & (data_frequency < frequency_intervals[j+1])
-                if frequency_mask.sum() == 0:
-                    continue
-                freq_win_start, freq_win_stop = np.argmax(frequency_mask), frequency_mask.size - np.argmax(frequency_mask[::-1])
-                self.data[time_win_start:time_win_stop, freq_win_start:freq_win_stop, :, :] *= jones_matrices_values[i, j, :, :][None, None, :, :]
+    #     for i in range(time_intervals.size - 1):
+    #         time_mask = (data_time >= time_intervals[i]) & (data_time < time_intervals[i+1])
+    #         if time_mask.sum() == 0:
+    #             continue
+    #         time_win_start, time_win_stop = np.argmax(time_mask), time_mask.size - np.argmax(time_mask[::-1])
+    #         for j in range(frequency_intervals.size - 1):
+    #             frequency_mask = (data_frequency >= frequency_intervals[j]) & (data_frequency < frequency_intervals[j+1])
+    #             if frequency_mask.sum() == 0:
+    #                 continue
+    #             freq_win_start, freq_win_stop = np.argmax(frequency_mask), frequency_mask.size - np.argmax(frequency_mask[::-1])
+    #             self.data[time_win_start:time_win_stop, freq_win_start:freq_win_stop, :, :] *= jones_matrices_values[i, j, :, :][None, None, :, :]
 
 
-        # log.info(f"{time_intervals.compute()}")
-        # log.info(f"{frequency_intervals}")
-            # for i in range(intervals.size - 1):
-            #     mask = (data_array >= intervals[i]) & (data_array < intervals[i+1])
-            #     if mask.sum() == 0:
-            #         continue
-            #     self.data[mask, :, :, :] *= jones_matrices_values[i, :]
+    #     # log.info(f"{time_intervals.compute()}")
+    #     # log.info(f"{frequency_intervals}")
+    #         # for i in range(intervals.size - 1):
+    #         #     mask = (data_array >= intervals[i]) & (data_array < intervals[i+1])
+    #         #     if mask.sum() == 0:
+    #         #         continue
+    #         #     self.data[mask, :, :, :] *= jones_matrices_values[i, :]
             
-            # return np.array( 
-            #     [((data_array >= intervals[i]) & (data_array < intervals[i+1])).sum() for i in range(intervals.size - 1)],
-            #     dtype=int
-            # )
+    #         # return np.array( 
+    #         #     [((data_array >= intervals[i]) & (data_array < intervals[i+1])).sum() for i in range(intervals.size - 1)],
+    #         #     dtype=int
+    #         # )
 
-        # # Build d Dask array from Jones matrices that is the same size as the data
-        # def compute_repetitions(data_array, thresholds):
-        #     """Generate the half-steps, i.e. a jones matrix at a given timestamp
-        #     will be valid down to and up to the mid range between this timstamp
-        #     and the previous/next one.
-        #     """
-        #     intervals = (thresholds[:-1] + np.diff(thresholds)/2)
-        #     if data_array[0] < thresholds[0]:
-        #         intervals = np.insert(intervals, 0, data_array[0], 0)
-        #     else:
-        #         intervals = np.insert(intervals, 0, thresholds[0], 0)
-        #     if data_array[-1] > thresholds[-1]:
-        #         intervals = np.append(intervals, data_array[-1] + 0.1) # 0.1 = fill value for < to work
-        #     else:
-        #         intervals = np.append(intervals, thresholds[-1])
-        #     return np.array( 
-        #         [((data_array >= intervals[i]) & (data_array < intervals[i+1])).sum() for i in range(intervals.size - 1)],
-        #         dtype=int
-        #     )
-        # time_repeats = compute_repetitions(self.time_unix, jones_matrices_time_unix)
-        # frequency_repeats = compute_repetitions(self.frequency_hz.compute(), jones_matrices_frequency_hz)
-        # log.info(f"{time_repeats}")
-        # log.info(f"{frequency_repeats}")
-        # # Dask NotImplementedError:
-        # # jones_matrices = da.repeat(jones_matrices_values, time_repeats.astype(int), axis=0)
-        # # jones_matrices = da.repeat(jones_matrices, frequency_repeats.astype(int), axis=1)
-        # #jones_matrices = [da.repeat(jones_matrices_values[i, ...], rep, axis=0) for i, rep in enumerate(time_repeats)]#da.concatenate([da.repeat(jones_matrices_values[i, ...], rep, axis=0) for i, rep in enumerate(time_repeats)], axis=0)
-        # log.info(f"jones previous {jones_matrices_values.shape}")
-        # jones_matrices = da.concatenate([da.tile(jones_matrices_values[i, ...], (rep, 1, 1, 1)) for i, rep in enumerate(time_repeats)])
-        # jones_matrices = da.concatenate([da.tile(jones_matrices[:, i, ...], (1, rep, 1, 1)) for i, rep in enumerate(frequency_repeats)])
+    #     # # Build d Dask array from Jones matrices that is the same size as the data
+    #     # def compute_repetitions(data_array, thresholds):
+    #     #     """Generate the half-steps, i.e. a jones matrix at a given timestamp
+    #     #     will be valid down to and up to the mid range between this timstamp
+    #     #     and the previous/next one.
+    #     #     """
+    #     #     intervals = (thresholds[:-1] + np.diff(thresholds)/2)
+    #     #     if data_array[0] < thresholds[0]:
+    #     #         intervals = np.insert(intervals, 0, data_array[0], 0)
+    #     #     else:
+    #     #         intervals = np.insert(intervals, 0, thresholds[0], 0)
+    #     #     if data_array[-1] > thresholds[-1]:
+    #     #         intervals = np.append(intervals, data_array[-1] + 0.1) # 0.1 = fill value for < to work
+    #     #     else:
+    #     #         intervals = np.append(intervals, thresholds[-1])
+    #     #     return np.array( 
+    #     #         [((data_array >= intervals[i]) & (data_array < intervals[i+1])).sum() for i in range(intervals.size - 1)],
+    #     #         dtype=int
+    #     #     )
+    #     # time_repeats = compute_repetitions(self.time_unix, jones_matrices_time_unix)
+    #     # frequency_repeats = compute_repetitions(self.frequency_hz.compute(), jones_matrices_frequency_hz)
+    #     # log.info(f"{time_repeats}")
+    #     # log.info(f"{frequency_repeats}")
+    #     # # Dask NotImplementedError:
+    #     # # jones_matrices = da.repeat(jones_matrices_values, time_repeats.astype(int), axis=0)
+    #     # # jones_matrices = da.repeat(jones_matrices, frequency_repeats.astype(int), axis=1)
+    #     # #jones_matrices = [da.repeat(jones_matrices_values[i, ...], rep, axis=0) for i, rep in enumerate(time_repeats)]#da.concatenate([da.repeat(jones_matrices_values[i, ...], rep, axis=0) for i, rep in enumerate(time_repeats)], axis=0)
+    #     # log.info(f"jones previous {jones_matrices_values.shape}")
+    #     # jones_matrices = da.concatenate([da.tile(jones_matrices_values[i, ...], (rep, 1, 1, 1)) for i, rep in enumerate(time_repeats)])
+    #     # jones_matrices = da.concatenate([da.tile(jones_matrices[:, i, ...], (1, rep, 1, 1)) for i, rep in enumerate(frequency_repeats)])
 
-        # log.info(f"jones matrices : {jones_matrices.shape}")
+    #     # log.info(f"jones matrices : {jones_matrices.shape}")
 
-        # self.data *= jones_matrices
+    #     # self.data *= jones_matrices
 
-        # import xarray as xr
+    #     # import xarray as xr
 
-        # # Convert the jones matrices in Dask array
-        # # Insert in a xarray object to take into the dimensions
-        # jones_xarray = xr.DataArray(
-        #     da.from_array(jones_matrices_values),
-        #     dims=["time", "frequency", "jones_row", "jones_col"],
-        #     coords={
-        #         "time": jones_matrices_time_unix,
-        #         "frequency": jones_matrices_frequency_hz,
-        #     }
-        # )
-        # log.info("Jones interpolated")
+    #     # # Convert the jones matrices in Dask array
+    #     # # Insert in a xarray object to take into the dimensions
+    #     # jones_xarray = xr.DataArray(
+    #     #     da.from_array(jones_matrices_values),
+    #     #     dims=["time", "frequency", "jones_row", "jones_col"],
+    #     #     coords={
+    #     #         "time": jones_matrices_time_unix,
+    #     #         "frequency": jones_matrices_frequency_hz,
+    #     #     }
+    #     # )
+    #     # log.info("Jones interpolated")
 
-        # # Interpolate the jones matrices at the same sampling as
-        # # the original data without doing the computation (Dask)
-        # jones_xarray_interpolated = jones_xarray.interp(
-        #     {
-        #         "time": self.time_unix,
-        #         "frequency": self.frequency_hz
-        #     }
-        # ) # THIS TAKES TOO MUCH TIME SINCE SCIPY IS COMPUTING THE INTERP
+    #     # # Interpolate the jones matrices at the same sampling as
+    #     # # the original data without doing the computation (Dask)
+    #     # jones_xarray_interpolated = jones_xarray.interp(
+    #     #     {
+    #     #         "time": self.time_unix,
+    #     #         "frequency": self.frequency_hz
+    #     #     }
+    #     # ) # THIS TAKES TOO MUCH TIME SINCE SCIPY IS COMPUTING THE INTERP
 
-        # This will need to be (inversely?) multiplied to the data # TODO test the correct operation
-        # self.data *= jones_xarray_interpolated
+    #     # This will need to be (inversely?) multiplied to the data # TODO test the correct operation
+    #     # self.data *= jones_xarray_interpolated
 
 
 # ============================================================= #
@@ -1309,7 +1309,7 @@ class Dynspec(object):
             or (jones_matrices_values is None)
         ):
             # Nothing to be done.
-            return
+            return data
 
         log.info("Correcting the polarization...")
 
@@ -1335,10 +1335,10 @@ class Dynspec(object):
             else:
                 intervals = np.append(intervals, thresholds[-1])
             return intervals
-        
+
         time_intervals = prepare_intervals(data_time, jones_matrices_time_unix)
         frequency_intervals = prepare_intervals(data_frequency, jones_matrices_frequency_hz)
-        
+
         for i in range(time_intervals.size - 1):
             time_mask = (data_time >= time_intervals[i]) & (data_time < time_intervals[i+1])
             if time_mask.sum() == 0:
