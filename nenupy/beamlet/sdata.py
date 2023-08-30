@@ -252,15 +252,17 @@ class SData(object):
         if isinstance(other, SData):
             self._check_conformity(other)
             add = other.data
+            new_polar = self.polar + other.polar
         else:
             self._check_value(other)
-            add = other 
+            add = other
+            new_polar = self.polar
 
         return SData(
             data=self.data + add,
             time=self.time,
             freq=self.freq,
-            polar=self.polar
+            polar=new_polar
         )
 
 
@@ -270,15 +272,17 @@ class SData(object):
         if isinstance(other, SData):
             self._check_conformity(other)
             sub = other.data
+            new_polar = self.polar - other.polar
         else:
             self._check_value(other)
-            sub = other 
+            sub = other
+            new_polar = self.polar
 
         return SData(
             data=self.data - sub,
             time=self.time,
             freq=self.freq,
-            polar=self.polar
+            polar=new_polar
         )
 
 
@@ -288,15 +292,17 @@ class SData(object):
         if isinstance(other, SData):
             self._check_conformity(other)
             mul = other.data
+            new_polar = self.polar * other.polar
         else:
             self._check_value(other)
-            mul = other 
+            mul = other
+            new_polar = self.polar
 
         return SData(
             data=self.data * mul,
             time=self.time,
             freq=self.freq,
-            polar=self.polar
+            polar=new_polar
         )
 
 
@@ -306,15 +312,17 @@ class SData(object):
         if isinstance(other, SData):
             self._check_conformity(other)
             div = other.data
+            new_polar = self.polar / other.polar
         else:
             self._check_value(other)
-            div = other 
+            div = other
+            new_polar = self.polar
 
         return SData(
             data=self.data / div,
             time=self.time,
             freq=self.freq,
-            polar=self.polar
+            polar=new_polar
         )
 
 
@@ -327,11 +335,11 @@ class SData(object):
     def data(self, d):
         ts, fs, ps = d.shape
         assert self.time.size == ts,\
-            'time axis inconsistent'
+            f'time axis inconsistent ({self.time.size} instead of {ts})'
         assert self.freq.size == fs,\
-            'frequency axis inconsistent'
+            f'frequency axis inconsistent ({self.freq.size} instead of {fs})'
         assert self.polar.size == ps,\
-            'polar axis inconsistent'
+            f'polar axis inconsistent ({self.polar.size} instead of {ps})'
         self._data = d
         return
 
@@ -360,15 +368,25 @@ class SData(object):
 
     @property
     def polar(self):
+        """Returns a list of polarizations"""
         return self._polar
     @polar.setter
-    def polar(self, p):
-        if isinstance(p, list):
-            p = np.array(p)
-        if np.isscalar(p):
-            p = np.array([p])
+    def polar(self, p) -> None:
+        """Transforms the polarization in units."""
+        # if isinstance(p, list):
+        #     p = np.array(p)
+        # if np.isscalar(p):
+        #     p = np.array([p])
+        if isinstance(p, (np.ndarray, list)):
+            p = np.array([u.def_unit(pol) if (not isinstance(pol, u.UnitBase)) else pol for pol in p])
+        elif np.isscalar(p):
+            if isinstance(p, u.UnitBase):
+                p = np.array([p])
+            else:
+                p = np.array([u.def_unit(p)])            
+        else:
+            raise TypeError("Unexpected polar type.")
         self._polar = p
-        return
 
 
     @property
@@ -524,9 +542,9 @@ class SData(object):
             pol_idx = 0
         else:
             try:
-                pol_idx = np.argwhere(self.polar == polarization)[0, 0]
+                pol_idx = np.argwhere(np.array(list(map(str, self.polar))) == polarization)[0, 0]
             except IndexError:
-                print(f"Warning, no '{polarization}' polarization recorded.")
+                print(f"Warning, no '{polarization}' polarization recorded (selec from {self.polar}).")
                 pol_idx = 0
 
         dynspec = 10*np.log10(self.data[..., pol_idx]).T if db else self.data[..., pol_idx].T
@@ -535,7 +553,7 @@ class SData(object):
         if 'cmap' not in kwargs.keys():
             kwargs['cmap'] = 'YlGnBu_r'
         if 'title' not in kwargs.keys():
-            kwargs['title'] = self.polar[pol_idx]
+            kwargs['title'] = str(self.polar[pol_idx])
         if 'cblabel' not in kwargs.keys():
             kwargs['cblabel'] = 'dB' if db else 'Amplitude' 
         if 'figsize' not in kwargs.keys():
@@ -651,10 +669,10 @@ class SData(object):
         """ Checks that other if of same type, same time, 
             frequency ans Stokes parameters than self
         """
-        if self.polar != other.polar:
-            raise ValueError(
-                'Different polarization parameters'
-                )
+        # if self.polar != other.polar:
+        #     raise ValueError(
+        #         'Different polarization parameters'
+        #         )
 
         if self.data.shape != other.data.shape:
             raise ValueError(
