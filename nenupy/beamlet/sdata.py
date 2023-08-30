@@ -187,7 +187,7 @@ class SData(object):
             raise TypeError(
                 'Trying to concatenate something else than SData'
                 )
-        if self.polar != other.polar:
+        if list(map(str, self.polar)) != list(map(str, other.polar)):
             raise ValueError(
                 'Inconsistent polar parameters'
                 )
@@ -220,7 +220,7 @@ class SData(object):
             raise TypeError(
                 'Trying to concatenate something else than SData'
                 )
-        if self.polar != other.polar:
+        if list(map(str, self.polar)) != list(map(str, other.polar)):
             raise ValueError(
                 'Inconsistent polar parameters'
                 )
@@ -252,17 +252,17 @@ class SData(object):
         if isinstance(other, SData):
             self._check_conformity(other)
             add = other.data
-            new_polar = self.polar + other.polar
+            if list(map(str, self.polar)) != list(map(str, other.polar)):
+                raise ValueError(f"Polarization inconsistent {self.polar} vs {other.polar}")
         else:
             self._check_value(other)
             add = other
-            new_polar = self.polar
 
         return SData(
             data=self.data + add,
             time=self.time,
             freq=self.freq,
-            polar=new_polar
+            polar=self.polar
         )
 
 
@@ -272,17 +272,17 @@ class SData(object):
         if isinstance(other, SData):
             self._check_conformity(other)
             sub = other.data
-            new_polar = self.polar - other.polar
+            if list(map(str, self.polar)) != list(map(str, other.polar)):
+                raise ValueError(f"Polarization inconsistent {self.polar} vs {other.polar}")
         else:
             self._check_value(other)
             sub = other
-            new_polar = self.polar
 
         return SData(
             data=self.data - sub,
             time=self.time,
             freq=self.freq,
-            polar=new_polar
+            polar=self.polar
         )
 
 
