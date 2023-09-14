@@ -871,9 +871,16 @@ class Dynspec(object):
         if len(inputs) != 3:
             raise IndexError("dreambeam_inputs should be a length-3 tuple")
         time, frequency, jones = inputs
+        jones = np.swapaxes(jones, 0, 1) # invert time and frequency
         if jones.shape != (time.size, frequency.size, 2, 2):
             raise Exception("Incoherent sizes (dreambeam inputs).")
         if isinstance(time, Time):
+            dt_str = str(self.dt.value)
+            step_str = str((time[1] - time[0]).sec)
+            import decimal
+            decimal.getcontext().prec = min((len(dt_str.split(".")[1]), len(step_str.split(".")[1])))
+            if decimal.Decimal(step_str) % decimal.Decimal(dt_str) > decimal.Decimal(f"1e-{decimal.getcontext().prec}"):
+                raise ValueError(f"The time step should be a multiple of dt={self.dt}.")
             time = time.unix
         if isinstance(frequency, u.Quantity):
             frequency = frequency.to(u.Hz).value
@@ -1283,11 +1290,92 @@ class Dynspec(object):
                 result = da.concatenate([result, data_i[..., None]], axis=-1)
         return result
 
-    def _polarization_correction(
+
+    def _polarization_correction(self, data, data_time, data_frequency, n_chan):
+        """ """
+
+        jones_time_unix, jones_frequency_hz, jones_values = self.dreambeam_inputs
+
+        if (
+            (jones_time_unix is None)
+            or (jones_frequency_hz is None)
+            or (jones_values is None)
+        ):
+            # Nothing to be done.
+            return data
+
+        # Invert the matrix
+        jones_values_inverted = np.linalg.inv(jones_values)
+
+        # Jones matrices are at the subband resol and an arbitrary time resol
+        old_shape = data.shape
+        # time_steps = int((jones_time_unix[1] - jones_time_unix[0]) // self.dt.to(u.s).value) # should be integer
+        time_steps = int(np.round((jones_time_unix[1] - jones_time_unix[0])/self.dt.to(u.s).value))
+        remaining_tsteps = old_shape[0]%time_steps
+
+        data_leftover = data[-remaining_tsteps:, ...].reshape(
+            (
+                remaining_tsteps,
+                int(old_shape[1]/n_chan),
+                n_chan,
+                2, 2
+            )
+        )
+        data = data[:-remaining_tsteps, ...].reshape(
+            (
+                int((old_shape[0] - remaining_tsteps)/time_steps),
+                time_steps,
+                int(old_shape[1]/n_chan),
+                n_chan,
+                2, 2
+            )
+        )
+
+        data_sb_start_freq = data_frequency.reshape((int(data_frequency.size/n_chan), n_chan))[:, 0]
+        freq_start = np.argmax(jones_frequency_hz >= data_sb_start_freq[0])
+        freq_stop = jones_frequency_hz.size - np.argmax(jones_frequency_hz[::-1] < data_sb_start_freq[-1])
+
+        data_block_time = data_time[:-remaining_tsteps].reshape((int(data_time[:-remaining_tsteps].size/time_steps), time_steps))[:, 0]
+        time_start = np.argmax(jones_time_unix >= data_block_time[0])
+        time_stop = jones_time_unix.size - np.argmax(jones_time_unix[::-1] < data_block_time[-1])
+
+        # jones_left_1 = jones_values[time_start:time_stop + 1, freq_start:freq_stop + 1, :, :][:, None, :, None, :, :]
+        jones_right_1 = jones_values_inverted[time_start:time_stop + 1, freq_start:freq_stop + 1, :, :][:, None, :, None, :, :]
+        # jones_left_2 = jones_values[-1, freq_start:freq_stop + 1, :, :][None, :, None, :, :]
+        jones_right_2 = jones_values_inverted[-1, freq_start:freq_stop + 1, :, :][None, :, None, :, :]
+
+        # jones_left_1_t = np.swapaxes(jones_left_1, -2, -1)
+        jones_right_1_t = np.swapaxes(jones_right_1, -2, -1)
+        # jones_left_2_t = np.swapaxes(jones_left_2, -2, -1)
+        jones_right_2_t = np.swapaxes(jones_right_2, -2, -1)
+
+        # jones_left_1_ht = np.conjugate(jones_left_1_t)
+        jones_right_1_ht = np.conjugate(jones_right_1_t)
+        # jones_left_2_ht = np.conjugate(jones_left_2_t)
+        jones_right_2_ht = np.conjugate(jones_right_2_t)
+
+        # This would raise an indexerror if jones_values are at smaller t/f range than data
+        return da.concatenate(
+            (
+                da.matmul(
+                    jones_right_1,
+                    da.matmul(data, jones_right_1_ht)
+                ).reshape(((old_shape[0]-remaining_tsteps,) + old_shape[1:])),#.reshape(old_shape)
+                da.matmul(
+                    jones_right_2,
+                    da.matmul(data_leftover, jones_right_2_ht)
+                ).reshape(((remaining_tsteps,) + old_shape[1:]))
+            ),
+            axis=0
+        )
+
+
+    def _polarization_correction2(
         self,
         data,
         data_time,
-        data_frequency
+        data_frequency,
+        n_chan
     ) -> da.Array:
         """
         from nenupy.astro.beam_correction import compute_jones_matrices
@@ -1325,32 +1413,44 @@ class Dynspec(object):
             will be valid down to and up to the mid range between this timstamp
             and the previous/next one.
             """
+            data_start = data_array[0] if isinstance(data_array, np.ndarray) else data_array[0].compute()
+            data_stop = data_array[-1] if isinstance(data_array, np.ndarray) else data_array[-1].compute()
             intervals = (thresholds[:-1] + np.diff(thresholds)/2)
-            if data_array[0] < thresholds[0]:
-                intervals = np.insert(intervals, 0, data_array[0], 0)
+            if data_start < thresholds[0]:
+                intervals = np.insert(intervals, 0, data_start, 0)
             else:
                 intervals = np.insert(intervals, 0, thresholds[0], 0)
-            if data_array[-1] > thresholds[-1]:
-                intervals = np.append(intervals, data_array[-1] + 0.1) # 0.1 = fill value for < to work
+            if data_stop > thresholds[-1]:
+                intervals = np.append(intervals, data_stop + 0.1) # 0.1 = fill value for < to work
             else:
                 intervals = np.append(intervals, thresholds[-1])
             return intervals
 
+        old_shape = data.shape
+        data = data.reshape((old_shape[0], int(old_shape[1]/n_chan), n_chan, 2, 2))
+        data_frequency = data_frequency.reshape(int(data_frequency.size/n_chan), n_chan)[:, 0]
+
+        log.info("Preparing time intervals...")
         time_intervals = prepare_intervals(data_time, jones_matrices_time_unix)
+        log.info("Preparing frequency intervals...")
         frequency_intervals = prepare_intervals(data_frequency, jones_matrices_frequency_hz)
 
-        for i in range(time_intervals.size - 1):
+        import tqdm
+
+        for i in tqdm.tqdm(range(time_intervals.size - 1), position=0, desc="time interval i:", leave=False, colour="green", ncols=80):
+        # for i in range(time_intervals.size - 1):
             time_mask = (data_time >= time_intervals[i]) & (data_time < time_intervals[i+1])
             if time_mask.sum() == 0:
                 continue
             time_win_start, time_win_stop = np.argmax(time_mask), time_mask.size - np.argmax(time_mask[::-1])
-            for j in range(frequency_intervals.size - 1):
+            for j in tqdm.tqdm(range(frequency_intervals.size - 1), position=1, desc="frequency interval j:", leave=False, colour="red", ncols=80):
+            # for j in range(frequency_intervals.size - 1):
                 frequency_mask = (data_frequency >= frequency_intervals[j]) & (data_frequency < frequency_intervals[j+1])
                 if frequency_mask.sum() == 0:
                     continue
                 freq_win_start, freq_win_stop = np.argmax(frequency_mask), frequency_mask.size - np.argmax(frequency_mask[::-1])
-                data[time_win_start:time_win_stop, freq_win_start:freq_win_stop, :, :] *= jones_matrices_values[i, j, :, :][None, None, :, :]
-        return data
+                data[time_win_start:time_win_stop, freq_win_start:freq_win_stop, :, :, :] *= jones_matrices_values[i, j, :, :][None, None, None, :, :]
+        return data.reshape(old_shape)
 
     def _select_data(self, lane: _Lane, stokes):
         """Select the data in time and frequency"""
@@ -1395,7 +1495,7 @@ class Dynspec(object):
         seltimes = lane.time_unix[tmin_idx:tmax_idx]
 
         data = lane.data[:, beam_start:beam_stop, ...][tmin_idx:tmax_idx, fmin_idx:fmax_idx, ...]
-        data = self._polarization_correction(data, seltimes, selfreqs)
+        data = self._polarization_correction(data, seltimes, selfreqs, lane.n_channels)
         data = self._compute_stokes(data, stokes=stokes)
 
         return selfreqs * u.Hz, seltimes, data
