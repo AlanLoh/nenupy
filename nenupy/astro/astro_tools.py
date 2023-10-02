@@ -30,7 +30,8 @@ __all__ = [
     "l93_to_geo",
     "geo_to_etrs",
     "etrs_to_enu",
-    "AstroObject"
+    "AstroObject",
+    "faraday_angle"
 ]
 
 
@@ -1173,5 +1174,39 @@ class AstroObject(ABC):
     # ----------------------- Internal ------------------------ #
 
 
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ----------------------- faraday_angle ----------------------- #
+# ============================================================= #
+@u.quantity_input
+def faraday_angle(frequency: u.Quantity[u.MHz], rotation_measure: u.Quantity[u.rad/u.m**2], inverse: bool = False):
+    """ Computes the Faraday rotation angle.
+
+        :param frequency:
+            Light frequency (in units equivalent to MHz).
+        :type frequency:
+            :class:`~astropy.units.Quantity`
+        :param rotation_measure:
+            Rotation measure (in units equivalent to rad/m2).
+        :type rotation_measure:
+            :class:`~astropy.units.Quantity`
+        :param inverse:
+            Compute the opposite angle, in order to correct the signal as seen from Earth.
+        :type inverse:
+            `bool`    
+
+        :returns:
+            Faraday rotation angle in radians. 
+        :rtype:
+            :class:`~astropy.units.Quantity`
+    """
+    wavelength = frequency.to(u.m, equivalencies=u.spectral())
+    angle = rotation_measure * wavelength**2
+    if inverse:
+        angle *= -1
+    return angle.decompose() % (2*np.pi)
 # ============================================================= #
 # ============================================================= #

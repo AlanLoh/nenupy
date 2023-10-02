@@ -60,7 +60,7 @@ from nenupy.astro.pointing import Pointing
 # ============================================================= #
 import healpy as hp
 #from scipy.interpolate import interp2d
-from scipy.interpolate import RegularGridInterpolator
+from scipy.interpolate import BarycentricInterpolator#RegularGridInterpolator
 import os
 from enum import Enum
 
@@ -98,10 +98,15 @@ class _AntennaGain:
         #     z=gain,
         #     kind='linear'
         # )
-        self.interpolated_gain = RegularGridInterpolator(
-            points=(freqs, self.healpix_coords),
-            values=gain,
-            method="linear"
+        # self.interpolated_gain = RegularGridInterpolator(
+        #     points=(freqs, self.healpix_coords),
+        #     values=gain,
+        #     method="linear"
+        # )
+        self.interpolated_gain = BarycentricInterpolator(
+            xi=freqs,
+            yi=gain,
+            axis=0
         )
 
         log.info(f'NenuFAR antenna model (polarization={polarization}) loaded.')
@@ -124,7 +129,8 @@ class _AntennaGain:
 
         # Find the interpolated gain at the desired frequency
         #gain = self.interpolated_gain(self.healpix_coords, freqs)
-        gain = self.interpolated_gain((freqs, self.healpix_coords))
+        #gain = self.interpolated_gain((freqs, self.healpix_coords))
+        gain = self.interpolated_gain(freqs)
         if gain.ndim == 1:
             gain = gain.reshape((1, gain.size))
 
@@ -140,8 +146,8 @@ class _AntennaGain:
         ])
 
         # Return something shaped as (time, freq, coord)
-        #return np.moveaxis(gain, 0, 1)
-        return gain.reshape((1,) + gain.shape)
+        return np.moveaxis(gain, 0, 1)
+        #return gain.reshape((1,) + gain.shape) # use with RegularGridInterpolator
 
 
 class Polarization(Enum):

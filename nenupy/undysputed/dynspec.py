@@ -549,6 +549,7 @@ class Dynspec(object):
         )
         self.beam = 0
         self.dispersion_measure = None
+        self.rotation_measure = None
         self.rebin_dt = None
         self.rebin_df = None
         self.jump_correction = False
@@ -765,6 +766,19 @@ class Dynspec(object):
             log.info(f"DM set to {dm}")
         self._dispersion_measure = dm
         return
+
+    @property
+    def rotation_measure(self) -> u.Quantity:
+        """ """
+        return self._rotation_measure
+
+    @u.quantity_input
+    @rotation_measure.setter
+    def rotation_measer(self, rm: u.Quantity[u.rad/u.m**2]) -> None:
+        if not (rm is None):
+            rm = rm.to(u.rad/u.m**2)
+            log.info(f"RM set to {rm}")
+            self._rotation_measure = rm
 
     @property
     def rebin_dt(self):
@@ -1291,6 +1305,31 @@ class Dynspec(object):
         return result
 
 
+    def _faraday_derotation(self, data: da.Array, frequency: u.Quantity) -> da.Array:
+        """ """
+        if self.rotation_measure is None:
+            # No RM correction to be applied.
+            return data
+
+        from nenupy.astro.astro_tools import faraday_angle
+        # rotation_factor = - RM * 89875.51787368176
+        # rotation_angle = rotation_factor * (1.0 / (np.mean(freq)**2) - 1.0 / (freq**2))
+        log.info("Computing Faraday rotation angles...")
+        rotation_angle = faraday_angle(
+            frequency=frequency,
+            rotation_measure=self.rotation_measure,
+            inverse=True
+        ).to_value(u.rad) # Compute it !
+
+        log.info("Correcting the data for Faraday rotation...")
+        cos2a = np.cos(2 * rotation_angle)[None, :, None, None]
+        sin2a = np.sin(2 * rotation_angle)[None, :, None, None]
+        data[..., 0, 1] = data[..., 0, 1] * cos2a - data[..., 1, 0] * sin2a
+        data[..., 1, 0] = data[..., 0, 1] * sin2a + data[..., 1, 0] * cos2a
+
+        return data
+
+
     def _polarization_correction(self, data, data_time, data_frequency, n_chan):
         """ """
 
@@ -1495,6 +1534,7 @@ class Dynspec(object):
         seltimes = lane.time_unix[tmin_idx:tmax_idx]
 
         data = lane.data[:, beam_start:beam_stop, ...][tmin_idx:tmax_idx, fmin_idx:fmax_idx, ...]
+        data = self._faraday_derotation(data, selfreqs)
         data = self._polarization_correction(data, seltimes, selfreqs, lane.n_channels)
         data = self._compute_stokes(data, stokes=stokes)
 
