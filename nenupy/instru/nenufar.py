@@ -125,7 +125,7 @@ class _AntennaGain:
         )
 
         # Get the frequency from the Sky instance
-        freqs = sky.frequency.to(u.MHz).value
+        freqs = sky.frequency.to_value(u.MHz)
 
         # Find the interpolated gain at the desired frequency
         #gain = self.interpolated_gain(self.healpix_coords, freqs)
@@ -146,7 +146,7 @@ class _AntennaGain:
         ])
 
         # Return something shaped as (time, freq, coord)
-        return np.moveaxis(gain, 0, 1)
+        return gain#np.moveaxis(gain, 0, 1)
         #return gain.reshape((1,) + gain.shape) # use with RegularGridInterpolator
 
 
