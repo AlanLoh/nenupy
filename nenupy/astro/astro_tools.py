@@ -1207,6 +1207,6 @@ def faraday_angle(frequency: u.Quantity[u.MHz], rotation_measure: u.Quantity[u.r
     angle = rotation_measure * wavelength**2
     if inverse:
         angle *= -1
-    return angle.decompose() % (2*np.pi)
+    return angle.decompose()# % (2*np.pi)
 # ============================================================= #
 # ============================================================= #

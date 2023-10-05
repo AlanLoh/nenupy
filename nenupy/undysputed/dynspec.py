@@ -23,7 +23,7 @@ from os.path import isfile, abspath, join, dirname, basename
 import re
 import numpy as np
 import astropy.units as u
-from astropy.time import Time
+from astropy.time import Time, TimeDelta
 from astropy.modeling import models, fitting
 from astropy.modeling.models import custom_model
 import dask.array as da
@@ -367,9 +367,12 @@ class _Lane:
 
     @staticmethod
     def _to_ejones(fft0, fft1):
-        """fft0[..., :] = [XX, YY]
-        fft1[..., :] = [Re(X*Y), Im(X*Y)]
+        """fft0[..., :] = [XX, YY] = [XrXr+XiXi : YrYr+YiYi] = [ExEx*, EyEy*]
+        fft1[..., :] = [Re(X*Y), Im(X*Y)] = [XrYr+XiYi : XrYi-XiYr] = [Re(ExEy*), Im(ExEy*)]
         Returns a (..., 2, 2) matrix (Dask)
+
+        ExEy* = (XrYr+XiYi) + i(XiYr - XrYi)
+        EyEx* = (YrXr+YiXi) + i(YiXr - YrXi)
         """
         row1 = da.stack(
             [fft0[..., 0], fft1[..., 0] - 1j * fft1[..., 1]], axis=-1  # XX  # XY*
@@ -772,13 +775,15 @@ class Dynspec(object):
         """ """
         return self._rotation_measure
 
-    @u.quantity_input
     @rotation_measure.setter
-    def rotation_measer(self, rm: u.Quantity[u.rad/u.m**2]) -> None:
+    #@u.quantity_input
+    def rotation_measure(self, rm: u.Quantity[u.rad/u.m**2]) -> None:
         if not (rm is None):
+            # if not isinstance(rm, u.Quantity):
+            #     rm *= u.rad/u.m**2
             rm = rm.to(u.rad/u.m**2)
             log.info(f"RM set to {rm}")
-            self._rotation_measure = rm
+        self._rotation_measure = rm
 
     @property
     def rebin_dt(self):
@@ -870,6 +875,36 @@ class Dynspec(object):
         self._bp_correction = b
         return
 
+    # @property
+    # def dreambeam_inputs2(self) -> tuple:
+    #     """DreamBeam inputs, if different than (None, None, None)
+    #     the calibration will be applied to the data at the Lane level.
+    #     """
+    #     return self._dreambeam_inputs2
+
+    # @dreambeam_inputs2.setter
+    # def dreambeam_inputs2(self, inputs: tuple) -> None:
+    #     if inputs == (None, None, None):
+    #         self._dreambeam_inputs2 = (None, None, None)
+    #         return
+    #     if len(inputs) != 3:
+    #         raise IndexError("dreambeam_inputs should be a length-3 tuple")
+    #     time, frequency, jones = inputs
+    #     jones = np.swapaxes(jones, 0, 1) # invert time and frequency
+    #     if jones.shape != (time.size, frequency.size, 2, 2):
+    #         raise Exception("Incoherent sizes (dreambeam inputs).")
+    #     if isinstance(time, Time):
+    #         dt_str = str(self.dt.value)
+    #         step_str = str((time[1] - time[0]).sec)
+    #         import decimal
+    #         decimal.getcontext().prec = min((len(dt_str.split(".")[1]), len(step_str.split(".")[1])))
+    #         if decimal.Decimal(step_str) % decimal.Decimal(dt_str) > decimal.Decimal(f"1e-{decimal.getcontext().prec}"):
+    #             raise ValueError(f"The time step should be a multiple of dt={self.dt}.")
+    #         time = time.unix
+    #     if isinstance(frequency, u.Quantity):
+    #         frequency = frequency.to(u.Hz).value
+    #     self._dreambeam_inputs2 = (time, frequency, jones)
+
     @property
     def dreambeam_inputs(self) -> tuple:
         """DreamBeam inputs, if different than (None, None, None)
@@ -880,25 +915,21 @@ class Dynspec(object):
     @dreambeam_inputs.setter
     def dreambeam_inputs(self, inputs: tuple) -> None:
         if inputs == (None, None, None):
-            self._dreambeam_inputs = (None, None, None)
+            self._dreambeam_values = (None, None, None)
             return
-        if len(inputs) != 3:
-            raise IndexError("dreambeam_inputs should be a length-3 tuple")
-        time, frequency, jones = inputs
-        jones = np.swapaxes(jones, 0, 1) # invert time and frequency
-        if jones.shape != (time.size, frequency.size, 2, 2):
-            raise Exception("Incoherent sizes (dreambeam inputs).")
-        if isinstance(time, Time):
-            dt_str = str(self.dt.value)
-            step_str = str((time[1] - time[0]).sec)
-            import decimal
-            decimal.getcontext().prec = min((len(dt_str.split(".")[1]), len(step_str.split(".")[1])))
-            if decimal.Decimal(step_str) % decimal.Decimal(dt_str) > decimal.Decimal(f"1e-{decimal.getcontext().prec}"):
-                raise ValueError(f"The time step should be a multiple of dt={self.dt}.")
-            time = time.unix
-        if isinstance(frequency, u.Quantity):
-            frequency = frequency.to(u.Hz).value
-        self._dreambeam_inputs = (time, frequency, jones)
+        else:
+            self._dreambeam_inputs = inputs
+        desired_dt, coord, do_parallactic = inputs
+        from nenupy.astro.beam_correction import compute_jones_matrices
+        time_steps = int(desired_dt.sec // self.dt.to_value(u.s))
+        db_time, db_frequency, db_jones = compute_jones_matrices(
+            start_time=self.tmin,
+            time_step=TimeDelta(time_steps * self.dt.to_value(u.s), format="sec"),
+            duration=self.tmax - self.tmin,
+            skycoord=coord,
+            parallactic=do_parallactic
+        ) # time, frequency, jones
+        self._dreambeam_values = (db_time.unix, db_frequency.to_value(u.Hz), np.swapaxes(db_jones, 0, 1))
 
     @property
     def edge_channels_to_remove(self) -> int:
@@ -1322,18 +1353,21 @@ class Dynspec(object):
         ).to_value(u.rad) # Compute it !
 
         log.info("Correcting the data for Faraday rotation...")
-        cos2a = np.cos(2 * rotation_angle)[None, :, None, None]
-        sin2a = np.sin(2 * rotation_angle)[None, :, None, None]
-        data[..., 0, 1] = data[..., 0, 1] * cos2a - data[..., 1, 0] * sin2a
-        data[..., 1, 0] = data[..., 0, 1] * sin2a + data[..., 1, 0] * cos2a
+        # cos2a = np.cos(2 * rotation_angle)[None, :]
+        # sin2a = np.sin(2 * rotation_angle)[None, :]
+        # data[..., 0, 1] = data[..., 0, 1] * cos2a - data[..., 1, 0] * sin2a
+        # data[..., 1, 0] = data[..., 0, 1] * sin2a + data[..., 1, 0] * cos2a
+        cosa = np.cos(rotation_angle)
+        sina = np.sin(rotation_angle)
+        rotation_matrix = np.transpose(np.array([[cosa, -sina], [sina, cosa]]), (2, 0, 1))
+        inverse_matrix = np.transpose(np.array([[cosa, sina], [-sina, cosa]]), (2, 0, 1))
 
-        return data
-
+        return np.matmul(np.matmul(rotation_matrix, data), inverse_matrix)
 
     def _polarization_correction(self, data, data_time, data_frequency, n_chan):
         """ """
 
-        jones_time_unix, jones_frequency_hz, jones_values = self.dreambeam_inputs
+        jones_time_unix, jones_frequency_hz, jones_values = self._dreambeam_values#inputs
 
         if (
             (jones_time_unix is None)
@@ -1534,7 +1568,7 @@ class Dynspec(object):
         seltimes = lane.time_unix[tmin_idx:tmax_idx]
 
         data = lane.data[:, beam_start:beam_stop, ...][tmin_idx:tmax_idx, fmin_idx:fmax_idx, ...]
-        data = self._faraday_derotation(data, selfreqs)
+        data = self._faraday_derotation(data, selfreqs*u.Hz)
         data = self._polarization_correction(data, seltimes, selfreqs, lane.n_channels)
         data = self._compute_stokes(data, stokes=stokes)
 
@@ -1715,10 +1749,10 @@ class Dynspec(object):
             delays -= dispersion_delay(  # relative delays
                 frequency=self.freq_range[1], dispersion_measure=self.dispersion_measure
             )
-            cell_delays = np.round((delays / dt)).astype(int)
+            cell_delays = np.round((delays / dt).decompose().to_value()).astype(int)
             for i in range(freqs.size):
                 data[:, i, :] = np.roll(data[:, i, :], -cell_delays[i], 0)
-                # mask right edge of dynspec
+                # # mask right edge of dynspec
                 data[-cell_delays[i] :, i, :] = np.nan
             log.info("Data are de-dispersed.")
             data = da.from_array(data)
