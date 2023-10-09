@@ -126,28 +126,46 @@ class SourceInLobes:
         plt.close("all")
 
 
-    def export(self, filename: str):
-        """ Exports the time-frequency contamination array in FITS.
-            
+    def export(self, filename: str , in_bytes: bool = False) -> None:
+        """ Exports the time-frequency contamination array in FITS. The mask being either in floats or in bytes.
             :param filename:
                 FITS file name.
             :type filename:
                 `str`
+            :param in_bytes:
+                Set to `True` to convert the mask array to bytes. Default is `False`.
+            :type in_bytes:
+                `bool`
         """
         t_size, f_size = self.time.size, self.frequency.size
-        dtype = [
-            ('time_jd', 'f8', (t_size,)),
-            ('time_lst_deg', 'f8', (t_size,)),
-            ('frequency_mhz', 'f8'),
-            ('contamination', 'i8' if self.value.dtype==np.int32 else 'f8', (t_size,))
-        ]
+
+        if in_bytes :
+            self.value = np.array(np.floor(self.value*255)).astype(int)
+            dtype = [("contamination", "B", (t_size,))]
+        else :
+            dtype = [("contamination", "i8" if self.value.dtype==np.int32 else "f8", (t_size,))]
+        
+        primary_hdu = fits.PrimaryHDU()
+
+        time_jd = self.time.jd
+        time_hdu = fits.BinTableHDU.from_columns(
+            [fits.Column(name="time_jd", format="f8", array=time_jd)]
+        )
+        time_lst_deg = local_sidereal_time(self.time).deg
+        lst_hdu = fits.BinTableHDU.from_columns(
+            [fits.Column(name="time_lst_deg", format="f8", array=time_lst_deg)]
+        )
+        freq_mhz = self.frequency.to_value(u.MHz)
+        freq_hdu = fits.BinTableHDU.from_columns(
+            [fits.Column(name="freq_mhz", format="f8", array=freq_mhz)]
+        )
+
         data = np.zeros(f_size, dtype=dtype)
-        data["time_jd"] = self.time.jd
-        data["time_lst_deg"] = local_sidereal_time(self.time).deg
-        data["frequency_mhz"] = self.frequency.to(u.MHz).value
         data["contamination"] = self.value
-        hdu = fits.BinTableHDU(data)
-        hdu.writeto(filename, overwrite=True)
+        contamination_hdu = fits.BinTableHDU(data)
+
+        hdu_list = fits.HDUList([primary_hdu, time_hdu, lst_hdu, freq_hdu, contamination_hdu])
+        hdu_list.writeto(filename, overwrite=True)
         log.info(
             f"{SourceInLobes} object saved in {filename}."
         )
@@ -157,15 +175,59 @@ class SourceInLobes:
     def from_fits(cls, filename: str):
         """ """
         with fits.open(filename) as hdus:
-            time_jd = hdus[1].data["time_jd"][0, :]
-            frequency_mhz = hdus[1].data["frequency_mhz"]
-            values = hdus[1].data["contamination"]
+            time_jd = hdus[1].data["time_jd"]
+            frequency_mhz = hdus[3].data["frequency_mhz"]
+            values = hdus[4].data["contamination"]
+
+        if values.dtype == "B":
+            values /= 255
 
         return cls(
             time=Time(time_jd, format="jd"),
             frequency=frequency_mhz*u.MHz,
             value=values
         )
+
+    # def export(self, filename: str):
+    #     """ Exports the time-frequency contamination array in FITS.
+            
+    #         :param filename:
+    #             FITS file name.
+    #         :type filename:
+    #             `str`
+    #     """
+    #     t_size, f_size = self.time.size, self.frequency.size
+    #     dtype = [
+    #         ('time_jd', 'f8', (t_size,)),
+    #         ('time_lst_deg', 'f8', (t_size,)),
+    #         ('frequency_mhz', 'f8'),
+    #         ('contamination', 'i8' if self.value.dtype==np.int32 else 'f8', (t_size,))
+    #     ]
+    #     data = np.zeros(f_size, dtype=dtype)
+    #     data["time_jd"] = self.time.jd
+    #     data["time_lst_deg"] = local_sidereal_time(self.time).deg
+    #     data["frequency_mhz"] = self.frequency.to(u.MHz).value
+    #     data["contamination"] = self.value
+    #     hdu = fits.BinTableHDU(data)
+    #     hdu.writeto(filename, overwrite=True)
+    #     log.info(
+    #         f"{SourceInLobes} object saved in {filename}."
+    #     )
+
+
+    # @classmethod
+    # def from_fits(cls, filename: str):
+    #     """ """
+    #     with fits.open(filename) as hdus:
+    #         time_jd = hdus[1].data["time_jd"][0, :]
+    #         frequency_mhz = hdus[1].data["frequency_mhz"]
+    #         values = hdus[1].data["contamination"]
+
+    #     return cls(
+    #         time=Time(time_jd, format="jd"),
+    #         frequency=frequency_mhz*u.MHz,
+    #         value=values
+    #     )
 # ============================================================= #
 # ============================================================= #
 
