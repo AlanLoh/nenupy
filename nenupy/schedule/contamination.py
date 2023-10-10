@@ -180,6 +180,7 @@ class SourceInLobes:
             values = hdus[4].data["contamination"]
 
         if values.dtype == "B":
+            values = values.astype("float64")
             values /= 255
 
         return cls(
