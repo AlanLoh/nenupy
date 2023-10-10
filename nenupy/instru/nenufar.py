@@ -130,9 +130,9 @@ class _AntennaGain:
         # Find the interpolated gain at the desired frequency
         #gain = self.interpolated_gain(self.healpix_coords, freqs)
         #gain = self.interpolated_gain((freqs, self.healpix_coords))
-        gain = self.interpolated_gain(freqs)
-        if gain.ndim == 1:
-            gain = gain.reshape((1, gain.size))
+        gain = self.interpolated_gain(freqs) # shape: (freq, pix_coord)
+        # if gain.ndim == 1:
+        #     gain = gain.reshape((1, gain.size))
 
         # Find the interpolated gain at the desired coordinates for each frequency
         gain = np.array([
@@ -145,8 +145,11 @@ class _AntennaGain:
             ) for gain_i in gain
         ])
 
+        if gain.ndim == 2:
+            # The time dimension is not yet included
+            gain = gain.reshape((1,) + gain.shape)
         # Return something shaped as (time, freq, coord)
-        return gain#np.moveaxis(gain, 0, 1)
+        return np.moveaxis(gain, 0, 1) # keep that!
         #return gain.reshape((1,) + gain.shape) # use with RegularGridInterpolator
 
 

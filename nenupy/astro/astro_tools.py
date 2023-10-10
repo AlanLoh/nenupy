@@ -1181,8 +1181,9 @@ class AstroObject(ABC):
 # ============================================================= #
 # ----------------------- faraday_angle ----------------------- #
 # ============================================================= #
-@u.quantity_input
-def faraday_angle(frequency: u.Quantity[u.MHz], rotation_measure: u.Quantity[u.rad/u.m**2], inverse: bool = False):
+# @u.quantity_input
+# def faraday_angle(frequency: u.Quantity[u.MHz], rotation_measure: u.Quantity[u.rad/u.m**2], inverse: bool = False):
+def faraday_angle(frequency: u.Quantity, rotation_measure: u.Quantity, inverse: bool = False):
     """ Computes the Faraday rotation angle.
 
         :param frequency:
