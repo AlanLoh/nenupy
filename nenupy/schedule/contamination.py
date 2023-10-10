@@ -157,7 +157,7 @@ class SourceInLobes:
         )
         freq_mhz = self.frequency.to_value(u.MHz)
         freq_hdu = fits.BinTableHDU.from_columns(
-            [fits.Column(name="freq_mhz", format="f8", array=freq_mhz)]
+            [fits.Column(name="frequency_mhz", format="f8", array=freq_mhz)]
         )
 
         data = np.zeros(f_size, dtype=dtype)
