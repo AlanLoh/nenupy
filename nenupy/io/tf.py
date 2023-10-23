@@ -192,6 +192,10 @@ class Spectra:
 
         frequency_hz, time_unix, data = self._select_data()
 
+        # Stop the pipeline if the data is empty
+        if data is None:
+            return
+
         # Correct for the bandpass
         if self.configuration.correct_bandpass:
             log.info("Correcting for bandpass.")
@@ -281,13 +285,13 @@ class Spectra:
         # Either the TIMESTAMP is set to 0, the first idx, or the SB number is negative
         # which indicates missing data. In all those cases we will ignore the associated data
         # since we cannot properly reconstruct the time ramp or the data themselves.
-        block_timestamp_mask = data["TIMESTAMP"] == 0
+        block_timestamp_mask = data["TIMESTAMP"] < 0.1 # it should be 0, but to be sure...
         block_start_idx_mask = data["idx"] == 0
         block_nsubbands_mask = data["nbchan"] < 0
 
         # Computing the mask, setting the first index at non-zero since it should be the normal value.
         block_start_idx_mask[0] = False # Fake value, just to trick the mask
-        bad_block_mask = block_start_idx_mask + block_start_idx_mask + block_nsubbands_mask
+        bad_block_mask = block_timestamp_mask + block_start_idx_mask + block_nsubbands_mask
 
         log.info(f"There are {np.sum(bad_block_mask)}/{block_timestamp_mask.size} blocks containing missing data and/or wrong time information.")
 
@@ -315,29 +319,40 @@ class Spectra:
 
         return data
 
-    def _select_data(self):
+    def _select_data(self) -> Tuple[np.ndarray, nd.array, da.Array]:
         """ """
         
         log.info("\tComputing the time selection...")
         tmin, tmax = self.configuration.time_range.unix
-        n_blocks = self._block_start_unix.size
 
         # Find out which block indices are at the edges of the desired time range
         block_idx_min = int(np.argmin(np.abs(np.ceil(self._block_start_unix - tmin))))# n_blocks - np.argmax(((self._block_start_unix - tmin) <= 0)[::-1]) - 1
-        block_idx_max = int(np.argmin(np.abs(np.ceil(self._block_start_unix - tmax))))#n_blocks - np.argmax(((self._block_start_unix - tmax) <= 0)[::-1]) - 1
+        block_idx_max = int(np.argmin(np.abs(np.ceil(self._block_start_unix - tmax))))# n_blocks - np.argmax(((self._block_start_unix - tmax) <= 0)[::-1]) - 1
 
         # Get the closest time index within each of the two bounding blocks
         dt_sec = self.dt.to_value(u.s)
         time_idx_min_in_block = int(np.round((tmin - self._block_start_unix[block_idx_min])/dt_sec))
-        time_idx_min_in_block = 0 if time_idx_min_in_block < 0 else time_idx_min_in_block
+        time_idx_min_in_block = max(0, min(self._n_time_per_block - 1, time_idx_min_in_block)) # bound the value between in between channels indices
         time_idx_min = block_idx_min * self._n_time_per_block + time_idx_min_in_block
         time_idx_max_in_block = int(np.round((tmax - self._block_start_unix[block_idx_max])/dt_sec))
         time_idx_max_in_block = self._n_time_per_block - 1 if time_idx_max_in_block >= self._n_time_per_block else time_idx_max_in_block 
+        time_idx_max_in_block = max(0, min(self._n_time_per_block - 1, time_idx_max_in_block))
         time_idx_max = block_idx_max * self._n_time_per_block + time_idx_max_in_block
 
         if time_idx_min == time_idx_max:
+            if (time_idx_min > 0) and (time_idx_min < self._block_start_unix.size * self._n_time_per_block - 1):
+                log.warning("Desired time selection encompasses missing data.")
+                if tmin < self._block_start_unix[block_idx_min]:
+                    # The found block is just after the missing data
+                    closest_tmin = Time(self._block_start_unix[block_idx_min - 1] + self._n_time_per_block * dt_sec, format='unix').isot
+                    closest_tmax = Time(self._block_start_unix[block_idx_min], format='unix').isot
+                else:
+                    # The found block is just before the missing data
+                    closest_tmin = Time(self._block_start_unix[block_idx_min] + self._n_time_per_block * dt_sec, format='unix').isot
+                    closest_tmax = Time(self._block_start_unix[block_idx_min + 1], format='unix').isot
+                log.info(f"Time selection lies in the data gap between {closest_tmin} and {closest_tmax}.")
             log.warning("Time selection leads to empty dataset.")
-            return None
+            return (None, None, None)
 
         # Compute the time ramp between those blocks
         time_unix = utils.compute_spectra_time(
