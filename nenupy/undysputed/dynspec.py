@@ -777,7 +777,7 @@ class Dynspec(object):
 
     @rotation_measure.setter
     #@u.quantity_input
-    def rotation_measure(self, rm: u.Quantity[u.rad/u.m**2]) -> None:
+    def rotation_measure(self, rm: u.Quantity) -> None: # rm: u.Quantity[u.rad/u.m**2]) -> None:
         if not (rm is None):
             # if not isinstance(rm, u.Quantity):
             #     rm *= u.rad/u.m**2

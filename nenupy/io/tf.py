@@ -329,8 +329,10 @@ class Spectra:
         # Get the closest time index within each of the two bounding blocks
         dt_sec = self.dt.to_value(u.s)
         time_idx_min_in_block = int(np.round((tmin - self._block_start_unix[block_idx_min])/dt_sec))
+        time_idx_min_in_block = 0 if time_idx_min_in_block < 0 else time_idx_min_in_block
         time_idx_min = block_idx_min * self._n_time_per_block + time_idx_min_in_block
         time_idx_max_in_block = int(np.round((tmax - self._block_start_unix[block_idx_max])/dt_sec))
+        time_idx_max_in_block = self._n_time_per_block - 1 if time_idx_max_in_block >= self._n_time_per_block else time_idx_max_in_block 
         time_idx_max = block_idx_max * self._n_time_per_block + time_idx_max_in_block
 
         if time_idx_min == time_idx_max:
@@ -342,7 +344,9 @@ class Spectra:
             block_start_time_unix=self._block_start_unix[block_idx_min:block_idx_max + 1],
             ntime_per_block=self._n_time_per_block,
             time_step_s=self.dt.to_value(u.s)
-        )[time_idx_min_in_block:-(self._n_time_per_block - time_idx_max_in_block) + 1]
+        )
+        # Cut down the first and last time blocks
+        time_unix = time_unix[time_idx_min_in_block:time_unix.size - (self._n_time_per_block - time_idx_max_in_block) + 1]
 
         log.info("\tComputing the frequency selection...")
         fmin, fmax = self.configuration.frequency_range.to_value(u.Hz)
