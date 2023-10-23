@@ -61,8 +61,6 @@ def blocks_to_tf_data(data: da.Array, n_block_times: int, n_channels: int) -> da
 def compute_spectra_frequencies(subband_start_hz: np.ndarray, n_channels: int, frequency_step_hz: float) -> da.Array:
     """ """
 
-    log.info("\tComputing the frequency ramp...")
-
     # Construct the frequency array
     frequencies = da.tile(np.arange(n_channels) - n_channels / 2, subband_start_hz.size)
     frequencies = frequencies.reshape((subband_start_hz.size, n_channels))
@@ -70,7 +68,7 @@ def compute_spectra_frequencies(subband_start_hz: np.ndarray, n_channels: int, f
     frequencies += subband_start_hz[:, None]
     frequencies = frequencies.ravel()
 
-    log.info(f"Frequency axis computed (size={frequencies.size}).")
+    log.debug(f"\tFrequency axis computed (size={frequencies.size}).")
 
     return frequencies
 
@@ -78,8 +76,6 @@ def compute_spectra_frequencies(subband_start_hz: np.ndarray, n_channels: int, f
 # ------------------- compute_spectra_time -------------------- #
 def compute_spectra_time(block_start_time_unix: np.ndarray, ntime_per_block: int, time_step_s: float) -> da.Array:
     """ """
-
-    log.info("\tComputing the time ramp...")
 
     # Construct the elapsed time per block (1D array)
     time_seconds_per_block = da.arange(ntime_per_block, dtype="float64") * time_step_s
@@ -90,7 +86,7 @@ def compute_spectra_time(block_start_time_unix: np.ndarray, ntime_per_block: int
     # Return the flatten array
     unix_time = unix_time.ravel()
 
-    log.info(f"Time axis computed (size={unix_time.size}).")
+    log.debug(f"\tTime axis computed (size={unix_time.size}).")
 
     return unix_time
 
@@ -99,9 +95,15 @@ def compute_spectra_time(block_start_time_unix: np.ndarray, ntime_per_block: int
 def compute_stokes_parameters(data_array: np.ndarray, stokes: Union[List[str], str]) -> np.ndarray:
     """ data_array: >2 D, last 2 dimensions are ((XX, XY), (YX, YY))
     """
+
+    log.info("Computing Stokes parameters...")
+
+    # Assert that the last dimensions are shaped like a cross correlation electric field matrix
     if data_array.shape[-2:] != (2, 2):
         raise Exception("The data_array last 2 dimensions are not of shape (2, 2).")
+
     result = None
+
     for stokes_i in stokes:
         # Compute the correct Stokes value
         if stokes_i.upper() == "I":
@@ -114,11 +116,15 @@ def compute_stokes_parameters(data_array: np.ndarray, stokes: Union[List[str], s
             data_i = data_array[..., 0, 1].imag * 2
         else:
             raise NotImplementedError(f"Stokes parameter {stokes_i} unknown.")
+
+        log.info(f"\tStokes {stokes_i} computed.")
+
         # Stack everything
         if result is None:
             result = np.expand_dims(data_i, axis=-1)
         else:
             result = np.concatenate([result, data_i[..., None]], axis=-1)
+
     return result
 
 # ============================================================= #
@@ -163,6 +169,8 @@ def rebin_along_dimension(data: np.ndarray, axis_array: np.ndarray, axis: int, d
     
     d_shape = data.shape
 
+    log.info(f"\tdx: {dx} | new_dx: {new_dx} -> rebin factor: {bin_size}.")
+
     # Reshape the data and the axis to ease the averaging
     data = data[tuple([slice(None) if i != axis else slice(None, initial_size - leftovers) for i in range(len(d_shape))])].reshape(
         d_shape[:axis] + (final_size, int((initial_size - leftovers) / final_size)) + d_shape[axis + 1:]
@@ -174,6 +182,8 @@ def rebin_along_dimension(data: np.ndarray, axis_array: np.ndarray, axis: int, d
     # Average the data and the axis along the right dimension
     data = np.nanmean(data, axis=axis + 1)
     axis_array = np.nanmean(axis_array, axis=1)
+
+    log.info(f"\tData rebinned, last {leftovers} samples were not considered.")
 
     return axis_array, data
 
