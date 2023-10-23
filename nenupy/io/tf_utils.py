@@ -7,7 +7,7 @@ import os
 import dask.array as da
 import astropy.units as u
 from astropy.time import Time
-from typing import Union, List
+from typing import Union, List, Tuple
 import logging
 log = logging.getLogger(__name__)
 
@@ -17,6 +17,7 @@ __all__ = [
     "compute_spectra_frequencies",
     "compute_spectra_time",
     "compute_stokes_parameters",
+    "rebin_along_dimension",
     "sort_beam_edges",
     "spectra_data_to_matrix"
 ]
@@ -143,6 +144,38 @@ def get_bandpass(n_channels: int) -> np.ndarray:
     g = 2**25 / np.sqrt(midsq + leftsq + rightsq)
 
     return g**2.0
+
+def rebin_along_dimension(data: np.ndarray, axis_array: np.ndarray, axis: int, dx: float, new_dx: float) -> Tuple[np.ndarray, np.ndarray]:
+    """ """
+
+    # Basic checks to make sure that dimensions are OK
+    if axis_array.ndim != 1:
+        raise IndexError("axis_array should be 1D.")
+    elif data.shape[axis] != axis_array.size:
+        raise IndexError(f"Axis selected ({axis}) dimension {data.shape[axis]} does not match axis_array's shape {axis_array.shape}.")
+    elif dx > new_dx:
+        raise ValueError("Rebin expect a `new_dx` value larger than original `dx`.")
+
+    initial_size = axis_array.size
+    bin_size = int(np.floor(new_dx / dx))
+    final_size = int(np.floor(initial_size / bin_size))
+    leftovers = initial_size % final_size
+    
+    d_shape = data.shape
+
+    # Reshape the data and the axis to ease the averaging
+    data = data[tuple([slice(None) if i != axis else slice(None, initial_size - leftovers) for i in range(len(d_shape))])].reshape(
+        d_shape[:axis] + (final_size, int((initial_size - leftovers) / final_size)) + d_shape[axis + 1:]
+    )
+    axis_array = axis_array[: initial_size - leftovers].reshape(
+        (final_size, int((initial_size - leftovers) / final_size))
+    )
+
+    # Average the data and the axis along the right dimension
+    data = np.nanmean(data, axis=axis + 1)
+    axis_array = np.nanmean(axis_array, axis=1)
+
+    return axis_array, data
 
 # ============================================================= #
 # ---------------------- sort_beam_edges ---------------------- #

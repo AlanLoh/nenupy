@@ -163,33 +163,58 @@ class Spectra:
 
         log.info("\tSetting up default configuration:")
         self.configuration = _ProcessingConfiguration(
-            time_min=Time(self._block_start_unix[0], format="unix", precision=7),
-            time_max=Time(self._block_start_unix[-1] + self._n_time_per_block * self.dt.to_value(u.s), format="unix", precision=7),
-            frequency_min=self._subband_start_hz[0] * u.Hz,
-            frequency_max=self._subband_start_hz[-1] * u.Hz + SUBBAND_WIDTH,
+            time_min=self.time_min,
+            time_max=self.time_max,
+            frequency_min=self.frequency_min,
+            frequency_max=self.frequency_max,
             available_beams=np.array(list(self.beam_indices_dict.keys())).astype(int)
         )
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
     @property
+    def time_min(self) -> Time:
+        return Time(self._block_start_unix[0], format="unix",precision=7)
+
+    @property
+    def time_max(self) -> Time:
+        return Time(self._block_start_unix[-1] + self._n_time_per_block * self.dt.to_value(u.s), format="unix", precision=7)
+
+    @property
     def frequency_min(self) -> u.Quantity:
         freq_mins = []
         for _, boundaries in self.beam_indices_dict.items():
-            freq_mins.append(self.frequency_hz[boundaries[0]])
+            sb_index = int(boundaries[0]/self.n_channels)
+            freq_mins.append(self._subband_start_hz[sb_index])
         return np.min(freq_mins) * u.Hz
     
     @property
     def frequency_max(self) -> u.Quantity:
         freq_maxs = []
         for _, boundaries in self.beam_indices_dict.items():
-            freq_maxs.append(self.frequency_hz[boundaries[1]])
-        return np.max(freq_maxs) * u.Hz
+            sb_index = int((boundaries[1] + 1)/self.n_channels - 1)
+            freq_maxs.append(self._subband_start_hz[sb_index])
+        return np.max(freq_maxs) * u.Hz + SUBBAND_WIDTH
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+    def info(self) -> None:
+        """ Display informations about the file. """
+        message = "\n".join([
+            f"{self.filename}",
+            f"time_min: {self.time_min.isot}",
+            f"time_max: {self.time_max.isot}",
+            f"dt: {self.dt.to(u.ms)}",
+            f"frequency_min: {self.frequency_min.to(u.MHz)}",
+            f"frequency_max: {self.frequency_max.to(u.MHz)}",
+            f"df: {self.df.to(u.kHz)}",
+            f"Available beam indices: {list(self.beam_indices_dict.keys())}"
+        ])
+        print(message) 
+
     def get(self, stokes: Union[str, List[str]] = "I"):
 
+        # Select the data in time and frequency (the beam selection is implicit on the frequency idexing)
         frequency_hz, time_unix, data = self._select_data()
 
         # Stop the pipeline if the data is empty
@@ -212,13 +237,28 @@ class Spectra:
                 higher_edge_channels=edge_chans[1] if isinstance(edge_chans, tuple) else edge_chans,
             )
 
-        data = utils.compute_stokes_parameters(data_array=data, stokes=stokes)
+        # Rebin the data
+        if self.configuration.rebin_dt is not None:
+            log.info("\tRebinning in time...")
+            time_unix, data = utils.rebin_along_dimension(
+                data=data,
+                axis_array=time_unix,
+                axis=0,
+                dx=self.dt.to_value(u.s),
+                new_dx=self.configuration.rebin_dt.to_value(u.s)
+            )
+        if self.configuration.rebin_df is not None:
+            log.info("\tRebinning in frequency...")
+            frequency_hz, data = utils.rebin_along_dimension(
+                data=data,
+                axis_array=frequency_hz,
+                axis=1,
+                dx=self.df.to_value(u.Hz),
+                new_dx=self.configuration.rebin_df.to_value(u.Hz)
+            )
 
-        frequency_hz, time_unix, data = self._time_frequency_rebin(
-            data=data,
-            times=time_unix,
-            freqs=frequency_hz,
-        )
+        # Compute the selected Stokes parameters
+        data = utils.compute_stokes_parameters(data_array=data, stokes=stokes)
 
         log.info("Computing the data...")
         with ProgressBar():
@@ -319,7 +359,7 @@ class Spectra:
 
         return data
 
-    def _select_data(self) -> Tuple[np.ndarray, nd.array, da.Array]:
+    def _select_data(self) -> Tuple[np.ndarray, np.ndarray, da.Array]:
         """ """
         
         log.info("\tComputing the time selection...")
@@ -481,5 +521,5 @@ class Spectra:
             freqs = np.nanmean(freqs, axis=1)
             log.info("Data are frequency-averaged.")
 
-        return freqs, times, data 
+        return freqs, times, data
 
