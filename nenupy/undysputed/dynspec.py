@@ -190,7 +190,7 @@ class _Lane:
         """ """
 
         # Decode the header
-        header = self._decode_header(file_name=self.lanefile)
+        header = self._decode_first_header(file_name=self.lanefile)
 
         # Extract metadata
         n_channels = header["fftlen"]
@@ -250,7 +250,7 @@ class _Lane:
         )
 
     @staticmethod
-    def _decode_header(file_name: str) -> np.recarray:
+    def _decode_first_header(file_name: str) -> np.recarray:
         """ """
         log.info(f"Decoding header of {file_name}...")
         with open(file_name, "rb") as rf:
@@ -1568,8 +1568,8 @@ class Dynspec(object):
         seltimes = lane.time_unix[tmin_idx:tmax_idx]
 
         data = lane.data[:, beam_start:beam_stop, ...][tmin_idx:tmax_idx, fmin_idx:fmax_idx, ...]
-        data = self._faraday_derotation(data, selfreqs*u.Hz)
         data = self._polarization_correction(data, seltimes, selfreqs, lane.n_channels)
+        data = self._faraday_derotation(data, selfreqs*u.Hz)
         data = self._compute_stokes(data, stokes=stokes)
 
         return selfreqs * u.Hz, seltimes, data

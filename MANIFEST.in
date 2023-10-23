@@ -9,6 +9,7 @@ include nenupy/instru/NenuFAR_Ant_Hpx.fits
 include nenupy/instru/nenufar_array.json
 include nenupy/instru/squint_table.sav
 include nenupy/io/nenufar_tv_sources.json
+include nenupy/io/bandpass_coeffs.dat
 include nenupy/observation/parset_user_options.json
 include nenupy/undysputed/bandpass_coeffs.dat
 include nenupy/skymodel/lfsky.fits
