@@ -31,6 +31,8 @@ __all__ = [
     "spectra_data_to_matrix"
 ]
 
+# ============================================================= #
+# ---------------- apply_dreambeam_corrections ---------------- #
 def apply_dreambeam_corrections(
         time_unix: np.ndarray,
         frequency_hz: np.ndarray,
@@ -72,12 +74,16 @@ def apply_dreambeam_corrections(
     db_frequency = db_frequency.to_value(u.Hz)
     db_jones = np.swapaxes(db_jones, 0, 1)
 
-    # Invert the matrices that will be used to correct the observed signals
-    # Jones matrices are at the subband resolution and an arbitrary time resolution
-    jones_matrices = np.linalg.inv(db_jones)
-
     # Reshape the data at the time and frequency resolutions
     # Take into account leftover times
+    data_leftover = data[-leftover_time_samples:, ...].reshape(
+        (
+            leftover_time_samples,
+            n_subbands,
+            n_channels,
+            2, 2
+        )
+    )
     data = data[: time_size - leftover_time_samples, ...].reshape(
         (
             n_time_groups,
@@ -87,15 +93,7 @@ def apply_dreambeam_corrections(
             2, 2
         )
     )
-    data_leftover = data[-leftover_time_samples:, ...].reshape(
-        (
-            leftover_time_samples,
-            n_subbands,
-            n_channels,
-            2, 2
-        )
-    )
-   
+
     # Compute the frequency indices to select the corresponding Jones matrices
     subband_start_frequencies = frequency_hz.reshape((n_subbands, n_channels))[:, 0]
     freq_start_idx = np.argmax(db_frequency >= subband_start_frequencies[0])
@@ -106,8 +104,13 @@ def apply_dreambeam_corrections(
     time_start_idx = np.argmax(db_time >= group_start_time[0])
     time_stop_idx = db_time.size - np.argmax(db_time[::-1] < group_start_time[-1])
 
-    jones = jones_matrices[time_start_idx:time_stop_idx + 1, freq_start_idx:freq_stop_idx + 1, :, :][:, None, :, None, :, :]
-    jones_leftover = jones_matrices[-1, freq_start_idx:freq_stop_idx + 1, :, :][None, :, None, :, :]
+    jones = db_jones[time_start_idx:time_stop_idx + 1, freq_start_idx:freq_stop_idx + 1, :, :][:, None, :, None, :, :]
+    jones_leftover = db_jones[-1, freq_start_idx:freq_stop_idx + 1, :, :][None, :, None, :, :]
+
+    # Invert the matrices that will be used to correct the observed signals
+    # Jones matrices are at the subband resolution and an arbitrary time resolution
+    jones = np.linalg.inv(jones)
+    jones_leftover = np.linalg.inv(jones_leftover)
 
     # Compute the Hermitian matrices
     jones_transpose = np.swapaxes(jones, -2, -1)
