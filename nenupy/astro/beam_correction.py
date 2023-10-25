@@ -20,13 +20,9 @@ log.setLevel(logging.INFO)
 
 try:
     from dreambeam.rime.scenarios import on_pointing_axis_tracking
-except ImportError:
-    log.error(
-        "DreamBeam is not installed. "
-        "See installation instructions https://github.com/2baOrNot2ba/dreamBeam"
-    )
-    raise
-
+except ModuleNotFoundError:
+    # This will raise an error eventually with an appropriate message
+    pass
 
 # ============================================================= #
 # ------------------ compute_jones_matrices ------------------- #
@@ -39,18 +35,29 @@ def compute_jones_matrices(
     ) -> Tuple[Time, u.Quantity, JonesMatrix]:
     """
     """
-    log.info("Computing Jones matrices using DreamBeam...")
-    times, frequencies, Jn, _ = on_pointing_axis_tracking(
-        telescopename="NenuFAR",
-        stnid="NenuFAR",
-        band="LBA",
-        antmodel="Hamaker-NEC4_Charrier_v1r1",
-        obstimebeg=start_time.datetime,
-        obsdur=duration.datetime,
-        obstimestp=time_step.datetime,
-        pointingdir=(skycoord.ra.rad, skycoord.dec.rad, "J2000"),
-        do_parallactic_rot=parallactic
-    )
+    log.info("\tComputing Jones matrices using DreamBeam...")
+
+    if time_step.sec <= 1.:
+        raise ValueError("DreamBeam does not allow for time intervals lesser than 1 sec.")
+
+    try:
+        times, frequencies, Jn, _ = on_pointing_axis_tracking(
+            telescopename="NenuFAR",
+            stnid="NenuFAR",
+            band="LBA",
+            antmodel="Hamaker-NEC4_Charrier_v1r1",
+            obstimebeg=start_time.datetime,
+            obsdur=duration.datetime,
+            obstimestp=time_step.datetime,
+            pointingdir=(skycoord.ra.rad, skycoord.dec.rad, "J2000"),
+            do_parallactic_rot=parallactic
+        )
+    except NameError:
+        log.error(
+            "DreamBeam is not installed. "
+            "See installation instructions https://github.com/2baOrNot2ba/dreamBeam"
+        )
+        raise
     # import numpy as np
     # times = start_time + TimeDelta(3600, format="sec")*np.arange(12)
     # frequencies = np.array([30e6, 50e6])*u.MHz

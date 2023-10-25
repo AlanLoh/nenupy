@@ -1204,6 +1204,11 @@ def faraday_angle(frequency: u.Quantity, rotation_measure: u.Quantity, inverse: 
         :rtype:
             :class:`~astropy.units.Quantity`
     """
+    # Check that the unit is correct
+    try:
+        rotation_measure = rotation_measure.to(u.rad/u.m**2)
+    except:
+        raise
     wavelength = frequency.to(u.m, equivalencies=u.spectral())
     angle = rotation_measure * wavelength**2
     if inverse:
