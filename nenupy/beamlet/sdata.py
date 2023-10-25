@@ -325,6 +325,20 @@ class SData(object):
             polar=new_polar
         )
 
+    def __getitem__(self, slice_tuple):
+        """ (time, frequency) """
+        # Expects an explicit tuple of length 2
+        if not (isinstance(slice_tuple, tuple) and\
+                (len(slice_tuple) == 3) and\
+                all([isinstance(s, slice) for s in slice_tuple])
+            ):
+            raise IndexError("Only tuple of 3 slices allowed.")
+        return SData(
+            data=self.data[slice_tuple],
+            time=self.time[slice_tuple[0]],
+            freq=self.freq[slice_tuple[1]],
+            polar=self.polar[slice_tuple[2]]
+        )
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
