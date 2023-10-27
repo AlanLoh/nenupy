@@ -136,9 +136,9 @@ class NenuFAR_Target(object):
         if elevation.isscalar:
             elevation = np.array([elevation.value]) * elevation.unit 
         
-        largeDt = TimeDelta(3600, format='sec')
-        mediumDt = TimeDelta(600, format='sec')
-        smallDt = TimeDelta(60, format='sec')
+        largeDt = TimeDelta(3601, format='sec')
+        mediumDt = TimeDelta(599, format='sec')
+        smallDt = TimeDelta(59, format='sec')
 
         # Broad search
         times = self._timeRange(
@@ -299,9 +299,9 @@ class NenuFAR_Target(object):
             raise TypeError(
                 'duration should be an astropy.TimeDelta instance.'
             )
-        extDuration = TimeDelta(3600, format='sec')
-        largeDt = TimeDelta(1800, format='sec')
-        mediumDt = TimeDelta(60, format='sec')
+        extDuration = TimeDelta(3601, format='sec')
+        largeDt = TimeDelta(1799, format='sec')
+        mediumDt = TimeDelta(59, format='sec')
         smallDt = TimeDelta(1, format='sec')
 
         # Broad search
