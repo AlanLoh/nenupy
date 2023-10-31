@@ -10,4 +10,4 @@ pyproj
 mocpy
 dask
 sqlalchemy
-docutils<0.18
+docutils
