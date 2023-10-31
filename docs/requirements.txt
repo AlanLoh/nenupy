@@ -12,3 +12,4 @@ dask
 sqlalchemy
 docutils
 sphinx-rtd-theme
+recommonmark
