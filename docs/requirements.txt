@@ -11,3 +11,4 @@ mocpy
 dask
 sqlalchemy
 docutils
+sphinx-rtd-theme
