@@ -149,7 +149,9 @@ class _AntennaGain:
             # The time dimension is not yet included
             gain = gain.reshape((1,) + gain.shape)
         # Return something shaped as (time, freq, coord)
-        return gain#np.moveaxis(gain, 0, 1) # keep that!
+        if sky.time.size == 1:
+            return gain
+        return np.moveaxis(gain, 0, 1) # keep that!
         #return gain.reshape((1,) + gain.shape) # use with RegularGridInterpolator
 
 

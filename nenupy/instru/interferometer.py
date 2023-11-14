@@ -702,7 +702,7 @@ class Interferometer(ABC, metaclass=CombinedMeta):
                 T_{\rm src} = \frac{F_{\rm src} \eta A_{\rm eff}}{2 k_{\rm B}}
             
             where :math:`F_{\rm src}` is the source spectrum, :math:`\eta` is the
-            ``efficiency`` of the effective area :math:`A_{\rm eff}}`.
+            ``efficiency`` of the effective area :math:`A_{\rm eff}`.
 
             :param frequency: 
                 Frequency for the System Temperature computation.

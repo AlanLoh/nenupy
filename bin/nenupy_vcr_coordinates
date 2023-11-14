@@ -523,8 +523,7 @@ class NenuFAR_Target(object):
         return np.degrees( np.arcsin(sinEl) )
 
 
-    @staticmethod
-    def _toAzimuth(hourAngle, declination):
+    def _toAzimuth(self, hourAngle, declination):
         r"""
             .. math::
                 \cos(\varphi) = \frac{\sin(\delta) - \sin(\theta) \sin(l)}{\cos(\theta) \cos(l)}

@@ -162,6 +162,88 @@ class TestMiniArray:
         assert beam_values[1] == pytest.approx(8.53e-4, abs=1e-6)
         assert beam_values[2] == pytest.approx(1.10e-2, abs=1e-4)
 
+    def test_beam_healpix(self):
+        config = NenuFAR_Configuration(
+            beamsquint_correction=True,
+            beamsquint_frequency=50*u.MHz
+        )
+
+        beam = self.ma.beam(
+            sky=HpxSky(
+                resolution=10*u.deg,
+                time=Time(["2022-01-01T12:00:00", "2022-01-01T12:30:00"]),
+                frequency=[50, 60, 70]*u.MHz,
+                polarization=Polarization.NW
+            ),
+            pointing=Pointing.zenith_tracking(
+                time=Time("2022-01-01T11:00:00"),
+                duration=TimeDelta(7200, format="sec")
+            ),
+            configuration=config
+        )
+        assert beam.value.shape == (2, 3, 1, 768)
+
+    def test_beam_shape_1(self):
+        config = NenuFAR_Configuration(
+            beamsquint_correction=True,
+            beamsquint_frequency=50*u.MHz
+        )
+        beam = self.ma.beam(
+            sky=Sky(
+                coordinates=SkyCoord([100, 200, 300], [10, 50, 90], unit="deg"),
+                time=Time(["2022-01-01T12:00:00", "2022-01-01T13:00:00"]),
+                frequency=[50, 60, 70, 80]*u.MHz,
+                polarization=Polarization.NW
+            ),
+            pointing=Pointing.zenith_tracking(
+                time=Time("2022-01-01T11:00:00"),
+                duration=TimeDelta(7200, format="sec")
+            ),
+            configuration=config
+        )
+        assert beam.value.shape == (2, 4, 1, 3)
+
+
+    def test_beam_shape_2(self):
+        config = NenuFAR_Configuration(
+            beamsquint_correction=True,
+            beamsquint_frequency=50*u.MHz
+        )
+        beam = self.ma.beam(
+            sky=Sky(
+                coordinates=SkyCoord([100, 200, 300], [10, 50, 90], unit="deg"),
+                time=Time("2022-01-01T12:00:00"),
+                frequency=[50, 60]*u.MHz,
+                polarization=Polarization.NW
+            ),
+            pointing=Pointing.zenith_tracking(
+                time=Time("2022-01-01T11:00:00"),
+                duration=TimeDelta(7200, format="sec")
+            ),
+            configuration=config
+        )
+        assert beam.value.shape == (1, 2, 1, 3)
+
+    def test_beam_shape_3(self):
+        config = NenuFAR_Configuration(
+            beamsquint_correction=True,
+            beamsquint_frequency=50*u.MHz
+        )
+        beam = self.ma.beam(
+            sky=Sky(
+                coordinates=SkyCoord([100, 200, 300], [10, 50, 90], unit="deg"),
+                time=Time(["2022-01-01T12:00:00", "2022-01-01T13:00:00"]),
+                frequency=50*u.MHz,
+                polarization=Polarization.NW
+            ),
+            pointing=Pointing.zenith_tracking(
+                time=Time("2022-01-01T11:00:00"),
+                duration=TimeDelta(7200, format="sec")
+            ),
+            configuration=config
+        )
+        assert beam.value.shape == (2, 1, 1, 3)
+
 
     # ========================================================= #
     # -------------- test_instrument_temperature -------------- #
