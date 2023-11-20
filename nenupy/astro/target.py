@@ -865,6 +865,8 @@ class Target(AstroObject, ABC):
         ) -> np.ndarray:
         """ """
         # Set t_min to a higher dimension in preparation for multiple matches
+        if t_min.size > 1:
+            t_min = t_min[0]
         t_min = t_min.reshape((1,))
 
         # At each iteration, dt will be reduced by down_factor
