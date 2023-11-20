@@ -1,3 +1,13 @@
+#! /usr/bin/python3
+# -*- coding: utf-8 -*-
+
+__author__ = "Alan Loh"
+__copyright__ = "Copyright 2023, nenupy"
+__credits__ = ["Alan Loh"]
+__maintainer__ = "Alan"
+__email__ = "alan.loh@obspm.fr"
+__status__ = "Production"
+
 from tkinter import Tk, Button, Checkbutton, Label, Entry, Frame, StringVar, IntVar, DoubleVar
 from tkcalendar import DateEntry
 from datetime import datetime, timedelta
@@ -313,7 +323,7 @@ class BaseInputFrame(Frame, ABC):
             day=datetime.now().day,
             date_pattern="yyyy-mm-dd",
             width=ENTRY_WIDTH,
-            font="Arial 14",
+            #font="Arial 14",
             justify="center"
         )
         self.date_entry.bind("<<DateEntrySelected>>", master.update)
