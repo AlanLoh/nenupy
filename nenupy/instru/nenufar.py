@@ -312,7 +312,10 @@ class MiniArray(Interferometer):
 
     """
 
-    def __init__(self, index: int = 0):
+    def __init__(self,
+                 index: int = 0,
+                 extra_delays: np.ndarray = None,
+                 feed_gains: np.ndarray = None, ):
         self.index = index
 
         try:
@@ -346,12 +349,13 @@ class MiniArray(Interferometer):
             self._antenna_gain for _ in range(antenna_names.size)
         ])
 
-        super().__init__(
-            position=position,
-            antenna_names=antenna_names,
-            antenna_positions=antenna_positions,
-            antenna_gains=antenna_gains
-        )
+        super().__init__(position=position,
+                         antenna_names=antenna_names,
+                         antenna_positions=antenna_positions,
+                         antenna_gains=antenna_gains,
+                         extra_delays=extra_delays,
+                         feed_gains=feed_gains
+                         )
 
 
     def __repr__(self):
