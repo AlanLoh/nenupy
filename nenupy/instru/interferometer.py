@@ -579,21 +579,21 @@ class Interferometer(ABC, metaclass=CombinedMeta):
             (1, 1, wavelength.size, 1, 1)
         ) # (antenna, time, frequency, polar, coord)
 
-        exponent = coeff * geometric_delays
-        
-        # apply fedd gain errors if any
-        if self.feed_gains is not None:
-            print(self.feed_gains)
-            exponent *= self.feed_gains[:, None, None, None, None]
-            
+        exponent = coeff * geometric_delays            
         # coord_chunk = exponent.shape[-1]//cpu_count()
         # coord_chunk = 1 if coord_chunk == 0 else coord_chunk
         # exponent = da.rechunk(
         #     exponent,
         #     chunks=exponent.shape[:-1] + (coord_chunk,)
         # )
+        pre_sum = np.exp(exponent)
+        # apply fedd gain errors if any
+        if self.feed_gains is not None:
+            print(self.feed_gains)
+            pre_sum *= self.feed_gains[:, None, None, None, None]
+        
         complex_array_factor = np.sum(
-            np.exp(exponent),
+            pre_sum,
             axis=0
         )/exponent.shape[0] # normalized
 
