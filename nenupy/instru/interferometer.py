@@ -205,15 +205,19 @@ class Interferometer(ABC, metaclass=CombinedMeta):
     """
 
     def __init__(self,
-            position: EarthLocation,
-            antenna_names: np.ndarray,
-            antenna_positions: np.ndarray,
-            antenna_gains: np.ndarray
-        ):
+                 position: EarthLocation,
+                 antenna_names: np.ndarray,
+                 antenna_positions: np.ndarray,
+                 antenna_gains: np.ndarray,
+                 extra_delays: np.ndarray = None,
+                 feed_gains: np.ndarray = None,
+                 ):
         self.position = position
         self.antenna_names = antenna_names
         self.antenna_positions = antenna_positions
         self.antenna_gains = antenna_gains
+        self.extra_delays = extra_delays
+        self.feed_gains = feed_gains
 
 
     def __getitem__(self, n):
@@ -540,6 +544,8 @@ class Interferometer(ABC, metaclass=CombinedMeta):
                 the targeted pointing directions over the time.
             :type pointing:
                 :class:`~nenupy.astro.pointing.Pointing`
+            :param return_complex:
+                Return complex array factor if `True` or power if `False`
 
             :return:
                 Array factor of the antenna distribution shaped as ``(time, frequency, 1, coordinates)``.
@@ -558,7 +564,12 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         # antenna position and the difference between sky and
         # pointing ground projections.
         geometric_delays = self._geometric_delays(sky, effective_pointing)
-
+        
+        # Add delay errors for each antennae
+        # They could be cable connection errors during construction, cables of wrong length, ...
+        if self.extra_delays is not None:
+            geometric_delays += self.extra_delays[:, None, None, None, None]
+        
         # Use the sky frequency attribute to compute the wavelength
         # and prepare the coefficient of the exponential with
         # the correct dimensions.
@@ -569,6 +580,12 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         ) # (antenna, time, frequency, polar, coord)
 
         exponent = coeff * geometric_delays
+        
+        # apply fedd gain errors if any
+        if self.feed_gains is not None:
+            print(self.feed_gains)
+            exponent *= self.feed_gains[:, None, None, None, None]
+            
         # coord_chunk = exponent.shape[-1]//cpu_count()
         # coord_chunk = 1 if coord_chunk == 0 else coord_chunk
         # exponent = da.rechunk(
@@ -582,9 +599,7 @@ class Interferometer(ABC, metaclass=CombinedMeta):
 
         if return_complex:
             return complex_array_factor
-        else:
-            # return np.sqrt(np.real(complex_array_factor * np.conjugate(complex_array_factor)))
-            return np.real(complex_array_factor * np.conjugate(complex_array_factor))
+        return complex_array_factor.real**2 + complex_array_factor.imag**2
 
 
     def beam(self, sky: Sky, pointing: Pointing, return_complex: bool = False) -> Sky:
