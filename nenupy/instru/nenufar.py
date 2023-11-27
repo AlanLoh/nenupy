@@ -288,7 +288,8 @@ class MiniArray(Interferometer):
             ~nenupy.instru.interferometer.Interferometer.antenna_gains
             ~nenupy.instru.interferometer.Interferometer.baselines
             ~nenupy.instru.interferometer.Interferometer.size
-
+            ~nenupy.instru.interferometer.Interferometer.antenna_weights
+            ~nenupy.instru.interferometer.Interferometer.antenna_delays
 
         .. rubric:: Methods Summary
 
@@ -313,9 +314,10 @@ class MiniArray(Interferometer):
     """
 
     def __init__(self,
-                 index: int = 0,
-                 extra_delays: np.ndarray = None,
-                 feed_gains: np.ndarray = None, ):
+            index: int = 0,
+            antenna_delays: np.ndarray = None,
+            antenna_weights: np.ndarray = None
+        ):
         self.index = index
 
         try:
@@ -350,12 +352,12 @@ class MiniArray(Interferometer):
         ])
 
         super().__init__(position=position,
-                         antenna_names=antenna_names,
-                         antenna_positions=antenna_positions,
-                         antenna_gains=antenna_gains,
-                         extra_delays=extra_delays,
-                         feed_gains=feed_gains
-                         )
+            antenna_names=antenna_names,
+            antenna_positions=antenna_positions,
+            antenna_gains=antenna_gains,
+            antenna_delays=antenna_delays,
+            antenna_weights=antenna_weights
+        )
 
 
     def __repr__(self):
@@ -412,7 +414,8 @@ class MiniArray(Interferometer):
             sky: Sky,
             pointing: Pointing,
             configuration: NenuFAR_Configuration = NenuFAR_Configuration(),
-            return_complex: bool = False
+            return_complex: bool = False,
+            normalize: bool = True
         ) -> Sky:
         r""" Computes the Mini-Array beam over the ``sky`` for a given
             ``pointing``.
@@ -533,7 +536,8 @@ class MiniArray(Interferometer):
         return super().beam(
             sky=sky,
             pointing=self.analog_pointing(pointing, configuration=configuration),
-            return_complex=return_complex
+            return_complex=return_complex,
+            normalize=normalize
         )# / aeff[None, :, None, None]
 
 
@@ -1142,7 +1146,8 @@ class NenuFAR(Interferometer):
             pointing: Pointing,
             analog_pointing: Pointing = None,
             configuration: NenuFAR_Configuration = NenuFAR_Configuration(),
-            return_complex: bool = False
+            return_complex: bool = False,
+            normalize: bool = True
         ) -> Sky:
         r""" Computes the NenuFAR beam over the ``sky`` for a given
             ``pointing``.
@@ -1239,7 +1244,8 @@ class NenuFAR(Interferometer):
                     sky=sky,
                     pointing=analog_pointing,
                     configuration=configuration,
-                    return_complex=return_complex
+                    return_complex=return_complex,
+                    normalize=normalize
                 ).value*count for gain, count in zip(self.antenna_gains[indices], counts)
             ]),
             axis=0

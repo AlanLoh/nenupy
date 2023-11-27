@@ -186,6 +186,8 @@ class Interferometer(ABC, metaclass=CombinedMeta):
             ~nenupy.instru.interferometer.Interferometer.baselines
             ~nenupy.instru.interferometer.Interferometer.position
             ~nenupy.instru.interferometer.Interferometer.size
+            ~nenupy.instru.interferometer.Interferometer.antenna_weights
+            ~nenupy.instru.interferometer.Interferometer.antenna_delays
 
         .. rubric:: Methods Summary
 
@@ -209,15 +211,15 @@ class Interferometer(ABC, metaclass=CombinedMeta):
                  antenna_names: np.ndarray,
                  antenna_positions: np.ndarray,
                  antenna_gains: np.ndarray,
-                 extra_delays: np.ndarray = None,
-                 feed_gains: np.ndarray = None,
+                 antenna_delays: np.ndarray = None,
+                 antenna_weights: np.ndarray = None,
                  ):
         self.position = position
         self.antenna_names = antenna_names
         self.antenna_positions = antenna_positions
         self.antenna_gains = antenna_gains
-        self.extra_delays = extra_delays
-        self.feed_gains = feed_gains
+        self.antenna_delays = antenna_delays
+        self.antenna_weights = antenna_weights
 
 
     def __getitem__(self, n):
@@ -259,6 +261,8 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         interfero.antenna_names = self.antenna_names[antenna_mask]
         interfero.antenna_positions = self.antenna_positions[antenna_mask, :]
         interfero.antenna_gains = self.antenna_gains[antenna_mask]
+        interfero.antenna_weights = self.antenna_weights[antenna_mask]
+        interfero.antenna_delays = self.antenna_delays[antenna_mask]
         return interfero
 
 
@@ -276,6 +280,8 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         interferometer.antenna_names = np.concatenate((self.antenna_names, other.antenna_names[to_include]))
         interferometer.antenna_positions = np.concatenate((self.antenna_positions, other.antenna_positions[to_include]))
         interferometer.antenna_gains = np.concatenate((self.antenna_gains, other.antenna_gains[to_include]))
+        interferometer.antenna_weights = np.concatenate((self.antenna_weights, other.antenna_weights[to_include]))
+        interferometer.antenna_delays = np.concatenate((self.antenna_delays, other.antenna_delays[to_include]))
         return interferometer
     
 
@@ -285,6 +291,8 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         interferometer.antenna_names = self.antenna_names[to_keep]
         interferometer.antenna_positions = self.antenna_positions[to_keep]
         interferometer.antenna_gains = self.antenna_gains[to_keep]
+        interferometer.antenna_weights = self.antenna_weights[to_keep]
+        interferometer.antenna_delays = self.antenna_delays[to_keep]
         return interferometer
 
 
@@ -382,6 +390,42 @@ class Interferometer(ABC, metaclass=CombinedMeta):
     @position.setter
     def position(self, p: EarthLocation):
         self._position = p
+
+
+    @property
+    def antenna_weights(self) -> np.ndarray:
+        """ """
+        return self._antenna_weights
+    @antenna_weights.setter
+    def antenna_weights(self, weights: np.ndarray):
+        if weights is None:
+            weights = np.ones(self.size)
+        elif weights.size != self.size:
+            raise ValueError(
+                f"antenna_weights (of size {weights.size}) do not match antenna_positions (of shape {self.size})."
+            )
+        elif np.any(weights.min() < 0) or np.any(weights.max() > 1):
+            raise ValueError(
+                f"antenna_weights values are restricted between 0 and 1."
+            )
+        self._antenna_weights = weights
+
+
+    @property
+    def antenna_delays(self) -> np.ndarray:
+        """ Add delay errors for each antennae
+            They could be cable connection errors during construction, cables of wrong length, ...
+        """
+        return self._antenna_delays
+    @antenna_delays.setter
+    def antenna_delays(self, delays: np.ndarray):
+        if delays is None:
+            delays = np.zeros(self.size)
+        elif delays.size != self.size:
+            raise ValueError(
+                f"antenna_delays (of size {delays.size}) do not match antenna_positions (of shape {self.size})."
+            )
+        self._antenna_delays = delays
 
 
     # --------------------------------------------------------- #
@@ -516,17 +560,17 @@ class Interferometer(ABC, metaclass=CombinedMeta):
 
 
 
-    def array_factor(self, sky: Sky, pointing: Pointing, return_complex: bool = False) -> da.Array:
+    def array_factor(self, sky: Sky, pointing: Pointing, return_complex: bool = False, normalize: bool = True) -> da.Array:
         r""" Computes the array factor of the antenna distribution.
 
             .. math::
-                \mathcal{F}(\nu, \phi, \theta) = \sum_{\rm ant} e^{ i \mathbf{k}(\nu, \phi, \theta) \cdot \mathbf{r}_{\rm ant}}
+                \mathcal{F}(\nu, \phi, \theta) = \sum_{\rm ant} w_{\rm ant} e^{ i \mathbf{k}(\nu, \phi, \theta) \cdot \mathbf{r}_{\rm ant}}
 
             where :math:`\mathbf{k} = \frac{2\pi}{\lambda} (\cos \phi \cos \theta, \sin \phi \cos \theta, \sin \theta )`
             is the wave vector for a wave propagation in a direction described by spherical coordinates,
             :math:`\lambda` is the wavelength, :math:`\phi` is the azimuth,
             :math:`\theta` is the elevation, :math:`\mathbf{r}_{\rm ant}`
-            is the antenna position matrix.
+            is the antenna position matrix, :math:`w_{\rm ant}` is the weight of the antenna (defined in :attr:`~nenupy.instru.interferometer.Interferometer.feed_weights`).
 
             This method considers the ``sky`` as the desired output (in terms of
             time, frequency and sky positions). It evaluates the effective 
@@ -546,6 +590,12 @@ class Interferometer(ABC, metaclass=CombinedMeta):
                 :class:`~nenupy.astro.pointing.Pointing`
             :param return_complex:
                 Return complex array factor if `True` or power if `False`
+            :type return_complex:
+                `bool`
+            :param normalize:
+                Return the normalized array factor. Default is `True`.
+            :type normalize:
+                `bool`
 
             :return:
                 Array factor of the antenna distribution shaped as ``(time, frequency, 1, coordinates)``.
@@ -564,12 +614,7 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         # antenna position and the difference between sky and
         # pointing ground projections.
         geometric_delays = self._geometric_delays(sky, effective_pointing)
-        
-        # Add delay errors for each antennae
-        # They could be cable connection errors during construction, cables of wrong length, ...
-        if self.extra_delays is not None:
-            geometric_delays += self.extra_delays[:, None, None, None, None]
-        
+
         # Use the sky frequency attribute to compute the wavelength
         # and prepare the coefficient of the exponential with
         # the correct dimensions.
@@ -579,30 +624,28 @@ class Interferometer(ABC, metaclass=CombinedMeta):
             (1, 1, wavelength.size, 1, 1)
         ) # (antenna, time, frequency, polar, coord)
 
-        exponent = coeff * geometric_delays            
+        exponent = coeff * (geometric_delays + self.antenna_delays[(...,) + (None,)*4])
+
         # coord_chunk = exponent.shape[-1]//cpu_count()
         # coord_chunk = 1 if coord_chunk == 0 else coord_chunk
         # exponent = da.rechunk(
         #     exponent,
         #     chunks=exponent.shape[:-1] + (coord_chunk,)
         # )
-        pre_sum = np.exp(exponent)
-        # apply fedd gain errors if any
-        if self.feed_gains is not None:
-            print(self.feed_gains)
-            pre_sum *= self.feed_gains[:, None, None, None, None]
-        
+
         complex_array_factor = np.sum(
-            pre_sum,
+            self.antenna_weights[(...,) + (None,)*4] * np.exp(exponent),
             axis=0
-        )/exponent.shape[0] # normalized
+        )
+        if normalize:
+            complex_array_factor /= self.size
 
         if return_complex:
             return complex_array_factor
         return complex_array_factor.real**2 + complex_array_factor.imag**2
 
 
-    def beam(self, sky: Sky, pointing: Pointing, return_complex: bool = False) -> Sky:
+    def beam(self, sky: Sky, pointing: Pointing, return_complex: bool = False, normalize: bool = True) -> Sky:
         r""" Computes the phased-array response :math:`\mathcal{G}` over the ``sky`` for a given
             ``pointing``.
 
@@ -648,7 +691,8 @@ class Interferometer(ABC, metaclass=CombinedMeta):
         array_factor = self.array_factor(
             sky=sky,
             pointing=pointing,
-            return_complex=return_complex
+            return_complex=return_complex,
+            normalize=normalize
         )
 
         # Compute the total antenna gain, i.e. the sum of all
