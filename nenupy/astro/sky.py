@@ -43,6 +43,7 @@ import matplotlib.pyplot as plt
 from matplotlib import patheffects
 from matplotlib.colorbar import ColorbarBase
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+import warnings
 from matplotlib.cm import get_cmap
 from matplotlib.ticker import LinearLocator
 from matplotlib.colors import Normalize
@@ -340,19 +341,22 @@ class SkySliceBase(AstroObject):
                 bbox_transform=ax.transAxes,
                 borderpad=0,
             )
-            cb = ColorbarBase(
-                cax,
-                cmap=get_cmap(name=cmap),
-                orientation='vertical',
-                norm=Normalize(
-                    vmin=vmin,
-                    vmax=vmax
-                ),
-                ticks=LinearLocator()
-            )
-            cb.solids.set_edgecolor("face")
-            cb.set_label(colorbar_label)
-            cb.formatter.set_powerlimits((0, 0))
+            with warnings.catch_warnings():
+                # Catche Deprecation warning of get_map (ginore because we are mpl<3.7)
+                warnings.simplefilter("ignore")
+                cb = ColorbarBase(
+                    cax,
+                    cmap=get_cmap(name=cmap),
+                    orientation='vertical',
+                    norm=Normalize(
+                        vmin=vmin,
+                        vmax=vmax
+                    ),
+                    ticks=LinearLocator()
+                )
+                cb.solids.set_edgecolor("face")
+                cb.set_label(colorbar_label)
+                cb.formatter.set_powerlimits((0, 0))
 
         # Overplot
         # if kwargs.get("circle", None) is not None:

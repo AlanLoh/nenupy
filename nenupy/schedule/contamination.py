@@ -321,7 +321,7 @@ class BeamLobes:
             for f_idx in range(self.frequency.size):
                 for t_idx in range(self.time.size):
                     source_in_grating_lobes[f_idx, t_idx] = np.any(
-                        moc[f_idx, t_idx].contains(
+                        moc[f_idx, t_idx].contains_lonlat(
                             sky_positions[:, t_idx].ra,
                             sky_positions[:, t_idx].dec
                         )
@@ -432,7 +432,7 @@ class BeamLobes:
         for f_idx in range(self.frequency.size):
             for t_idx in range(self.time.size):
                 source_in_grating_lobes[f_idx, t_idx] = np.sum(
-                    self.moc[f_idx, t_idx].contains(  # contains_lonlat
+                    self.moc[f_idx, t_idx].contains_lonlat(  # contains_lonlat
                         sky_positions[:, t_idx].ra,
                         sky_positions[:, t_idx].dec
                     )
@@ -466,13 +466,13 @@ class BeamLobes:
         
         if "moc" in self._src_display:
             # Plot the array factor moc and the GSM moc
-            self.sky[t_idx, f_idx, 0].plot(
+            return self.sky[t_idx, f_idx, 0].plot(
                 moc=[self.moc[f_idx, t_idx], self._src_display["moc"][f_idx]],
                 **kwargs
             )
         else:
             # Plot the array factor MOC and highlight the source positions
-            self.sky[t_idx, f_idx, 0].plot(
+            return self.sky[t_idx, f_idx, 0].plot(
                 moc=self.moc[f_idx, t_idx],
                 text=self._src_display["names"][t_idx],
                 scatter=self._src_display["positions"][t_idx],
