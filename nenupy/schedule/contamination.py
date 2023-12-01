@@ -243,15 +243,14 @@ class BeamLobes:
             time: Time,
             frequency: u.Quantity,
             pointing: Pointing,
+            nenufar_config: NenuFAR_Configuration = NenuFAR_Configuration(beamsquint_correction=False),
             miniarray_rotations: List[int] = None,
             use_antenna_gain: bool = True
         ):
         self.time = time
         self.frequency = frequency
         self.pointing = pointing
-        self.configuration=NenuFAR_Configuration(
-            beamsquint_correction=False
-        )
+        self.configuration=nenufar_config
         self.miniarray_rotations = miniarray_rotations
         
         self.moc = None
@@ -306,55 +305,56 @@ class BeamLobes:
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def compute_weight_moc(self, sources: List[str], cuts_number: int = 10) -> np.ndarray:
+    def compute_weight_moc(self, sources: List[str], thresholds: np.ndarray = np.logspace(-2, 0, 10, endpoint=False)) -> np.ndarray:
         """ Compute moc with arrays of values between 0 and 1."""
 
         # Get an array of sky positions (including all sources, all times)
         sky_positions = self._get_skycoord_array(sources)
 
-        thresholds = np.linspace(0, 1, cuts_number + 1)
+        threshold_moc = np.zeros((thresholds.size, self.frequency.size, self.time.size), dtype=bool)
 
-        threshold_moc = np.zeros((cuts_number, self.frequency.size, self.time.size), dtype=bool)
+        for i, thr in enumerate(thresholds):
 
-        for i, thr in enumerate(thresholds[1:]):
-
-            moc = self.compute_moc(maximum_ratio=thr, return_array=True)
+            moc = self.compute_moc(relative_threshold=thr, return_array=True)
             
             source_in_grating_lobes = np.zeros(moc.shape, dtype=int)
             for f_idx in range(self.frequency.size):
                 for t_idx in range(self.time.size):
-                    source_in_grating_lobes[f_idx, t_idx] = np.sum(
+                    source_in_grating_lobes[f_idx, t_idx] = np.any(
                         moc[f_idx, t_idx].contains(
                             sky_positions[:, t_idx].ra,
                             sky_positions[:, t_idx].dec
                         )
                     )
-            
-            threshold_moc[i, :, :] = source_in_grating_lobes.astype(bool)
+
+            threshold_moc[i, :, :] = source_in_grating_lobes
 
         return SourceInLobes(
             time=self.time,
             frequency=self.frequency,
-            value=np.sum(threshold_moc, axis=0)/cuts_number
+            value=np.nanmean(threshold_moc, axis=0)
         )
 
-
-    def compute_moc(self, maximum_ratio: float = 0.5, return_array: bool = False):
+    def compute_moc(self, relative_threshold: float = 0.5, return_array: bool = False):
         r"""
             Computes the MOC as sky patches where the array factor
             is above :math:`{\rm max}(\mathcal{F}_{\rm MA}) \times r`.
-            :math:`\mathcal{F}_{\rm MA}` is the Mini-Array(s)
-            array factor and :math:`r` is the ``maximum_ratio``.
+            :math:`\mathcal{F}_{\rm MA}` is the Mini-Array(s) normalized
+            array factor and :math:`r` is the ``relative_threshold``.
+
+            :param relative_threshold:
+                All the AF values above this threshold are included in the MOC.
+            :type maximum_ratio:
+                float
         """
         # Number of Mini-Array that have been summed
-        n_ma = self.miniarray_rotations.size
-
+        # n_ma = self.miniarray_rotations.size
         mocs = []
         for f_idx in range(self.frequency.size):
             # Compute the threshold above which the HEALPix cells are
             # to be included in the 'main sensitivity' of the analog beam
             # (i.e., primary beam, and grating lobes).
-            threshold = self.sky.value[:, f_idx, 0].max()/n_ma*maximum_ratio
+            threshold = self.sky.value[:, f_idx, 0].max()*relative_threshold
 
             # Find the cells and select only those that are above the horizon.
             above_threshold = self.sky.value[:, f_idx, 0] >= threshold
@@ -432,7 +432,7 @@ class BeamLobes:
         for f_idx in range(self.frequency.size):
             for t_idx in range(self.time.size):
                 source_in_grating_lobes[f_idx, t_idx] = np.sum(
-                    self.moc[f_idx, t_idx].contains(
+                    self.moc[f_idx, t_idx].contains(  # contains_lonlat
                         sky_positions[:, t_idx].ra,
                         sky_positions[:, t_idx].dec
                     )
@@ -483,7 +483,10 @@ class BeamLobes:
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     def _compute_array_factor(self, use_antenna_gain: bool = True) -> np.ndarray:
-        """ Computes the array factor, summed over the 6 different NenuFAR Mini-Array rotations. """
+        """ Computes the normalized array factor, summed over the 6 possible different NenuFAR Mini-Array rotations.
+            If less rotations are selected, the sum is done on less MA array factors.
+            The returned AF is normalized.
+        """
         # Mini-Array selection
         ma_mask = np.isin(MA_ROTATIONS, self.miniarray_rotations)
         af = 0
@@ -497,13 +500,14 @@ class BeamLobes:
                     configuration=self.configuration
                 )#self.pointing
             )
-        
+
         if use_antenna_gain:
             af *= ma._antenna_gain(sky=self.sky, pointing=self.pointing)
 
         log.info("Computing the array factor...")
         with ProgressBar() if log.getEffectiveLevel() <= logging.INFO else DummyCtMgr():
-            return af.compute()
+            array_factor = af.compute()
+        return array_factor / np.max(array_factor, axis=3)[:, :, :, None]
 
 
     def _get_skycoord_array(self, sources: List[str]) -> SkyCoord:
