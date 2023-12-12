@@ -7,6 +7,7 @@ nenupy.instru
 
    nenupy.instru.instrument_tools
    nenupy.instru.interferometer
+   nenupy.instru.nda
    nenupy.instru.nenufar
 
 

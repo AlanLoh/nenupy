@@ -1,7 +1,7 @@
- nenupy.schedule.geneticalgo
+ nenupy.astro.jones\_mueller
 ============================
 
-.. automodule:: nenupy.schedule.geneticalgo
+.. automodule:: nenupy.astro.jones_mueller
    :members:
    :undoc-members:
    :show-inheritance:

@@ -1,5 +1,5 @@
-nenupy.io.bst
-=============
+ nenupy.io.bst
+==============
 
 .. automodule:: nenupy.io.bst
    :members:

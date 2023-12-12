@@ -1,5 +1,5 @@
-nenupy.astro.pointing
-=====================
+ nenupy.astro.pointing
+======================
 
 .. automodule:: nenupy.astro.pointing
    :members:

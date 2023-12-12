@@ -62,7 +62,8 @@ autodoc_typehints = "none"
 autodoc_mock_imports = [
     'pygsm',
     'pyvo',
-    'astroplan'
+    'astroplan',
+    'mocpy'
 ]
 
 default_role = 'obj'

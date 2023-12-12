@@ -1,5 +1,5 @@
-nenupy.schedule.contamination
-=============================
+ nenupy.schedule.contamination
+==============================
 
 .. automodule:: nenupy.schedule.contamination
    :members:

@@ -1,5 +1,5 @@
-nenupy.instru.nenufar
-=====================
+ nenupy.instru.nenufar
+======================
 
 .. automodule:: nenupy.instru.nenufar
    :members:

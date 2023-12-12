@@ -1,7 +1,7 @@
- nenupy.io.io\_tools
+ nenupy.io.tf\_utils
 ====================
 
-.. automodule:: nenupy.io.io_tools
+.. automodule:: nenupy.io.tf_utils
    :members:
    :undoc-members:
    :show-inheritance:

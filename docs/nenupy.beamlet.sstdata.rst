@@ -1,5 +1,5 @@
-nenupy.beamlet.sstdata
-======================
+ nenupy.beamlet.sstdata
+=======================
 
 .. automodule:: nenupy.beamlet.sstdata
    :members:

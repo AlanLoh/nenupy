@@ -1,7 +1,7 @@
- nenupy.observation.obs\_tools
+ nenupy.astro.beam\_correction
 ==============================
 
-.. automodule:: nenupy.observation.obs_tools
+.. automodule:: nenupy.astro.beam_correction
    :members:
    :undoc-members:
    :show-inheritance:

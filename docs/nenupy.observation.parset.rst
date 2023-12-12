@@ -1,5 +1,5 @@
-nenupy.observation.parset
-=========================
+ nenupy.observation.parset
+==========================
 
 .. automodule:: nenupy.observation.parset
    :members:

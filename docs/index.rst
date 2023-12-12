@@ -115,7 +115,7 @@ Finally, observations can then be simulated using the simulated beam and a sky m
    io/sst_reading
    io/bst_reading
    io/xst_reading
-   io/undysputed_reading
+   io/tf_reading
 
 .. _data-analysis:
 
@@ -130,10 +130,11 @@ Finally, observations can then be simulated using the simulated beam and a sky m
 .. _tools:
 
 .. toctree::
-   :caption: Tools
+   :caption: Modules
    :maxdepth: 2
 
    nenupy.astro
+   nenupy.io
    nenupy.instru
    nenupy.observation
    nenupy.schedule

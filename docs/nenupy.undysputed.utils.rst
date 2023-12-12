@@ -1,7 +1,7 @@
- nenupy.schedule.targets
+ nenupy.undysputed.utils
 ========================
 
-.. automodule:: nenupy.schedule.targets
+.. automodule:: nenupy.undysputed.utils
    :members:
    :undoc-members:
    :show-inheritance:

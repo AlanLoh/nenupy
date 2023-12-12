@@ -6,6 +6,7 @@ nenupy.undysputed
 .. toctree::
 
    nenupy.undysputed.dynspec
+   nenupy.undysputed.utils
    nenupy.undysputed.waveform
 
 

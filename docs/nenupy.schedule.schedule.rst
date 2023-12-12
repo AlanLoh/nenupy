@@ -1,5 +1,5 @@
-nenupy.schedule.schedule
-========================
+ nenupy.schedule.schedule
+=========================
 
 .. automodule:: nenupy.schedule.schedule
    :members:

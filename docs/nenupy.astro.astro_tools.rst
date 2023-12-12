@@ -1,5 +1,5 @@
-nenupy.astro.astro\_tools
-=========================
+ nenupy.astro.astro\_tools
+==========================
 
 .. automodule:: nenupy.astro.astro_tools
    :members:

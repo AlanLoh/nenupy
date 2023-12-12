@@ -1,5 +1,5 @@
-nenupy.undysputed.waveform
-==========================
+ nenupy.undysputed.waveform
+===========================
 
 .. automodule:: nenupy.undysputed.waveform
    :members:

@@ -1,7 +1,7 @@
 .. _undysputed_reading_doc:
 
-UnDySPuTeD Time-Frequency Data
-==============================
+UnDySPuTeD Time-Frequency Data (deprecated)
+===========================================
 
 :mod:`~nenupy.undysputed.dynspec.Dynspec` is the module designed to
 read and analyze *UnDySPuTeD* DynSpec high-rate data. It

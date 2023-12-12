@@ -1,5 +1,5 @@
-nenupy.astro.sky
-================
+ nenupy.astro.sky
+=================
 
 .. automodule:: nenupy.astro.sky
    :members:

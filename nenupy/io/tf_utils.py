@@ -1,4 +1,12 @@
 """
+    ******************************
+    Support to Time-Frequency data
+    ******************************
+
+    .. autosummary::
+
+        ~nenupy.io.tf_utils.blocks_to_tf_data
+        ~nenupy.io.tf_utils.compute_spectra_frequencies
 
 """
 
@@ -8,8 +16,11 @@ import dask.array as da
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astropy.time import Time, TimeDelta
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Any
+from functools import partial
+from abc import ABC, abstractmethod
 import logging
+
 log = logging.getLogger(__name__)
 
 from nenupy.astro import dispersion_delay, faraday_angle
@@ -27,22 +38,26 @@ __all__ = [
     "get_bandpass",
     "polarization_angle",
     "rebin_along_dimension",
+    "remove_channels_per_subband",
+    "reshape_to_subbands",
     "sort_beam_edges",
-    "spectra_data_to_matrix"
+    "spectra_data_to_matrix",
+    "TFPipelineParameters"
 ]
+
 
 # ============================================================= #
 # ---------------- apply_dreambeam_corrections ---------------- #
 def apply_dreambeam_corrections(
-        time_unix: np.ndarray,
-        frequency_hz: np.ndarray,
-        data: np.ndarray,
-        dt_sec: float,
-        time_step_sec: float,
-        n_channels: int,
-        skycoord: SkyCoord,
-        parallactic: bool = True
-    ) -> np.ndarray:
+    time_unix: np.ndarray,
+    frequency_hz: np.ndarray,
+    data: np.ndarray,
+    dt_sec: float,
+    time_step_sec: float,
+    n_channels: int,
+    skycoord: SkyCoord,
+    parallactic: bool = True,
+) -> np.ndarray:
     """ """
 
     log.info("Applying DreamBeam corrections...")
@@ -54,11 +69,13 @@ def apply_dreambeam_corrections(
         raise ValueError("There is a problem in the time dimension!")
     if (freq_size != data.shape[1]) or (freq_size % n_channels != 0):
         raise ValueError("There is a problem in the frequency dimension!")
-    n_subbands = int(freq_size/n_channels)
+    n_subbands = int(freq_size / n_channels)
 
     # Compute the number of time samples that will be corrected together
-    time_group_size = int(np.round(time_step_sec/dt_sec))
-    log.debug(f"\tGroups of {time_group_size} time blocks will be corrected altogether ({dt_sec*time_group_size} sec resolution).")
+    time_group_size = int(np.round(time_step_sec / dt_sec))
+    log.debug(
+        f"\tGroups of {time_group_size} time blocks will be corrected altogether ({dt_sec*time_group_size} sec resolution)."
+    )
     n_time_groups = time_size // time_group_size
     leftover_time_samples = time_size % time_group_size
 
@@ -68,7 +85,7 @@ def apply_dreambeam_corrections(
         time_step=TimeDelta(time_group_size * dt_sec, format="sec"),
         duration=TimeDelta(time_unix[-1] - time_unix[0], format="sec"),
         skycoord=skycoord,
-        parallactic=parallactic
+        parallactic=parallactic,
     )
     db_time = db_time.unix
     db_frequency = db_frequency.to_value(u.Hz)
@@ -77,35 +94,32 @@ def apply_dreambeam_corrections(
     # Reshape the data at the time and frequency resolutions
     # Take into account leftover times
     data_leftover = data[-leftover_time_samples:, ...].reshape(
-        (
-            leftover_time_samples,
-            n_subbands,
-            n_channels,
-            2, 2
-        )
+        (leftover_time_samples, n_subbands, n_channels, 2, 2)
     )
     data = data[: time_size - leftover_time_samples, ...].reshape(
-        (
-            n_time_groups,
-            time_group_size,
-            n_subbands,
-            n_channels,
-            2, 2
-        )
+        (n_time_groups, time_group_size, n_subbands, n_channels, 2, 2)
     )
 
     # Compute the frequency indices to select the corresponding Jones matrices
     subband_start_frequencies = frequency_hz.reshape((n_subbands, n_channels))[:, 0]
     freq_start_idx = np.argmax(db_frequency >= subband_start_frequencies[0])
-    freq_stop_idx = db_frequency.size - np.argmax(db_frequency[::-1] < subband_start_frequencies[-1])
+    freq_stop_idx = db_frequency.size - np.argmax(
+        db_frequency[::-1] < subband_start_frequencies[-1]
+    )
 
     # Do the same with the time
-    group_start_time = time_unix[: time_size - leftover_time_samples].reshape((n_time_groups, time_group_size))[:, 0]
+    group_start_time = time_unix[: time_size - leftover_time_samples].reshape(
+        (n_time_groups, time_group_size)
+    )[:, 0]
     time_start_idx = np.argmax(db_time >= group_start_time[0])
     time_stop_idx = db_time.size - np.argmax(db_time[::-1] < group_start_time[-1])
 
-    jones = db_jones[time_start_idx:time_stop_idx + 1, freq_start_idx:freq_stop_idx + 1, :, :][:, None, :, None, :, :]
-    jones_leftover = db_jones[-1, freq_start_idx:freq_stop_idx + 1, :, :][None, :, None, :, :]
+    jones = db_jones[
+        time_start_idx : time_stop_idx + 1, freq_start_idx : freq_stop_idx + 1, :, :
+    ][:, None, :, None, :, :]
+    jones_leftover = db_jones[-1, freq_start_idx : freq_stop_idx + 1, :, :][
+        None, :, None, :, :
+    ]
 
     # Invert the matrices that will be used to correct the observed signals
     # Jones matrices are at the subband resolution and an arbitrary time resolution
@@ -121,17 +135,16 @@ def apply_dreambeam_corrections(
     # This would raise an indexerror if jones_values are at smaller t/f range than data
     return np.concatenate(
         (
+            np.matmul(jones, np.matmul(data, jones_hermitian)).reshape(
+                (time_size - leftover_time_samples, freq_size, 2, 2)
+            ),
             np.matmul(
-                jones,
-                np.matmul(data, jones_hermitian)
-            ).reshape((time_size - leftover_time_samples, freq_size, 2, 2)),
-            np.matmul(
-                jones_leftover,
-                np.matmul(data_leftover, jones_leftover_hermitian)
-            ).reshape((leftover_time_samples, freq_size, 2, 2))
+                jones_leftover, np.matmul(data_leftover, jones_leftover_hermitian)
+            ).reshape((leftover_time_samples, freq_size, 2, 2)),
         ),
-        axis=0
+        axis=0,
     )
+
 
 # ============================================================= #
 # --------------------- blocks_to_tf_data --------------------- #
@@ -167,9 +180,12 @@ def blocks_to_tf_data(data: da.Array, n_block_times: int, n_channels: int) -> da
     # Invert the halves and reshape to the final form.
     return data[:, :, ::-1, ...].reshape(final_shape)
 
+
 # ============================================================= #
 # ---------------- compute_spectra_frequencies ---------------- #
-def compute_spectra_frequencies(subband_start_hz: np.ndarray, n_channels: int, frequency_step_hz: float) -> da.Array:
+def compute_spectra_frequencies(
+    subband_start_hz: np.ndarray, n_channels: int, frequency_step_hz: float
+) -> da.Array:
     """ """
 
     # Construct the frequency array
@@ -183,9 +199,12 @@ def compute_spectra_frequencies(subband_start_hz: np.ndarray, n_channels: int, f
 
     return frequencies
 
+
 # ============================================================= #
 # ------------------- compute_spectra_time -------------------- #
-def compute_spectra_time(block_start_time_unix: np.ndarray, ntime_per_block: int, time_step_s: float) -> da.Array:
+def compute_spectra_time(
+    block_start_time_unix: np.ndarray, ntime_per_block: int, time_step_s: float
+) -> da.Array:
     """ """
 
     # Construct the elapsed time per block (1D array)
@@ -201,13 +220,15 @@ def compute_spectra_time(block_start_time_unix: np.ndarray, ntime_per_block: int
 
     return unix_time
 
+
 # ============================================================= #
 # ----------------- compute_stokes_parameters ----------------- #
-def compute_stokes_parameters(data_array: np.ndarray, stokes: Union[List[str], str]) -> np.ndarray:
-    """ data_array: >2 D, last 2 dimensions are ((XX, XY), (YX, YY))
-    """
+def compute_stokes_parameters(
+    data_array: np.ndarray, stokes: Union[List[str], str]
+) -> np.ndarray:
+    """data_array: >2 D, last 2 dimensions are ((XX, XY), (YX, YY))"""
 
-    log.info("Computing Stokes parameters...")
+    log.info(f"Computing Stokes parameters {stokes}...")
 
     # Assert that the last dimensions are shaped like a cross correlation electric field matrix
     if data_array.shape[-2:] != (2, 2):
@@ -215,22 +236,36 @@ def compute_stokes_parameters(data_array: np.ndarray, stokes: Union[List[str], s
 
     result = None
 
+    if isinstance(stokes, str):
+        # Make sure the Stokes iterable is a list and not just the string.
+        stokes = [stokes]
     for stokes_i in stokes:
+        stokes_i = stokes_i.replace(" ", "").upper()
         # Compute the correct Stokes value
-        if stokes_i.upper() == "I":
+        if stokes_i == "I":
             data_i = data_array[..., 0, 0].real + data_array[..., 1, 1].real
-        elif stokes_i.upper() == "Q":
+        elif stokes_i == "Q":
             data_i = data_array[..., 0, 0].real - data_array[..., 1, 1].real
-        elif stokes_i.upper() == "U":
+        elif stokes_i == "U":
             data_i = data_array[..., 0, 1].real * 2
-        elif stokes_i.upper() == "V":
+        elif stokes_i == "V":
             data_i = data_array[..., 0, 1].imag * 2
-        elif stokes_i.upper() == "Q/I":
-            data_i = (data_array[..., 0, 0].real - data_array[..., 1, 1].real)/(data_array[..., 0, 0].real + data_array[..., 1, 1].real)
-        elif stokes_i.upper() == "U/I":
-            data_i = data_array[..., 0, 1].real * 2 / (data_array[..., 0, 0].real + data_array[..., 1, 1].real)
-        elif stokes_i.upper() == "V/I":
-            data_i = data_array[..., 0, 1].imag * 2 / (data_array[..., 0, 0].real + data_array[..., 1, 1].real)
+        elif stokes_i == "Q/I":
+            data_i = (data_array[..., 0, 0].real - data_array[..., 1, 1].real) / (
+                data_array[..., 0, 0].real + data_array[..., 1, 1].real
+            )
+        elif stokes_i == "U/I":
+            data_i = (
+                data_array[..., 0, 1].real
+                * 2
+                / (data_array[..., 0, 0].real + data_array[..., 1, 1].real)
+            )
+        elif stokes_i == "V/I":
+            data_i = (
+                data_array[..., 0, 1].imag
+                * 2
+                / (data_array[..., 0, 0].real + data_array[..., 1, 1].real)
+            )
         else:
             raise NotImplementedError(f"Stokes parameter {stokes_i} unknown.")
 
@@ -244,10 +279,23 @@ def compute_stokes_parameters(data_array: np.ndarray, stokes: Union[List[str], s
 
     return result
 
+
 # ============================================================= #
 # --------------------- correct_bandpass ---------------------- #
 def correct_bandpass(data: np.ndarray, n_channels: int) -> np.ndarray:
-    """ """
+    """Correct the Polyphase-filter band-pass response at each sub-band.
+
+    .. image:: ./_images/bandpass_corr.png
+        :width: 800
+
+    :param data: _description_
+    :type data: np.ndarray
+    :param n_channels: _description_
+    :type n_channels: int
+    :raises ValueError: _description_
+    :return: _description_
+    :rtype: np.ndarray
+    """
 
     log.info("Correcting for bandpass...")
 
@@ -257,14 +305,11 @@ def correct_bandpass(data: np.ndarray, n_channels: int) -> np.ndarray:
     # Reshape the data array to isolate individual subbands
     n_times, n_freqs, _, _ = data.shape
     if n_freqs % n_channels != 0:
-        raise ValueError("The frequency dimension of `data` doesn't match the argument `n_channels`.")
-    data = data.reshape(
-        (
-            n_times,
-            int(n_freqs / n_channels), # subband
-            n_channels, # channels
-            2, 2
+        raise ValueError(
+            "The frequency dimension of `data` doesn't match the argument `n_channels`."
         )
+    data = data.reshape(
+        (n_times, int(n_freqs / n_channels), n_channels, 2, 2)  # subband  # channels
     )
 
     # Multiply the channels by the bandpass to correct them
@@ -275,32 +320,29 @@ def correct_bandpass(data: np.ndarray, n_channels: int) -> np.ndarray:
     # Re-reshape the data into time, frequency, (2, 2) array
     return data.reshape((n_times, n_freqs, 2, 2))
 
+
 # ============================================================= #
 # -------------------- crop_subband_edges --------------------- #
-def crop_subband_edges(data: np.ndarray, n_channels: int, lower_edge_channels: int, higher_edge_channels: int) -> np.ndarray:
+def crop_subband_edges(
+    data: np.ndarray,
+    n_channels: int,
+    lower_edge_channels: int,
+    higher_edge_channels: int,
+) -> np.ndarray:
     """ """
 
     log.info("Removing edge channels...")
 
     if lower_edge_channels + higher_edge_channels >= n_channels:
-        raise ValueError(f"{lower_edge_channels + higher_edge_channels} channels to crop out of {n_channels} channels subbands.")
-
-    # Reshape the data array to isolate individual subbands
-    n_times, n_freqs, _, _ = data.shape
-    if n_freqs % n_channels != 0:
-        raise ValueError("The frequency dimension of `data` doesn't match the argument `n_channels`.")
-
-    data = data.reshape(
-        (
-            n_times,
-            int(n_freqs / n_channels), # subband
-            n_channels, # channels
-            2, 2
+        raise ValueError(
+            f"{lower_edge_channels + higher_edge_channels} channels to crop out of {n_channels} channels subbands."
         )
-    )
+
+    n_times, n_freqs, _, _ = data.shape
+    data = reshape_to_subbands(data=data, n_channels=n_channels)
 
     # Set to NaN edge channels
-    data[:, :, : lower_edge_channels, :, :] = np.nan # lower edge
+    data[:, :, :lower_edge_channels, :, :] = np.nan  # lower edge
     data[:, :, n_channels - higher_edge_channels :, :] = np.nan  # upper edge
     data = data.reshape((n_times, n_freqs, 2, 2))
 
@@ -310,6 +352,7 @@ def crop_subband_edges(data: np.ndarray, n_channels: int, lower_edge_channels: i
     )
 
     return data
+
 
 # ============================================================= #
 # --------------------- de_disperse_array --------------------- #
@@ -345,7 +388,7 @@ def de_disperse_array(
         :class:`~astropy.units.Quantity`
     """
 
-    log.info("De-dispersing data...")
+    log.info(f"De-dispersing data by DM={dispersion_measure.to(u.pc/u.cm**3)}...")
 
     if data.ndim < 2:
         raise Exception(
@@ -370,18 +413,21 @@ def de_disperse_array(
     cell_delays = np.round((delays / time_step).decompose().to_value()).astype(int)
 
     # Shift the array in time
+    time_size = data.shape[0]
     for i in range(frequencies.size):
         data[:, i, ...] = np.roll(data[:, i, ...], -cell_delays[i], 0)
-        # # Mask right edge of dynspec
-        data[-cell_delays[i] :, i, ...] = np.nan
+        # Mask right edge of dynspec
+        data[time_size - cell_delays[i] :, i, :, :] = np.nan
 
     return data
 
+
 # ============================================================= #
 # ---------------------- de_faraday_data ---------------------- #
-def de_faraday_data(data: np.ndarray, frequency: u.Quantity, rotation_measure: u.Quantity) -> np.ndarray:
+def de_faraday_data(
+    frequency: u.Quantity, data: np.ndarray, rotation_measure: u.Quantity
+) -> np.ndarray:
     """ """
-
     log.info("Correcting for Faraday rotation...")
 
     # Check the dimensions
@@ -389,11 +435,11 @@ def de_faraday_data(data: np.ndarray, frequency: u.Quantity, rotation_measure: u
         raise Exception("Wrong data dimensions!")
 
     # Computing the Faraday angles compared to infinite frequency
-    log.info(f"\tComputing {frequency.size} Faraday rotation angles at the RM={rotation_measure}...")
+    log.info(
+        f"\tComputing {frequency.size} Faraday rotation angles at the RM={rotation_measure}..."
+    )
     rotation_angle = faraday_angle(
-        frequency=frequency,
-        rotation_measure=rotation_measure,
-        inverse=True
+        frequency=frequency, rotation_measure=rotation_measure, inverse=True
     ).to_value(u.rad)
 
     log.info("\tApplying Faraday rotation Jones matrices...")
@@ -404,11 +450,14 @@ def de_faraday_data(data: np.ndarray, frequency: u.Quantity, rotation_measure: u
 
     return np.matmul(np.matmul(jones, data), jones_transpose)
 
+
 # ============================================================= #
 # ----------------------- get_bandpass ------------------------ #
 def get_bandpass(n_channels: int) -> np.ndarray:
     """ """
-    kaiser_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bandpass_coeffs.dat")
+    kaiser_file = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "bandpass_coeffs.dat"
+    )
     kaiser = np.loadtxt(kaiser_file)
 
     n_tap = 16
@@ -428,22 +477,28 @@ def get_bandpass(n_channels: int) -> np.ndarray:
 
     return g**2.0
 
+
 # ============================================================= #
 # -------------------- polarization_angle --------------------- #
 def polarization_angle(stokes_u: np.ndarray, stokes_q: np.ndarray) -> np.ndarray:
     """ """
     return 0.5 * np.arctan(stokes_u / stokes_q)
 
+
 # ============================================================= #
 # ------------------- rebin_along_dimension ------------------- #
-def rebin_along_dimension(data: np.ndarray, axis_array: np.ndarray, axis: int, dx: float, new_dx: float) -> Tuple[np.ndarray, np.ndarray]:
+def rebin_along_dimension(
+    data: np.ndarray, axis_array: np.ndarray, axis: int, dx: float, new_dx: float
+) -> Tuple[np.ndarray, np.ndarray]:
     """ """
 
     # Basic checks to make sure that dimensions are OK
     if axis_array.ndim != 1:
         raise IndexError("axis_array should be 1D.")
     elif data.shape[axis] != axis_array.size:
-        raise IndexError(f"Axis selected ({axis}) dimension {data.shape[axis]} does not match axis_array's shape {axis_array.shape}.")
+        raise IndexError(
+            f"Axis selected ({axis}) dimension {data.shape[axis]} does not match axis_array's shape {axis_array.shape}."
+        )
     elif dx > new_dx:
         raise ValueError("Rebin expect a `new_dx` value larger than original `dx`.")
 
@@ -451,14 +506,23 @@ def rebin_along_dimension(data: np.ndarray, axis_array: np.ndarray, axis: int, d
     bin_size = int(np.floor(new_dx / dx))
     final_size = int(np.floor(initial_size / bin_size))
     leftovers = initial_size % final_size
-    
+
     d_shape = data.shape
 
     log.info(f"\tdx: {dx} | new_dx: {new_dx} -> rebin factor: {bin_size}.")
 
     # Reshape the data and the axis to ease the averaging
-    data = data[tuple([slice(None) if i != axis else slice(None, initial_size - leftovers) for i in range(len(d_shape))])].reshape(
-        d_shape[:axis] + (final_size, int((initial_size - leftovers) / final_size)) + d_shape[axis + 1:]
+    data = data[
+        tuple(
+            [
+                slice(None) if i != axis else slice(None, initial_size - leftovers)
+                for i in range(len(d_shape))
+            ]
+        )
+    ].reshape(
+        d_shape[:axis]
+        + (final_size, int((initial_size - leftovers) / final_size))
+        + d_shape[axis + 1 :]
     )
     axis_array = axis_array[: initial_size - leftovers].reshape(
         (final_size, int((initial_size - leftovers) / final_size))
@@ -471,6 +535,113 @@ def rebin_along_dimension(data: np.ndarray, axis_array: np.ndarray, axis: int, d
     log.info(f"\tData rebinned, last {leftovers} samples were not considered.")
 
     return axis_array, data
+
+
+# ============================================================= #
+# ---------------- remove_channels_per_subband ---------------- #
+def remove_channels_per_subband(
+    data: np.ndarray, n_channels: int, channels_to_remove: Union[list, np.ndarray]
+) -> np.ndarray:
+    """Set channel indices of a time-frequency dataset to `NaN` values.
+    The ``data`` array is first re-shaped as `(n_times, n_subbands, n_channels, 2, 2)` using :func:`~nenupy.io.tf_utils.reshape_to_subbands`.
+
+    :param data: Time-frequency correlations array, its dimensions must be `(n_times, n_frequencies, 2, 2)`. The data type must be `float`.
+    :type data: :class:`~numpy.ndarray`
+    :param n_channels: Number of channels per sub-band.
+    :type n_channels: `int`
+    :param channels_to_remove: Array of channel indices to set at `NaN` values.
+    :type channels_to_remove: :class:`~numpy.ndarray` or `list`
+    :raises TypeError: If ``channels_to_remove`` is not of the correct type.
+    :raises IndexError: If any of the indices listed in ``channels_to_remove`` does not correspond to the ``n_channels`` argument.
+    :return: Time-frequency correlations array, shaped as the original input, except that some channels are set to `NaN`.
+    :rtype: :class:`~numpy.ndarray`
+
+    :Example:
+
+        .. code-block:: python
+
+            >>> from nenupy.io.tf_utils import remove_channels_per_subband
+            >>> import numpy as np
+            >>>
+            >>> data = np.arange(2*4*2*2, dtype=float).reshape((2, 4, 2, 2))
+            >>> result = remove_channels_per_subband(data, 2, [0])
+            >>> result[:, :, 0, 0]
+            array([[nan,  4., nan, 12.],
+                   [nan, 20., nan, 28.]])
+
+    """
+    
+    if channels_to_remove is None:
+        # Don't do anything
+        return data
+    elif not isinstance(channels_to_remove, np.ndarray):
+        try:
+            channels_to_remove = np.array(channels_to_remove)
+        except:
+            raise TypeError("channels_to_remove must be a numpy array.")
+    
+    if len(channels_to_remove) == 0:
+        # Empty list, no channels to remove
+        return data
+    elif not np.all(np.isin(channels_to_remove, np.arange(-n_channels, n_channels))):
+        raise IndexError(
+            f"Some channel indices are outside the available range (n_channels={n_channels})."
+        )
+
+    log.info("Removing channels...")
+
+    n_times, n_freqs, _, _ = data.shape
+    data = reshape_to_subbands(data=data, n_channels=n_channels)
+
+    data[:, :, channels_to_remove, :, :] = np.nan
+
+    data = data.reshape((n_times, n_freqs, 2, 2))
+
+    log.info(f"\tChannels {channels_to_remove} set to NaN.")
+
+    return data
+
+
+# ============================================================= #
+# -------------------- reshape_to_subbands -------------------- #
+def reshape_to_subbands(data: np.ndarray, n_channels: int) -> np.ndarray:
+    """Reshape a time-frequency data array by the sub-band dimension.
+    Given a ``data`` array with one frequency axis of size `n_frequencies`, this functions split this axis in two axes of size `n_subbands` and ``n_channels``.
+
+    :param data: Time-frequency correlations array, its second dimension must be the frequencies.
+    :type data: :class:`~numpy.ndarray`
+    :param n_channels: _description_
+    :type n_channels: int
+    :raises ValueError: _description_
+    :return: _description_
+    :rtype: :class:`~numpy.ndarray`
+
+        :Example:
+
+        .. code-block:: python
+
+            >>> from nenupy.io.tf_utils import reshape_to_subbands
+            >>> import numpy as np
+            >>>
+            >>> data = np.arange(3*10).reshape((3, 10))
+            >>> result = reshape_to_subbands(data, 5)
+            >>> result.shape
+            (3, 2, 5)
+
+    """
+
+    # Reshape the data array to isolate individual subbands
+    shape = data.shape
+    n_freqs = shape[1]
+    if n_freqs % n_channels != 0:
+        raise ValueError(
+            "The frequency dimension of `data` doesn't match the argument `n_channels`."
+        )
+
+    data = data.reshape((shape[0], int(n_freqs / n_channels), n_channels) + shape[2:])
+
+    return data
+
 
 # ============================================================= #
 # ---------------------- sort_beam_edges ---------------------- #
@@ -492,6 +663,7 @@ def sort_beam_edges(beam_array: np.ndarray, n_channels: int) -> dict:
         )
     return indices
 
+
 # ============================================================= #
 # ------------------ spectra_data_to_matrix ------------------- #
 def spectra_data_to_matrix(fft0: da.Array, fft1: da.Array) -> da.Array:
@@ -509,3 +681,335 @@ def spectra_data_to_matrix(fft0: da.Array, fft1: da.Array) -> da.Array:
         [fft1[..., 0] + 1j * fft1[..., 1], fft0[..., 1]], axis=-1  # YX*  # YY
     )
     return da.stack([row1, row2], axis=-1)
+
+
+# ============================================================= #
+# ------------------------ _Parameter ------------------------- #
+class _TFParameter(ABC):
+    def __init__(
+        self,
+        name: str,
+        param_type: Any = None,
+        partial_type_kw: dict = None,
+        help_msg: str = "",
+    ):
+        self.name = name
+        self.param_type = param_type
+        self.partial_type_kw = partial_type_kw
+        self.help_msg = help_msg
+        self._value = None
+
+    @property
+    def value(self) -> Any:
+        return self._value
+
+    @value.setter
+    def value(self, v: Any):
+        if v is None:
+            # Fill value, don't check anything.
+            self._value = None
+            return
+
+        # Check that the value is of correct type, if not try to convert
+        v = self._type_check(v)
+
+        # Check that the value is within the expected boundaries
+        if not self.is_expected_value(v):
+            raise ValueError(f"Unexpected value of {self.name}. {self.help_msg}")
+
+        log.debug(f"Parameter '{self.name}' set to {v}.")
+        self._value = v
+
+    def info(self):
+        print(self.help_msg)
+
+    def _type_check(self, value: Any) -> Any:
+        if self.param_type is None:
+            # No specific type has been defined
+            return value
+        elif isinstance(value, self.param_type):
+            # Best scenario, the value is of expected type
+            return value
+
+        log.debug(
+            f"{self.name} is of type {type(value)}. "
+            f"Trying to convert it to {self.param_type}..."
+        )
+        try:
+            if not (self.partial_type_kw is None):
+                converted_value = partial(self.param_type, **self.partial_type_kw)(
+                    value
+                )
+                log.debug(f"{self.name} set to {converted_value}.")
+                return converted_value
+            return self.param_type(value)
+        except:
+            raise TypeError(
+                f"Type of '{self.name}' should be {self.param_type}, got {type(value)} instead! {self.help_msg}"
+            )
+
+    @abstractmethod
+    def is_expected_value(self, value: Any) -> bool:
+        raise NotImplementedError(f"Need to implement 'is_expected_value' in child class {self.__class__.__name__}.")
+
+
+class _FixedParameter(_TFParameter):
+    def __init__(self, name: str, value: Any = None):
+        super().__init__(name=name)
+
+        self._value = value
+
+    @property
+    def value(self) -> Any:
+        return self._value
+    @value.setter
+    def value(self, v: Any):
+        raise Exception(f"_FixedParameter {self.name}'s value attribute cannot be set.")
+
+    def is_expected_value(self, value: Any) -> bool:
+        raise Exception("This should not have been called!")
+
+class _ValueParameter(_TFParameter):
+    def __init__(
+        self,
+        name: str,
+        default: Any = None,
+        param_type: Any = None,
+        min_val: Any = None,
+        max_val: Any = None,
+        resolution: Any = 0,
+        partial_type_kw: dict = None,
+        help_msg: str = "",
+    ):
+        super().__init__(
+            name=name,
+            param_type=param_type,
+            partial_type_kw=partial_type_kw,
+            help_msg=help_msg,
+        )
+
+        self.min_val = min_val
+        self.max_val = max_val
+        self.resolution = resolution
+
+        self.value = default
+
+    def is_expected_value(self, value: Any) -> bool:
+        if not (self.min_val is None):
+            if value < self.min_val - self.resolution/2:
+                log.error(
+                    f"{self.name}'s value ({value}) is lower than the min_val {self.min_val}!"
+                )
+                return False
+        if not (self.max_val is None):
+            if value > self.max_val + self.resolution/2:
+                log.error(
+                    f"{self.name}'s value ({value}) is greater than the max_val {self.max_val}!"
+                )
+                return False
+        return True
+
+
+class _RestrictedParameter(_TFParameter):
+    def __init__(
+        self,
+        name: str,
+        default: Any = None,
+        param_type: Any = None,
+        available_values: list = [],
+        help_msg: str = "",
+    ):
+        super().__init__(name=name, param_type=param_type, help_msg=help_msg)
+
+        self.available_values = available_values
+
+        self.value = default
+
+    def is_expected_value(self, value: Any) -> bool:
+        if not hasattr(value, "__iter__"):
+            value = [value]
+        for val in value:
+            if val not in self.available_values:
+                log.error(f"{self.name} value must be one of {self.available_values}.")
+                return False
+        return True
+
+
+class _BooleanParameter(_TFParameter):
+    def __init__(self, name: str, default: Any = None, help_msg: str = ""):
+        super().__init__(name=name, param_type=None, help_msg=help_msg)
+
+        self.value = default
+
+    def is_expected_value(self, value: bool) -> bool:
+        if not isinstance(value, bool):
+            log.error(f"{self.name}'s value should be a Boolean, got {value} instead.")
+            return False
+        return True
+
+
+# ============================================================= #
+# ------------------- TFPipelineParameters -------------------- #
+class TFPipelineParameters:
+    def __init__(self, *parameters):
+        self.parameters = parameters
+
+    def __setitem__(self, name: str, value: Any):
+        param = self._get_parameter(name)
+        param.value = value
+
+    def __getitem__(self, name: str) -> _TFParameter:
+        return self._get_parameter(name).value
+
+    def info(self) -> None:
+        for param in self.parameters:
+            print(f"{param.name}: {param.value}")
+
+    def _get_parameter(self, name: str):
+        for param in self.parameters:
+            if param.name == name.lower():
+                return param
+        else:
+            param_names = [param.name for param in self.parameters]
+            raise KeyError(
+                f"Unknown parameter '{name}'! Available parameters are {param_names}."
+            )
+
+    @classmethod
+    def set_default(
+        cls,
+        time_min: Time,
+        time_max: Time,
+        freq_min: u.Quantity,
+        freq_max: u.Quantity,
+        beams: list,
+        channels: int,
+        dt: u.Quantity,
+        df: u.Quantity,
+    ):
+        return cls(
+            _FixedParameter(name="channels", value=channels),
+            _FixedParameter(name="dt", value=dt),
+            _FixedParameter(name="df", value=df),
+            _ValueParameter(
+                name="tmin",
+                default=time_min,
+                param_type=Time,
+                min_val=time_min,
+                max_val=time_max,
+                resolution=dt,
+                partial_type_kw={"precision": 7},
+                help_msg="Lower edge of time selection, can either be given as an astropy.Time object or an ISOT/ISO string.",
+            ),
+            _ValueParameter(
+                name="tmax",
+                default=time_max,
+                param_type=Time,
+                min_val=time_min,
+                max_val=time_max,
+                resolution=dt,
+                partial_type_kw={"precision": 7},
+                help_msg="Upper edge of time selection, can either be given as an astropy.Time object or an ISOT/ISO string.",
+            ),
+            _ValueParameter(
+                name="fmin",
+                default=freq_min,
+                param_type=u.Quantity,
+                min_val=freq_min,
+                max_val=freq_max,
+                resolution=df,
+                partial_type_kw={"unit": "MHz"},
+                help_msg="Lower frequency boundary selection, can either be given as an astropy.Quantity object or float (assumed to be in MHz).",
+            ),
+            _ValueParameter(
+                name="fmax",
+                default=freq_max,
+                param_type=u.Quantity,
+                min_val=freq_min,
+                max_val=freq_max,
+                resolution=df,
+                partial_type_kw={"unit": "MHz"},
+                help_msg="Higher frequency boundary selection, can either be given as an astropy.Quantity object or float (assumed to be in MHz).",
+            ),
+            _RestrictedParameter(
+                name="beam",
+                default=beams[0],
+                param_type=int,
+                available_values=beams,
+                help_msg="Beam selection, a single integer corresponding to the index of a recorded numerical beam is expected.",
+            ),
+            _ValueParameter(
+                name="dispersion_measure",
+                default=None,
+                param_type=u.Quantity,
+                partial_type_kw={"unit": "pc cm-3"},
+                help_msg="Enable the correction by this Dispersion Measure, can either be given as an astropy.Quantity object or float (assumed to be in pc/cm^3).",
+            ),
+            _ValueParameter(
+                name="rotation_measure",
+                default=None,
+                param_type=u.Quantity,
+                partial_type_kw={"unit": "rad m-2"},
+                help_msg="Enable the correction by this Rotation Measure, can either be given as an astropy.Quantity object or float (assumed to be in rad/m^2).",
+            ),
+            _ValueParameter(
+                name="rebin_dt",
+                default=None,
+                param_type=u.Quantity,
+                min_val=dt,
+                partial_type_kw={"unit": "s"},
+                help_msg="Desired rebinning time resolution, can either be given as an astropy.Quantity object or float (assumed to be in sec).",
+            ),
+            _ValueParameter(
+                name="rebin_df",
+                default=None,
+                param_type=u.Quantity,
+                min_val=df,
+                partial_type_kw={"unit": "kHz"},
+                help_msg="Desired rebinning frequency resolution, can either be given as an astropy.Quantity object or float (assumed to be in kHz).",
+            ),
+            # _BooleanParameter(
+            #     name="correct_bandpass", default=True,
+            #     help_msg="Enable/disable the correction of each subband bandpass."
+            # ),
+            # _BooleanParameter(
+            #     name="correct_jump", default=False,
+            #     help_msg="Enable/disable the auto-correction of 6-min jumps, the results of this process are highly data dependent."
+            # ),
+            _RestrictedParameter(
+                name="remove_channels",
+                default=None,
+                param_type=list,
+                available_values=np.arange(-channels, channels),
+                help_msg="List of subband channels to remove, e.g. `remove_channels=[0,1,-1]` would remove the first, second (low-freq) and last channels from each subband.",
+            ),
+            _ValueParameter(
+                name="dreambeam_skycoord",
+                default=None,
+                param_type=SkyCoord,
+                help_msg="Tracked celestial coordinates used during DreamBeam correction (along with 'dreambeam_dt' and 'dreambeam_parallactic'), an astropy.SkyCoord object is expected.",
+            ),
+            _ValueParameter(
+                name="dreambeam_dt",
+                default=None,
+                param_type=u.Quantity,
+                partial_type_kw={"unit": "s"},
+                help_msg="DreamBeam correction time resolution (along with 'dreambeam_skycoord' and 'dreambeam_parallactic'), an astropy.Quantity or a float (assumed in seconds) are expected.",
+            ),
+            _BooleanParameter(
+                name="dreambeam_parallactic",
+                default=True,
+                help_msg="DreamBeam parallactic angle correction (along with 'dreambeam_skycoord' and 'dreambeam_dt'), a boolean is expected.",
+            ),
+            _ValueParameter(
+                name="stokes",
+                default="I",
+                param_type=None,
+                help_msg="Stokes parameter selection, can either be given as a string or a list of strings, e.g. ['I', 'Q', 'V/I'].",
+            ),
+            _BooleanParameter(
+                name="ignore_volume_warning",
+                default=False,
+                help_msg="Ignore or not (default value) the limit regarding output data volume."
+            )
+        )

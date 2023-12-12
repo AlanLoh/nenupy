@@ -1,5 +1,5 @@
-nenupy.schedule.constraints
-===========================
+ nenupy.schedule.constraints
+============================
 
 .. automodule:: nenupy.schedule.constraints
    :members:

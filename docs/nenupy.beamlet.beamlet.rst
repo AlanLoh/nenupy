@@ -1,5 +1,5 @@
-nenupy.beamlet.beamlet
-======================
+ nenupy.beamlet.beamlet
+=======================
 
 .. automodule:: nenupy.beamlet.beamlet
    :members:
