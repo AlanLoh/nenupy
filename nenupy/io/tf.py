@@ -113,8 +113,8 @@ class TFTask:
 
     @classmethod
     def correct_bandpass(cls):
-        """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.correct_bandpass` to correct the polyphase-filter bandpass reponse.
-        """
+        """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.correct_bandpass` to correct the polyphase-filter bandpass reponse."""
+
         def wrapper_task(data, channels):
             return utils.correct_bandpass(data=data, n_channels=channels)
 
@@ -122,8 +122,8 @@ class TFTask:
 
     @classmethod
     def remove_channels(cls):
-        """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.remove_channels_per_subband` to set a list of sub-band channels to `NaN` values.
-        """
+        """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.remove_channels_per_subband` to set a list of sub-band channels to `NaN` values."""
+
         def wrapper_task(data, channels, remove_channels):
             if (remove_channels is None) or (len(remove_channels) == 0):
                 return data
@@ -180,8 +180,8 @@ class TFTask:
 
     @classmethod
     def correct_faraday_rotation(cls):
-        """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.de_faraday_data` to correct for Faraday rotation for a given ``'rotation_measure'`` set in :attr:`~nenupy.io.tf.TFPipeline.parameters`.
-        """
+        """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.de_faraday_data` to correct for Faraday rotation for a given ``'rotation_measure'`` set in :attr:`~nenupy.io.tf.TFPipeline.parameters`."""
+
         def apply_faraday(frequency_hz, data, rotation_measure):
             if rotation_measure is None:
                 return frequency_hz, data
@@ -197,17 +197,20 @@ class TFTask:
     def de_disperse(cls):
         """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.de_disperse_array` to de-disperse the data using the ``'dispersion_measure'`` set in :attr:`~nenupy.io.tf.TFPipeline.parameters`.
 
-            .. warning::
+        .. warning::
 
-                Due to the configuration of the underlying :class:`~dask.array.core.Array`, its :meth:`dask.array.Array.compute` method has to be applied priori to de-dispersing the data.
-                Therefore, a potential huge data volume may be computed at once.
-                By default, a security exception is raised to prevent computing a too large data set.
-                To bypass this limit, set ``'ignore_volume_warning'`` of :attr:`~nenupy.io.tf.TFPipeline.parameters` to `True`.
+            Due to the configuration of the underlying :class:`~dask.array.core.Array`, its :meth:`dask.array.Array.compute` method has to be applied priori to de-dispersing the data.
+            Therefore, a potential huge data volume may be computed at once.
+            By default, a security exception is raised to prevent computing a too large data set.
+            To bypass this limit, set ``'ignore_volume_warning'`` of :attr:`~nenupy.io.tf.TFPipeline.parameters` to `True`.
 
         """
-        def wrapper_task(frequency_hz, data, dt, dispersion_measure, ignore_volume_warning):
+
+        def wrapper_task(
+            frequency_hz, data, dt, dispersion_measure, ignore_volume_warning
+        ):
             if dispersion_measure is None:
-                return frequency_hz, data            
+                return frequency_hz, data
             # Make sure the data volume is not too big!
             projected_data_volume = data.nbytes * u.byte
             if (projected_data_volume >= DATA_VOLUME_SECURITY_THRESHOLD) and (
@@ -228,7 +231,11 @@ class TFTask:
             )
             return frequency_hz, da.from_array(data, chunks=tmp_chuncks)
 
-        return cls("De-disperse", wrapper_task, ["dt", "dispersion_measure", "ignore_volume_warning"])
+        return cls(
+            "De-disperse",
+            wrapper_task,
+            ["dt", "dispersion_measure", "ignore_volume_warning"],
+        )
 
     @classmethod
     def time_rebin(cls):
@@ -338,7 +345,7 @@ class TFPipeline:
 
     def __repr__(self) -> str:
         return self.info()
-    
+
     @property
     def parameters(self) -> utils.TFPipelineParameters:
         """_summary_
@@ -347,6 +354,7 @@ class TFPipeline:
         :rtype: :class:`~nenupy.io.tf_utils.TFPipelineParameters`
         """
         return self._parameters
+
     @parameters.setter
     def parameters(self, params: utils.TFPipelineParameters) -> None:
         self._parameters = params
@@ -545,7 +553,9 @@ class Spectra:
         print(message)
 
     def get(self, **pipeline_kwargs) -> SData:
-        """_summary_
+        """Select time-frequency data, run the user-defined pipeline and return the product.
+        Data selection, as well as pipeline specific arguments are defined as keyword arguments and passed to :attr:`nenupy.io.tf.TFPipeline.parameters`.
+        The pipeline can be accessed and modified through the :attr:`nenupy.io.tf.Spectra.pipeline` attribute.
 
         .. rubric:: Available parameters
 
@@ -553,37 +563,37 @@ class Spectra:
 
         :param tmin: Lower edge of time selection, can either be given as a :class:`~astropy.time.Time` object or an ISOT/ISO string.
         :type tmin: `str` or :class:`~astropy.time.Time`
-        :param tmax: Hello
+        :param tmax: Upper edge of time selection, can either be given as an :class:`~astropy.time.Time` object or an ISOT/ISO string.
         :type tmax: `str` or :class:`~astropy.time.Time`
-        :param fmin: Hello
-        :type fmin: `str` or :class:`~astropy.unit.Quantity`
-        :param fmin: Hello
-        :type fmax: `str` or :class:`~astropy.unit.Quantity`
-        :param beam: Hello
-        :type beam: str or :class:`~astropy.time.Time`
-        :param dispersion_measure: Hello
+        :param fmin: Lower frequency boundary selection, can either be given as a :class:`~astropy.unit.Quantity` object or float (assumed to be in MHz in that case).
+        :type fmin: `float` or :class:`~astropy.unit.Quantity`
+        :param fmax: Higher frequency boundary selection, can either be given as a :class:`~astropy.unit.Quantity` object or float (assumed to be in MHz in that case).
+        :type fmax: `float` or :class:`~astropy.unit.Quantity`
+        :param beam: Beam selection, a single integer corresponding to the index of a recorded numerical beam is expected. Default is the first recorded.
+        :type beam: `int`
+        :param dispersion_measure: Enable de-dispersion of the data by this Dispersion Measure. Note that the :meth:`~nenupy.io.tf.TFTask.de_disperse` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`). It can either be provided as a :class:`~astropy.Quantity` object or a float (assumed to be in pc/cm^3 in that case).
         :type dispersion_measure: `float` or :class:`~astropy.unit.Quantity`
         :param rotation_measure: Hello
         :type rotation_measure: `float` or :class:`~astropy.unit.Quantity`
-        :param rebin_dt: Hello
+        :param rebin_dt: Desired rebinning time resolution, can either be given as a :class:`~astropy.unit.Quantity` object or a float (assumed to be in sec in that case). Note that the :meth:`~nenupy.io.tf.TFTask.time_rebin` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
         :type rebin_dt: `float` or :class:`~astropy.unit.Quantity`
-        :param rebin_df: Hello
+        :param rebin_df: Desired rebinning frequency resolution, can either be given as a :class:`~astropy.unit.Quantity` object or float (assumed to be in kHz in that case). Note that the :meth:`~nenupy.io.tf.TFTask.frequency_rebin` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
         :type rebin_df: `float` or :class:`~astropy.unit.Quantity`
-        :param remove_channels: Hello
-        :type remove_channels: str or :class:`~astropy.time.Time`
-        :param dreambeam_skycoord: Hello
-        :type dreambeam_skycoord: str or :class:`~astropy.time.Time`
-        :param dreambeam_dt: Hello
-        :type dreambeam_dt: str or :class:`~astropy.time.Time`
-        :param dreambeam_parallactic: Hello
-        :type dreambeam_parallactic: bool
-        :param stokes: Hello
-        :type stokes: str or :class:`~astropy.time.Time`
-        :param ignore_volume_warning: Hello
-        :type ignore_volume_warning: bool
+        :param remove_channels: List of subband channels to remove, e.g. `remove_channels=[0,1,-1]` would remove the first, second (low-freq) and last channels from each subband. Note that the :meth:`~nenupy.io.tf.TFTask.remove_channels` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        :type remove_channels: `list` or :class:`~numpy.ndarray`
+        :param dreambeam_skycoord: Tracked celestial coordinates used during *DreamBeam* correction (along with ``'dreambeam_dt'`` and ``'dreambeam_parallactic'``), a :class:`~astropy.coordinates.SkyCoord` object is expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        :type dreambeam_skycoord: :class:`~astropy.coordinates.SkyCoord`
+        :param dreambeam_dt: *DreamBeam* correction time resolution (along with ``'dreambeam_skycoord'`` and ``'dreambeam_parallactic'``), a :class:`~astropy.Quantity` object or a float (assumed in seconds) are expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        :type dreambeam_dt: `float` or :class:`~astropy.unit.Quantity`
+        :param dreambeam_parallactic: *DreamBeam* parallactic angle correction (along with ``'dreambeam_skycoord'`` and ``'dreambeam_dt'``), a boolean is expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        :type dreambeam_parallactic: `bool`
+        :param stokes: Stokes parameter selection, can either be given as a string or a list of strings, e.g. ['I', 'Q', 'V/I']. Note that the :meth:`~nenupy.io.tf.TFTask.get_stokes` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        :type stokes: `str` or `list[str]`
+        :param ignore_volume_warning: Ignore or not (default value) the limit regarding output data volume.
+        :type ignore_volume_warning: `bool`
 
-        :return: _description_
-        :rtype: SData
+        :return: Processed data selection.
+        :rtype: :class:`~nenupy.beamlet.sdata.SData`
         """
 
         # Update the pipeline parameters to user's last requests

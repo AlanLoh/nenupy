@@ -546,11 +546,12 @@ class SData(object):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def plot(self, polarization=None, figname=None, db=True, **kwargs):
+    def plot(self, fig=None, ax=None, polarization=None, figname=None, db=True, **kwargs):
         """
             kwargs keys: cmap, title, cblabel, figsize, altaza, vmin, vmax
         """
         import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
 
         if polarization is None:
             pol_idx = 0
@@ -573,10 +574,17 @@ class SData(object):
         if 'figsize' not in kwargs.keys():
             kwargs['figsize'] = (15, 10)
         
-        fig = plt.figure(figsize=kwargs['figsize'])
+        if ax is None:
+            # Create a full figure from the start
+            fig = plt.figure(figsize=kwargs['figsize'])
+            ax = fig.add_subplot()
+        else:
+            # Fill up the input ax with the plot
+            pass
+
         if len(dynspec.shape) == 1:
             if dynspec.size == self.datetime.size:
-                plt.plot(
+                ax.plot(
                     self.datetime,
                     dynspec
                 )
@@ -585,20 +593,20 @@ class SData(object):
                     for ptime in ptimes:
                         if (ptime < self.datetime[0]) or (ptime > self.datetime[-1]):
                             continue
-                        plt.axvline(ptime.datetime, linestyle='-.', color='black')
-                plt.ylim((kwargs.get('vmin', None), kwargs.get('vmax', None)))
-                plt.xlabel(
-                    f'Time (since {self.time[0].isot})'
+                        ax.axvline(ptime.datetime, linestyle='-.', color='black')
+                ax.ylim((kwargs.get('vmin', None), kwargs.get('vmax', None)))
+                ax.set_xlabel(
+                    f'Time (UTC from {self.time[0].isot})'
                 )
-                plt.ylabel(kwargs['cblabel'])
+                ax.set_ylabel(kwargs['cblabel'])
             elif dynspec.size == self.freq.size:
-                plt.plot(
+                ax.plot(
                     self.freq.to(u.MHz).value,
                     dynspec
                 )
-                plt.ylim((kwargs.get('vmin', None), kwargs.get('vmax', None)))
-                plt.xlabel('Frequency (MHz)')
-                plt.ylabel(kwargs['cblabel'])
+                ax.set_ylim((kwargs.get('vmin', None), kwargs.get('vmax', None)))
+                ax.set_xlabel('Frequency (MHz)')
+                ax.set_ylabel(kwargs['cblabel'])
         else:
             if 'vmin' not in kwargs.keys():
                 kwargs['vmin'] = np.nanpercentile(dynspec, 5)
@@ -612,7 +620,7 @@ class SData(object):
                 kwargs['vmax'] = np.nanpercentile(dynspec, 95)
             else:
                 pass
-            plt.pcolormesh(
+            im = ax.pcolormesh(
                 self.datetime,
                 self.freq.to(u.MHz).value,
                 dynspec,
@@ -626,16 +634,16 @@ class SData(object):
                     for ptime in ptimes:
                         if (ptime < self.datetime[0]) or (ptime > self.datetime[-1]):
                             continue
-                        plt.axvline(ptime.datetime, linestyle='-.', color='black')
-            cbar = plt.colorbar(pad=0.03)#format='%.1e')
+                        ax.axvline(ptime.datetime, linestyle='-.', color='black')
+            cbar = plt.colorbar(im, pad=0.03)#format='%.1e')
             cbar.set_label(kwargs['cblabel'])
 
             if kwargs.get("overlay", None) is not None:
-                ax = plt.gca()
+                #ax = plt.gca()
                 xlim = ax.get_xlim()
                 ylim = ax.get_ylim()
                 overlay_time, overlay_frequency, overlay_values = kwargs["overlay"]
-                plt.pcolor(
+                ax.pcolor(
                     overlay_time.datetime,
                     overlay_frequency.to(u.MHz).value,
                     overlay_values,
@@ -655,17 +663,30 @@ class SData(object):
                 ax.set_xlim(xlim)
                 ax.set_ylim(ylim)
 
-            plt.xlabel(
-                f'Time (since {self.time[0].isot})'
+            ax.set_xlabel(
+                f'Time (UTC from {self.time[0].isot})'
             )
-            plt.ylabel('Frequency (MHz)')
-        plt.title(kwargs['title'])
-        
+            ax.set_ylabel('Frequency (MHz)')
+        ax.set_title(kwargs['title'])
+
+        # Set x axis labels        
+        # ax.xaxis.set_minor_locator(mdates.MinuteLocator(byminute=[15, 30, 45]))
+        # ax.xaxis.set_major_locator(mdates.HourLocator())
+        # hourFmt = mdates.DateFormatter("%H", usetex=True)
+        # ax.xaxis.set_major_formatter(hourFmt)
+        locator = ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+        ax.xaxis.set_major_formatter(
+            mdates.ConciseDateFormatter(locator, show_offset=False)
+        )
+
         # Save or show
+        if not (ax is None):
+            return
+
         if figname is None:
             plt.show()
-        elif figname.lower() == 'return':
-            return fig
+        elif (figname is None) or (figname == ""):
+            return
         else:
             fig.savefig(
                 figname,
@@ -674,7 +695,6 @@ class SData(object):
                 bbox_inches='tight'
             )
         plt.close('all')
-        return
 
 
     # --------------------------------------------------------- #
