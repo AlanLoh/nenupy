@@ -13,3 +13,5 @@ sqlalchemy
 docutils
 sphinx-rtd-theme
 recommonmark
+pytz
+h5py

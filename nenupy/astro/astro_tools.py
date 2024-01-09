@@ -36,7 +36,7 @@ __all__ = [
 
 
 from abc import ABC
-from typing import Union, Tuple
+from typing import Any, Union, Tuple
 from enum import Enum, auto
 
 import numpy as np
@@ -74,6 +74,9 @@ class SolarSystemSource(Enum):
     SATURN = auto()
     URANUS = auto()
     NEPTUNE = auto()
+
+    def __contains__(self: type, member: object) -> bool:
+        return super().__contains__(member)
 # ============================================================= #
 # ============================================================= #
 
@@ -198,7 +201,7 @@ def local_sidereal_time(
     # astropy computation accounting for precession and
     # for nutation and using the latest available
     # precession/nutation models
-    else:    
+    else:
         return time.sidereal_time(
             kind="apparent",
             longitude=observer.lon,

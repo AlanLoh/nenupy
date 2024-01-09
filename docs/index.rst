@@ -110,22 +110,13 @@ Finally, observations can then be simulated using the simulated beam and a sky m
 
 .. toctree::
    :caption: Data reading
-   :maxdepth: 2
+   :maxdepth: 1
 
    io/sst_reading
    io/bst_reading
    io/xst_reading
    io/tf_reading
 
-.. _data-analysis:
-
-.. .. toctree::
-..    :caption: Simulation
-..    :maxdepth: 2
-
-..    nenupy.beam
-..    nenupy.skymodel
-..    nenupy.simulation
 
 .. _tools:
 

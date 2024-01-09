@@ -36,15 +36,17 @@ from nenupy.astro.astro_tools import hour_angle
 
 PLOT_FRAME_WIDTH = 550
 PLOT_FRAME_LENGTH = 800
-INPUT_FRAME_WIDTH = 300
+INPUT_FRAME_WIDTH = 310
 ENTRY_WIDTH = 10
 BUTTON_WIDTH = 5
 
 TIME_STEPS = 100
 FONTSIZE = 9
 PAD = 20
+FRAME_RELIEF = "flat"
+FRAME_BORDER_WIDTH = 5
 
-CMAP = "copper"#"RdYlGn"
+CMAP = "copper" # "RdYlGn"
 BACKGROUND_COLOR = "0.9"
 
 ELEVATION_MIN = 1
@@ -103,7 +105,7 @@ def display_time_elevation(ax, time, elevation, color) -> None:
     if time.size == 0: return
 
     elevation_pad = 7
-    if elevation > 30:
+    if elevation > 40:
         ytext = elevation - elevation_pad
         ymax = elevation
         ymin = ytext
@@ -149,7 +151,11 @@ def plot_source_visibility_linear(ax, source, sun) -> None:
     hourFmt = mdates.DateFormatter("%H", usetex=True)
     ax.xaxis.set_major_formatter(hourFmt)
     #ax.autoscale_view()
-    ax.set_xlim(time_plt[0], time_plt[-1])
+    #ax.set_xlim(time_plt[0], time_plt[-1])
+    ax.set_xlim(
+        mdates.date2num((source.time[0] - TimeDelta(1800, format="sec")).datetime),
+        mdates.date2num((source.time[-1] + TimeDelta(1800, format="sec")).datetime),
+    )
 
     # Mask the night time
     if not (sun is None):
@@ -327,6 +333,7 @@ class BaseInputFrame(Frame, ABC):
             justify="center"
         )
         self.date_entry.bind("<<DateEntrySelected>>", master.update)
+        self.date_entry.bind("<Return>", master.update)
 
         coord_plot_button = Button(self, text="Go", command=self.plot_after_coord, width=BUTTON_WIDTH)
         # name_plot_button = Button(self, text="Go", command=self.plot_after_name, width=BUTTON_WIDTH)
@@ -385,7 +392,7 @@ class LinearInputFrame(BaseInputFrame):
         super().__init__(master=master, **kwargs)
 
         self.el_1_val = DoubleVar(value=ELEVATION_MIN)
-        el_1_label = Label(self, text="First elevation threshold:", anchor="e")
+        el_1_label = Label(self, text="1st elevation threshold:", anchor="e")
         el_1_entry = Entry(self, textvariable=self.el_1_val, width=ENTRY_WIDTH)
        
         el_1_entry.bind("<Return>", self.update_elevation_min)
@@ -393,7 +400,7 @@ class LinearInputFrame(BaseInputFrame):
         el_1_entry.grid(column=2, row=4, pady=(PAD, 0), columnspan=1)
 
         self.el_2_val = DoubleVar(value=ELEVATION_MID)
-        el_2_label = Label(self, text="Second elevation threshold:", anchor="e")
+        el_2_label = Label(self, text="2nd elevation threshold:", anchor="e")
         el_2_entry = Entry(self, textvariable=self.el_2_val, width=ENTRY_WIDTH)
        
         el_2_entry.bind("<Return>", self.update_elevation_mid)
@@ -558,30 +565,35 @@ class VisibilityApp(Tk):
         # #     width=TOTAL_WIDTH - self.plot_frame["width"], height=TOTAL_HEIGHT/2)
 
         # self.geometry(f"{TOTAL_WIDTH}x{TOTAL_HEIGHT}")
+
         if plot_type.lower() == "linear":
-            self.plot_frame = LinearPlotFrame(self, borderwidth=5, relief="ridge",
+            self.plot_frame = LinearPlotFrame(self, borderwidth=FRAME_BORDER_WIDTH, relief=FRAME_RELIEF,
                 width=PLOT_FRAME_LENGTH,
                 height=PLOT_FRAME_WIDTH)
-            self.input_frame = LinearInputFrame(self, borderwidth=5, relief="ridge",
+            self.input_frame = LinearInputFrame(self, borderwidth=FRAME_BORDER_WIDTH, relief=FRAME_RELIEF,
                 width=INPUT_FRAME_WIDTH,
                 height=PLOT_FRAME_WIDTH)
             self.geometry(f"{PLOT_FRAME_LENGTH + INPUT_FRAME_WIDTH}x{PLOT_FRAME_WIDTH}")
         elif plot_type.lower() == "polar":
-            self.plot_frame = PolarPlotFrame(self, borderwidth=5, relief="ridge",
+            self.plot_frame = PolarPlotFrame(self, borderwidth=FRAME_BORDER_WIDTH, relief=FRAME_RELIEF,
                 width=PLOT_FRAME_LENGTH,
                 height=PLOT_FRAME_LENGTH)
-            self.input_frame = PolarInputFrame(self, borderwidth=5, relief="ridge",
+            self.input_frame = PolarInputFrame(self, borderwidth=FRAME_BORDER_WIDTH, relief=FRAME_RELIEF,
                 width=INPUT_FRAME_WIDTH,
                 height=PLOT_FRAME_LENGTH)
             self.geometry(f"{PLOT_FRAME_LENGTH + INPUT_FRAME_WIDTH}x{PLOT_FRAME_LENGTH}")
         else:
             raise ValueError(f"Unrecognized plot_type '{plot_type}'!")
 
-        self.plot_frame.grid(column=0, row=0, rowspan=1)
+        # Allows the plot Frame to expand and shrink
+        self.rowconfigure(0, minsize=200, weight=1)
+        self.columnconfigure(0, minsize=200, weight=1)
+
+        self.plot_frame.grid(column=0, row=0, rowspan=1, sticky="news")
         self.input_frame.grid(column=1, row=0)
         # self.result_frame.grid(column=1, row=1)
 
-        self.eval('tk::PlaceWindow . center')
+        self.eval("tk::PlaceWindow . center")
         self.title("nenupy - NenuFAR source visibility")
 
     def update(self, *args) -> None:
@@ -619,7 +631,7 @@ class VisibilityApp(Tk):
 
 # ============================================================= #
 # -------------------- run_visibility_app --------------------- #
-def run_visibility_app(plot_type: str = "rectilinear") -> None:
+def run_visibility_app(plot_type: str = "linear") -> None:
     app = VisibilityApp(plot_type=plot_type)
     app.mainloop()
 
