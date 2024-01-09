@@ -1,7 +1,7 @@
 .. _sky_doc:
 
-Sky
-===
+Sky representation
+==================
 
 
 .. _healpix_sky_sec:

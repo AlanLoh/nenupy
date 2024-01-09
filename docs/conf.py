@@ -33,10 +33,10 @@ version = __version__
 # ones.
 import sphinx_rtd_theme
 extensions = [
+    'sphinx.ext.napoleon', # 'numpydoc'
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon', # 'numpydoc'
     'sphinx.ext.intersphinx',
     'sphinx.ext.autosectionlabel',
     'sphinx.ext.mathjax', # equations

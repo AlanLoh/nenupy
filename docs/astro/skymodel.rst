@@ -1,4 +1,4 @@
 .. _skymodel_doc:
 
-Skymodel
-========
+Generating skymodel
+===================
