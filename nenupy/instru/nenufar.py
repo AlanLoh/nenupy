@@ -145,7 +145,11 @@ class _AntennaGain:
             ) for gain_i in gain
         ])
 
-        if gain.ndim == 2:
+        if gain.ndim == 1:
+            # If only one or less dimension is larger than 1 element, get_interp_val returns a 1D array
+            # It's then esay to just reshape like the original array since a single dimension is affected at best
+            gain = gain.reshape(sky.value.shape)
+        elif gain.ndim == 2:
             # The time dimension is not yet included
             gain = gain.reshape((1,) + gain.shape)
         # Return something shaped as (time, freq, coord)
@@ -915,6 +919,7 @@ class MiniArray(Interferometer):
             ),
             dtype=np.float64
         )
+        log.debug(f"Antenna gain shape: {gain.shape}.")
         for i, pol in enumerate(sky.polarization):
             if not isinstance(pol, Polarization):
                 log.warning(
