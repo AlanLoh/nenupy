@@ -22,6 +22,7 @@ __all__ = [
 
 
 import logging
+
 log = logging.getLogger(__name__)
 
 import numpy as np
@@ -83,12 +84,26 @@ class SourceInLobes:
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def plot(self, **kwargs):
-        """ """
+    def plot(self, time_unit : str = 'utc', **kwargs):
+        """
+        :param time_unit:
+            To select in which units the time axe is to be displayed : 'utc' or 'lst'. Default is 'utc'. 
+            For pcolormesh to plot correctly the data, the time list in the wanted unit should be monotonous.
+        :type time_unit:
+            str
+            
+        """
         fig = plt.figure(figsize=kwargs.get("figsize", (10, 6)))
 
+        if time_unit == 'utc' :
+            time_to_plot = self.time.datetime
+            time_label = f"Time (UTC since {self.time[0].isot.split('.')[0]})"
+        elif time_unit == 'lst' :
+            time_to_plot = self.lst_time.rad
+            time_label = "Local Sidereal Time (rad)"
+        
         plt.pcolormesh(
-            self.time.datetime,
+            time_to_plot,
             self.frequency.to(u.MHz).value,
             self.value,
             shading="auto",
@@ -96,17 +111,18 @@ class SourceInLobes:
         )
         plt.grid(alpha=0.5)
         plt.ylabel("Frequency (MHz)")
-        plt.xlabel(f"Time (UTC since {self.time[0].isot.split('.')[0]})")
+        plt.xlabel(time_label)
         plt.title(kwargs.get("title", ""))
         cb = plt.colorbar(pad=0.03)
         cb.set_label("Sources in beam lobes")
 
         # Format of the time axis tick labels
         ax = plt.gca()
-        ax.xaxis.set_major_formatter(
-            mdates.DateFormatter("%H:%M:%S")
-        )
-        fig.autofmt_xdate()
+        if time_unit == 'utc' :
+            ax.xaxis.set_major_formatter(
+                mdates.DateFormatter("%H:%M:%S")
+            )
+            fig.autofmt_xdate()
 
         # Add minor ticks
         ax.minorticks_on()
