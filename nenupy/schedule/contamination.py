@@ -95,19 +95,27 @@ class SourceInLobes:
         """
         fig = plt.figure(figsize=kwargs.get("figsize", (10, 6)))
 
+        roll_index = 0
         if time_unit == "utc":
+            try:
+                roll_index = np.argwhere(np.diff(self.time.jd) < 0)[0, 0] + 1
+            except IndexError:
+                pass
             time_to_plot = self.time.datetime
             time_label = f"Time (UTC since {self.time[0].isot.split('.')[0]})"
+
         elif time_unit == "lst":
+            try:
+                roll_index = np.argwhere(np.diff(self.lst_time.rad) < 0)[0, 0] + 1
+            except IndexError:
+                pass
             time_to_plot = self.lst_time.rad
             time_label = "Local Sidereal Time (rad)"
 
-
-        # TODO : roll if there is a gap in lst and or utc
         plt.pcolormesh(
-            time_to_plot,
+            np.roll(time_to_plot, -roll_index),
             self.frequency.to(u.MHz).value,
-            self.value,
+            np.roll(self.value, -roll_index, axis=1),
             shading="auto",
             cmap=kwargs.get("cmap", "Blues")
         )
