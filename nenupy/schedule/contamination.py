@@ -84,7 +84,7 @@ class SourceInLobes:
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def plot(self, time_unit : str = 'utc', **kwargs):
+    def plot(self, time_unit: str = "utc", **kwargs):
         """
         :param time_unit:
             To select in which units the time axe is to be displayed : 'utc' or 'lst'. Default is 'utc'. 
@@ -95,13 +95,15 @@ class SourceInLobes:
         """
         fig = plt.figure(figsize=kwargs.get("figsize", (10, 6)))
 
-        if time_unit == 'utc' :
+        if time_unit == "utc":
             time_to_plot = self.time.datetime
             time_label = f"Time (UTC since {self.time[0].isot.split('.')[0]})"
-        elif time_unit == 'lst' :
+        elif time_unit == "lst":
             time_to_plot = self.lst_time.rad
             time_label = "Local Sidereal Time (rad)"
-        
+
+
+        # TODO : roll if there is a gap in lst and or utc
         plt.pcolormesh(
             time_to_plot,
             self.frequency.to(u.MHz).value,
@@ -118,7 +120,7 @@ class SourceInLobes:
 
         # Format of the time axis tick labels
         ax = plt.gca()
-        if time_unit == 'utc' :
+        if time_unit == "utc":
             ax.xaxis.set_major_formatter(
                 mdates.DateFormatter("%H:%M:%S")
             )
@@ -506,6 +508,8 @@ class BeamLobes:
         # Mini-Array selection
         ma_mask = np.isin(MA_ROTATIONS, self.miniarray_rotations)
         af = 0
+        below_horizon_mask = self.pointing.horizontal_coordinates.alt.deg <= 0
+
         # Compute the array factor for each Mini-Array
         for m in MA_INDICES[ma_mask]:
             ma = MiniArray(index=m)
@@ -523,6 +527,12 @@ class BeamLobes:
         log.info("Computing the array factor...")
         with ProgressBar() if log.getEffectiveLevel() <= logging.INFO else DummyCtMgr():
             array_factor = af.compute()
+
+        # Set the array factor to NaN if the pointing is below the horizon
+        if np.any(below_horizon_mask):
+            array_factor[below_horizon_mask, ...] = np.nan
+            log.warning("Some time samples match a sub-horizon pointing, the corresponding array-factor is set to NaN.")
+
         return array_factor / np.max(array_factor, axis=3)[:, :, :, None]
 
 
