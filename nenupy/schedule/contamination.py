@@ -22,7 +22,7 @@ __all__ = [
 
 
 import logging
-from threading import local
+
 log = logging.getLogger(__name__)
 
 import numpy as np
