@@ -147,8 +147,9 @@ class _AntennaGain:
 
         if gain.ndim == 1:
             # If only one or less dimension is larger than 1 element, get_interp_val returns a 1D array
-            # It's then esay to just reshape like the original array since a single dimension is affected at best
-            gain = gain.reshape(sky.value.shape)
+            # It's then esay to just reshape like the original array (minus the pol) since a single dimension is affected at best
+            original_shape = sky.value.shape
+            gain = gain.reshape((original_shape[0], original_shape[1], original_shape[3]))
         elif gain.ndim == 2:
             # The time dimension is not yet included
             gain = gain.reshape((1,) + gain.shape)
