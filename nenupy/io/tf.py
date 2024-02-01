@@ -1,7 +1,7 @@
 """
-    ************
-    spectra file
-    ************
+    *******************
+    Time-frequency data
+    *******************
 
     .. inheritance-diagram:: nenupy.io.tf.Spectra
         :parts: 2
@@ -108,7 +108,7 @@ class TFTask:
         return f"<class '{module}.{class_name}({self.name})'>"
 
     @property
-    def func_call(self) -> Callable:
+    def _func_call(self) -> Callable:
         return partial(self._func, **self._extra_params)
 
     @classmethod
@@ -159,7 +159,7 @@ class TFTask:
                 frequency_hz=frequency_hz,
                 data=data,
                 dt_sec=dt.to_value(u.s),
-                time_step_sec=dreambeam_dt,
+                time_step_sec=dreambeam_dt.to_value(u.s),
                 n_channels=channels,
                 skycoord=dreambeam_skycoord,
                 parallactic=dreambeam_parallactic,
@@ -290,7 +290,7 @@ class TFTask:
             self._extra_params[key] = value
 
         # Check if func_call returns the correct function
-        if not np.any([val is None for _, val in self.func_call.keywords.items()]):
+        if not np.any([val is None for _, val in self._func_call.keywords.items()]):
             # If all keyword argument are None set the function as inactive
             self.is_active = True
 
@@ -305,18 +305,18 @@ class TFTask:
 
         if ("time_unix" not in func_args) and ("frequency_hz" not in func_args):
             # Only data
-            data = self.func_call(data=data, **kwds)
+            data = self._func_call(data=data, **kwds)
         elif "time_unix" not in func_args:
             # Missing time_unix
-            frequency_hz, data = self.func_call(
+            frequency_hz, data = self._func_call(
                 data=data, frequency_hz=frequency_hz, **kwds
             )
         elif "frequency_hz" not in func_args:
             # Missing frequency_hz
-            time_unix, data = self.func_call(data=data, time_unix=time_unix, **kwds)
+            time_unix, data = self._func_call(data=data, time_unix=time_unix, **kwds)
         else:
             # Not missing anything
-            time_unix, frequency_hz, data = self.func_call(
+            time_unix, frequency_hz, data = self._func_call(
                 time_unix=time_unix, frequency_hz=frequency_hz, data=data, **kwds
             )
         return time_unix, frequency_hz, data
@@ -325,6 +325,18 @@ class TFTask:
 # ============================================================= #
 # ------------------------ TFPipeline ------------------------- #
 class TFPipeline:
+    """Class to manage the series of tasks designed to be applied to
+    time-frequency data.
+
+    Parameters
+    ----------
+    data_obj : :class:`~nenupy.io.tf.Spectra`
+        An instance of :class:`~nenupy.io.tf.Spectra` needed to determine
+        the properties of the corresponding data file.
+    *tasks : :class:`~nenupy.io.tf.TFTask`
+        A sequence of tasks that will be applied when the :meth:`~nenupy.io.tf.TFPipeline.run` method is called.
+    """
+
     def __init__(self, data_obj: Any, *tasks: TFTask):
         self.data_obj = data_obj
 
@@ -346,12 +358,19 @@ class TFPipeline:
     def __repr__(self) -> str:
         return self.info()
 
+    def __iter__(self):
+        yield from self.tasks
+
     @property
     def parameters(self) -> utils.TFPipelineParameters:
-        """_summary_
+        """Attribute listing all the available parameters.
+        Each time a :class:`~nenupy.io.tf.TFTask` is run, its :meth:`~nenupy.io.tf.TFTask.update`
+        method is called and this parameter list is passed.
 
-        :return: _description_
-        :rtype: :class:`~nenupy.io.tf_utils.TFPipelineParameters`
+        Returns
+        -------
+        :class:`~nenupy.io.tf_utils.TFPipelineParameters`
+            Pipeline parameters.
         """
         return self._parameters
 
@@ -359,7 +378,36 @@ class TFPipeline:
     def parameters(self, params: utils.TFPipelineParameters) -> None:
         self._parameters = params
 
-    def info(self, return_str: bool = False) -> None:
+    def info(self, return_str: bool = False) -> str:
+        """Display the current pipeline configuration.
+        The tasks are ordered as they will be applied.
+        Tasks in parenthesis are not considered 'activated'.
+        This can happen because the task is looking for an argument in :attr:`~nenupy.io.tf.TFPipeline.parameters` whose value does not fulfill the requirements.
+
+        Parameters
+        ----------
+        return_str : `bool`, optional
+            Return the information message as a string variable, by default `False`.
+
+        Returns
+        -------
+        `str`
+            If `return_str` is set to `True`, the message is returned as a string variable.
+
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 4
+
+            >>> from nenupy.io.tf import Spectra, TFPipeline, TFTask
+            >>> sp = Spectra("/my/file.spectra")
+            >>> pipeline = TFPipeline(sp, TFTask.correct_bandpass(), TFTask.correct_faraday_rotation())
+            >>> pipeline.info() 
+            Pipeline configuration:
+                0 - Correct bandpass
+                (1 - Correct faraday rotation)
+
+        """
         message = "Pipeline configuration:"
         for i, task in enumerate(self.tasks):
             task.update(self.parameters)
@@ -372,7 +420,18 @@ class TFPipeline:
         else:
             print(message)
 
-    def set_default(self):
+    def set_default(self) -> None:
+        """Set the default pipeline.
+        The list of tasks is:
+
+        - Bandpass correction (:meth:`~nenupy.io.tf.TFTask.correct_bandpass`)
+        - Remove channels at the subband edges (:meth:`~nenupy.io.tf.TFTask.remove_channels`)
+        - Rebin the data in time (:meth:`~nenupy.io.tf.TFTask.time_rebin`)
+        - Rebin the data in frequency (:meth:`~nenupy.io.tf.TFTask.frequency_rebin`)
+        - Convert the data to Stokes parameters (:meth:`~nenupy.io.tf.TFTask.get_stokes`)
+
+        """
+
         self.tasks = [
             TFTask.correct_bandpass(),
             TFTask.remove_channels(),
@@ -383,16 +442,78 @@ class TFPipeline:
         ]
 
     def insert(self, operation: TFTask, index: int) -> None:
+        """Insert a pipeline task at a given position among the list of planned tasks.
+
+        Parameters
+        ----------
+        operation : :class:`~nenupy.io.tf.TFTask`
+            The task to perform.
+        index : `int`
+            Index at which the `operation` should be inserted (see :meth:`list.insert`).
+
+        Raises
+        ------
+        TypeError
+            If `operation` is not a :class:`~nenupy.io.tf.TFTask`.
+        """
         if operation.__class__.__name__ != TFTask.__name__:
             raise TypeError(f"Tried to append {type(operation)} instead of {TFTask}.")
         self.tasks.insert(index, operation)
 
     def append(self, operation: TFTask) -> None:
+        """Append a pipeline task at the end of the list of planned tasks.
+
+        Parameters
+        ----------
+        operation : :class:`~nenupy.io.tf.TFTask`
+            The task to perform.
+
+        Raises
+        ------
+        TypeError
+            If `operation` is not a :class:`~nenupy.io.tf.TFTask`.
+        """
         if operation.__class__.__name__ != TFTask.__name__:
             raise TypeError(f"Tried to append {type(operation)} instead of {TFTask}.")
         self.tasks.append(operation)
 
     def remove(self, *args: Union[str, int]) -> None:
+        """Remove a task from the list.
+
+        Parameters
+        ----------
+        *args : `str` or `int`
+            If an integer is found, the task indexed at the corresponding value will be removed.
+            If a string is found, the first instance of the :class:`~nenupy.io.tf.TFTask` whose :attr:`~nenupy.io.tf.TFTask.name` corresponds to `arg` will be removed.
+
+        Raises
+        ------
+        TypeError
+            If `args` contains any item that is neither `int` nor `str`.
+
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 10
+
+            >>> from nenupy.io.tf import Spectra, TFPipeline, TFTask
+            >>> pipeline = TFPipeline( Spectra("/my/file.spectra") )
+            >>> pipeline.set_default()
+            >>> pipeline.info()
+            Pipeline configuration:
+                0 - Correct bandpass
+                (1 - Remove subband channels)
+                (2 - Rebin in time)
+                (3 - Rebin in frequency)
+                4 - Compute Stokes parameters
+            >>> pipeline.remove("Rebin in frequency", 1)
+            >>> pipeline.info()
+            Pipeline configuration:
+                0 - Correct bandpass
+                (1 - Rebin in time)
+                2 - Compute Stokes parameters
+
+        """
         for arg in args:
             if isinstance(arg, str):
                 try:
@@ -407,7 +528,41 @@ class TFPipeline:
             log.info(f"Removing task '{self.tasks[index].name}'.")
             del self.tasks[index]
 
-    def run(self, time_unix, frequency_hz, data):
+    def contains(self, task_name: str) -> bool:
+        """_summary_
+
+        Parameters
+        ----------
+        task_name : str
+            _description_
+
+        Returns
+        -------
+        bool
+            _description_
+        """
+        return np.any([op.name == task_name for op in self.tasks])
+
+    def run(self, time_unix: np.ndarray, frequency_hz: np.ndarray, data: da.Array) -> Tuple[np.ndarray, np.ndarray, da.Array]:
+        """Run all the tasks registered in the pipeline.
+
+        Parameters
+        ----------
+        time_unix : :class:`~numpy.ndarray`
+            Original array of time samples in Unix format (should match the first dimension of `data`). 
+        frequency_hz : :class:`~numpy.ndarray`
+            Original array of frequency samples in Hz (should match the second dimension of `data`)
+        data : :class:`~dask.array.Array`
+            Original data array, its shape should be `(time, frequency, 2, 2)`.
+
+        Returns
+        -------
+        (:class:`~numpy.ndarray`, :class:`~numpy.ndarray`, :class:`~dask.array.Array`)
+            Returns quantities equivalent to the inputs.
+            The sizes of `time_unix` and `frequency_hz` may have change (if rebinning steps have been included in the pipeline for instance).
+            The first two dimensions of `data` should still match those of `time_unix` and `frequency_hz`.
+            The last dimensions depend on the polarization computation.
+        """
         for task in self.tasks:
             task.update(self.parameters)
             time_unix, frequency_hz, data = task(time_unix, frequency_hz, data)
@@ -420,30 +575,20 @@ class Spectra:
 
     """Class to read UnDySPuTeD Time-Frequency files (.spectra extension).
 
-    :param filename:
-        Name of the .spectra file to read.
-    :type filename:
-        `str`
+    Parameters
+    ----------
+    filename : `str`
+        Path to the *UnDySPuTeD* file to read.
 
-    .. rubric:: Attributes Summary
+    Raises
+    ------
+    ValueError
+        If the `filename` extension differs from '.spectra'.
 
-    .. autosummary::
-
-        ~nenupy.io.tf.Spectra.filename
-        ~nenupy.io.tf.Spectra.time_min
-        ~nenupy.io.tf.Spectra.time_max
-        ~nenupy.io.tf.Spectra.frequency_min
-        ~nenupy.io.tf.Spectra.frequency_max
-
-    .. rubric:: Methods Summary
-
-    .. autosummary::
-
-        ~nenupy.io.tf.Spectra.get
-        ~nenupy.io.tf.Spectra.info
-
-    .. rubric:: Attributes and Methods Documentation
-
+    Notes
+    -----
+    .. versionadded:: 2.6.0
+   
     """
 
     def __init__(self, filename: str):
@@ -461,19 +606,16 @@ class Spectra:
         bad_block_mask = self._get_bad_data_mask(data)
 
         # Compute the main data block descriptors (time / frequency / beam)
-        self._block_start_unix = data["TIMESTAMP"][~bad_block_mask] + data[
-            "BLOCKSEQNUMBER"
-        ][~bad_block_mask] / SUBBAND_WIDTH.to_value(u.Hz)
-        self._subband_start_hz = data["data"]["channel"][0, :] * SUBBAND_WIDTH.to_value(
-            u.Hz
-        )  # Assumed constant over time
+        subband_width_hz = SUBBAND_WIDTH.to_value(u.Hz)
+        self._block_start_unix = data["TIMESTAMP"][~bad_block_mask] + data["BLOCKSEQNUMBER"][~bad_block_mask] / subband_width_hz
+        self._subband_start_hz = data["data"]["channel"][0, :] * subband_width_hz # Assumed constant over time
         self._beam_indices_dict = utils.sort_beam_edges(
             beam_array=data["data"]["beam"][0],  # Asummed same for all time step
             n_channels=self.n_channels,
         )
 
         # Transform the data in Dask Array, once correctly reshaped
-        self.data = self._assemble_to_tf(data=data, mask=bad_block_mask)
+        self.data = self._to_dask_tf(data=data, mask=bad_block_mask)
 
         self.pipeline = TFPipeline(self)
         self.pipeline.set_default()
@@ -482,10 +624,7 @@ class Spectra:
     # --------------------- Getter/Setter --------------------- #
     @property
     def filename(self) -> str:
-        """_summary_
-
-        :return: _description_
-        :rtype: str
+        """`str` : Path to the data file.
         """
         return self._filename
 
@@ -498,10 +637,17 @@ class Spectra:
 
     @property
     def time_min(self) -> Time:
-        """Returns the starting time of the data content.
+        """:class:`~astropy.time.Time` : Starting time of the data content.
+        
+        Example
+        -------
+        .. code-block:: python
 
-        :return: Start time of the data content.
-        :rtype: :class:`~astropy.time.Time`
+            >>> from nenupy.io.tf import Spectra
+            >>> sp = Spectra("/my/file.spectra")
+            >>> sp.time_min.isot
+            '2023-05-27T08:39:02.0000050'
+
         """
         time = Time(self._block_start_unix[0], format="unix", precision=7)
         time.format = "isot"
@@ -509,6 +655,18 @@ class Spectra:
 
     @property
     def time_max(self) -> Time:
+        """:class:`~astropy.time.Time` : Final time of the data content.
+
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.tf import Spectra
+            >>> sp = Spectra("/my/file.spectra")
+            >>> sp.time_max.isot
+            '2023-05-27T08:59:34.2445748'
+
+        """
         block_dt_sec = self._n_time_per_block * self.dt.to_value(u.s)
         time = Time(
             self._block_start_unix[-1] + block_dt_sec, format="unix", precision=7
@@ -518,6 +676,19 @@ class Spectra:
 
     @property
     def frequency_min(self) -> u.Quantity:
+        """:class:`~astropy.units.Quantity` : Lowest recorded frequency.
+        This value is defined at the channel granularity, i.e. it corresponds to the first channel of the lowest sub-band.
+
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.tf import Spectra
+            >>> sp = Spectra("/my/file.spectra")
+            >>> sp.frequency_min
+            19.921875 MHz
+
+        """
         freq_mins = []
         for _, boundaries in self._beam_indices_dict.items():
             sb_index = int(boundaries[0] / self.n_channels)
@@ -527,6 +698,19 @@ class Spectra:
 
     @property
     def frequency_max(self) -> u.Quantity:
+        """:class:`~astropy.units.Quantity` : Highest recorded frequency.
+        This value is defined at the channel granularity, i.e. it corresponds to the last channel of the highest sub-band.
+
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.tf import Spectra
+            >>> sp = Spectra("/my/file.spectra")
+            >>> sp.frequency_max
+            57.421875 MHz
+
+        """
         freq_maxs = []
         for _, boundaries in self._beam_indices_dict.items():
             sb_index = int((boundaries[1] + 1) / self.n_channels - 1)
@@ -537,7 +721,25 @@ class Spectra:
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def info(self) -> None:
-        """Display informations about the file."""
+        """Display informations about the file.
+        
+        Example
+        -------
+         .. code-block:: python
+
+            >>> from nenupy.io.tf import Spectra
+            >>> sp = Spectra("/my/file.spectra")
+            >>> sp.info()
+            filename: /my/file.spectra
+            time_min: 2023-05-27T08:39:02.0000050
+            time_max: 2023-05-27T08:59:34.2445748
+            dt: 20.97152 ms
+            frequency_min: 19.921875 MHz
+            frequency_max: 57.421875 MHz
+            df: 3.0517578125 kHz
+            Available beam indices: ['0']
+
+        """
         message = "\n".join(
             [
                 f"filename: {self.filename}",
@@ -553,86 +755,316 @@ class Spectra:
         print(message)
 
     def get(self, **pipeline_kwargs) -> SData:
-        """Select time-frequency data, run the user-defined pipeline and return the product.
-        Data selection, as well as pipeline specific arguments are defined as keyword arguments and passed to :attr:`nenupy.io.tf.TFPipeline.parameters`.
-        The pipeline can be accessed and modified through the :attr:`nenupy.io.tf.Spectra.pipeline` attribute.
+        r"""Perform data selection and pipeline computation.
 
-        .. rubric:: Available parameters
+        Parameters
+        ----------
+        **pipeline_kwargs
+            Any :attr:`~nenupy.io.tf.Spectra.pipeline` parameter passed as keyword argument from the list below.
+            Changes applied here are not kept once the method has resolved.
 
-        The following arguments, if set, will update the :class:`~nenupy.io.tf.TFPipeline`'s :attr:`~nenupy.io.tf.TFPipeline.parameters` attribute.
+        Other Parameters
+        ----------------
+        tmin : `str` or :class:`~astropy.time.Time`, default: :math:`{\rm min}(t)`
+            Lower edge of time selection, can either be given as a :class:`~astropy.time.Time` object or an ISOT/ISO string.
+        tmax : `str` or :class:`~astropy.time.Time`, default: :math:`{\rm max}(t)`
+            Upper edge of time selection, can either be given as an :class:`~astropy.time.Time` object or an ISOT/ISO string.
+        fmin : `float` or :class:`~astropy.units.Quantity`, default: :math:`{\rm min}(\nu)`
+            Lower frequency boundary selection, can either be given as a :class:`~astropy.units.Quantity` object or float (assumed to be in MHz in that case).
+        fmax : `float` or :class:`~astropy.units.Quantity`, default: :math:`{\rm max}(\nu)`
+            Higher frequency boundary selection, can either be given as a :class:`~astropy.units.Quantity` object or float (assumed to be in MHz in that case).
+        beam : `int`, default: first recorded beam
+            Beam selection, a single integer corresponding to the index of a recorded numerical beam is expected.
+        dispersion_measure : `float` or :class:`~astropy.units.Quantity`, default: ``None``
+            Enable de-dispersion of the data by this Dispersion Measure. Note that the :meth:`~nenupy.io.tf.TFTask.de_disperse` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`). It can either be provided as a :class:`~astropy.Quantity` object or a float (assumed to be in :math:`{\rm pc}\,{\rm cm}^{-3}` in that case).
+        rotation_measure : `float` or :class:`~astropy.unit.Quantity`, default: ``None``
+            Enable the correction of the Faraday rotation using this Rotation Measure. Note that the :meth:`~nenupy.io.tf.TFTask.correct_faraday_rotation` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`). It can either be provided as a :class:`~astropy.Quantity` object or a float (assumed to be in :math:`{\rm rad}\,{\rm m}^{-2}` in that case).
+        rebin_dt : `float` or :class:`~astropy.units.Quantity`, default: ``None``
+            Desired rebinning time resolution, can either be given as a :class:`~astropy.units.Quantity` object or a float (assumed to be in sec in that case). Note that the :meth:`~nenupy.io.tf.TFTask.time_rebin` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        rebin_df : `float` or :class:`~astropy.units.Quantity`, default: ``None``
+            Desired rebinning frequency resolution, can either be given as a :class:`~astropy.units.Quantity` object or float (assumed to be in kHz in that case). Note that the :meth:`~nenupy.io.tf.TFTask.frequency_rebin` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        remove_channels : `list` or :class:`~numpy.ndarray`, default: ``None``
+            List of subband channels to remove, e.g. `remove_channels=[0,1,-1]` would remove the first, second (low-freq) and last channels from each subband. Note that the :meth:`~nenupy.io.tf.TFTask.remove_channels` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        dreambeam_skycoord : :class:`~astropy.coordinates.SkyCoord`, default: ``None``
+            Tracked celestial coordinates used during `DreamBeam <https://dreambeam.readthedocs.io/en/latest/>`_ correction (along with ``'dreambeam_dt'`` and ``'dreambeam_parallactic'``), a :class:`~astropy.coordinates.SkyCoord` object is expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        dreambeam_dt : `float` or :class:`~astropy.units.Quantity`, default: ``None``
+            `DreamBeam <https://dreambeam.readthedocs.io/en/latest/>`_ correction time resolution (along with ``'dreambeam_skycoord'`` and ``'dreambeam_parallactic'``), a :class:`~astropy.Quantity` object or a float (assumed in seconds) are expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        dreambeam_parallactic : `bool`, default: `True`
+            `DreamBeam <https://dreambeam.readthedocs.io/en/latest/>`_ parallactic angle correction (along with ``'dreambeam_skycoord'`` and ``'dreambeam_dt'``), a boolean is expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        stokes : `str` or `list[str]`, default: ``"I"``
+            Stokes parameter selection, can either be given as a string or a list of strings, e.g. ``['I', 'Q', 'V/I']``. Note that the :meth:`~nenupy.io.tf.TFTask.get_stokes` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        ignore_volume_warning : `bool`, default: `False`
+            Ignore or not (default value) the limit regarding output data volume.
+            
+        Returns
+        -------
+        :class:`~nenupy.beamlet.sdata.SData`
+            Processed data selection.
 
-        :param tmin: Lower edge of time selection, can either be given as a :class:`~astropy.time.Time` object or an ISOT/ISO string.
-        :type tmin: `str` or :class:`~astropy.time.Time`
-        :param tmax: Upper edge of time selection, can either be given as an :class:`~astropy.time.Time` object or an ISOT/ISO string.
-        :type tmax: `str` or :class:`~astropy.time.Time`
-        :param fmin: Lower frequency boundary selection, can either be given as a :class:`~astropy.unit.Quantity` object or float (assumed to be in MHz in that case).
-        :type fmin: `float` or :class:`~astropy.unit.Quantity`
-        :param fmax: Higher frequency boundary selection, can either be given as a :class:`~astropy.unit.Quantity` object or float (assumed to be in MHz in that case).
-        :type fmax: `float` or :class:`~astropy.unit.Quantity`
-        :param beam: Beam selection, a single integer corresponding to the index of a recorded numerical beam is expected. Default is the first recorded.
-        :type beam: `int`
-        :param dispersion_measure: Enable de-dispersion of the data by this Dispersion Measure. Note that the :meth:`~nenupy.io.tf.TFTask.de_disperse` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`). It can either be provided as a :class:`~astropy.Quantity` object or a float (assumed to be in pc/cm^3 in that case).
-        :type dispersion_measure: `float` or :class:`~astropy.unit.Quantity`
-        :param rotation_measure: Hello
-        :type rotation_measure: `float` or :class:`~astropy.unit.Quantity`
-        :param rebin_dt: Desired rebinning time resolution, can either be given as a :class:`~astropy.unit.Quantity` object or a float (assumed to be in sec in that case). Note that the :meth:`~nenupy.io.tf.TFTask.time_rebin` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
-        :type rebin_dt: `float` or :class:`~astropy.unit.Quantity`
-        :param rebin_df: Desired rebinning frequency resolution, can either be given as a :class:`~astropy.unit.Quantity` object or float (assumed to be in kHz in that case). Note that the :meth:`~nenupy.io.tf.TFTask.frequency_rebin` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
-        :type rebin_df: `float` or :class:`~astropy.unit.Quantity`
-        :param remove_channels: List of subband channels to remove, e.g. `remove_channels=[0,1,-1]` would remove the first, second (low-freq) and last channels from each subband. Note that the :meth:`~nenupy.io.tf.TFTask.remove_channels` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
-        :type remove_channels: `list` or :class:`~numpy.ndarray`
-        :param dreambeam_skycoord: Tracked celestial coordinates used during *DreamBeam* correction (along with ``'dreambeam_dt'`` and ``'dreambeam_parallactic'``), a :class:`~astropy.coordinates.SkyCoord` object is expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
-        :type dreambeam_skycoord: :class:`~astropy.coordinates.SkyCoord`
-        :param dreambeam_dt: *DreamBeam* correction time resolution (along with ``'dreambeam_skycoord'`` and ``'dreambeam_parallactic'``), a :class:`~astropy.Quantity` object or a float (assumed in seconds) are expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
-        :type dreambeam_dt: `float` or :class:`~astropy.unit.Quantity`
-        :param dreambeam_parallactic: *DreamBeam* parallactic angle correction (along with ``'dreambeam_skycoord'`` and ``'dreambeam_dt'``), a boolean is expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
-        :type dreambeam_parallactic: `bool`
-        :param stokes: Stokes parameter selection, can either be given as a string or a list of strings, e.g. ['I', 'Q', 'V/I']. Note that the :meth:`~nenupy.io.tf.TFTask.get_stokes` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
-        :type stokes: `str` or `list[str]`
-        :param ignore_volume_warning: Ignore or not (default value) the limit regarding output data volume.
-        :type ignore_volume_warning: `bool`
+        Examples
+        --------
+        .. code-block:: python
 
-        :return: Processed data selection.
-        :rtype: :class:`~nenupy.beamlet.sdata.SData`
+            >>> from nenupy.io.tf import Spectra
+            >>> sp = Spectra("/my/file.spectra")
+            >>> result = sp.get(tmin="2024-01-01 12:00:00", tmax="2024-01-01 13:00:00")
+
         """
 
+        # Make a copy of the previous parmaeters
+        parameters_copy = self.pipeline.parameters.copy()
         # Update the pipeline parameters to user's last requests
         for param, value in pipeline_kwargs.items():
             self.pipeline.parameters[param] = value
 
-        # Select the data in time and frequency (the beam selection is implicit on the frequency idexing)
-        frequency_hz, time_unix, data = self._select_data()
-
-        # Run the pipeline
-        log.info(self.pipeline.info(return_str=True))
-        time_unix, frequency_hz, data = self.pipeline.run(
-            frequency_hz=frequency_hz, time_unix=time_unix, data=data
-        )
-
-        # Abort the process if the projected data volume is larger than the threshold
-        projected_data_volume = data.nbytes * u.byte
-        if (projected_data_volume >= DATA_VOLUME_SECURITY_THRESHOLD) and (
-            not self.pipeline.parameters["ignore_volume_warning"]
-        ):
-            log.warning(
-                f"Data processing will produce {projected_data_volume.to(u.Gibyte)}."
-                f"The pipeline is interrupted because the volume threshold is {DATA_VOLUME_SECURITY_THRESHOLD.to(u.Gibyte)}."
+        try:
+            # Select the data in time and frequency (the beam selection is implicit on the frequency idexing)
+            frequency_hz, time_unix, data = self.select_raw_data(
+                tmin_unix=self.pipeline.parameters["tmin"].unix,
+                tmax_unix=self.pipeline.parameters["tmax"].unix,
+                fmin_hz=self.pipeline.parameters["fmin"].to_value(u.Hz),
+                fmax_hz=self.pipeline.parameters["fmax"].to_value(u.Hz),
+                beam=self.pipeline.parameters["beam"],
             )
-            return
 
-        log.info(
-            f"Computing the data (estimated volume: {projected_data_volume.to(u.Mibyte):.2})..."
-        )
-        with ProgressBar():
-            data = data.compute()
-        log.info(f"\tData of shape (time, frequency, stokes) = {data.shape} produced.")
+            # Run the pipeline
+            log.info(self.pipeline.info(return_str=True))
+            time_unix, frequency_hz, data = self.pipeline.run(
+                frequency_hz=frequency_hz, time_unix=time_unix, data=data
+            )
 
+            # Abort the process if the projected data volume is larger than the threshold
+            projected_data_volume = data.nbytes * u.byte
+            if (projected_data_volume >= DATA_VOLUME_SECURITY_THRESHOLD) and (
+                not self.pipeline.parameters["ignore_volume_warning"]
+            ):
+                log.warning(
+                    f"Data processing will produce {projected_data_volume.to(u.Gibyte)}."
+                    f"The pipeline is interrupted because the volume threshold is {DATA_VOLUME_SECURITY_THRESHOLD.to(u.Gibyte)}."
+                )
+                return
+
+            log.info(
+                f"Computing the data (estimated volume: {projected_data_volume.to(u.Mibyte):.2})..."
+            )
+            with ProgressBar():
+                data = data.compute()
+            log.info(
+                f"\tData of shape (time, frequency, (polarization)) = {data.shape} produced."
+            )
+
+        except Exception:
+            # Restore the parameters to their original default values
+            self.pipeline.parameters = parameters_copy
+            raise
+        self.pipeline.parameters = parameters_copy
+
+        # If other data product than Stokes are made
+        if not self.pipeline.contains("compute_stokes"):
+            # Make sure there are 3 dimensions (time, frequency, polarization)
+            # If there are more, the dimensions > 2 are all merged together.
+            # If there are 2 dimensions, an empty third is added
+            data = data.reshape(*data.shape[:2], -1)
+            return SData(
+                data=data,
+                time=Time(time_unix, format="unix", precision=7),
+                freq=frequency_hz * u.Hz,
+                polar=np.arange(data.shape[2]).astype(str),
+            )
+
+        # If the data are regular Stockes parameters
         return SData(
             data=data,
             time=Time(time_unix, format="unix", precision=7),
             freq=frequency_hz * u.Hz,
             polar=self.pipeline.parameters["stokes"],
         )
+
+    def select_raw_data(
+        self,
+        tmin_unix: float,
+        tmax_unix: float,
+        fmin_hz: float,
+        fmax_hz: float,
+        beam: int,
+    ) -> Tuple[np.ndarray, np.ndarray, da.Array]:
+        """Select a subset from a time-frequency NenuFAR dataset.
+
+        Parameters
+        ----------
+        tmin_unix : float
+            Start time of the selection in UNIX format.
+        tmax_unix : float
+            Stop time of the selection in UNIX format.
+        fmin_hz : float
+            Minimal frequency of the selection in Hz.
+        fmax_hz : float
+            Maximal frequency of the selection in Hz.
+        beam : int
+            Beam index of the selection.
+
+        Raises
+        ------
+        KeyError
+            If `beam` does not correspond to any recorded value.
+
+        Returns
+        -------
+        (:class:`~numpy.ndarray`, :class:`~numpy.ndarray`, :class:`~dask.array.Array`)
+            Length-3 tuple, respectively containing the frequency in Hz and the time in unix as `numpy` arrays, then the selected dataset.
+            The latter should be shaped as (time, frequency, 2, 2) where the last two dimensions are the Jones matrix of the electric field cross correlations.
+            If the chosen time arguments lead to an empty selection, a length-3 tuple of `None` is returned.
+            If the frequency selection is off, the closest subband is returned.
+
+        See Also
+        --------
+        :func:`~nenupy.io.tf_utils.compute_spectra_time`, :func:`~nenupy.io.tf_utils.compute_spectra_frequencies`
+
+        Notes
+        -----
+        .. versionadded:: 2.6.0
+
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 3
+
+            >>> import nenupy
+            >>> sp = Spectra("/my/file.spectra")
+            >>> data = sp.select_raw_data(
+                    tmin_unix=1685176742.000005,
+                    tmax_unix=1685176802.000005,
+                    fmin_hz=21e6,
+                    fmax_hz=22e6,
+                    beam=0
+                )
+            >>> data[0].shape, data[1].shape, data[2].shape
+            ((384,), (2856,), (2856, 384, 2, 2))
+                
+        """
+
+        log.info(
+            f"Selecting times (between {Time(tmin_unix, format='unix').isot} and {Time(tmax_unix, format='unix').isot})..."
+        )
+
+        # Find out which block indices are at the edges of the desired time range
+        block_idx_min = int(
+            np.argmin(np.abs(np.ceil(self._block_start_unix - tmin_unix)))
+        )  # n_blocks - np.argmax(((self._block_start_unix - tmin) <= 0)[::-1]) - 1
+        block_idx_max = int(
+            np.argmin(np.abs(np.ceil(self._block_start_unix - tmax_unix)))
+        )  # n_blocks - np.argmax(((self._block_start_unix - tmax) <= 0)[::-1]) - 1
+        log.debug(
+            f"\tClosest time block from requested range are #{block_idx_min} and #{block_idx_max}."
+        )
+
+        # Get the closest time index within each of the two bounding blocks
+        dt_sec = self.dt.to_value(u.s)
+        # Compute the time index within the block and bound it between 0 and the number of spectra in each block
+        time_idx_min_in_block = int(
+            np.round((tmin_unix - self._block_start_unix[block_idx_min]) / dt_sec)
+        )
+        time_idx_min_in_block = max(
+            0, min(self._n_time_per_block - 1, time_idx_min_in_block)
+        )  # bound the value between in between channels indices
+        time_idx_min = block_idx_min * self._n_time_per_block + time_idx_min_in_block
+        # Do the same for the higher edge of the desired time range
+        time_idx_max_in_block = int(
+            np.round((tmax_unix - self._block_start_unix[block_idx_max]) / dt_sec)
+        )
+        time_idx_max_in_block = max(
+            0, min(self._n_time_per_block - 1, time_idx_max_in_block)
+        )
+        time_idx_max = block_idx_max * self._n_time_per_block + time_idx_max_in_block
+        log.info(f"\t{time_idx_max - time_idx_min + 1} time samples selected.")
+
+        # Raise warnings if the time selection results in no data selected
+        if time_idx_min == time_idx_max:
+            if (time_idx_min > 0) and (
+                time_idx_min < self._block_start_unix.size * self._n_time_per_block - 1
+            ):
+                log.warning("Desired time selection encompasses missing data.")
+                if tmin_unix < self._block_start_unix[block_idx_min]:
+                    # The found block is just after the missing data
+                    closest_tmin = Time(
+                        self._block_start_unix[block_idx_min - 1]
+                        + self._n_time_per_block * dt_sec,
+                        format="unix",
+                    ).isot
+                    closest_tmax = Time(
+                        self._block_start_unix[block_idx_min], format="unix"
+                    ).isot
+                else:
+                    # The found block is just before the missing data
+                    closest_tmin = Time(
+                        self._block_start_unix[block_idx_min]
+                        + self._n_time_per_block * dt_sec,
+                        format="unix",
+                    ).isot
+                    closest_tmax = Time(
+                        self._block_start_unix[block_idx_min + 1], format="unix"
+                    ).isot
+                log.info(
+                    f"Time selection lies in the data gap between {closest_tmin} and {closest_tmax}."
+                )
+            log.warning("Time selection leads to empty dataset.")
+            return (None, None, None)
+
+        # Compute the time ramp between those blocks
+        time_unix = utils.compute_spectra_time(
+            block_start_time_unix=self._block_start_unix[
+                block_idx_min : block_idx_max + 1
+            ],
+            ntime_per_block=self._n_time_per_block,
+            time_step_s=self.dt.to_value(u.s),
+        )
+        # Cut down the first and last time blocks
+        time_unix = time_unix[
+            time_idx_min_in_block : time_unix.size
+            - (self._n_time_per_block - time_idx_max_in_block)
+            + 1
+        ]
+
+        log.info(
+            f"Selecting frequencies (between {(fmin_hz*u.Hz).to(u.MHz)} and {(fmax_hz*u.Hz).to(u.MHz)})..."
+        )
+        try:
+            beam_idx_start, beam_idx_stop = self._beam_indices_dict[str(beam)]
+        except KeyError as e:
+            log.error(f"Beam index selection '{beam}' does not correspond to one of the recorded values: {list(self._beam_indices_dict.keys())}.")
+            raise
+
+        # Find out the subband edges covering the selected frequency range
+        subbands_in_beam = self._subband_start_hz[
+            int(beam_idx_start / self.n_channels) : int(
+                (beam_idx_stop + 1) / self.n_channels
+            )
+        ]
+        sb_idx_min = int(np.argmin(np.abs(np.ceil(subbands_in_beam - fmin_hz))))
+        sb_idx_max = int(np.argmin(np.abs(np.ceil(subbands_in_beam - fmax_hz))))
+        log.debug(
+            f"\tClosest beamlet indices from requested range are #{sb_idx_min} and #{sb_idx_max}."
+        )
+
+        # Select frequencies at the subband granularity at minimum
+        # Later, we want to correct for bandpass, edge channels and so on...
+        frequency_idx_min = sb_idx_min * self.n_channels
+        frequency_idx_max = (sb_idx_max + 1) * self.n_channels
+        frequency_hz = utils.compute_spectra_frequencies(
+            subband_start_hz=subbands_in_beam[sb_idx_min : sb_idx_max + 1],
+            n_channels=self.n_channels,
+            frequency_step_hz=self.df.to_value(u.Hz),
+        )
+        log.info(
+            f"\t{frequency_idx_max - frequency_idx_min} frequency samples selected."
+        )
+
+        selected_data = self.data[:, beam_idx_start : beam_idx_stop + 1, ...][
+            time_idx_min : time_idx_max + 1, frequency_idx_min:frequency_idx_max, ...
+        ]
+        log.debug(f"Data of shape {selected_data.shape} selected.")
+
+        return frequency_hz.compute(), time_unix.compute(), selected_data
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
@@ -703,7 +1135,7 @@ class Spectra:
 
         return bad_block_mask
 
-    def _assemble_to_tf(self, data: np.ndarray, mask: np.ndarray) -> da.Array:
+    def _to_dask_tf(self, data: np.ndarray, mask: np.ndarray) -> da.Array:
         """ """
         # Transform the array in a Dask array, one chunk per block
         # Filter out the bad blocks
@@ -719,136 +1151,3 @@ class Spectra:
         )
 
         return data
-
-    def _select_data(self) -> Tuple[np.ndarray, np.ndarray, da.Array]:
-        """ """
-
-        tmin, tmax = (
-            self.pipeline.parameters["tmin"].unix,
-            self.pipeline.parameters["tmax"].unix,
-        )  # self.configuration.time_range.unix
-        log.info(
-            f"Selecting times (between {Time(tmin, format='unix').isot} and {Time(tmax, format='unix').isot})..."
-        )
-
-        # Find out which block indices are at the edges of the desired time range
-        block_idx_min = int(
-            np.argmin(np.abs(np.ceil(self._block_start_unix - tmin)))
-        )  # n_blocks - np.argmax(((self._block_start_unix - tmin) <= 0)[::-1]) - 1
-        block_idx_max = int(
-            np.argmin(np.abs(np.ceil(self._block_start_unix - tmax)))
-        )  # n_blocks - np.argmax(((self._block_start_unix - tmax) <= 0)[::-1]) - 1
-        log.debug(
-            f"\tClosest time block from requested range are #{block_idx_min} and #{block_idx_max}."
-        )
-
-        # Get the closest time index within each of the two bounding blocks
-        dt_sec = self.dt.to_value(u.s)
-        # Compute the time index within the block and bound it between 0 and the number of spectra in each block
-        time_idx_min_in_block = int(
-            np.round((tmin - self._block_start_unix[block_idx_min]) / dt_sec)
-        )
-        time_idx_min_in_block = max(
-            0, min(self._n_time_per_block - 1, time_idx_min_in_block)
-        )  # bound the value between in between channels indices
-        time_idx_min = block_idx_min * self._n_time_per_block + time_idx_min_in_block
-        # Do the same for the higher edge of the desired time range
-        time_idx_max_in_block = int(
-            np.round((tmax - self._block_start_unix[block_idx_max]) / dt_sec)
-        )
-        time_idx_max_in_block = max(
-            0, min(self._n_time_per_block - 1, time_idx_max_in_block)
-        )
-        time_idx_max = block_idx_max * self._n_time_per_block + time_idx_max_in_block
-        log.info(f"\t{time_idx_max - time_idx_min + 1} time samples selected.")
-
-        # Raise warnings if the time selection results in no data selected
-        if time_idx_min == time_idx_max:
-            if (time_idx_min > 0) and (
-                time_idx_min < self._block_start_unix.size * self._n_time_per_block - 1
-            ):
-                log.warning("Desired time selection encompasses missing data.")
-                if tmin < self._block_start_unix[block_idx_min]:
-                    # The found block is just after the missing data
-                    closest_tmin = Time(
-                        self._block_start_unix[block_idx_min - 1]
-                        + self._n_time_per_block * dt_sec,
-                        format="unix",
-                    ).isot
-                    closest_tmax = Time(
-                        self._block_start_unix[block_idx_min], format="unix"
-                    ).isot
-                else:
-                    # The found block is just before the missing data
-                    closest_tmin = Time(
-                        self._block_start_unix[block_idx_min]
-                        + self._n_time_per_block * dt_sec,
-                        format="unix",
-                    ).isot
-                    closest_tmax = Time(
-                        self._block_start_unix[block_idx_min + 1], format="unix"
-                    ).isot
-                log.info(
-                    f"Time selection lies in the data gap between {closest_tmin} and {closest_tmax}."
-                )
-            log.warning("Time selection leads to empty dataset.")
-            return (None, None, None)
-
-        # Compute the time ramp between those blocks
-        time_unix = utils.compute_spectra_time(
-            block_start_time_unix=self._block_start_unix[
-                block_idx_min : block_idx_max + 1
-            ],
-            ntime_per_block=self._n_time_per_block,
-            time_step_s=self.dt.to_value(u.s),
-        )
-        # Cut down the first and last time blocks
-        time_unix = time_unix[
-            time_idx_min_in_block : time_unix.size
-            - (self._n_time_per_block - time_idx_max_in_block)
-            + 1
-        ]
-
-        fmin, fmax = self.pipeline.parameters["fmin"].to_value(
-            u.Hz
-        ), self.pipeline.parameters["fmax"].to_value(
-            u.Hz
-        )  # self.configuration.frequency_range.to_value(u.Hz)
-        log.info(
-            f"Selecting frequencies (between {(fmin*u.Hz).to(u.MHz)} and {(fmax*u.Hz).to(u.MHz)})..."
-        )
-        beam_idx_start, beam_idx_stop = self._beam_indices_dict[
-            str(self.pipeline.parameters["beam"])
-        ]  # self._beam_indices_dict[str(self.configuration.beam)]
-
-        # Find out the subband edges covering the selected frequency range
-        subbands_in_beam = self._subband_start_hz[
-            int(beam_idx_start / self.n_channels) : int(
-                (beam_idx_stop + 1) / self.n_channels
-            )
-        ]
-        sb_idx_min = int(np.argmin(np.abs(np.ceil(subbands_in_beam - fmin))))
-        sb_idx_max = int(np.argmin(np.abs(np.ceil(subbands_in_beam - fmax))))
-        log.debug(
-            f"\tClosest beamlet indices from requested range are #{sb_idx_min} and #{sb_idx_max}."
-        )
-
-        # Select frequencies at the subband granularity at minimum
-        # Later, we want to correct for bandpass, edge channels and so on...
-        frequency_idx_min = sb_idx_min * self.n_channels
-        frequency_idx_max = (sb_idx_max + 1) * self.n_channels
-        frequency_hz = utils.compute_spectra_frequencies(
-            subband_start_hz=subbands_in_beam[sb_idx_min : sb_idx_max + 1],
-            n_channels=self.n_channels,
-            frequency_step_hz=self.df.to_value(u.Hz),
-        )
-        log.info(
-            f"\t{frequency_idx_max - frequency_idx_min} frequency samples selected."
-        )
-
-        selected_data = self.data[:, beam_idx_start : beam_idx_stop + 1, ...][
-            time_idx_min : time_idx_max + 1, frequency_idx_min:frequency_idx_max, ...
-        ]
-        log.debug(f"Data of shape {selected_data.shape} selected.")
-
-        return frequency_hz.compute(), time_unix.compute(), selected_data

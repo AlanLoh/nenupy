@@ -19,6 +19,7 @@ from astropy.time import Time, TimeDelta
 from typing import Union, List, Tuple, Any
 from functools import partial
 from abc import ABC, abstractmethod
+import copy
 import logging
 
 log = logging.getLogger(__name__)
@@ -699,6 +700,9 @@ class _TFParameter(ABC):
         self.help_msg = help_msg
         self._value = None
 
+    def __str__(self) -> str:
+        return f"{self.name}={self.value}"
+
     @property
     def value(self) -> Any:
         return self._value
@@ -853,13 +857,27 @@ class _BooleanParameter(_TFParameter):
 class TFPipelineParameters:
     def __init__(self, *parameters):
         self.parameters = parameters
+        self._original_parameters = parameters
 
     def __setitem__(self, name: str, value: Any):
+        """_summary_
+
+        Parameters
+        ----------
+        name : str
+            _description_
+        value : Any
+            _description_
+        """
         param = self._get_parameter(name)
         param.value = value
 
     def __getitem__(self, name: str) -> _TFParameter:
         return self._get_parameter(name).value
+
+    def __repr__(self) -> str:
+        message = "\n".join([str(param) for param in self.parameters])
+        return message
 
     def info(self) -> None:
         for param in self.parameters:
@@ -874,6 +892,19 @@ class TFPipelineParameters:
             raise KeyError(
                 f"Unknown parameter '{name}'! Available parameters are {param_names}."
             )
+
+    def reset(self) -> None:
+        """Reset all parameters to their original values.
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        self.parameters = self._original_parameters
+
+    def copy(self):
+        return copy.deepcopy(self)
 
     @classmethod
     def set_default(

@@ -151,6 +151,8 @@ __all__ = [
 from astropy.time import Time
 import astropy.units as u
 import numpy as np
+import logging
+log = logging.getLogger(__name__)
 
 
 # ============================================================= #
@@ -562,7 +564,12 @@ class SData(object):
                 print(f"Warning, no '{polarization}' polarization recorded (selec from {self.polar}).")
                 pol_idx = 0
 
-        dynspec = 10*np.log10(self.data[..., pol_idx]).T if db else self.data[..., pol_idx].T
+        data = self.data[..., pol_idx]
+        if np.iscomplexobj(data):
+            log.warning("Complex array found, only the real part is plotted.")
+            data = data.real
+
+        dynspec = 10*np.log10(data).T if db else data.T
 
         # Make sure everything is correctly set up
         if 'cmap' not in kwargs.keys():
@@ -670,10 +677,6 @@ class SData(object):
         ax.set_title(kwargs['title'])
 
         # Set x axis labels        
-        # ax.xaxis.set_minor_locator(mdates.MinuteLocator(byminute=[15, 30, 45]))
-        # ax.xaxis.set_major_locator(mdates.HourLocator())
-        # hourFmt = mdates.DateFormatter("%H", usetex=True)
-        # ax.xaxis.set_major_formatter(hourFmt)
         locator = ax.xaxis.set_major_locator(mdates.AutoDateLocator())
         ax.xaxis.set_major_formatter(
             mdates.ConciseDateFormatter(locator, show_offset=False)
@@ -682,11 +685,8 @@ class SData(object):
         # Save or show
         if not (ax is None):
             return
-
-        if figname is None:
-            plt.show()
         elif (figname is None) or (figname == ""):
-            return
+            plt.show()
         else:
             fig.savefig(
                 figname,
