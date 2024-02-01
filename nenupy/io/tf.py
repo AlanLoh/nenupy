@@ -857,28 +857,31 @@ class Spectra:
             # Restore the parameters to their original default values
             self.pipeline.parameters = parameters_copy
             raise
-        self.pipeline.parameters = parameters_copy
 
         # If other data product than Stokes are made
-        if not self.pipeline.contains("compute_stokes"):
+        if not self.pipeline.contains("Compute Stokes parameters"):
             # Make sure there are 3 dimensions (time, frequency, polarization)
             # If there are more, the dimensions > 2 are all merged together.
             # If there are 2 dimensions, an empty third is added
             data = data.reshape(*data.shape[:2], -1)
-            return SData(
+            result = SData(
                 data=data,
                 time=Time(time_unix, format="unix", precision=7),
                 freq=frequency_hz * u.Hz,
-                polar=np.arange(data.shape[2]).astype(str),
+                polar=["XX", "XY", "YX", "YY"],
+            )
+        else:
+            # If the data are regular Stokes parameters
+            result = SData(
+                data=data,
+                time=Time(time_unix, format="unix", precision=7),
+                freq=frequency_hz * u.Hz,
+                polar=self.pipeline.parameters["stokes"],
             )
 
-        # If the data are regular Stockes parameters
-        return SData(
-            data=data,
-            time=Time(time_unix, format="unix", precision=7),
-            freq=frequency_hz * u.Hz,
-            polar=self.pipeline.parameters["stokes"],
-        )
+        self.pipeline.parameters = parameters_copy
+
+        return result
 
     def select_raw_data(
         self,

@@ -561,7 +561,7 @@ class SData(object):
             try:
                 pol_idx = np.argwhere(np.array(list(map(str, self.polar))) == polarization)[0, 0]
             except IndexError:
-                print(f"Warning, no '{polarization}' polarization recorded (selec from {self.polar}).")
+                print(f"Warning, no '{polarization}' polarization recorded (select from {self.polar}).")
                 pol_idx = 0
 
         data = self.data[..., pol_idx]
