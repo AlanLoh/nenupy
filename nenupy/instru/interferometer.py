@@ -43,7 +43,7 @@ from astropy.coordinates import (
 import dask.array as da
 from dask.diagnostics import ProgressBar
 
-from nenupy import LogMethodMetaClass, DummyCtMgr
+# from nenupy import LogMethodMetaClass, DummyCtMgr
 from nenupy.astro.sky import Sky
 from nenupy.astro.astro_tools import sky_temperature
 from nenupy.astro.pointing import Pointing
@@ -52,8 +52,8 @@ from nenupy.astro.pointing import Pointing
 # ============================================================= #
 # ---------------- Interferometer class errors ---------------- #
 # ============================================================= #
-class CombinedMeta(LogMethodMetaClass, ABCMeta):
-    """ Intermediate metaclass when inheriting from ABC. """
+# class CombinedMeta(LogMethodMetaClass, ABCMeta):
+#     """ Intermediate metaclass when inheriting from ABC. """
 
 
 class AntennaNameError(Exception):
@@ -173,7 +173,7 @@ class ObservingMode(Enum):
 # ============================================================= #
 # ---------------------- Interferometer ----------------------- #
 # ============================================================= #
-class Interferometer(ABC, metaclass=CombinedMeta):
+class Interferometer(ABC):#, metaclass=CombinedMeta):
     """ Abstract base class for all phased-array/interferometer classes.
 
         .. rubric:: Attributes Summary
