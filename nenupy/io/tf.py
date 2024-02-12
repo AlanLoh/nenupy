@@ -79,6 +79,7 @@ class TFTask:
     .. autosummary::
 
         ~nenupy.io.tf.TFTask.correct_bandpass
+        ~nenupy.io.tf.TFTask.flatten_subband
         ~nenupy.io.tf.TFTask.remove_channels
         ~nenupy.io.tf.TFTask.correct_polarization
         ~nenupy.io.tf.TFTask.correct_faraday_rotation
@@ -114,16 +115,46 @@ class TFTask:
 
     @classmethod
     def correct_bandpass(cls):
-        """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.correct_bandpass` to correct the polyphase-filter bandpass reponse."""
+        """ :class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.correct_bandpass` to correct the polyphase-filter bandpass reponse.
 
+            .. figure:: ./_images/io_images/tf_bandpass_correction.png
+                :width: 650
+                :align: center
+
+        """
         def wrapper_task(data, channels):
             return utils.correct_bandpass(data=data, n_channels=channels)
 
         return cls("Correct bandpass", wrapper_task, ["channels"], repeatable=False)
 
     @classmethod
+    def flatten_subband(cls):
+        """_summary_
+
+            .. figure:: ./_images/io_images/tf_sb_flatten.png
+                :width: 650
+                :align: center
+
+            Warning
+            -------
+            This is  a warning
+
+
+        """
+        def wrapper_task(data, channels):
+            return utils.flatten_subband(data=data, channels=channels)
+
+        return cls("Flatten subband", wrapper_task, ["channels"], repeatable=False)
+
+    @classmethod
     def remove_channels(cls):
-        """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.remove_channels_per_subband` to set a list of sub-band channels to `NaN` values."""
+        """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.remove_channels_per_subband` to set a list of sub-band channels to `NaN` values.
+
+            .. figure:: ./_images/io_images/tf_remove_channels.png
+                :width: 650
+                :align: center
+
+        """
 
         def wrapper_task(data, channels, remove_channels):
             if (remove_channels is None) or (len(remove_channels) == 0):
@@ -242,6 +273,13 @@ class TFTask:
 
     @classmethod
     def time_rebin(cls):
+        """_summary_
+
+            .. figure:: ./_images/io_images/tf_time_rebin.png
+                :width: 650
+                :align: center
+    
+        """
         def rebin_time(time_unix, data, dt, rebin_dt):
             if rebin_dt is None:
                 return time_unix, data
@@ -258,6 +296,13 @@ class TFTask:
 
     @classmethod
     def frequency_rebin(cls):
+        """_summary_
+
+            .. figure:: ./_images/io_images/tf_frequency_rebin.png
+                :width: 650
+                :align: center
+
+        """
         def rebin_freq(frequency_hz, data, df, rebin_df):
             if rebin_df is None:
                 return frequency_hz, data
@@ -274,6 +319,14 @@ class TFTask:
 
     @classmethod
     def get_stokes(cls):
+        """_summary_
+
+            .. figure:: ./_images/io_images/tf_stokes.png
+                :width: 650
+                :align: center
+
+        """
+
         def compute_stokes(data, stokes):
             if (stokes is None) or (stokes == "") or (stokes == []):
                 return data
@@ -438,7 +491,6 @@ class TFPipeline:
         self.tasks = [
             TFTask.correct_bandpass(),
             TFTask.remove_channels(),
-            # TFTask.correct_faraday_rotation(),
             TFTask.time_rebin(),
             TFTask.frequency_rebin(),
             TFTask.get_stokes(),

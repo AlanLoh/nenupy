@@ -36,6 +36,7 @@ __all__ = [
     "crop_subband_edges",
     "de_disperse_array",
     "de_faraday_data",
+    "flatten_subband",
     "get_bandpass",
     "polarization_angle",
     "rebin_along_dimension",
@@ -45,7 +46,6 @@ __all__ = [
     "spectra_data_to_matrix",
     "TFPipelineParameters"
 ]
-
 
 # ============================================================= #
 # ---------------- apply_dreambeam_corrections ---------------- #
@@ -477,6 +477,50 @@ def get_bandpass(n_channels: int) -> np.ndarray:
     g = 2**25 / np.sqrt(midsq + leftsq + rightsq)
 
     return g**2.0
+
+
+# ============================================================= #
+# ---------------------- flatten_subband ---------------------- #
+def flatten_subband(data: np.ndarray, channels: int) -> np.ndarray:
+
+    # Check that data has not been altered, i.e. dimension 1 should be a multiple of channels
+    if data.shape[1] % channels != 0:
+        raise ValueError(
+            f"data's frequency dimension (of size {data.shape[1]}) is "
+            f"not a multiple of channels={channels}. data's second "
+            "dimension should be of size number_of_subbands*number_of_channels."
+        )
+    n_subbands = int(data.shape[1]/channels)
+    pol_dims = data.ndim - 2 # the first two dimensions should be time and frequency
+
+    # Compute the median spectral profile (along the time axis)
+    median_frequency_profile = np.nanmedian(data, axis=0)
+    subband_shape = (n_subbands, channels) + data.shape[2:]
+    # Reshape to have the spectral profile as (subbands, channels, (polarizations...))
+    median_subband_profile = median_frequency_profile.reshape(subband_shape)
+
+    # # Select two data points (away from subband edges) that will be
+    # # used to compute the affine function that approximates each subband.
+    # ind1, ind2 = int(np.round(channels*1/3)), int(np.round(channels*2/3))
+    # # Get the y-values corresponding to these two indices, each y is of shape (subbands, (polarizations...))
+    # y1, y2 = median_subband_profile[:, ind1, ...], median_subband_profile[:, ind2, ...]
+
+    # Split the subband in two and compute the 2 medians that will be
+    # used to compute the affine function that approximates each subband.
+    ind1, ind2 = int(np.floor(channels/2))/2, channels - int(np.floor(channels/2))/2
+    y1 = np.nanmedian(median_subband_profile[:, :int(np.floor(channels/2)), ...], axis=1)
+    y2 = np.nanmedian(median_subband_profile[:, int(np.ceil(channels/2)):, ...], axis=1)
+
+    # Compute the linear approximations of each subbands, linear_subbands's shape is (channels, subbands, (polarizations...))
+    x_values = np.arange(channels)[(...,) + (np.newaxis,) * (pol_dims + 1)] # +1 --> subbands
+    linear_subbands = (x_values - ind1) * (y2 - y1) / (ind2 - ind1) + y1 # linear equation
+
+    # Compute the subband mean value and the normalised linear subbands
+    subband_mean_values = np.nanmedian(linear_subbands, axis=0) # shape (subbands, (polarizations))
+    normalised_linear_subbands = np.swapaxes(linear_subbands / subband_mean_values[None, ...], 0, 1).reshape(data.shape[1:])
+
+    # Correct the data by the normalised linear subbands to flatten them
+    return data / normalised_linear_subbands[None, ...]
 
 
 # ============================================================= #
