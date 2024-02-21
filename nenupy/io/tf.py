@@ -815,11 +815,13 @@ class Spectra:
         )
         print(message)
 
-    def get(self, **pipeline_kwargs) -> SData:
+    def get(self, file_name: str = None, **pipeline_kwargs) -> SData:
         r"""Perform data selection and pipeline computation.
 
         Parameters
         ----------
+        file_name : `str`, default: ``None``
+            If different than ``None`` (default value), name of the HDF5 file (extension '.hdf5') to create and store the result.
         **pipeline_kwargs
             Any :attr:`~nenupy.io.tf.Spectra.pipeline` parameter passed as keyword argument from the list below.
             Changes applied here are not kept once the method has resolved.
@@ -888,61 +890,45 @@ class Spectra:
                 beam=self.pipeline.parameters["beam"],
             )
 
-            # Run the pipeline
+            # Run the pipeline - within Dask
             log.info(self.pipeline.info(return_str=True))
             time_unix, frequency_hz, data = self.pipeline.run(
                 frequency_hz=frequency_hz, time_unix=time_unix, data=data
             )
 
-            # Abort the process if the projected data volume is larger than the threshold
-            projected_data_volume = data.nbytes * u.byte
-            if (projected_data_volume >= DATA_VOLUME_SECURITY_THRESHOLD) and (
-                not self.pipeline.parameters["ignore_volume_warning"]
-            ):
-                log.warning(
-                    f"Data processing will produce {projected_data_volume.to(u.Gibyte)}."
-                    f"The pipeline is interrupted because the volume threshold is {DATA_VOLUME_SECURITY_THRESHOLD.to(u.Gibyte)}."
-                )
-                return
+            time = Time(time_unix, format="unix", precision=7)
+            frequency = frequency_hz * u.Hz
 
-            log.info(
-                f"Computing the data (estimated volume: {projected_data_volume.to(u.Mibyte):.2})..."
-            )
-            with ProgressBar():
-                data = data.compute()
-            log.info(
-                f"\tData of shape (time, frequency, (polarization)) = {data.shape} produced."
-            )
+            if (file_name is None) or (file_name == ""):
+                # Simply compute the data
+                # The data volume security is ON
+                data = self._data_to_numpy_array(data) # compute() the Dask array
+                result = self._to_sdata(
+                    data=data,
+                    time=time,
+                    frequency=frequency
+                )
+
+                self.pipeline.parameters = parameters_copy # Reset the parameters
+                return result
+
+            else:
+                # Save the result of the pipeline in a file
+                # No security on the resulting data volume
+                utils.store_dask_tf_data(
+                    file_name=file_name,
+                    data=data,
+                    time=time,
+                    frequency=frequency,
+                    polarization=["XX", "XY", "YX", "YY"] if not self.pipeline.contains("Compute Stokes parameters") else self.pipeline.parameters["stokes"]
+                )
+                self.pipeline.parameters = parameters_copy # Reset the parameters
+                return
 
         except Exception:
             # Restore the parameters to their original default values
             self.pipeline.parameters = parameters_copy
             raise
-
-        # If other data product than Stokes are made
-        if not self.pipeline.contains("Compute Stokes parameters"):
-            # Make sure there are 3 dimensions (time, frequency, polarization)
-            # If there are more, the dimensions > 2 are all merged together.
-            # If there are 2 dimensions, an empty third is added
-            data = data.reshape(*data.shape[:2], -1)
-            result = SData(
-                data=data,
-                time=Time(time_unix, format="unix", precision=7),
-                freq=frequency_hz * u.Hz,
-                polar=["XX", "XY", "YX", "YY"],
-            )
-        else:
-            # If the data are regular Stokes parameters
-            result = SData(
-                data=data,
-                time=Time(time_unix, format="unix", precision=7),
-                freq=frequency_hz * u.Hz,
-                polar=self.pipeline.parameters["stokes"],
-            )
-
-        self.pipeline.parameters = parameters_copy
-
-        return result
 
     def select_raw_data(
         self,
@@ -1215,3 +1201,81 @@ class Spectra:
         )
 
         return data
+
+    def _data_to_numpy_array(self, data: da.Array) -> np.ndarray:
+        """_summary_
+
+        Parameters
+        ----------
+        data : da.Array
+            _description_
+
+        Returns
+        -------
+        np.ndarray
+            _description_
+        """
+
+        # Abort the process if the projected data volume is larger than the threshold
+        projected_data_volume = data.nbytes * u.byte
+        if (projected_data_volume >= DATA_VOLUME_SECURITY_THRESHOLD) and (
+            not self.pipeline.parameters["ignore_volume_warning"]
+        ):
+            log.warning(
+                f"Data processing will produce {projected_data_volume.to(u.Gibyte)}."
+                f"The pipeline is interrupted because the volume threshold is {DATA_VOLUME_SECURITY_THRESHOLD.to(u.Gibyte)}."
+            )
+            return
+
+        log.info(
+            f"Computing the data (estimated volume: {projected_data_volume.to(u.Mibyte):.2})..."
+        )
+
+        with ProgressBar():
+            data = data.compute()
+
+        log.info(
+            f"\tData of shape (time, frequency, (polarization)) = {data.shape} produced."
+        )
+
+        return data
+
+    def _to_sdata(self, data: np.ndarray, time: Time, frequency: u.Quantity) -> SData:
+        """_summary_
+
+        Parameters
+        ----------
+        data : np.ndarray
+            _description_
+        time : Time
+            _description_
+        frequency : u.Quantity
+            _description_
+
+        Returns
+        -------
+        SData
+            _description_
+        """
+
+        # If other data product than Stokes are made
+        if not self.pipeline.contains("Compute Stokes parameters"):
+            # Make sure there are 3 dimensions (time, frequency, polarization)
+            # If there are more, the dimensions > 2 are all merged together.
+            # If there are 2 dimensions, an empty third is added
+            data = data.reshape(*data.shape[:2], -1)
+            return SData(
+                data=data,
+                time=time,
+                freq=frequency,
+                polar=["XX", "XY", "YX", "YY"],
+            )
+        else:
+            # If the data are regular Stokes parameters
+            return SData(
+                data=data,
+                time=time,
+                freq=frequency,
+                polar=self.pipeline.parameters["stokes"],
+            )
+        

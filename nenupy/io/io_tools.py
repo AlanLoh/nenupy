@@ -557,7 +557,7 @@ class ST_Slice:
         # Save or show the figure
         figname = kwargs.get("figname", "")
         if figname != "":
-            plt.savefig(
+            fig.savefig(
                 figname,
                 dpi=300,
                 bbox_inches="tight",
@@ -1075,18 +1075,20 @@ class ST_Slice:
             ax.set_xlim(xlim)
             ax.set_ylim(ylim)
 
-        cax = inset_axes(
-            ax,
-            width='3%',
-            height='100%',
-            loc='lower left',
-            bbox_to_anchor=(1.03, 0., 1, 1),
-            bbox_transform=ax.transAxes,
-            borderpad=0,
-        )
-        cbar = plt.colorbar(im, cax=cax)
-        # cbar = plt.colorbar(im, pad=0.03)
+        cbar = plt.colorbar(im, pad=0.03)#format='%.1e')
         cbar.set_label(kwargs.get("colorbar_label", "dB" if kwargs.get("decibel", True) else "Amp"))
+        # cax = inset_axes(
+        #     ax,
+        #     width='3%',
+        #     height='100%',
+        #     loc='lower left',
+        #     bbox_to_anchor=(1.03, 0., 1, 1),
+        #     bbox_transform=ax.transAxes,
+        #     borderpad=0,
+        # )
+        # cbar = plt.colorbar(im, cax=cax)
+        # # cbar = plt.colorbar(im, pad=0.03)
+        # cbar.set_label(kwargs.get("colorbar_label", "dB" if kwargs.get("decibel", True) else "Amp"))
 
         # X label
         ax.xaxis.set_major_formatter(

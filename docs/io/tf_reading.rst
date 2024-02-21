@@ -3,8 +3,6 @@
 UnDySPuTeD Time-Frequency Data
 ==============================
 
-blabala see tests :class:`~nenupy.io.tf.Spectra` or :meth:`~nenupy.astro.astro_tools.altaz_to_radec`
-
 
 Reading a spectra file
 -----------------------
@@ -137,6 +135,10 @@ Adding custom steps
         (4 - Rebin in frequency)
         5 - Compute Stokes parameters
 
+.. warning::
+
+    This is a warning.
+
 
 Getting the data
 ----------------
@@ -155,10 +157,25 @@ Getting the data
 .. note::
 
     There is a hardcoded size limit to the data output (i.e. after rebinning and all other pipeline operations) fixed at 2 GB, to prevent memory issues.
-    Users willing to bypass this limit may explicitely ask for it using the `ignore_data_size` argument of :meth:`~nenupy.io.tf.Spectra.get`:
+    Users willing to bypass this limit may explicitely ask for it using the ``ignore_volume_warning`` properties of :meth:`~nenupy.io.tf.Spectra.pipeline`.
+    This property can easily be updated directly by the :meth:`~nenupy.io.tf.Spectra.get` method:
 
     .. code-block:: python
 
-        >>> sp.get(tmin="2023-05-27T08:40:00", tmax="2023-05-27T18:00:00", ignore_data_size=True)
+        >>> sp.get(
+                tmin="2023-05-27T08:40:00", tmax="2023-05-27T18:00:00",
+                ignore_volume_warning=True
+            )
 
 
+Saving the data
+---------------
+
+.. code-block:: python
+    :emphasize-lines: 2
+
+    >>> sp.get(
+            file_name="/my/path/filename.hdf5"
+            stokes="I",
+            tmin="2023-05-27T08:41:30"
+        )

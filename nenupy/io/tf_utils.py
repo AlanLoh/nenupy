@@ -13,6 +13,7 @@
 import numpy as np
 import os
 import dask.array as da
+from dask.diagnostics import ProgressBar
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astropy.time import Time, TimeDelta
@@ -20,6 +21,7 @@ from typing import Union, List, Tuple, Any
 from functools import partial
 from abc import ABC, abstractmethod
 import copy
+import h5py
 import logging
 
 log = logging.getLogger(__name__)
@@ -44,6 +46,7 @@ __all__ = [
     "reshape_to_subbands",
     "sort_beam_edges",
     "spectra_data_to_matrix",
+    "store_dask_tf_data",
     "TFPipelineParameters"
 ]
 
@@ -727,6 +730,82 @@ def spectra_data_to_matrix(fft0: da.Array, fft1: da.Array) -> da.Array:
     )
     return da.stack([row1, row2], axis=-1)
 
+# ============================================================= #
+# -------------------- store_dask_tf_data --------------------- #
+def _time_to_keywords(prefix: str, time: Time) -> dict:
+    """Returns a dictionnary of keywords in the HDF5 format."""
+    return {
+        f"{prefix.upper()}_MJD": time.mjd,
+        f"{prefix.upper()}_TAI": time.tai.isot,
+        f"{prefix.upper()}_UTC": time.isot + "Z",
+    }
+
+def store_dask_tf_data(file_name: str, data: da.Array, time: Time, frequency: u.Quantity, polarization: np.ndarray, stored_frequency_unit: str = "MHz", **metadata) -> None:
+
+    log.info(f"Storing the data in {file_name}...")
+
+    # Check that the file_name has the correct extension
+    if not file_name.lower().endswith(".hdf5"):
+        raise ValueError(f"HDF5 files must ends with '.hdf5', got {file_name} instead.")
+
+    stored_freq_quantity = u.Unit(stored_frequency_unit)
+    frequency_min = frequency.min()
+    frequency_max = frequency.max()
+
+    with h5py.File(file_name, "w") as wf:
+
+        # Update main attributes
+        wf.attrs.update(metadata)
+        wf.attrs["SOFTWARE_NAME"] = "nenupy"
+        # wf.attrs["SOFTWARE_VERSION"] = nenupy.__version__
+        wf.attrs["SOFTWARE_MAINTAINER"] = "alan.loh@obspm.fr"
+        wf.attrs.update(_time_to_keywords("OBSERVATION_START", time[0]))
+        wf.attrs.update(_time_to_keywords("OBSERVATION_END", time[-1]))
+        wf.attrs["OBSERVATION_FREQUENCY_MIN"] = frequency_min.to_value(stored_freq_quantity)
+        wf.attrs["OBSERVATION_FREQUENCY_MAX"] = frequency_max.to_value(stored_freq_quantity)
+        wf.attrs["OBSERVATION_FREQUENCY_CENTER"] = (
+            ((frequency_max + frequency_min) / 2).to_value(stored_freq_quantity)
+        )
+        wf.attrs["OBSERVATION_FREQUENCY_UNIT"] = stored_frequency_unit
+
+        # Ravel the last polarization dimensions (above dim=2 -> freq)
+        data = np.reshape(data, data.shape[:2] + (-1,))
+
+        data_group = wf.create_group(f"data")
+        coordinates_group = data_group.create_group("axes")
+
+        # Set time and frequency axes
+        data_group.attrs.update(_time_to_keywords("TIME_START", time[0]))
+        data_group.attrs.update(_time_to_keywords("TIME_END", time[-1]))
+        data_group.attrs["FREQUENCY_MIN"] = (frequency_min.to_value(stored_freq_quantity))
+        data_group.attrs["FREQUENCY_MAX"] = (frequency_max.to_value(stored_freq_quantity))
+        data_group.attrs["FREQUENCY_UNIT"] = stored_frequency_unit
+        coordinates_group["frequency"] = frequency.to_value(stored_freq_quantity)
+        coordinates_group["frequency"].make_scale(f"Frequency ({stored_frequency_unit})")
+        coordinates_group["time"] = time.jd
+        coordinates_group["time"].make_scale("Time (JD)")
+
+        log.info("\tTime and frequency axes written.")
+
+        for pi in range(data.shape[-1]):
+            current_polar = polarization[pi]
+            log.info(f"\tDealing with polarization '{current_polar}'...")
+            data_i = data[:, :, pi]
+
+            dataset = data_group.create_dataset(
+                name=f"{current_polar.lower()}",
+                shape=data_i.shape,
+                dtype=data_i.dtype
+            )
+            with ProgressBar():
+                da.store(data_i, dataset, compute=True, return_stored=False)
+
+            dataset.dims[0].label = "frequency"
+            dataset.dims[0].attach_scale(coordinates_group["frequency"])
+            dataset.dims[1].label = "time"
+            dataset.dims[1].attach_scale(coordinates_group["time"])
+
+    log.info(f"\t'{file_name}' written.")   
 
 # ============================================================= #
 # ------------------------ _Parameter ------------------------- #
