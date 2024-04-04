@@ -115,7 +115,21 @@ class TFTask:
 
     @classmethod
     def correct_bandpass(cls):
-        """ :class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.correct_bandpass` to correct the polyphase-filter bandpass reponse.
+        """ :class:`~nenupy.io.tf.TFTask` to correct for the sub-band bandpass response.
+
+            A Poly-Phase Filter is involved in the NenuFAR data acquisition pipeline to split the data stream into sub-bands.
+            The combination of the filter shape and a Fourier transform results in a non-flat response across each sub-band.
+            This :class:`~nenupy.io.tf.TFTask` calls the :func:`~nenupy.io.tf_utils.correct_bandpass` function.
+
+            Example
+            -------
+            .. code-block:: python
+                :emphasize-lines: 3
+
+                >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
+                >>> sp = Spectra("/my/file.spectra")
+                >>> sp.pipeline = TFPipeline(sp, TFTask.correct_bandpass())
+                >>> data = sp.get(...)
 
             .. figure:: ./_images/io_images/tf_bandpass_correction.png
                 :width: 650
@@ -129,7 +143,19 @@ class TFTask:
 
     @classmethod
     def flatten_subband(cls):
-        """_summary_
+        """ :class:`~nenupy.io.tf.TFTask` to flatten each sub-band bandpass.
+            Based on the temporal median over each suband, a linear correction is applied to flatten the signal.
+            This :class:`~nenupy.io.tf.TFTask` calls the :func:`~nenupy.io.tf_utils.flatten_subband` function.
+
+            Example
+            -------
+            .. code-block:: python
+                :emphasize-lines: 3
+
+                >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
+                >>> sp = Spectra("/my/file.spectra")
+                >>> sp.pipeline = TFPipeline(sp, TFTask.flatten_subband())
+                >>> data = sp.get(...)
 
             .. figure:: ./_images/io_images/tf_sb_flatten.png
                 :width: 650
@@ -137,8 +163,8 @@ class TFTask:
 
             Warning
             -------
-            This is  a warning
-
+            This correction assumes that the signal's spectrum could be considered flat at the sub-band resolution.
+            The method is not recommended for data other than Stokes I.
 
         """
         def wrapper_task(data, channels):
@@ -169,6 +195,11 @@ class TFTask:
 
     @classmethod
     def correct_polarization(cls):
+        """_summary_
+
+            warning : needs to be done at the beginning.
+
+        """
         def wrapper_task(
             time_unix,
             frequency_hz,
@@ -273,7 +304,32 @@ class TFTask:
 
     @classmethod
     def time_rebin(cls):
-        """_summary_
+        """ :class:`~nenupy.io.tf.TFTask` to re-bin the data in time.
+            The targetted time resolution is defined by the ``'rebin_dt'`` argument, set in :attr:`~nenupy.io.tf.TFPipeline.parameters`.
+            This :class:`~nenupy.io.tf.TFTask` calls the :func:`~nenupy.io.tf_utils.rebin_along_dimension` function.
+
+            Example
+            -------
+            .. code-block:: python
+
+                >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
+                >>> import astropy.units as u
+                >>> sp = Spectra("/my/file.spectra")
+                >>> sp.pipeline = TFPipeline(sp, TFTask.time_rebin())
+
+            Then, either perform a one_time application of the `rebin_dt` parameter (that is forgotten after the :meth:`~nenupy.io.tf.Spectra.get` call):
+            
+            .. code-block:: python
+                
+                >>> data = sp.get(..., rebin_dt=0.2*u.s,...)
+
+            Or, set it for further usage:
+
+            .. code-block:: python
+    
+                >>> sp.pipeline.parameters["rebin_dt"] = 0.2*u.s
+                >>> data = sp.get(...)
+
 
             .. figure:: ./_images/io_images/tf_time_rebin.png
                 :width: 650
@@ -652,7 +708,7 @@ class Spectra:
    
     """
 
-    def __init__(self, filename: str):
+    def __init__(self, filename: str, check_missing_data: bool = True):
         self.filename = filename
 
         # Decode the main header and lazy load the data
@@ -664,7 +720,7 @@ class Spectra:
         data = self._lazy_load_data()
 
         # Compute the boolean mask of bad blocks
-        bad_block_mask = self._get_bad_data_mask(data)
+        bad_block_mask = self._get_bad_data_mask(data, bypass_verification=~check_missing_data)
 
         # Compute the main data block descriptors (time / frequency / beam)
         subband_width_hz = SUBBAND_WIDTH.to_value(u.Hz)
@@ -915,12 +971,15 @@ class Spectra:
             else:
                 # Save the result of the pipeline in a file
                 # No security on the resulting data volume
+                log.info(f"Estimated data volume to store: {(data.nbytes * u.byte).to(u.Gibyte):.3f}...")
                 utils.store_dask_tf_data(
                     file_name=file_name,
                     data=data,
                     time=time,
                     frequency=frequency,
-                    polarization=["XX", "XY", "YX", "YY"] if not self.pipeline.contains("Compute Stokes parameters") else self.pipeline.parameters["stokes"]
+                    polarization=["XX", "XY", "YX", "YY"] if not self.pipeline.contains("Compute Stokes parameters") else self.pipeline.parameters["stokes"],
+                    mode="w" if self.pipeline.parameters["overwrite"] else "auto",
+                    beam=self.pipeline.parameters["beam"]
                 )
                 self.pipeline.parameters = parameters_copy # Reset the parameters
                 return
@@ -1159,8 +1218,12 @@ class Spectra:
         return tmp.view(np.dtype(global_struct))
 
     @staticmethod
-    def _get_bad_data_mask(data: np.ndarray) -> np.ndarray:
+    def _get_bad_data_mask(data: np.ndarray, bypass_verification: bool = False) -> np.ndarray:
         """ """
+
+        if bypass_verification:
+            log.info("Skipping missing data verification...")
+            return np.zeros(data["TIMESTAMP"].size, dtype=bool)
 
         log.info("Checking for missing data (can take up to 1 min)...")
 
@@ -1278,4 +1341,3 @@ class Spectra:
                 freq=frequency,
                 polar=self.pipeline.parameters["stokes"],
             )
-        

@@ -40,6 +40,7 @@ __all__ = [
     "de_faraday_data",
     "flatten_subband",
     "get_bandpass",
+    "plot_dynamic_spectrum",
     "polarization_angle",
     "rebin_along_dimension",
     "remove_channels_per_subband",
@@ -47,7 +48,8 @@ __all__ = [
     "sort_beam_edges",
     "spectra_data_to_matrix",
     "store_dask_tf_data",
-    "TFPipelineParameters"
+    "TFPipelineParameters",
+    "ReducedSpectra"
 ]
 
 # ============================================================= #
@@ -525,6 +527,72 @@ def flatten_subband(data: np.ndarray, channels: int) -> np.ndarray:
     # Correct the data by the normalised linear subbands to flatten them
     return data / normalised_linear_subbands[None, ...]
 
+# ============================================================= #
+# -------------------- plot_dynamic_spectrum --------------------- #
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib.dates import AutoDateLocator, ConciseDateFormatter
+
+def plot_dynamic_spectrum(data: np.ndarray, time: Time, frequency: u.Quantity, fig: mpl.figure.Figure = None, ax: mpl.axes.Axes = None, **kwargs) -> Tuple[mpl.figure.Figure, mpl.axes.Axes]:
+    """_summary_
+
+    Parameters
+    ----------
+    data : np.ndarray
+        _description_
+    time : Time
+        _description_
+    frequency : u.Quantity
+        _description_
+    fig : mpl.figure.Figure, optional
+        _description_, by default None
+    ax : mpl.axes.Axes, optional
+        _description_, by default None
+
+    Returns
+    -------
+    Tuple[mpl.figure.Figure, mpl.axes.Axes]
+        _description_
+    """
+    
+    if fig is None:
+        fig = plt.figure(
+            figsize=kwargs.get("figsize", (10, 5)),
+            dpi=kwargs.get("dpi", 200)
+        )
+    
+    if ax is None:
+        ax = fig.add_subplot()
+    
+    im = ax.pcolormesh(
+        time.datetime,
+        frequency.value,
+        data.T,
+        shading="nearest",
+        norm=kwargs.get("norm", "linear"),
+        cmap=kwargs.get("cmap", "YlGnBu_r"),
+        vmin=kwargs.get("vmin", data.min()),
+        vmax=kwargs.get("vmax", data.max())
+    )
+
+    # Colorbar
+    cbar = plt.colorbar(im, pad=0.03)
+    cbar.set_label(kwargs.get("clabel", ""))
+
+    # Global    
+    ax.minorticks_on()
+    ax.set_title(kwargs.get("title", ""))
+
+    # X axis
+    locator = AutoDateLocator()
+    ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(ConciseDateFormatter(locator))
+    ax.set_xlabel(kwargs.get("xlabel", f"Time ({time.scale.upper()})"))
+
+    # Y axis
+    ax.set_ylabel(kwargs.get("ylabel", f"Frequency ({frequency.unit})"))
+
+    return fig, ax
 
 # ============================================================= #
 # -------------------- polarization_angle --------------------- #
@@ -740,70 +808,98 @@ def _time_to_keywords(prefix: str, time: Time) -> dict:
         f"{prefix.upper()}_UTC": time.isot + "Z",
     }
 
-def store_dask_tf_data(file_name: str, data: da.Array, time: Time, frequency: u.Quantity, polarization: np.ndarray, stored_frequency_unit: str = "MHz", **metadata) -> None:
+def store_dask_tf_data(file_name: str, data: da.Array, time: Time, frequency: u.Quantity, polarization: np.ndarray, beam: int = 0, stored_frequency_unit: str = "MHz", mode="auto", **metadata) -> None:
 
-    log.info(f"Storing the data in {file_name}...")
+    log.info(f"Storing the data in '{file_name}'")
 
     # Check that the file_name has the correct extension
     if not file_name.lower().endswith(".hdf5"):
         raise ValueError(f"HDF5 files must ends with '.hdf5', got {file_name} instead.")
+    elif mode.lower() == "auto":
+        if os.path.isfile(file_name):
+            mode = "a"
+        else:
+            mode = "w"
 
     stored_freq_quantity = u.Unit(stored_frequency_unit)
     frequency_min = frequency.min()
     frequency_max = frequency.max()
 
-    with h5py.File(file_name, "w") as wf:
+    with h5py.File(file_name, mode) as wf:
 
-        # Update main attributes
-        wf.attrs.update(metadata)
-        wf.attrs["SOFTWARE_NAME"] = "nenupy"
-        # wf.attrs["SOFTWARE_VERSION"] = nenupy.__version__
-        wf.attrs["SOFTWARE_MAINTAINER"] = "alan.loh@obspm.fr"
-        wf.attrs.update(_time_to_keywords("OBSERVATION_START", time[0]))
-        wf.attrs.update(_time_to_keywords("OBSERVATION_END", time[-1]))
-        wf.attrs["OBSERVATION_FREQUENCY_MIN"] = frequency_min.to_value(stored_freq_quantity)
-        wf.attrs["OBSERVATION_FREQUENCY_MAX"] = frequency_max.to_value(stored_freq_quantity)
-        wf.attrs["OBSERVATION_FREQUENCY_CENTER"] = (
-            ((frequency_max + frequency_min) / 2).to_value(stored_freq_quantity)
-        )
-        wf.attrs["OBSERVATION_FREQUENCY_UNIT"] = stored_frequency_unit
+        beam_group_name = f"BEAM_{beam:03}"
+
+        if mode == "w":
+            log.info("\tCreating a brand new file...")
+            # Update main attributes
+            wf.attrs.update(metadata)
+            wf.attrs["SOFTWARE_NAME"] = "nenupy"
+            # wf.attrs["SOFTWARE_VERSION"] = nenupy.__version__
+            wf.attrs["SOFTWARE_MAINTAINER"] = "alan.loh@obspm.fr"
+            wf.attrs["FILENAME"] = file_name
+            wf.attrs.update(_time_to_keywords("OBSERVATION_START", time[0]))
+            wf.attrs.update(_time_to_keywords("OBSERVATION_END", time[-1]))
+            wf.attrs["TOTAL_INTEGRATION_TIME"] = (time[-1] - time[0]).sec
+            wf.attrs["OBSERVATION_FREQUENCY_MIN"] = frequency_min.to_value(stored_freq_quantity)
+            wf.attrs["OBSERVATION_FREQUENCY_MAX"] = frequency_max.to_value(stored_freq_quantity)
+            wf.attrs["OBSERVATION_FREQUENCY_CENTER"] = (
+                ((frequency_max + frequency_min) / 2).to_value(stored_freq_quantity)
+            )
+            wf.attrs["OBSERVATION_FREQUENCY_UNIT"] = stored_frequency_unit
+
+            sub_array_group = wf.create_group("SUB_ARRAY_POINTING_000") # TODO modify if a Spectra file can be generated from more than 1 analog beam
+        
+        elif mode == "a":
+            log.info("\tTrying to append data to existing file...")
+            sub_array_group = wf["SUB_ARRAY_POINTING_000"]
+            if beam_group_name in sub_array_group.keys():
+                raise Exception(f"File '{file_name}' already contains '{beam_group_name}'.")
+
+        else:
+            raise KeyError(f"Invalid mode '{mode}'. Select 'w' or 'a' or 'auto'.")
+
+        beam_group = sub_array_group.create_group(beam_group_name)
+        beam_group.attrs.update(_time_to_keywords("TIME_START", time[0]))
+        beam_group.attrs.update(_time_to_keywords("TIME_END", time[-1]))
+        beam_group.attrs["FREQUENCY_MIN"] = (frequency_min.to_value(stored_freq_quantity))
+        beam_group.attrs["FREQUENCY_MAX"] = (frequency_max.to_value(stored_freq_quantity))
+        beam_group.attrs["FREQUENCY_UNIT"] = stored_frequency_unit
+
+        coordinates_group = beam_group.create_group("COORDINATES")
+
+        # Set time and frequency axes
+        coordinates_group["time"] = time.jd
+        coordinates_group["time"].make_scale("Time (JD)")
+        coordinates_group["frequency"] = frequency.to_value(stored_freq_quantity)
+        coordinates_group["frequency"].make_scale(f"Frequency ({stored_frequency_unit})")
+        coordinates_group.attrs["units"] = ["jd", stored_frequency_unit]
+
+        log.info("\tTime and frequency axes written.")
 
         # Ravel the last polarization dimensions (above dim=2 -> freq)
         data = np.reshape(data, data.shape[:2] + (-1,))
 
-        data_group = wf.create_group(f"data")
-        coordinates_group = data_group.create_group("axes")
-
-        # Set time and frequency axes
-        data_group.attrs.update(_time_to_keywords("TIME_START", time[0]))
-        data_group.attrs.update(_time_to_keywords("TIME_END", time[-1]))
-        data_group.attrs["FREQUENCY_MIN"] = (frequency_min.to_value(stored_freq_quantity))
-        data_group.attrs["FREQUENCY_MAX"] = (frequency_max.to_value(stored_freq_quantity))
-        data_group.attrs["FREQUENCY_UNIT"] = stored_frequency_unit
-        coordinates_group["frequency"] = frequency.to_value(stored_freq_quantity)
-        coordinates_group["frequency"].make_scale(f"Frequency ({stored_frequency_unit})")
-        coordinates_group["time"] = time.jd
-        coordinates_group["time"].make_scale("Time (JD)")
-
-        log.info("\tTime and frequency axes written.")
-
         for pi in range(data.shape[-1]):
-            current_polar = polarization[pi]
+
+            current_polar = polarization[pi].upper()
             log.info(f"\tDealing with polarization '{current_polar}'...")
             data_i = data[:, :, pi]
 
-            dataset = data_group.create_dataset(
-                name=f"{current_polar.lower()}",
+            # data_group = beam_group.create_group(f"{current_polar.upper()}")
+
+            dataset = beam_group.create_dataset(
+                name=f"{current_polar}",
                 shape=data_i.shape,
                 dtype=data_i.dtype
             )
+
+            dataset.dims[0].label = "time"
+            dataset.dims[0].attach_scale(coordinates_group["time"])
+            dataset.dims[1].label = "frequency"
+            dataset.dims[1].attach_scale(coordinates_group["frequency"])
+
             with ProgressBar():
                 da.store(data_i, dataset, compute=True, return_stored=False)
-
-            dataset.dims[0].label = "frequency"
-            dataset.dims[0].attach_scale(coordinates_group["frequency"])
-            dataset.dims[1].label = "time"
-            dataset.dims[1].attach_scale(coordinates_group["time"])
 
     log.info(f"\t'{file_name}' written.")   
 
@@ -1165,5 +1261,93 @@ class TFPipelineParameters:
                 name="ignore_volume_warning",
                 default=False,
                 help_msg="Ignore or not (default value) the limit regarding output data volume."
+            ),
+            _BooleanParameter(
+                name="overwrite",
+                default=False,
+                help_msg="Overwrite or not (default value) the resulting HDF5 file."
             )
         )
+
+# ============================================================= #
+# ---------------------- ReducedSpectra ----------------------- #
+class ReducedSpectra:
+
+    def __init__(self, file_name: str):
+        self.file_name = file_name
+        self._rfile = h5py.File(file_name, "r")
+        log.info(f"'{self.file_name}' opened.")
+
+    def infos(self):
+        return "hello"
+    
+    def get(self, subarray_pointing_id: int = 0, beam_id: int = 0, data_key: str = None) -> Tuple[Time, u.Quantity, np.ndarray]:
+        """_summary_
+
+        Parameters
+        ----------
+        data_key : str, optional
+            _description_, by default None
+
+        Returns
+        -------
+        np.ndarray
+            _description_
+
+        Raises
+        ------
+        KeyError
+            _description_
+        """
+        data_ext = self._rfile[f"SUB_ARRAY_POINTING_{subarray_pointing_id:03}/BEAM_{beam_id:03}"]
+        available_keys = list(data_ext.keys())
+        available_keys.remove("COORDINATES")
+        if data_key is None:
+            # If no key is selected, take the first one by default
+            data_key = available_keys[0]
+        elif data_key not in available_keys:
+            self.close()
+            raise KeyError(f"Invalid data_key '{data_key}', available values: {available_keys}.")
+        log.info(f"Selected data extension '{data_key}'.")
+
+        times_axis, frequency_axis = self._build_axes(data_ext["COORDINATES"])
+
+        return times_axis, frequency_axis, data_ext[data_key][:]
+
+    def plot(self, subarray_pointing_id: int = 0, beam_id: int = 0, data_key: str = None, **kwargs):
+
+        time, frequency, data = self.get(subarray_pointing_id, beam_id, data_key)
+
+        try:
+            fig, ax = plot_dynamic_spectrum(
+                data=data,
+                time=time,
+                frequency=frequency,
+                **kwargs
+            )
+            plt.show()
+
+        except:
+            self.close()
+            raise
+    
+    def close(self):
+        self._rfile.close()
+        log.info(f"'{self.file_name}' closed.")
+
+    @staticmethod
+    def _build_axes(hdf5_coordinates_ext) -> Tuple[Time, u.Quantity]:
+        """_summary_
+
+        Returns
+        -------
+        Tuple[Time, u.Quantity]
+            _description_
+        """
+        
+        units = hdf5_coordinates_ext.attrs["units"]
+
+        time = Time(hdf5_coordinates_ext["time"][:], format=units[0])
+        frequency = hdf5_coordinates_ext["frequency"][:] * u.Unit(units[1])
+
+        return time, frequency
