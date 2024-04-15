@@ -35,6 +35,7 @@ from astropy.coordinates import (
     get_body
 )
 import numpy as np
+import copy
 
 import logging
 log = logging.getLogger(__name__)
@@ -115,6 +116,16 @@ class _Target(object):
             self._attrWarning('azimuth')
         return self._azimuth
 
+
+    def __getitem__(self, slice_obj):
+        target_sliced = copy.copy(self)
+        target_sliced.reset()
+        target_sliced._lst = self._lst[slice_obj]
+        target_sliced._fk5 = self._fk5[slice_obj]
+        target_sliced._hourAngle = self._hourAngle[slice_obj]
+        target_sliced._elevation = self._elevation[slice_obj]
+        target_sliced._azimuth = self._azimuth[slice_obj]
+        return target_sliced
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -226,7 +237,7 @@ class _Target(object):
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     @staticmethod
-    def _attrWarning(self, attr):
+    def _attrWarning(attr):
         """
         """
         log.warning(

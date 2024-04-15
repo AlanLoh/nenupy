@@ -174,6 +174,7 @@ from astropy.coordinates import Angle, Longitude
 import pytz
 import matplotlib.pyplot as plt
 from copy import copy
+from typing import List
 
 from nenupy.schedule.targets import _Target
 
@@ -1145,6 +1146,52 @@ class Constraints(object):
         )
         self.score[np.where(np.prod(cnts, axis=0)==0)[0]] = 0
         return self.score
+    
+
+    def evaluate_various_nslots(self, target: _Target, time: Time, test_indices: List[np.ndarray], sun_elevation=None) -> List[np.ndarray]:
+        scores = []
+
+        # Loop over each set of indices
+        for indices_window in test_indices:
+            
+            # Copy target and only keep the time/coordinates around the boundaries of test_indices to optimize the computations
+            min_idx, max_idx = np.min(indices_window), np.max(indices_window) + 1
+            sliced_target = None if target is None else target[min_idx : max_idx] # Perform a copy without damaging the original object
+            time = time[min_idx : max_idx]
+            sun_elevation = None if sun_elevation is None else sun_elevation[min_idx : max_idx]
+
+            nslots = indices_window.size - 1
+
+            # Evaluate the constraints
+            n_unevaluated_constraints = 0
+            constraint_scores = np.zeros((self.size, nslots))
+            for constraint_i, constraint in enumerate(self):
+                constraint = copy(constraint) # to prevent overwriting initial constraints
+                if isinstance(constraint, TargetConstraint) and (sliced_target is not None):
+                    constraint_scores[constraint_i, :] = constraint(sliced_target, nslots)
+                elif isinstance(constraint, ScheduleConstraint):
+                    constraint_scores[constraint_i, :] = constraint(tuple(time), nslots)
+                elif isinstance(constraint, NightTimeCnst):
+                    constraint_scores[constraint_i, :] = constraint(sun_elevation)
+                else:
+                    n_unevaluated_constraints += 1
+
+            if n_unevaluated_constraints == self.size:
+                constraint_scores += 1.
+                log.debug(
+                    "No defined constraint could be used. Schedule "
+                    "slot scores have been set to 1..."
+                )
+            # Compute the weighted average score
+            window_score = np.average(constraint_scores, weights=self.weights, axis=0)
+            # Replace NaN values by 0
+            window_score = np.where(np.isnan(window_score), 0, window_score)
+            # If any constraint is at 0, set the time-score at 0 no matter the other constraints
+            window_score[np.where(np.prod(constraint_scores, axis=0)==0)[0]] = 0
+            scores.append(window_score)
+        
+        # return the scores
+        return scores
 
 
     def plot(self, **kwargs):

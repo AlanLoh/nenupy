@@ -75,7 +75,8 @@ class ScheduleBlock(ObsBlock):
         constraints,
         duration,
         dt,
-        processing_delay
+        processing_delay,
+        max_extended_duration
     ):
         super().__init__(
             name=name,
@@ -83,7 +84,8 @@ class ScheduleBlock(ObsBlock):
             target=target,
             constraints=constraints,
             duration=duration,
-            processing_delay=processing_delay
+            processing_delay=processing_delay,
+            max_extended_duration=max_extended_duration
         )
 
         self.dt = dt
@@ -409,7 +411,8 @@ class ScheduleBlocks(object):
                     constraints=blk.constraints,
                     duration=blk.duration,
                     dt=self.dt,
-                    processing_delay=blk.processing_delay
+                    processing_delay=blk.processing_delay,
+                    max_extended_duration=blk.max_extended_duration
                 )
             sb.blockIdx = self._idxCounter
             self.blocks.append(sb)
@@ -686,6 +689,8 @@ class Schedule(_TimeSlots):
         )
         elevation = sun.elevation.deg
         self.sun_elevation = (elevation[1:] + elevation[:-1])/2
+
+        self._obs_extension_done = False
 
 
     def __getitem__(self, n):
@@ -1108,6 +1113,111 @@ class Schedule(_TimeSlots):
                 f'({sum(~self._toSchedule)} impossible to fit).'
             )
 
+
+    def extend_scheduled_observations(self, relative_score_threshold: float = 0.8) -> None:
+        """ """
+        if self._obs_extension_done:
+            log.warning("Scheduled observations have already been extended.")
+            return
+        
+        log.info("Extending scheduled observations...")
+
+        times = Time(
+            np.append(
+                self._startsJD,
+                self._startsJD[-1] + self.dt.jd
+            ),
+            format='jd'
+        )
+
+        # Prepare the available extensions for each observation block
+        extend_mask = []
+        slot_extension = []
+        slot_extension_indices = []
+        indices = []
+        for block in self.observation_blocks:
+            if not block.isBooked:
+                continue
+            extdt = block.max_extended_duration
+            extend_mask.append(extdt is not None)
+            n_slots = int(np.ceil(extdt.sec/self.dt.sec))
+            slot_extension.append(n_slots if extdt is not None else 0)
+            indices.append(block.blockIdx)
+
+            # Compute the constraint score for each possibility (i.e. from self.nSlots to n_slots)
+            extended_windows_size = np.arange(block.nSlots + 1, n_slots + 1) + 1 # Add 1 to evaluate the constraints
+            extended_windows_slots = [np.arange(window_size) - int(window_size/2) + block.startIdx + int(block.nSlots/2) for window_size in extended_windows_size]
+            # Deal with edges (don't check indices outside of the Schedule range)
+            #extended_windows_slots = [window_indices[(window_indices >= 0) * (window_indices < self.size - 1)] for window_indices in extended_windows_slots] # self.size - 1 to compensate for the constraints evaluation
+            extended_windows_slots = [window_indices[(window_indices >= 0) * (window_indices < self.size)] for window_indices in extended_windows_slots]
+            # Compute the constraint score
+            constraint_score = block.constraints.evaluate_various_nslots(
+                target=block.target,
+                time=times,
+                test_indices=extended_windows_slots,
+                sun_elevation=self.sun_elevation
+            )
+
+            # Compute the mean score
+            def treat(data):
+                if np.prod(data) == 0:
+                    return 0.
+                else:
+                    return np.mean(data)
+            constraint_score = np.array(list(map(treat, constraint_score)))
+            # constraint_score = np.array(list(map(np.mean, constraint_score)))
+
+            # Filter out the constraint score to discard those that diminish the block score
+            # Add a relative threshold in order to filter...
+            positive_gradient_mask = constraint_score >= constraint_score[0] * relative_score_threshold
+            slot_extension_indices.append([slot_indices for slot_indices, better_option in zip(extended_windows_slots, positive_gradient_mask) if better_option])
+
+        # Iteratively try to increase the observation blocks
+        iteration_i = 0
+        max_iteration = max([len(indices) for indices in slot_extension_indices])
+        while iteration_i < max_iteration:
+            
+            booked_block_i = 0
+
+            for block in self.observation_blocks:
+
+                # If the block has not been booked, don't consider it
+                if (not block.isBooked):
+                    continue
+
+                # If the block can be extended, try to do it
+                if extend_mask[booked_block_i]:
+                    available_indices = slot_extension_indices[booked_block_i]
+                    # Iteratively try to grow
+                    try:
+                        new_block_indices = available_indices[iteration_i]
+                        
+                        # If the number of free slots potentially occupied by the new indices is bigger, then extend the block
+                        # + block.nSlots because the block is already scheduled and counts as occupying freeSlots
+                        if sum(self.freeSlots[new_block_indices]) + block.nSlots > block.nSlots:
+                            new_block_indices = np.array([idx for idx in new_block_indices if (self.freeSlots[idx] or (idx in block.indices))])
+                            
+                            # Check that the new_slots are continuous (they could be overlapping a small nearby observation)
+                            if np.all(np.diff(new_block_indices) == 1):
+                                block.startIdx = new_block_indices[0]
+                                new_block_nslots = len(new_block_indices)
+                                block.duration = new_block_nslots * self.dt
+                                block.nSlots = new_block_nslots
+                                block.time_min = self.starts[block.startIdx]
+                                block.time_max = self.stops[block.startIdx + block.nSlots - 1]
+                                self.freeSlots[block.startIdx:block.startIdx + block.nSlots] = False
+                            else:
+                                pass
+
+                    except IndexError:
+                        # Max growth reached
+                        pass
+
+                booked_block_i += 1
+            
+            iteration_i += 1
+        
+        self._obs_extension_done = True
 
     def fine_tune(self, max_it: int = 1000) -> None:
         """ 

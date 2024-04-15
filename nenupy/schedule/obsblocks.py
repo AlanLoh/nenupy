@@ -339,12 +339,17 @@ class ObsBlock(Block):
             This parameter particularly suits the imaging data.
         :type processing_delay:
             :class:`~astropy.time.TimeDelta`
+        :param max_extended_duration:
+            Once the observation block is booked. The duration of the scheduled observation will be extended up to this value.
+            The duration extension will cease if the resulting scheduled score ever decreases or if another scheduled observation is reached.
+        :type max_extended_duration:
+            :class:`~astropy.time.TimeDelta`
 
         .. seealso::
             :ref:`observation_request_sec`
-        
+
         .. rubric:: Attributes Summary
-        
+
         .. autosummary::
 
             ~ObsBlock.program
@@ -359,7 +364,8 @@ class ObsBlock(Block):
         self, name, program, target,
         constraints=None,
         duration=TimeDelta(3600, format='sec'),
-        processing_delay: TimeDelta = None
+        processing_delay: TimeDelta = None,
+        max_extended_duration: TimeDelta = None
     ):
         self.name = name
         self.program = program
@@ -367,6 +373,7 @@ class ObsBlock(Block):
         self.constraints = constraints
         self.duration = duration
         self.processing_delay = processing_delay
+        self.max_extended_duration = max_extended_duration
 
         self.blockIdx = 0
         
