@@ -730,12 +730,13 @@ class LocalSiderealTimeCnst(TargetConstraint):
 
 
     # --------------------------------------------------------- #
-    # ------------------------ Methods ------------------------ #
+    # ------------------------ Methods ------------------b------ #
     def get_score(self, indices):
         """
         """
         self._is_numpy_instance(indices)
-        return np.mean(self.score[indices], axis=-1)
+        # return np.mean(self.score[indices], axis=-1)
+        return int((self.score[indices]>0.7).any())
 
 
     # --------------------------------------------------------- #

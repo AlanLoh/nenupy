@@ -1059,6 +1059,9 @@ class Schedule(_TimeSlots):
             if kwargs.get('sort_by_difficulty', False):
                 sort_idx = np.argsort(np.sum(self._cnstScores, axis=1))
                 block_indices = block_indices[sort_idx]
+            elif kwargs.get('sort_by_availability', False):
+                sort_idx = np.argsort(np.sum(self._cnstScores > 0, axis=1))
+                block_indices = block_indices[sort_idx]
 
             # Block are booked iteratively 
             # for i, blk in enumerate(self.observation_blocks):
@@ -1132,17 +1135,22 @@ class Schedule(_TimeSlots):
 
         # Prepare the available extensions for each observation block
         extend_mask = []
-        slot_extension = []
+        # slot_extension = []
         slot_extension_indices = []
-        indices = []
+        # indices = []
         for block in self.observation_blocks:
             if not block.isBooked:
                 continue
             extdt = block.max_extended_duration
             extend_mask.append(extdt is not None)
-            n_slots = int(np.ceil(extdt.sec/self.dt.sec))
-            slot_extension.append(n_slots if extdt is not None else 0)
-            indices.append(block.blockIdx)
+            try:
+                n_slots = int(np.ceil(extdt.sec/self.dt.sec))
+            except AttributeError: # extdt is None, and doesnt have .sec
+                slot_extension_indices.append([])
+                continue
+
+            # slot_extension.append(n_slots if extdt is not None else 0)
+            # indices.append(block.blockIdx)
 
             # Compute the constraint score for each possibility (i.e. from self.nSlots to n_slots)
             extended_windows_size = np.arange(block.nSlots + 1, n_slots + 1) + 1 # Add 1 to evaluate the constraints
