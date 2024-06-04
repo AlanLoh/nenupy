@@ -1075,8 +1075,9 @@ class ST_Slice:
             ax.set_xlim(xlim)
             ax.set_ylim(ylim)
 
-        cbar = plt.colorbar(im, pad=0.03)#format='%.1e')
-        cbar.set_label(kwargs.get("colorbar_label", "dB" if kwargs.get("decibel", True) else "Amp"))
+        if kwargs.get("set_colorbar", True):
+            cbar = plt.colorbar(im, pad=0.03)#format='%.1e')
+            cbar.set_label(kwargs.get("colorbar_label", "dB" if kwargs.get("decibel", True) else "Amp"))
         # cax = inset_axes(
         #     ax,
         #     width='3%',

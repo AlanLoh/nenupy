@@ -106,12 +106,11 @@ Besides the time/frequeny/pointing parameters, the :attr:`~nenupy.schedule.conta
     )
 
 Once the simulation is done, meaning the array factors for the selected Mini-Array rotations, `Multi-Order Coverage objects <https://cds-astro.github.io/mocpy/>`_ (MOCs) can be computed.
-The :meth:`~nenupy.schedule.contamination.BeamLobes.compute_moc` method takes as argument the ``maximum_ratio`` as the threshold above which a sky region, `HEALPix <https://healpix.jpl.nasa.gov/>`_ tesselated, should be included in the 'grating lobe MOC'.
-For instance, a value of ``0.5`` would mean that every HEALPix cell whose value is greater than :math:`{\rm max}(\mathcal{F}_{\rm MA})/2` is considered as being part of the grating lobe region, where :math:`\mathcal{F}_{\rm MA}` is the Mini-Array array factor.
+The :meth:`~nenupy.schedule.contamination.BeamLobes.compute_moc` method takes as argument the ``relative_threshold`` as the threshold above which a sky region, `HEALPix <https://healpix.jpl.nasa.gov/>`_ tesselated, should be included in the 'grating lobe MOC'.
 
 .. code-block:: python
 
-    grating_lobes.compute_moc(maximum_ratio=0.4)
+    grating_lobes.compute_moc(relative_threshold=0.4)
 
 
 The next step consists in cross-matching the computed MOC (over times and frequencies) with a list of bright sources.
