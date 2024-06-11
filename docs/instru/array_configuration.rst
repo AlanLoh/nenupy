@@ -3,7 +3,7 @@
 Array Configuration
 ===================
 
-The `NenuFAR <https://nenufar.obs-nancay.fr/en/homepage-en/>`_ low-frequency radio telescope can de viewed as a hierarchy of elements (i.e., the individual dipole antennas, the mini-arrays and the whole array).
+The `NenuFAR <https://nenufar.obs-nancay.fr/en/homepage-en/>`_ low-frequency radio telescope can be viewed as a hierarchy of elements (i.e., the individual dipole antennas, the mini-arrays and the whole array).
 In order to better capture these configurations, the associated parameters, while aiming at delivering the related physical properties, ``nenupy`` offers two main classes to represent this complexity: :class:`~nenupy.instru.nenufar.MiniArray` and :class:`~nenupy.instru.nenufar.NenuFAR`.
 
 Both of these classes inherit from the base class :class:`~nenupy.instru.interferometer.Interferometer`, which is an abstract Python class.

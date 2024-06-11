@@ -6,7 +6,15 @@ Installing with pip
 
 These instructions cover installation with the Python package
 management tool `PyPI <https://pypi.org/project/nenupytf/>`_.
-``Python3.7`` or higher is required and no support will be provided for ``Python2``.
+``Python3.8`` or higher is required and no support will be provided for ``Python2``.
+
+The latest version can be installed directly grom github:
+
+.. code-block:: bash
+
+   $ pip install --upgrade https://github.com/AlanLoh/nenupy/tarball/master
+
+To get the latest release (may be lacking the latest features):
 
 .. code-block:: bash
 

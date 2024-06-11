@@ -9,6 +9,7 @@ nenupy.schedule
    nenupy.schedule.contamination
    nenupy.schedule.geneticalgo
    nenupy.schedule.obsblocks
+   nenupy.schedule.open_time
    nenupy.schedule.schedule
    nenupy.schedule.targets
 
