@@ -595,7 +595,7 @@ class _JsonEntry:
         }
         topic = observation.get('topic', 'LT00 DEBUG')
         # Try to capture code and topic name using regular expression
-        pattern = r'^(?P<code>(ES([0]?[0-9]|1[0-7])|LT(?!08)([0]?[0-9]|1[0-3])|RP1[A-C]|SP(16|17))) (?P<name>\w+)$'
+        pattern = r'^(?P<code>(ES([0]?[0-9]|1[0-7])|LT(?!08)([0]?[0-9]|1[0-3])|RP\d+[A-Z]|SP(16|17))) (?P<name>\w+)$'
         topic_decoded = re.match(pattern=pattern, string=topic)
         if topic_decoded is None:
             log.warning(f'{topic} not properly decoded!!')

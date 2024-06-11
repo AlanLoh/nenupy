@@ -22,7 +22,8 @@ __all__ = [
     "instrument_temperature",
     "miniarrays_rotated_like",
     "read_cal_table",
-    "generate_nenufar_subarrays"
+    "generate_nenufar_subarrays",
+    "lofar_instrument_temperature"
 ]
 
 
@@ -356,3 +357,54 @@ def generate_nenufar_subarrays(
 # ============================================================= #
 # ============================================================= #
 
+# ============================================================= #
+# --------------- lofar_instrument_temperature ---------------- #
+# ============================================================= #
+def lofar_instrument_temperature(frequency: u.Quantity) -> u.Quantity:
+    """_summary_
+    From Vlad Kondratiev lofar_tinst.py (polynomial fit on Wijnholds (2011))
+
+    Parameters
+    ----------
+    frequency : u.Quantity
+        _description_
+
+    Returns
+    -------
+    u.Quantity
+        _description_
+    """
+    lba_mask = frequency <= 90*u.MHz
+    hba_mask = frequency >= 110*u.MHz
+    t_inst_poly_fit_coeff_lba = np.array(
+        [  
+            6.2699888333e-05,
+            -0.019932340239,
+            2.60625093843,
+            -179.560314268,
+            6890.14953844,
+            -140196.209123,
+            1189842.07708
+        ]
+    )
+    t_inst_poly_fit_coeff_hba = np.array(
+        [
+            6.64031379234e-08,
+            -6.27815750717e-05,
+            0.0246844426766,
+            -5.16281033712,
+            605.474082663,
+            -37730.3913315,
+            975867.990312
+        ]
+    ) 
+    t_inst_poly_fit_lba = np.poly1d(t_inst_poly_fit_coeff_lba)
+    t_inst_poly_fit_hba = np.poly1d(t_inst_poly_fit_coeff_hba)
+
+    instrument_temperature = np.empty(frequency.shape)
+    instrument_temperature[lba_mask] = t_inst_poly_fit_lba(frequency[lba_mask].to_value(u.MHz))
+    instrument_temperature[hba_mask] = t_inst_poly_fit_hba(frequency[hba_mask].to_value(u.MHz))
+    instrument_temperature[~(lba_mask + hba_mask)] = np.nan
+    return instrument_temperature * u.K
+# ============================================================= #
+# ============================================================= #
