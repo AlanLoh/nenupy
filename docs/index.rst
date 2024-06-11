@@ -122,13 +122,14 @@ Finally, observations can then be simulated using the simulated beam and a sky m
 
 .. toctree::
    :caption: Modules
-   :maxdepth: 3
+   :maxdepth: 4
 
-   nenupy.astro
-   nenupy.io
-   nenupy.instru
-   nenupy.observation
-   nenupy.schedule
+   nenupy
+   .. nenupy.astro
+   .. nenupy.io
+   .. nenupy.instru
+   .. nenupy.observation
+   .. nenupy.schedule
 
 
 .. toctree::
