@@ -39,12 +39,12 @@ from reproject import reproject_from_healpix
 import dask.array as da
 from dask.diagnostics import ProgressBar
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib import patheffects
 from matplotlib.colorbar import ColorbarBase
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import warnings
-from matplotlib.cm import get_cmap
 from matplotlib.ticker import LinearLocator
 from matplotlib.colors import Normalize
 
@@ -346,7 +346,7 @@ class SkySliceBase(AstroObject):
                 warnings.simplefilter("ignore")
                 cb = ColorbarBase(
                     cax,
-                    cmap=get_cmap(name=cmap),
+                    cmap=mpl.colormaps[cmap],
                     orientation='vertical',
                     norm=Normalize(
                         vmin=vmin,

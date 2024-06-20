@@ -39,7 +39,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colorbar import ColorbarBase
 from matplotlib.ticker import LinearLocator
 from matplotlib.colors import Normalize
-from matplotlib.cm import get_cmap
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import dask.array as da
 from dask.diagnostics import ProgressBar
@@ -1792,7 +1791,7 @@ class TV_Nearfield:
         )
         cb = ColorbarBase(
             cax,
-            cmap=get_cmap(name=cmap),
+            cmap=mpl.colormaps[cmap],
             orientation="vertical",
             norm=Normalize(
                 vmin=nf_image_min,

@@ -133,7 +133,7 @@ enables the calibration table used during the BST observation).
 
 To compare the result, the selected BST data, the beamformed data 
 using the calibration table and without using it (setting
-``calibration="none"```) are displayed together:
+``calibration="none"`) are displayed together:
 
 .. code-block:: python
 
