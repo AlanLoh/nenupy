@@ -9,5 +9,4 @@ numexpr
 pyproj
 mocpy
 dask
-sqlalchemy
 pytz

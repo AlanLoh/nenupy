@@ -59,7 +59,7 @@ r"""
         >>> c.plot()
 
 
-    .. image:: ./_images/elevconstraint_casa0deg.png
+    .. image:: ../_images/elevconstraint_casa0deg.png
         :width: 800
 
     If the required elevation to perform a good-quality observation
@@ -74,7 +74,7 @@ r"""
         >>> c.plot()
 
 
-    .. image:: ./_images/elevconstraint_casa40deg.png
+    .. image:: ../_images/elevconstraint_casa40deg.png
         :width: 800
 
     The :class:`~nenupy.schedule.constraints.ElevationCnst`'s score is
@@ -118,7 +118,7 @@ r"""
         
         >>> cnst.plot()
 
-    .. image:: ./_images/sch_constraints.png
+    .. image:: ../_images/sch_constraints.png
         :width: 800
 
     .. _constraints_summary:

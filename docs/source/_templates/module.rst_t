@@ -1,0 +1,8 @@
+{%- if show_headings %}
+{{- [fullname, basename] | join(' ') | e | heading }}
+
+{% endif -%}
+.. automodule:: {{ modname }}
+{%- for option in automodule_options %}
+   :{{ option }}:
+{%- endfor %}

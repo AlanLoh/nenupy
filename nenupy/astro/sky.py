@@ -480,7 +480,7 @@ class SkySliceBase(AstroObject):
         ax.set_title(title, pad=20)
 
         # Save or show
-        if figname is None:
+        if (figname is None) or (figname == ""):
             plt.show()
         elif figname.lower() == "return":
             return fig, ax

@@ -520,7 +520,7 @@ class MiniArray(Interferometer):
                         colorbar_label=''
                     )
 
-                .. image:: ./_images/instru_images/ma1_beam.png
+                .. image:: ../_images/instru_images/ma1_beam.png
                     :width: 800
 
             .. seealso::

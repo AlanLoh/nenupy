@@ -7,15 +7,8 @@
     XST file
     ********
 
-    .. inheritance-diagram:: nenupy.io.xst.XST nenupy.io.xst.NenufarTV
+    .. inheritance-diagram:: nenupy.io.xst.XST nenupy.io.xst.NenufarTV nenupy.io.xst.TV_Image nenupy.io.xst.TV_Nearfield
         :parts: 3
-
-    .. autosummary::
-
-        ~XST
-        ~NenufarTV
-        TV_Image
-        TV_Nearfield
 
 """
 
@@ -28,7 +21,8 @@ __email__ = "alan.loh@obspm.fr"
 __status__ = "Production"
 __all__ = ["XST_Slice", "Crosslet", "XST", "TV_Image", "TV_Nearfield", "NenufarTV"]
 
-from abc import ABC
+from abc import ABC, abstractmethod
+from typing import Tuple, List
 import os
 from itertools import islice
 from astropy.time import Time, TimeDelta
@@ -40,6 +34,7 @@ from healpy.pixelfunc import mask_bad, nside2resol
 import numpy as np
 import json
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colorbar import ColorbarBase
 from matplotlib.ticker import LinearLocator
@@ -76,20 +71,31 @@ log = logging.getLogger(__name__)
 class XST_Slice:
     """Class to handle the result of selection upon XST-like data.
 
-    .. rubric:: Methods Summary
-
-    .. autosummary::
-
-        ~XST_Slice.plot_correlaton_matrix
-        ~XST_Slice.rephase_visibilities
-        ~XST_Slice.make_image
-        ~XST_Slice.make_nearfield
-
-    .. rubric:: Attributes and Methods Documentation
-
+    See Also
+    --------
+    :ref:`xst_beamforming_doc`
     """
 
-    def __init__(self, mini_arrays, time, frequency, value):
+    def __init__(
+        self,
+        mini_arrays: np.ndarray,
+        time: Time,
+        frequency: u.Quantity,
+        value: np.ndarray,
+    ):
+        r"""Generate an instance of :class:`~nenupy.io.xst.XST_Slice`.
+
+        Parameters
+        ----------
+        mini_arrays : :class:`~numpy.ndarray`
+            NenuFAR Mini-Arrays involved in the data selection
+        time : :class:`~astropy.time.Time`
+            Time description of the selected dataset
+        frequency : :class:`~astropy.units.Quantity`
+            Frequency description of the selected dataset
+        value : :class:`~numpy.ndarray`
+            Data selection values, it should have the shape :math:`(n_{\rm \nu},\, n_{t},\, n_{\rm bl})` where :math:`n_{\rm \nu}`, :math:`n_{t}` and :math:`n_{\rm bl}=n_{\rm ant}(n_{\rm ant} - 1)/2 + n_{\rm ant}` are respectively the number of frequency and time samples, and the number of baselines
+        """
         self.mini_arrays = mini_arrays
         self.time = time
         self.frequency = frequency
@@ -97,77 +103,60 @@ class XST_Slice:
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def plot_correlaton_matrix(self, mask_autocorrelations: bool = False, **kwargs):
-        """Plots the cross-correlation matrix.
+    def plot_correlaton_matrix(
+        self,
+        mask_autocorrelations: bool = False,
+        figsize: Tuple[int, int] = (10, 10),
+        decibel: bool = True,
+        cmap: str = "YlGnBu",
+        vmin: float = None,
+        vmax: float = None,
+        cbar_label: str = None,
+        title: str = None,
+        figname: str = None,
+    ) -> None:
+        r"""Plot the XST cross-correlation matrix.
+        All visibilities are plotted against their Mini-Array indices.
+        The absolute of their average over their available time and frequency samples is displayed.
 
-        :param mask_autocorrelations:
-            If set to ``True``, the auto-correlation diagnoal
-            is hidden.
-            Default is ``False``.
-        :type mask_autocorrelations:
-            `bool`
+        Parameters
+        ----------
+        mask_autocorrelations : `bool`, optional
+            Mask the auto-correlation diagonal, by default `False`
+        figsize : Tuple[`int`, `int`], optional
+            Size of the figure, by default (10, 10)
+        decibel : `bool`, optional
+            Set the scale of the data displayed to dB (i.e., :math:`{\rm dB} = 10 \log_{10}({\rm data})`), by default True
+        cmap : `str`, optional
+            Color map used to represent the data, by default "YlGnBu"
+        vmin : `float`, optional
+            Minimal value displayed, by default `None` (i.e., overall minimal value)
+        vmax : `float`, optional
+            Maximal value displayed, by default `None` (i.e., overall maximal value)
+        cbar_label : `str`, optional
+            Label of the color bar, by default `None`
+        title : `str`, optional
+            Title of the plot, by default `None`
+        figname : `str`, optional
+            Name of the figure, if given the figure will be saved, by default `None`
 
-        Several parameters, listed below, can be tuned to adapt the plot
-        to the user requirements:
+        Example
+        -------
+        .. code-block:: python
 
-        .. rubric:: Data display keywords
+            >>> from nenupy.io.xst import XST
 
-        :param decibel:
-            If set to ``True``, the data will be displayed in
-            a decibel scale (i.e., :math:`{\rm dB} = 10 \log_{10}({\rm data})`).
-            Default is ``True``.
-        :type decibel:
-            `bool`
-        :param vmin:
-            *Dynamic spectrum plot only*.
-            Minimal data value to display.
-        :type vmin:
-            `float`
-        :param vmax:
-            *Dynamic spectrum plot only*.
-            Maximal data value to display.
-        :type vmax:
-            `float`
+            >>> xst = XST("/path/to/XST.fits")
+            >>> data = xst.get(...) # data selection that generate a XST_Slice
+            >>> data.plot_correlaton_matrix()
 
-        .. rubric:: Plotting layout keywords
+        .. figure:: ../_images/io_images/xst_cross_matrix.png
+            :width: 450
+            :align: center
 
-        :param figname:
-            Name of the file (absolute or relative path) to save the figure.
-            Default is ``''`` (i.e., only show the figure).
-        :type figname:
-            `str`
-        :param figsize:
-            Set the figure size.
-            Default is ``(10, 10)``.
-        :type figsize:
-            `tuple`
-        :param title:
-            Set the figure title.
-            Default is ``''``.
-        :type title:
-            `str`
-        :param colorbar_label:
-            *Dynamic spectrum plot only*.
-            Label of the color bar.
-            Default is ``'Amp'`` if ``decibel=False`` and ``'dB'`` otherwise.
-        :type colorbar_label:
-            `str`
-        :param cmap:
-            *Dynamic spectrum plot only*.
-            Color map used to represent the data.
-            Default is ``'YlGnBu_r'``.
-        :type cmap:
-            `str`
-
-        :Example:
-            .. code-block:: python
-
-                from nenupy.io.xst import XST
-
-                xst = XST("/path/to/XST.fits")
-                data = xst.get....
-
+            Cross-correlation matrix, the Mini-Array #1 was flagged.
         """
+
         max_ma_index = self.mini_arrays.max() + 1
         all_mas = np.arange(max_ma_index)
         matrix = np.full([max_ma_index, max_ma_index], np.nan, "complex")
@@ -182,12 +171,12 @@ class XST_Slice:
             mask = ma1 != ma2  # cross_correlation mask
         matrix[ma2[mask], ma1[mask]] = np.mean(self.value, axis=(0, 1))[mask]
 
-        fig = plt.figure(figsize=kwargs.get("figsize", (10, 10)))
+        fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
         ax.set_aspect("equal")
 
         data = np.absolute(matrix)
-        if kwargs.get("decibel", True):
+        if decibel:
             data = 10 * np.log10(data)
 
         im = ax.pcolormesh(
@@ -195,9 +184,9 @@ class XST_Slice:
             all_mas,
             data,
             shading="nearest",
-            cmap=kwargs.get("cmap", "YlGnBu"),
-            vmin=kwargs.get("vmin", np.nanmin(data)),
-            vmax=kwargs.get("vmax", np.nanmax(data)),
+            cmap=cmap,
+            vmin=np.nanmin(data) if vmin is None else vmin,
+            vmax=np.nanmax(data) if vmax is None else vmax,
         )
         ax.set_xticks(all_mas[::2])
         ax.set_yticks(all_mas[::2])
@@ -207,7 +196,7 @@ class XST_Slice:
         cax = divider.append_axes("right", size="5%", pad=0.3)
         cbar = fig.colorbar(im, cax=cax)
         cbar.set_label(
-            kwargs.get("colorbar_label", "dB" if kwargs.get("decibel", True) else "Amp")
+            cbar_label if cbar_label is not None else ("dB" if decibel else "Amp")
         )
 
         # Axis abels
@@ -215,19 +204,49 @@ class XST_Slice:
         ax.set_ylabel(f"Mini-Array index")
 
         # Title
-        ax.set_title(kwargs.get("title", ""))
+        if title is not None:
+            ax.set_title(title)
 
         # Save or show the figure
-        figname = kwargs.get("figname", "")
-        if figname != "":
+        if (figname is None) or (figname == ""):
+            plt.show()
+        else:
             plt.savefig(figname, dpi=300, bbox_inches="tight", transparent=True)
             log.info(f"Figure '{figname}' saved.")
-        else:
-            plt.show()
+
         plt.close("all")
 
-    def rephase_visibilities(self, phase_center, uvw):
-        """ """
+    def rephase_visibilities(
+        self, phase_center: SkyCoord, uvw: np.ndarray = None
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Rephase the XST visibilities towards a new phase center.
+        By default, XST visibilities are phased at the local zenith.
+        This method applies two rotations: one to reset the visibilities to the celestial frame origin and a second to phase towards the desired phase center.
+
+        Parameters
+        ----------
+        phase_center : :class:`~astropy.coordinateds.SkyCoord`
+            New phase center.
+        uvw : :class:`~numpy.ndarray`
+            UVW coordinates in meters of the input array, see also :func:`~nenupy.astro.uvw.compute_uvw`, by default `None` (i.e., the method automatically computes the cooridnates)
+
+        Returns
+        -------
+        Tuple[:class:`~numpy.ndarray`, :class:`~numpy.ndarray`]
+            Re-phased visibilities, rotated UVW coordinates
+
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.xst import XST
+            >>> from astropy.coordinates import SkyCoord
+
+            >>> xst = XST("/path/to/XST.fits")
+            >>> xx_data = xst.get(polarization="XX")
+            >>> cyg_a = SkyCoord.from_name("Cyg A")
+            >>> xx_data_rephased, uvw_rephased = xx_data.rephase_visibilities(cyg_a)
+        """
 
         log.info(f"Rephasing the visibilities towards {phase_center}...")
 
@@ -239,6 +258,14 @@ class XST_Slice:
             frame=AltAz(obstime=self.time, location=nenufar_position),
         )
         zenith_phase_center = altaz_to_radec(zenith)
+
+        # Compute the UVW coordinates if they were not provided
+        if uvw is None:
+            uvw = compute_uvw(
+                interferometer=NenuFAR()[self.mini_arrays],
+                phase_center=None,  # will be zenith
+                time=self.time,
+            ).to_value(u.m)
 
         # Define the rotation matrix
         def rotation_matrix(skycoord):
@@ -294,34 +321,65 @@ class XST_Slice:
         phase_center: SkyCoord = None,
         stokes: str = "I",
     ) -> HpxSky:
-        """
-        :Example:
+        r"""Perform an inversion of the visibilities to get an image.
 
-            xst = XST("XST.fits")
-            data = xst.get_stokes("I")
-            sky = data.make_image(
-                resolution=0.5*u.deg,
-                fov_radius=27*u.deg,
-                phase_center=SkyCoord(277.382, 48.746, unit="deg")
-            )
-            sky[0, 0, 0].plot(
-                center=SkyCoord(277.382, 48.746, unit="deg"),
-                radius=24.5*u.deg
-            )
+        A Discrete Fourier Transform is applied, based on the Fourier Transform relationship between the sky brightness distribution :math:`\mathcal{I}(l,m,n)` and the NenuFAR response (complex visibilities) :math:`\mathcal{V}(u,v,w)`:
 
+        .. math::
+            \mathcal{I}(l, m, n) = \int \left\langle \mathcal{V}(u, v, w) \right\rangle_{t, \nu} e^{-2\pi i (ul + vm + wn)}\,du\, dv\, dw ,
+
+        where :math:`(u, v, w)` are coordinates expressed in :math:`\lambda` units, :math:`(l,m,n)` are image coordinates (taken as an HEALPix image by default using :class:`~nenupy.astro.sky.HpxSky`).
+
+        Parameters
+        ----------
+        resolution : :class:`~astropy.units.Quantity`, optional
+            Image HEALPix resolution (see :class:`~nenupy.astro.sky.HpxSky`), by default 1 degree
+        fov_radius : :class:`~astropy.units.Quantity`, optional
+            Field of View radius that will apply a selection on the image plane before computing the pixel values, by default 25 degrees
+        phase_center : :class:`~astropy.coordinates.SkyCoord`, optional
+            Center of the field of view, by default `None` (i.e., local zenith)
+        stokes : `str`, optional
+            Stokes parameter description of what contain the :attr:`~nenupy.io.xst.XST_Slice.value` that will be passed to :class:`~nenupy.astro.sky.HpxSky` (there is no computation dependency upon this paramater here), by default "I"
+
+        Returns
+        -------
+        :class:`~nenupy.astro.sky.HpxSky`
+            The image
+
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.xst import XST
+            >>> from astropy.coordinates import SkyCoord
+            >>> import astropy.units as u
+
+            >>> xst = XST(".../nenupy/tests/test_data/XST.fits")
+            >>> xx_data = xst.get(polarization="XX")
+            >>> tau_a = SkyCoord.from_name("Tau A")
+            >>> im = xx_data.make_image(
+                    resolution=1*u.deg,
+                    fov_radius=10*u.deg,
+                    phase_center=tau_a,
+                    stokes="XX"
+                )
+
+            >>> im[0, 0, 0].plot(center=tau_a, radius=5*u.deg)
+
+
+        .. figure:: ../_images/io_images/make_image_xst.png
+            :width: 450
+            :align: center
         """
+
         exposure = self.time[-1] - self.time[0]
 
         # Compute XST UVW coordinates (zenith phased)
-        uvw = (
-            compute_uvw(
-                interferometer=NenuFAR()[self.mini_arrays],
-                phase_center=None,  # will be zenith
-                time=self.time,
-            )
-            .to(u.m)
-            .value
-        )
+        uvw = compute_uvw(
+            interferometer=NenuFAR()[self.mini_arrays],
+            phase_center=None,  # will be zenith
+            time=self.time,
+        ).to_value(u.m)
 
         # Prepare visibilities rephasing
         if phase_center is None:
@@ -400,9 +458,9 @@ class XST_Slice:
         return sky
 
     def make_nearfield(
-        self, radius: u.Quantity = 400 * u.m, npix: int = 64, sources: list = []
-    ):
-        r"""Computes the Near-field image from the cross-correlation
+        self, radius: u.Quantity = 400 * u.m, npix: int = 64, sources: List[int] = []
+    ) -> Tuple[np.ndarray, dict]:
+        r"""Computes the near-field image from the cross-correlation
         statistics data :math:`\mathcal{V}`.
 
         The distances between each Mini-Array :math:`{\rm MA}_i`
@@ -420,50 +478,70 @@ class XST_Slice:
         .. math::
             n_f (x, y) = \sum_{k, l} \left| \sum_{\nu} \langle \mathcal{V}_{\nu, k, l}(t) \rangle_t e^{2 \pi i \left( d_{{\rm MA}_k} - d_{{\rm MA}_l} \right) (x, y) \frac{\nu}{c}} \right|
 
-        .. note::
-            To simulate astrophysical source of brightness :math:`\mathcal{B}`
-            footprint on the near-field, its visibility per baseline
-            of Mini-Arrays :math:`k` and :math:`l` are computed as:
+        Notes
+        -----
+        To simulate astrophysical source of brightness :math:`\mathcal{B}`
+        footprint on the near-field, its visibility per baseline
+        of Mini-Arrays :math:`k` and :math:`l` are computed as:
 
-            .. math::
-                \mathcal{V}_{{\rm simu}, k, l} = \mathcal{B} e^{2 \pi i \left( \mathbf{r}_k - \mathbf{r}_l \right) \cdot \mathbf{u} \frac{\nu}{c}}
+        .. math::
+            \mathcal{V}_{{\rm simu}, k, l} = \mathcal{B} e^{2 \pi i \left( \mathbf{r}_k - \mathbf{r}_l \right) \cdot \mathbf{u} \frac{\nu}{c}}
 
-            with :math:`\mathbf{r}` the ENU position of the Mini-Arrays,
-            :math:`\mathbf{u} = \left( \cos(\theta) \sin(\phi), \cos(\theta) \cos(\phi), sin(\theta) \right)`
-            the ground projection vector (in East-North-Up coordinates),
-            (:math:`\phi` and :math:`\theta` are the source horizontal
-            coordinates azimuth and elevation respectively).
+        with :math:`\mathbf{r}` the ENU position of the Mini-Arrays,
+        :math:`\mathbf{u} = \left( \cos(\theta) \sin(\phi), \cos(\theta) \cos(\phi), sin(\theta) \right)`
+        the ground projection vector (in East-North-Up coordinates),
+        (:math:`\phi` and :math:`\theta` are the source horizontal
+        coordinates azimuth and elevation respectively).
 
+        Parameters
+        ----------
+        radius : :class:`~astropy.units.Quantity`, optional
+            Radius of the ground image, by default 400 m
+        npix : `int`, optional
+            Number of pixels of the image size, by default 64.
+        sources : List[`int`], optional
+            List of source names for which their near-field footprint may be computed (only sources above 10 deg elevation will be considered), source names are resolved using Simbad through :meth:`~astropy.coordinates.SkyCoord.from_name` within :class:`~nenupy.astro.target.FixedTarget`, Solar System object names are also valid (and called through :class:`~nenupy.astro.target.SolarSystemTarget`), by default []
 
-        :param radius:
-            Radius of the ground image. Default is ``400m``.
-        :type radius:
-            :class:`~astropy.units.Quantity`
-        :param npix:
-            Number of pixels of the image size. Default is ``64``.
-        :type npix:
-            `int`
-        :param sources:
-            List of source names for which their near-field footprint
-            may be computed. Only sources above 10 deg elevation
-            will be considered.
-        :type sources:
-            `list`
+        Returns
+        -------
+        Tuple[:class:`~numpy.ndarray`, `dict`]
+            Tuple of near-field image (of shape ``(npix, npix)``) and a dictionnary containing all source footprints (of the same shapes)
 
-        :returns:
-            Tuple of near-field image and a dictionnary
-            containing all source footprints.
-        :rtype:
-            (:class:`~numpy.ndarray`, `dict`)
+        Example
+        -------
+        .. code-block:: python
 
-        :Example:
-            .. code-block:: python
+            >>> from nenupy.io.xst import XST
 
-                from nenupy.io.xst import XST
+            >>> xst = XST(".../nenupy/tests/test_data/XST.fits")
+            >>> xx_data = xst.get(polarization="XX")
+            >>> nearfield, src_dict = xx_data.make_nearfield(
+                    radius=400*u.m,
+                    npix=64,
+                    sources=["Tau A"]
+                )
 
-                xst = XST("xst_file.fits")
-                nearfield, src_dict = xst.make_nearfield(sources=["Cas A", "Sun"])
+        One can further plot the nearfield map:
 
+        .. code-block:: python
+
+            >>> from nenupy.io.xst import TV_Nearfield
+
+            >>> tv_nf = TV_Nearfield(
+                    nearfield=nearfield,
+                    source_imprints=src_dict,
+                    npix=nearfield.shape[0],
+                    time=xst.time[0],
+                    frequency=xst.frequencies[0],
+                    radius=400*u.m,
+                    mini_arrays=xst.mini_arrays,
+                    stokes="XX",
+                )
+            >>> tv_nf.save_png(figname="")
+
+        .. figure:: ../_images/io_images/make_nearfield_xst.png
+            :width: 450
+            :align: center
 
         .. versionadded:: 1.1.0
 
@@ -592,30 +670,7 @@ class XST_Slice:
 # ============================================================= #
 # ------------------------- Crosslet -------------------------- #
 class Crosslet(ABC):
-    """Crosslet abstract class (both for XST and NenuFAR TV dat files).
-
-    .. rubric:: Methods Summary
-
-    .. autosummary::
-
-        ~Crosslet.get
-        ~Crosslet.get_stokes
-        ~Crosslet.get_beamform
-
-    .. rubric:: Attributes and Methods Documentation
-
-    """
-
-    # def __init__(self,
-    #         mini_arrays: np.ndarray,
-    #         frequency: u.Quantity,
-    #         time: Time,
-    #         visibilities: np.ndarray
-    #     ):
-    #     self.mini_arrays = mini_arrays
-    #     self.frequency = frequency
-    #     self.time = time
-    #     self.visibilities = visibilities
+    """Crosslet abstract class (both for XST and NenuFAR TV dat files)."""
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
@@ -629,7 +684,42 @@ class Crosslet(ABC):
         frequency_selection: str = None,
         time_selection: str = None,
     ) -> XST_Slice:
-        """ """
+        """Main data selection method.
+
+        Parameters
+        ----------
+        polarization : `str`, optional
+            Cross-correlation polarization selection (can either be "XX", "XY", "YX", "YY"), for Stokes parameters see :meth:`~nenupy.io.xst.Crosslet.get_stokes`, by default "XX"
+        miniarray_selection : :class:`~numpy.ndarray`, optional
+            Mini-Arrays selection, the visibilities will be filter to only take into account cross-correlations involving Mini-Arrays from the list provided, by default `None` (i.e., all available Mini-Arrays)
+        frequency_selection : `str`, optional
+            Frequency selection code (e.g., ">=40MHz & <51.1MHz"), by default `None` (i.e., all available frequencies)
+        time_selection : `str`, optional
+            Time selection code (e.g., "<2024-06-21T12:32:40"), by default `None` (i.e., all available time samples)
+
+        Returns
+        -------
+        :class:`~nenupy.io.xst.XST_Slice`
+            Data selection.
+        
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.xst import XST
+            >>> import numpy as np
+
+            >>> xst = XST(".../nenupy/tests/test_data/XST.fits")
+            >>> xx_data = xst.get(
+                    polarization="XX",
+                    miniarray_selection=np.array([0, 2, 3]),
+                    frequency_selection=">73MHz & <75MHz",
+                    time_selection="<2020-02-19T19:00:00"
+                )
+            >>> xx_data.value.shape, xx_data.time.shape, xx_data.frequency.shape
+            ((1, 7, 6), (1,), (7,))
+
+        """
         mas = self._select_mini_arrays(miniarray_selection)
         frequency_mask = self._get_freq_mask(frequency_selection)
         time_mask = self._get_time_mask(time_selection)
@@ -653,38 +743,54 @@ class Crosslet(ABC):
         frequency_selection: str = None,
         time_selection: str = None,
     ) -> XST_Slice:
-        r""" 
-             ``frequency_selection`` and ``time_selection``
-            arguments accept `str` values formatted as, e.g.,
-            ``'>={value}'`` or ``'>={value_1} & <{value_2}'`` or ``'=={value}'``.
+        r"""Converts cross-correlation visibilities to Stokes parameter.
+        Available Stokes parameters "I", "Q", "U", "V", "FL" or "FV" are respectively computed as follows:
 
-            :param frequency_selection:
-                Frequency selection. The expected ``'{value}'`` format is frequency units, e.g. ``'>=50MHz'`` or ``'< 1 GHz'``.
-                Default is ``None`` (i.e., no selection upon frequency).
-            :type frequency_selection:
-                `str`
-            :param time_selection:
-                Time selection. The expected ``'{value}'`` format is ISOT, e.g. ``'>=2022-01-01T12:00:00'``.
-                Default is ``None`` (i.e., no selection upon time).
-            :type time_selection:
-                `str`
-            :param stokes:
-                Stokes parameters to return
-            :type stokes:
-                `str`
+        .. math::
+            \begin{cases}
+                \rm{I} = \frac{1}{2}(\rm{XX} + \rm{YY})\\
+                \rm{Q} = \frac{1}{2}(\rm{XX} - \rm{YY})\\
+                \rm{U} = \frac{1}{2}(\rm{XY} + \rm{YX})\\
+                \rm{V} = \frac{-i}{2}(\rm{XY} - \rm{YX})\\
+                \frac{\rm{L}}{\rm{I}} = \frac{\sqrt{\rm{Q}^2 + \rm{U}^2}}{\rm{I}}\\
+                \frac{\rm{V}}{\rm{I}} = \frac{\rm{V}}{\rm{I}}\\
+            \end{cases}
 
-            .. math::
+        Parameters
+        ----------
+        stokes : `str`, optional
+            Stokes parameter to synthetize (can either be "I", "Q", "U", "V", "FL" or "FV"), by default "I"
+        miniarray_selection : :class:`~numpy.ndarray`, optional
+            Mini-Arrays selection, the visibilities will be filter to only take into account cross-correlations involving Mini-Arrays from the list provided, by default `None` (i.e., all available Mini-Arrays)
+        frequency_selection : `str`, optional
+            Frequency selection code (e.g., ">=40MHz & <51.1MHz"), by default `None` (i.e., all available frequencies)
+        time_selection : `str`, optional
+            Time selection code (e.g., "<2024-06-21T12:32:40"), by default `None` (i.e., all available time samples)
 
-                \begin{cases}
-                    \rm{I} = \frac{1}{2}(\rm{XX} + \rm{YY})\\
-                    \rm{Q} = \frac{1}{2}(\rm{XX} - \rm{YY})\\
-                    \rm{U} = \frac{1}{2}(\rm{XY} + \rm{YX})\\
-                    \rm{V} = \frac{-i}{2}(\rm{XY} - \rm{YX})\\
-                    \frac{\rm{L}}{\rm{I}} = \frac{\sqrt{\rm{Q}^2 + \rm{U}^2}}{\rm{I}}\\
-                    \frac{\rm{V}}{\rm{I}} = \frac{\rm{V}}{\rm{I}}\\
-                \end{cases}
+        Returns
+        -------
+        :class:`~nenupy.io.xst.XST_Slice`
+            Data selection converted to desired Stokes parameter.
+
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.xst import XST
+            >>> import numpy as np
+
+            >>> xst = XST(".../nenupy/tests/test_data/XST.fits")
+            >>> u_data = xst.get_stokes(
+                    polarization="U",
+                    miniarray_selection=np.array([0, 2, 3]),
+                    frequency_selection=">73MHz & <75MHz",
+                    time_selection="<2020-02-19T19:00:00"
+                )
+            >>> u_data.value.shape, u_data.time.shape, u_data.frequency.shape
+            ((1, 7, 6), (1,), (7,))
 
         """
+
         mas = self._select_mini_arrays(miniarray_selection)
         frequency_mask = self._get_freq_mask(frequency_selection)
         time_mask = self._get_time_mask(time_selection)
@@ -740,18 +846,51 @@ class Crosslet(ABC):
         polarization: str = "NW",
         calibration: str = "default",
     ) -> ST_Slice:
-        """
-        :Example:
+        """Perform beamforming operation on XST-like NenuFAR visibilities.
+        In a nutsheel, this method transforms XST into BST.
 
-            from nenupy.io.bst import BST, XST
-            bst = BST("20191129_141900_BST.fits")
-            xst = XST("20191129_141900_XST.fits")
-            bf_cal = xst.get_beamform(
-                pointing = Pointing.from_bst(bst, beam=0, analog=False),
-                mini_arrays=bst.mini_arrays,
-                calibration="default"
-            )
+        Parameters
+        ----------
+        pointing : :class:`~nenupy.astro.pointing.Pointing`
+            Pointing instance, describing where the beamforming must be applied across time
+        frequency_selection : `str`, optional
+            Frequency selection (see :meth:`~nenupy.io.xst.Crosslet.get`), by default `None`
+        time_selection : `str`, optional
+            Time selection (see :meth:`~nenupy.io.xst.Crosslet.get`), by default `None`
+        mini_arrays : :class:`~numpy.ndarray`, optional
+            Mini-Array selection (see :meth:`~nenupy.io.xst.Crosslet.get`), by default ``np.array([0, 1])``
+        polarization : `str`, optional
+            Polarization selection of the output data (can either be "NW" or "NE"), by default "NW"
+        calibration : `str`, optional
+            Residual delay calibration file to be used during beamforming, "none" does not apply any calibration, by default "default"
 
+        Returns
+        -------
+        :class:`~nenupy.io.xst.XST_Slice`
+            Beamformed data from XST-like visibilities.
+
+        Raises
+        ------
+        IndexError
+            Raised if the Mini Array selection is not valid.
+
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.bst import BST, XST
+            >>> from nenupy.astro.pointing import Pointing
+            >>> bst = BST("20191129_141900_BST.fits")
+            >>> xst = XST("20191129_141900_XST.fits")
+            >>> bf_cal = xst.get_beamform(
+                    pointing = Pointing.from_bst(bst, beam=0, analog=False),
+                    mini_arrays=bst.mini_arrays,
+                    calibration="default"
+                )
+
+        See Also
+        --------
+        :ref:`xst_beamforming_doc`
         """
         frequency_mask = self._get_freq_mask(frequency_selection)
         time_mask = self._get_time_mask(time_selection)
@@ -859,6 +998,14 @@ class Crosslet(ABC):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
+    @abstractmethod
+    def _parse_frequency_condition(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _parse_time_condition(self):
+        raise NotImplementedError
+
     def _select_mini_arrays(self, mini_arrays):
         """ """
         if mini_arrays is None:
@@ -997,22 +1144,9 @@ class Crosslet(ABC):
 class XST(StatisticsData, Crosslet):
     """Crosslet STatistics reading class.
 
-    .. rubric:: Attributes Summary
-
-    .. autosummary::
-
-        ~XST.mini_arrays
-
-    .. rubric:: Methods Summary
-
-    .. autosummary::
-
-        ~Crosslet.get
-        ~Crosslet.get_stokes
-        ~Crosslet.get_beamform
-
-    .. rubric:: Attributes and Methods Documentation
-
+    See Also
+    --------
+    :ref:`xst_reading_doc`
     """
 
     def __init__(self, file_name):
@@ -1034,20 +1168,97 @@ class XST(StatisticsData, Crosslet):
 # ============================================================= #
 # ------------------------- TV_Image -------------------------- #
 class TV_Image:
-    """ """
+    """Class to store and display NenuFAR TV image."""
 
     def __init__(
         self, tv_image: HpxSky, analog_pointing: SkyCoord, fov_radius: u.Quantity
     ):
+        """Produce an instance of :class:`~nenupy.io.xst.TV_Image`.
+
+        Parameters
+        ----------
+        tv_image : :class:`~nenupy.astro.sky.HpxSky`
+            The celestial image in HEALPix format, such as returned by :meth:`~nenupy.io.xst.Crosslet.make_image` for instance
+        analog_pointing : :class:`~astropy.coordinates.SkyCoord`
+            Celestial coordinates of the mean Mini-Array pointing in effect during the data acquisition, only serves as image display center
+        fov_radius : :class:`~astropy.units.Quantity`
+            Radius of the image field of view
+
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 16
+
+            >>> from nenupy.io.xst import XST, TV_Image
+            >>> from nenupy.astro import radec_to_altaz
+            >>> from astropy.coordinates import SkyCoord
+            >>> import astropy.units as u
+
+            >>> xst = XST(".../nenupy/tests/test_data/XST.fits")
+            >>> i_data = xst.get_stokes(stokes="I")
+            >>> tau_a = SkyCoord.from_name("Tau A")
+            >>> im = i_data.make_image(
+                    resolution=1*u.deg,
+                    fov_radius=10*u.deg,
+                    phase_center=tau_a,
+                    stokes="I"
+                )
+            >>> pointing = radec_to_altaz(tau_a, xst.time[0])
+            >>> tv_im = TV_Image(im, pointing, 10*u.deg)
+
+        """
         self.tv_image = tv_image
         self.analog_pointing = analog_pointing
         self.fov_radius = fov_radius
 
     # --------------------------------------------------------- #
+    # --------------------- Getter/Setter --------------------- #
+    @property
+    def analog_pointing(self) -> SkyCoord:
+        """Analog pointing representing the image center in Alt-Az frame. 
+
+        Returns
+        -------
+        :class:`~astropy.coordinates.SkyCoord`
+            The celestial coordinates in Alt-Az frame
+        
+        Raises
+        -----
+        ValueError
+            Raised if the celestial coordinates frame is different from :class:`~astropy.coordinates.AltAz`.
+        """
+        return self._analog_pointing
+    @analog_pointing.setter
+    def analog_pointing(self, coord: SkyCoord):
+        if not isinstance(coord.frame, AltAz):
+            raise ValueError(f"analog_pointing pointing frame should be 'AltAz', got '{coord.frame}' instead.")
+        self._analog_pointing = coord
+
+    # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     @classmethod
-    def from_fits(cls, file_name):
-        """ """
+    def from_fits(cls, file_name: str):
+        """Read the content of a FITS file and return an instance of :class:`~nenupy.io.xst.TV_Image`.
+
+        Parameters
+        ----------
+        file_name : `str`
+            FITS file path storing the NenuFAR-TV image (such as produced by :meth:`~nenupy.io.xst.TV_Image.save_fits`)
+
+        Returns
+        -------
+        :class:`~nenupy.io.xst.TV_Image`
+            NenuFAR-TV image loaded
+        
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.xst import TV_Image
+
+            >>> tv_im = TV_Image.from_fits(".../my_nenufar_tv_image.fits")
+
+        """
         header = fits.getheader(file_name, ext=1)
 
         # Load the image
@@ -1056,7 +1267,7 @@ class TV_Image:
         if "PARTIAL" in header["OBJECT"]:
             image[mask_bad(image)] = np.nan
 
-        # Recreate the sky
+        # Re-create the sky
         sky = HpxSky(
             resolution=Angle(
                 angle=nside2resol(header["NSIDE"], arcmin=True), unit=u.arcmin
@@ -1077,8 +1288,41 @@ class TV_Image:
             fov_radius=header["FOV"] * u.deg / 2,
         )
 
-    def save_fits(self, file_name: str, partial: bool = True):
-        """ """
+    def save_fits(self, file_name: str, partial: bool = True) -> None:
+        """Store the NenuFAR-TV image in a FITS file.
+        The HEALPix FITS file is written using :func:`~healpy.fitsfunc.write_map`.
+
+        Parameters
+        ----------
+        file_name : `str`
+            Name of the FITS file to be written
+        partial : `bool`, optional
+            If `True`, the HEALPix map is only written where the sky isn't masked to save space (argument directly passed to :func:`~healpy.fitsfunc.write_map`), by default `True`
+
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 17
+
+            >>> from nenupy.io.xst import XST, TV_Image
+            >>> from astropy.coordinates import SkyCoord
+            >>> import astropy.units as u
+            >>> from nenupy.astro import radec_to_altaz
+
+            >>> xst = XST(".../nenupy/tests/test_data/XST.fits")
+            >>> i_data = xst.get_stokes(stokes="I")
+            >>> tau_a = SkyCoord.from_name("Tau A")
+            >>> im = i_data.make_image(
+                    resolution=1*u.deg,
+                    fov_radius=10*u.deg,
+                    phase_center=tau_a,
+                    stokes="I"
+                )
+            >>> pointing = radec_to_altaz(tau_a, xst.time[0])
+            >>> tv_im = TV_Image(im, pointing, 10*u.deg)
+            >>> tv_im.save_fits(".../nenufar-tv.fits")
+
+        """
 
         phase_center_eq = altaz_to_radec(self.analog_pointing)
 
@@ -1108,7 +1352,7 @@ class TV_Image:
             partial=partial,
         )
         log.info(
-            "HEALPix image of {} cells (nside={}) saved in `{}`.".format(
+            "HEALPix image of {} cells (nside={}) saved in '{}'.".format(
                 map2write.size, self.tv_image.nside, file_name
             )
         )
@@ -1119,8 +1363,46 @@ class TV_Image:
         beam_contours: bool = True,
         show_sources: bool = True,
         **kwargs,
-    ):
-        """ """
+    ) -> None:
+        """Plot the NenuFAR-TV image.
+        Most of the arguments are passed to :meth:`~nenupy.astro.sky.SkySliceBase.plot`.
+
+        Parameters
+        ----------
+        figname : `str`, optional
+            If a name is provided, the figure will be saved, by default ""
+        beam_contours : `bool`, optional
+            Display the simulated analog beam contours, by default `True`
+        show_sources : `bool`, optional
+            Show the positions of (bright) radio sources listed in ``nenufar_tv_sources.json``, by default `True`
+
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 16,17
+
+            >>> from nenupy.io.xst import XST, TV_Image
+            >>> from astropy.coordinates import SkyCoord
+            >>> import astropy.units as u
+            >>> from nenupy.astro import radec_to_altaz
+
+            >>> xst = XST(".../nenupy/tests/test_data/XST.fits")
+            >>> i_data = xst.get_stokes(stokes="I")
+            >>> tau_a = SkyCoord.from_name("Tau A")
+            >>> im = i_data.make_image(
+                    resolution=1*u.deg,
+                    fov_radius=10*u.deg,
+                    phase_center=tau_a,
+                    stokes="I"
+                )
+            >>> pointing = radec_to_altaz(tau_a, xst.time[0])
+            >>> tv_im = TV_Image(im, pointing, 10*u.deg)
+            >>> tv_im.save_png()
+
+        .. figure:: ../_images/io_images/tv_image.png
+            :width: 450
+            :align: center
+        """
         image_center = altaz_to_radec(
             SkyCoord(
                 self.analog_pointing.az,
@@ -1128,8 +1410,6 @@ class TV_Image:
                 frame=AltAz(obstime=self.tv_image.time[0], location=nenufar_position),
             )
         )
-
-        # kwargs = {}
 
         if show_sources:
             src_names = []
@@ -1181,7 +1461,7 @@ class TV_Image:
 # ============================================================= #
 # ----------------------- TV_Nearfield ------------------------ #
 class TV_Nearfield:
-    """ """
+    """Class to handle NenuFAR TV nearfield storage and display."""
 
     def __init__(
         self,
@@ -1194,8 +1474,66 @@ class TV_Nearfield:
         mini_arrays: np.ndarray,
         stokes: str,
     ):
+        """Produce an instance of :class:`~nenupy.io.xst.TV_Nearfield`.
+
+        Parameters
+        ----------
+        nearfield : :class:`~numpy.ndarray`
+            The Near-field map to display, image must be square
+        source_imprints : `dict`
+            Dictionnary of Near-field imprints from radio sources, each imprint must be of same shape as the main near-field image
+        npix : `int`
+            Side pixel width of the nearfield image
+        time : :class:`~astropy.time.Time`
+            Average time of the near-field data acquisition
+        frequency : :class:`~astropy.units.Quantity`
+            Average frequency of the near-field data acquisition
+        radius : :class:`~astropy.units.Quantity`
+            Ground radius of projected near-field
+        mini_arrays : :class:`~numpy.ndarray`
+            Mini-Arrays indices used to compute the near-field
+        stokes : `str`
+            Stokes parameter represented
+        
+        Raises
+        ------
+        ValueError
+            Raised if nearfield is not square, or source_imprints do not match nearfield, or npix does not match the nearfield dimensions
+
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.xst import XST
+            >>> from nenupy.io.xst import TV_Nearfield
+            >>> xst = XST(".../nenupy/tests/test_data/XST.fits")
+            >>> xx_data = xst.get(polarization="XX")
+            >>> nearfield, src_dict = xx_data.make_nearfield(
+                    radius=400*u.m,
+                    npix=64,
+                    sources=["Tau A"]
+                )
+            >>> tv_nf = TV_Nearfield(
+                    nearfield=nearfield,
+                    source_imprints=src_dict,
+                    npix=nearfield.shape[0],
+                    time=xst.time[0],
+                    frequency=xst.frequencies[0],
+                    radius=400*u.m,
+                    mini_arrays=xst.mini_arrays,
+                    stokes="XX",
+                )
+
+        """
+        if nearfield.shape[0] != nearfield.shape[1]:
+            raise ValueError(f"Nearfield (of dimensions {nearfield.shape}) is not square.")
         self.nearfield = nearfield
+        for source, imprint in source_imprints.items():
+            if imprint.shape != nearfield.shape:
+                raise ValueError(f"{source} imprint's dimension {imprint.shape} does not match nearfield shape {nearfield.shape}.")
         self.source_imprints = source_imprints
+        if npix != nearfield.shape[0]:
+            raise ValueError(f"npix={npix} does not match nearfield dimensions {nearfield.shape}.")
         self.npix = npix
         self.time = time
         self.frequency = frequency
@@ -1207,27 +1545,30 @@ class TV_Nearfield:
     # ------------------------ Methods ------------------------ #
     @classmethod
     def from_fits(cls, file_name: str):
-        """Loads a nearfield previously stored in a FITS file.
+        """Load a nearfield previously stored in a FITS file.
 
-        :param file_name:
+        Parameters
+        ----------
+        file_name : `str`
             Path to the FITS file containing a near-field
             image (whose format is such as created by the
             :meth:`~nenupy.io.xst.TV_Nearfield.save_fits`
             method).
-        :type file_name:
-            `str`
 
-        :returns:
+        Returns
+        -------
+        :class:`~nenupy.io.xst.TV_Nearfield`
             Instance of :class:`~nenupy.io.xst.TV_Nearfield`.
-        :rtype:
-            :class:`~nenupy.io.xst.TV_Nearfield`
 
-        :Example:
+        Example
+        -------
+        .. code-block:: python
 
-            from nenupy.io.xst import TV_Nearfield
-            nf = TV_Nearfield.from_fits("/path/to/nearfield.fits")
+            >>> from nenupy.io.xst import TV_Nearfield
+            >>> nf = TV_Nearfield.from_fits("/path/to/nearfield.fits")
 
         """
+        
         reserved_names = ["PRIMARY", "NEAR-FIELD", "MINI-ARRAYS"]
         hdus = fits.open(file_name)
         nf_header = hdus["NEAR-FIELD"].header
@@ -1247,20 +1588,22 @@ class TV_Nearfield:
         )
         return nf
 
-    def save_fits(self, file_name: str):
-        """Saves a nearfield made from NenuFAR TV data as a FITS file.
+    def save_fits(self, file_name: str) -> None:
+        """Save a near-field made from NenuFAR-TV data as a FITS file.
 
-        :param file_name:
-            Name of the file to save.
-        :type file_name:
-            `str`
+        Parameters
+        ----------
+        file_name : `str`
+            Name of the file to save
 
-        :Example:
+        Example
+        -------
+        .. code-block:: python
 
-            from nenupy.io.xst import NenufarTV
-            tv = NenufarTV("20191204_132113_nenufarTV.dat")
-            nf_object = tv.compute_nearfield_tv(sources=["Cyg A", "Cas A", "Sun"])
-            nf_object.save_fits(file_name="/path/to/nearfield.fits")
+            >>> from nenupy.io.xst import NenufarTV
+            >>> tv = NenufarTV("20191204_132113_nenufarTV.dat")
+            >>> nf_object = tv.compute_nearfield_tv(sources=["Cyg A", "Cas A", "Sun"])
+            >>> nf_object.save_fits(file_name="/path/to/nearfield.fits")
 
         """
 
@@ -1290,13 +1633,13 @@ class TV_Nearfield:
         nf_header["DATAMIN"] = self.nearfield.min()
         nf_header["DATAMAX"] = self.nearfield.max()
         nf_header["FREQUENC"] = (
-            self.frequency.to(u.MHz).value,
+            self.frequency.to_value(u.MHz),
             "Mean observing frequency in MHz.",
         )
         nf_header["STOKES"] = self.stokes.upper()
         nf_header["DESCRIPT"] = "Near-Field image."
         nf_header["RADIUS"] = (
-            self.radius.to(u.m).value,
+            self.radius.to_value(u.m),
             "Radius of the ground (in m).",
         )
 
@@ -1322,14 +1665,14 @@ class TV_Nearfield:
             src_header["DATAMIN"] = self.source_imprints[src].min()
             src_header["DATAMAX"] = self.source_imprints[src].max()
             src_header["FREQUENC"] = (
-                self.frequency.to(u.MHz).value,
+                self.frequency.to_value(u.MHz),
                 "Mean observing frequency in MHz.",
             )
             src_header["STOKES"] = self.stokes.upper()
             src_header["SOURCE"] = (src, "Name of the source imprint on the near-field")
             src_header["DESCRIPT"] = "Normalized sky source imprint on the near-field."
             src_header["RADIUS"] = (
-                self.radius.to(u.m).value,
+                self.radius.to_value(u.m),
                 "Radius of the ground (in m).",
             )
             src_hdu = fits.ImageHDU(
@@ -1341,10 +1684,76 @@ class TV_Nearfield:
 
         log.info(f"NearField saved in {file_name}.")
 
-    def save_png(self, figname: str = "", **kwargs):
-        """ """
-        radius = self.radius.to(u.m).value
-        colormap = kwargs.get("cmap", "YlGnBu_r")
+    def save_png(
+        self,
+        figname: str = "",
+        fig: mpl.figure.Figure = None,
+        ax: mpl.axes.Axes = None,
+        figsize: Tuple[int, int] = (10, 10),
+        decibel: bool = True,
+        cmap: str = "YlGnBu_r",
+        vmin: float = None,
+        vmax: float = None,
+        cbar_label: str = None,
+        title: str = None,
+    ) -> None:
+        r"""Display the near-field image.
+
+        Parameters
+        ----------
+        figname : `str`, optional
+            Name of the figure, if given the figure will be saved, by default ""
+        fig : :class:`~matplotlib.figure.Figure`, optional
+            `matplotlib` figure instance, by default `None`
+        ax : :class:`~matplotlib.axes.Axes`, optional
+            `matplotlib` ax instance, by default `None`
+        figsize : Tuple[`int`, `int`], optional
+            Size of the figure, by default (10, 10)
+        decibel : `bool`, optional
+            Set the scale of the data displayed to dB (i.e., :math:`{\rm dB} = 10 \log_{10}({\rm data})`), by default True
+        cmap : `str`, optional
+            Color map used to represent the data, by default "YlGnBu_r"
+        vmin : `float`, optional
+            Minimal value displayed, by default `None` (i.e., overall minimal value)
+        vmax : `float`, optional
+            Maximal value displayed, by default `None` (i.e., overall maximal value)
+        cbar_label : `str`, optional
+            Label of the color bar, by default `None` (i.e., automatic label)
+        title : `str`, optional
+            Title of the plot, by default `None` (i.e., automatic label)
+        
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.xst import XST, TV_Nearfield
+
+            >>> xst = XST(".../nenupy/tests/test_data/XST.fits")
+            >>> xx_data = xst.get(polarization="XX")
+            >>> nearfield, src_dict = xx_data.make_nearfield(
+                    radius=400*u.m,
+                    npix=64,
+                    sources=["Tau A"]
+                )
+            >>> tv_nf = TV_Nearfield(
+                    nearfield=nearfield,
+                    source_imprints=src_dict,
+                    npix=nearfield.shape[0],
+                    time=xst.time[0],
+                    frequency=xst.frequencies[0],
+                    radius=400*u.m,
+                    mini_arrays=xst.mini_arrays,
+                    stokes="XX",
+                )
+            >>> tv_nf.save_png(figname="")
+
+        .. figure:: ../_images/io_images/make_nearfield_xst.png
+            :width: 450
+            :align: center
+
+        """
+
+        radius = self.radius.to_value(u.m)
 
         # Mini-Array positions in ENU coordinates
         nenufar = NenuFAR()[self.mini_arrays]
@@ -1352,15 +1761,23 @@ class TV_Nearfield:
         ma_enu = etrs_to_enu(ma_etrs)
 
         # Plot the nearfield
-        fig, ax = plt.subplots(figsize=kwargs.get("figsize", (10, 10)))
-        nf_image_db = 10 * np.log10(self.nearfield)
+        if fig is None:
+            fig = plt.figure(figsize=figsize)
+
+        if ax is None:
+            ax = fig.add_subplot()
+
+        nf_image = 10 * np.log10(self.nearfield) if decibel else self.nearfield
+        nf_image_min = np.nanmin(nf_image) if vmin is None else vmin
+        nf_image_max = np.nanmax(nf_image) if vmax is None else vmax
+
         ax.imshow(
-            np.flipud(nf_image_db),  # This needs to be understood...
-            cmap=colormap,
+            np.flipud(nf_image),  # This needs to be understood...
+            cmap=cmap,
             extent=[-radius, radius, -radius, radius],
             zorder=0,
-            vmin=kwargs.get("vmin", np.min(nf_image_db)),
-            vmax=kwargs.get("vmax", np.max(nf_image_db)),
+            vmin=nf_image_min,
+            vmax=nf_image_max,
         )
 
         # Colorbar
@@ -1375,17 +1792,21 @@ class TV_Nearfield:
         )
         cb = ColorbarBase(
             cax,
-            cmap=get_cmap(name=colormap),
+            cmap=get_cmap(name=cmap),
             orientation="vertical",
             norm=Normalize(
-                vmin=kwargs.get("vmin", np.min(nf_image_db)),
-                vmax=kwargs.get("vmax", np.max(nf_image_db)),
+                vmin=nf_image_min,
+                vmax=nf_image_max,
             ),
             ticks=LinearLocator(),
             format="%.2f",
         )
         cb.solids.set_edgecolor("face")
-        cb.set_label(f"dB (Stokes {self.stokes})")
+        cb.set_label(
+            (f"dB (Stokes {self.stokes})" if decibel else f"amp (Stokes {self.stokes})")
+            if cbar_label is None
+            else cbar_label
+        )
 
         # Show the contour of the simulated source imprints
         ground_granularity = np.linspace(-radius, radius, self.npix)
@@ -1453,66 +1874,81 @@ class TV_Nearfield:
         ax.set_xlabel(r"$\Delta x$ (m)")
         ax.set_ylabel(r"$\Delta y$ (m)")
         ax.set_title(
-            f"{np.mean(self.frequency.to(u.MHz).value):.3f} MHz -- {self.time.isot}"
+            f"{np.mean(self.frequency.to_value(u.MHz)):.3f} MHz -- {self.time.isot}"
+            if title is None
+            else title
         )
 
         # Save or show the figure
-        if figname != "":
+        if (figname is None) or (figname == ""):
+            plt.show()
+        else:
             plt.savefig(figname, dpi=300, bbox_inches="tight", transparent=True)
             log.info(f"Figure '{figname}' saved.")
-        else:
-            plt.show()
         plt.close("all")
 
 
 # ============================================================= #
 # ------------------------- NenufarTV ------------------------- #
 class NenufarTV(StatisticsData, Crosslet):
-    """Crosslet abstract class (both for XST and NenuFAR TV dat files).
-
-    .. rubric:: Attributes Summary
-
-    .. autosummary::
-
-        ~StatisticsData.frequencies
-
-    .. rubric:: Methods Summary
-
-    .. autosummary::
-
-        ~Crosslet.get
-        ~Crosslet.get_stokes
-        ~Crosslet.get_beamform
-        ~NenufarTV.compute_nenufar_tv
-        ~NenufarTV.compute_nearfield_tv
-
-    .. rubric:: Attributes and Methods Documentation
-
+    """Class to load and process NenuFAR TV data.
+        Results of such operations can be seen live on `NenuFAR-TV <https://nenufar.obs-nancay.fr/nenufar-tv/>`_ where the current view of the Sky observed by NenuFAR is displayed.
     """
 
-    def __init__(self, file_name):
+    def __init__(self, file_name: str):
+        """Generate an instance of :class:`~nenupy.io.xst.NenufarTV`
+
+        Parameters
+        ----------
+        file_name : `str`
+            NenuFAR-TV data file (must end with .dat)
+        
+        Raises
+        ------
+        AssertionError
+            Raised if the data file is not correctly formated
+        """
         self.file_name = file_name
         self.mini_arrays = None
         self.time = None
         self.dt = None
         self.frequencies = None
         self.data = None
-        self.load_tv_data()
+        self._load_tv_data()
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def compute_nenufar_tv(self, analog_pointing_file: str = None, **kwargs):
-        """
-        kwargs
-        fov_radius
-        resolution
-        stokes
+    def compute_nenufar_tv(self, analog_pointing_file: str = None, fov_radius: u.Quantity = 27 * u.deg, resolution: u.Quantity = 0.5 * u.deg, stokes: str = "I") -> TV_Image:
+        """Compute the NenuFAR-TV image.
+
+        Parameters
+        ----------
+        analog_pointing_file : `str`, optional
+            NenuFAR analog pointing file (as read by :meth:`~nenupy.astro.pointing.from_file`), by default `None` (i.e., a zenithal pointing is assumed)
+        fov_radius : :class:`~astropy.units.Quantity`, optional
+            Radius of the image field of view (passed to :meth:`~nenupy.io.xst.Crosslet.make_image`), by default 27 degrees
+        resolution : :class:`~astropy.units.Quantity`, optional
+            Resolution of the image (passed to :meth:`~nenupy.io.xst.Crosslet.make_image`), by default 0.5 degree
+        stokes : `str`, optional
+            Stokes parameter to display (passed to :meth:`~nenupy.io.xst.Crosslet.get_stokes`), by default "I"
+
+        Returns
+        -------
+        :class:`~nenupy.io.xst.TV_Image`
+            The NenuFAR-TV image
+        
+        Example
+        -------
+        .. code-block:: python
+            
+            >>> from nenupy.io.xst import NenufarTV
+
+            >>> tv = NenufarTV("20191204_132113_nenufarTV.dat")
+            >>> tv_obj = tv.compute_nenufar_tv()
+
         """
 
         obs_time = self.time[0] + (self.time[-1] - self.time[0]) / 2
-        fov_radius = kwargs.get("fov_radius", 27 * u.deg)
-        resolution = kwargs.get("resolution", 0.5 * u.deg)
-        stokes = kwargs.get("stokes", "I")
 
         if analog_pointing_file is None:
             phase_center_altaz = SkyCoord(
@@ -1540,28 +1976,39 @@ class NenufarTV(StatisticsData, Crosslet):
             fov_radius=fov_radius,
         )
 
-    def compute_nearfield_tv(self, sources: list = [], **kwargs):
-        """
-        kwargs
-            stokes
-            radius
-            npix
+    def compute_nearfield_tv(self, sources: list = [], stokes: str = "I", radius: u.Quantity = 400 * u.m, npix: int = 64) -> TV_Nearfield:
+        """Compute the near-field from NenuFAR-TV data.
 
-        :Example:
+        Parameters
+        ----------
+        sources : `list`, optional
+            List of celestial sources for which a near-field imprint will be computed (passed to :meth:`~nenupy.io.xst.Crosslet.make_nearfield`), by default []
+        stokes : `str`, optional
+            Stokes parameter to display (passed to :meth:`~nenupy.io.xst.Crosslet.get_stokes`), by default "I"
+        radius : :class:`~astropy.units.Quantity`, optional
+            Ground radius on which the near-field projection is computed (passed to :meth:`~nenupy.io.xst.Crosslet.make_nearfield`), by default 400 meters
+        npix : `int`, optional
+            Number of pixels of the image size (passed to :meth:`~nenupy.io.xst.Crosslet.make_nearfield`), by default 64.
 
-            from nenupy.io.xst import NenufarTV
-            tv = NenufarTV("20191204_132113_nenufarTV.dat")
-            nf_object = tv.compute_nearfield_tv(
-                sources=["Cyg A", "Cas A", "Vir A", "Tau A", "Sun"],
-                npix=64
-            )
+        Returns
+        -------
+        :class:`~nenupy.io.xst.TV_Nearfield`
+            The near-field
 
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.xst import NenufarTV
+
+            >>> tv = NenufarTV("20191204_132113_nenufarTV.dat")
+            >>> nf_obj = tv.compute_nearfield_tv(
+                    sources=["Cyg A", "Cas A", "Vir A", "Tau A", "Sun"],
+                    npix=64
+                )
         """
 
         obs_time = self.time[0] + (self.time[-1] - self.time[0]) / 2
-        stokes = kwargs.get("stokes", "I")
-        radius = kwargs.get("radius", 400 * u.m)
-        npix = kwargs.get("npix", 64)
 
         data = self.get_stokes(stokes)
         nf, src_imprints = data.make_nearfield(
@@ -1581,8 +2028,9 @@ class NenufarTV(StatisticsData, Crosslet):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def load_tv_data(self):
-        """ """
+    def _load_tv_data(self) -> None:
+        """Load the data contained in a NenuFAR-TV binary file.
+        """
         # Extract the ASCII header (5 first lines)
         with open(self.file_name, "rb") as f:
             header = list(islice(f, 0, 5))

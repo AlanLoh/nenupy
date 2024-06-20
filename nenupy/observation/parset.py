@@ -38,7 +38,7 @@ from nenupy import nenufar_position
 from nenupy.instru import sb2freq
 from nenupy.astro.target import SolarSystemTarget
 from nenupy.observation import PARSET_OPTIONS
-from nenupy.observation.sqldatabase import DuplicateParsetEntry, UserNameNotFound
+# from nenupy.observation.sqldatabase import DuplicateParsetEntry, UserNameNotFound
 
 import logging
 log = logging.getLogger(__name__)
@@ -1137,37 +1137,37 @@ class Parset(object):
             return data
 
 
-    def add_to_database(self, data_base):#dataBaseName):
-        """
-            data_base: ParsetDataBase
-        """
-        parsetDB = data_base
-        try:
-            parsetDB.parset = self.parset
-        except DuplicateParsetEntry:
-            return
+    # def add_to_database(self, data_base):#dataBaseName):
+    #     """
+    #         data_base: ParsetDataBase
+    #     """
+    #     parsetDB = data_base
+    #     try:
+    #         parsetDB.parset = self.parset
+    #     except DuplicateParsetEntry:
+    #         return
 
-        try:
-            parsetDB.add_row(
-                {**self.observation, **self.output}, # dict merging
-                desc='observation'
-            )
-        except UserNameNotFound:
-            return
-        for anaIdx in self.anabeams.keys():
-            parsetDB.add_row(
-                self.anabeams[anaIdx],
-                desc='anabeam'
-            )
-        for digiIdx in self.digibeams.keys():
-            parsetDB.add_row(
-                self.digibeams[digiIdx],
-                desc='digibeam'
-            )
+    #     try:
+    #         parsetDB.add_row(
+    #             {**self.observation, **self.output}, # dict merging
+    #             desc='observation'
+    #         )
+    #     except UserNameNotFound:
+    #         return
+    #     for anaIdx in self.anabeams.keys():
+    #         parsetDB.add_row(
+    #             self.anabeams[anaIdx],
+    #             desc='anabeam'
+    #         )
+    #     for digiIdx in self.digibeams.keys():
+    #         parsetDB.add_row(
+    #             self.digibeams[digiIdx],
+    #             desc='digibeam'
+    #         )
 
-        log.info(
-            f'Parset {self.parset} added to database {data_base.name}'
-        )
+    #     log.info(
+    #         f'Parset {self.parset} added to database {data_base.name}'
+    #     )
 
 
     # --------------------------------------------------------- #

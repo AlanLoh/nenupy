@@ -13,5 +13,6 @@ sqlalchemy
 docutils
 sphinx-rtd-theme
 recommonmark
+sphinx_copybutton
 pytz
 h5py

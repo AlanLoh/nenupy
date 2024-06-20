@@ -46,5 +46,11 @@ script-files = [
 include = ["nenupy", "nenupy.*"]
 exclude = []
 
+[tool.pytest.ini_options]
+pythonpath = "."
+addopts = [
+    "--import-mode=importlib",
+]
+
 [tool.setuptools.dynamic]
 version = {attr = "nenupy.__version__"}

@@ -6,11 +6,6 @@
     .. inheritance-diagram:: nenupy.io.tf.Spectra
         :parts: 2
 
-    .. autosummary::
-
-        ~Spectra
-        ~TFTask
-        ~TFPipeline
 """
 
 import numpy as np
@@ -130,8 +125,7 @@ class TFTask:
                 >>> sp = Spectra("/my/file.spectra")
                 >>> sp.pipeline = TFPipeline(sp, TFTask.correct_bandpass())
                 >>> data = sp.get(...)
-
-            .. figure:: ./_images/io_images/tf_bandpass_correction.png
+            .. figure:: ../_images/io_images/tf_bandpass_correction.png
                 :width: 650
                 :align: center
 
@@ -157,7 +151,7 @@ class TFTask:
                 >>> sp.pipeline = TFPipeline(sp, TFTask.flatten_subband())
                 >>> data = sp.get(...)
 
-            .. figure:: ./_images/io_images/tf_sb_flatten.png
+            .. figure:: ../_images/io_images/tf_sb_flatten.png
                 :width: 650
                 :align: center
 
@@ -176,7 +170,7 @@ class TFTask:
     def remove_channels(cls):
         """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.remove_channels_per_subband` to set a list of sub-band channels to `NaN` values.
 
-            .. figure:: ./_images/io_images/tf_remove_channels.png
+            .. figure:: ../_images/io_images/tf_remove_channels.png
                 :width: 650
                 :align: center
 
@@ -331,7 +325,7 @@ class TFTask:
                 >>> data = sp.get(...)
 
 
-            .. figure:: ./_images/io_images/tf_time_rebin.png
+            .. figure:: ../_images/io_images/tf_time_rebin.png
                 :width: 650
                 :align: center
     
@@ -354,7 +348,7 @@ class TFTask:
     def frequency_rebin(cls):
         """_summary_
 
-            .. figure:: ./_images/io_images/tf_frequency_rebin.png
+            .. figure:: ../_images/io_images/tf_frequency_rebin.png
                 :width: 650
                 :align: center
 
@@ -377,7 +371,7 @@ class TFTask:
     def get_stokes(cls):
         """_summary_
 
-            .. figure:: ./_images/io_images/tf_stokes.png
+            .. figure:: ../_images/io_images/tf_stokes.png
                 :width: 650
                 :align: center
 

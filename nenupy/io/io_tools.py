@@ -75,6 +75,29 @@ class StatisticsData(ABC):
     def frequencies(self, freqs: u.Quantity) -> None:
         self._frequencies = freqs
 
+    def info(self) -> None:
+        """Print the basic file information.
+
+            Example
+            -------
+            .. code-block:: python
+
+                >>> from nenupy.io.bst import BST
+
+                >>> bst = BST("/path/to/20231201_021200_BST.fits")
+                >>> bst.info()
+                file: '/path/to/20231201_021200_BST.fits'
+                frequency (384,): 11.9140625 MHz -- 86.71875 MHz
+                time (13600,): 2023-12-01T02:13:10.000 -- 2023-12-01T05:59:49.000
+                data: (13600, 2, 768)
+
+        """
+        message = ""
+        message += f"file: '{self.file_name}'\n"
+        message += f"frequency {self.frequencies.shape}: {self.frequencies.min()} -- {self.frequencies.max()}\n"
+        message += f"time {self.time.shape}: {self.time.min().isot} -- {self.time.max().isot}\n"
+        message += f"data: {self.data.shape}"
+        print(message)
 
     def _lazy_load(self):
         """ """

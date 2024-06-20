@@ -3,11 +3,6 @@
     Support to Time-Frequency data
     ******************************
 
-    .. autosummary::
-
-        ~nenupy.io.tf_utils.blocks_to_tf_data
-        ~nenupy.io.tf_utils.compute_spectra_frequencies
-
 """
 
 import numpy as np
@@ -291,7 +286,7 @@ def compute_stokes_parameters(
 def correct_bandpass(data: np.ndarray, n_channels: int) -> np.ndarray:
     """Correct the Polyphase-filter band-pass response at each sub-band.
 
-    .. image:: ./_images/bandpass_corr.png
+    .. image:: ../_images/bandpass_corr.png
         :width: 800
 
     :param data: _description_
