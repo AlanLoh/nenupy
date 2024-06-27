@@ -1,4 +1,4 @@
-nenupy.observation.parset.Parset
+﻿nenupy.observation.parset.Parset
 ================================
 
 .. currentmodule:: nenupy.observation.parset
@@ -8,6 +8,7 @@ nenupy.observation.parset.Parset
    :show-inheritance:
    :inherited-members:
 
+   
    
    .. automethod:: __init__
 

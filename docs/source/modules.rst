@@ -6,4 +6,8 @@ API Reference
    :template: custom-module-template.rst
    :recursive:
 
-   nenupy
+   nenupy.astro
+   nenupy.instru
+   nenupy.io
+   nenupy.schedule
+   nenupy.observation

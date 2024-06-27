@@ -61,37 +61,89 @@ DATA_VOLUME_SECURITY_THRESHOLD = 2 * u.Gibyte
 class TFTask:
     """Class to handle a single task/operation designed to be applied to time-frequency data.
 
-    :param name: Name of the task (it can be anything).
-    :type name: str
-    :param func: Function that applies the operation to the data.
-    :type func: callable
-    :param args_to_update: List of parameter names that are extracted from :class:`~nenupy.io.tf_utils.TFPipelineParameters` and are required by ``func``.
-        These parameters will be updated by their current values (stored in :class:`~nenupy.io.tf_utils.TFPipelineParameters`) prior to running the task.
-    :type args_to_update: list[str]
+    Example
+    -------
+    Here is a complete example of how a :class:`~nenupy.io.tf.TFTask`
+    works on its own.
 
-    .. rubric:: Pre-defined Tasks
+    .. code-block:: python
+        :emphasize-lines: 26,27,28,29,30,36,39,40,41,42,43
 
-    .. autosummary::
+        >>> from nenupy.io.tf import TFTask
+        >>> from nenupy.io.tf_utils import TFPipelineParameters, _ValueParameter
+        >>> import numpy as np
 
-        ~nenupy.io.tf.TFTask.correct_bandpass
-        ~nenupy.io.tf.TFTask.flatten_subband
-        ~nenupy.io.tf.TFTask.remove_channels
-        ~nenupy.io.tf.TFTask.correct_polarization
-        ~nenupy.io.tf.TFTask.correct_faraday_rotation
-        ~nenupy.io.tf.TFTask.de_disperse
-        ~nenupy.io.tf.TFTask.time_rebin
-        ~nenupy.io.tf.TFTask.frequency_rebin
-        ~nenupy.io.tf.TFTask.get_stokes
+        # Generate a dataset
+        >>> data = np.ones((5, 2, 1)) # time, frequency, polarization
 
-    .. rubric:: Methods
+        # Define a function that modifies the data
+        >>> def multiply_by_first_axis_index(data: np.ndarray, scale: float) -> np.ndarray:
+        >>>    '''A completely made-up function'''
+        >>>    first_axis = np.arange(data.shape[0])
+        >>>    return scale * data * first_axis[:, None, None]
 
-    .. autosummary::
+        # Generate an object listing parameters available to the function(s)
+        >>> custom_parameters = TFPipelineParameters(
+                _ValueParameter(
+                    name="scale",
+                    default=1.,
+                    param_type=float,
+                    min_val=0.1,
+                    max_val=2.0
+                )
+            )
 
-        ~nenupy.io.tf.TFTask.update
+        # Generate a TFTask object
+        >>> custom_task = TFTask(
+                name="My task - custom",
+                func=multiply_by_first_axis_index,
+                args_to_update=["scale"]
+            )
+
+        # Modify the value of the pipeline parameter
+        >>> custom_parameters["scale"] = 1.5
+
+        # Update the TFTask, the new parameter value is taken into account
+        >>> custom_task.update(parameters=custom_parameters)
+
+        # Call the TFTask and run it
+        >>> time_unix, frequency_hz, result = custom_task(
+                time_unix=None,
+                frequency_hz=None,
+                data=data
+            )
+
+        >>> print(result[:, 0, :].ravel())
+        [0.  1.5 3.  4.5 6. ]
 
     """
 
-    def __init__(self, name: str, func: Callable, args_to_update: List[str] = [], repeatable: bool = False):
+    def __init__(
+        self,
+        name: str,
+        func: Callable,
+        args_to_update: List[str] = [],
+        repeatable: bool = False,
+    ):
+        """Generate a :class:`~nenupy.io.tf.TFTask` instance.
+
+        Parameters
+        ----------
+        name : `str`
+            Name of the task (it can be anything)
+        func : `Callable`
+            Function that applies the operation to the data
+        args_to_update : List[`str`], optional
+            List of parameter names that are extracted from :class:`~nenupy.io.tf_utils.TFPipelineParameters` and are required by ``func``.
+            These parameters will be updated by their current values (stored in :class:`~nenupy.io.tf_utils.TFPipelineParameters`) prior to running the task., by default []
+        repeatable : `bool`, optional
+            Allow or not the task to be called several times by a given pipeline, by default `False`
+
+        See Also
+        --------
+        :ref:`custom_task_doc`
+
+        """
         self.name = name
         self.is_active = False
         self._func = func
@@ -108,28 +160,76 @@ class TFTask:
     def _func_call(self) -> Callable:
         return partial(self._func, **self._extra_params)
 
+    @property
+    def is_active(self) -> bool:
+        """Attribute modified by :meth:`~nenupy.io.tf.TFTask.update`
+        which tells whether the configured parameters enable the embedded function usage.
+
+        Returns
+        -------
+        `bool`
+            Whether the task will be run by the pipeline or not
+        """
+        return self._is_active
+
+    @is_active.setter
+    def is_active(self, isactive: bool) -> None:
+        self._is_active = isactive
+
+    @property
+    def args_to_update(self) -> List[str]:
+        """List of embedded function's arguments to update before running the function.
+        If ``func`` contains keyword arguments, their values will be updated
+        by the matching key value during the call of :meth:`~nenupy.io.tf.TFTask.update`.
+
+        Returns
+        -------
+        List[`str`]
+            List of function's arguments to :meth:`~nenupy.io.tf.TFTask.update`
+
+        Raises
+        ------
+        KeyError
+            Raised if any listed argument does not correspond with one of the function's.
+        """
+        return self._args_to_update
+
+    @args_to_update.setter
+    def args_to_update(self, arg_list: List[str]) -> None:
+        # Check that they are relevant with respect to the function
+        func_args = self._func.__code__.co_varnames[: self._func.__code__.co_argcount]
+        for arg in arg_list:
+            if arg not in func_args:
+                raise KeyError(
+                    f"args_to_update - '{arg}' does not correspond with any of the embedded function keyword arguments: {func_args}."
+                )
+        self._args_to_update = arg_list
+
     @classmethod
     def correct_bandpass(cls):
-        """ :class:`~nenupy.io.tf.TFTask` to correct for the sub-band bandpass response.
+        """:class:`~nenupy.io.tf.TFTask` to correct for the sub-band bandpass response.
 
-            A Poly-Phase Filter is involved in the NenuFAR data acquisition pipeline to split the data stream into sub-bands.
-            The combination of the filter shape and a Fourier transform results in a non-flat response across each sub-band.
-            This :class:`~nenupy.io.tf.TFTask` calls the :func:`~nenupy.io.tf_utils.correct_bandpass` function.
+        A Poly-Phase Filter is involved in the NenuFAR data acquisition pipeline to split the data stream into sub-bands.
+        The combination of the filter shape and a Fourier transform results in a non-flat response across each sub-band.
+        This :class:`~nenupy.io.tf.TFTask` calls the :func:`~nenupy.io.tf_utils.correct_bandpass` function.
 
-            Example
-            -------
-            .. code-block:: python
-                :emphasize-lines: 3
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 4
 
-                >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
-                >>> sp = Spectra("/my/file.spectra")
-                >>> sp.pipeline = TFPipeline(sp, TFTask.correct_bandpass())
-                >>> data = sp.get(...)
-            .. figure:: ../_images/io_images/tf_bandpass_correction.png
-                :width: 650
-                :align: center
+            >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
+
+            >>> sp = Spectra("/my/file.spectra")
+            >>> sp.pipeline = TFPipeline(sp, TFTask.correct_bandpass())
+            >>> data = sp.get(...)
+
+        .. figure:: ../_images/io_images/tf_bandpass_correction.png
+            :width: 650
+            :align: center
 
         """
+
         def wrapper_task(data, channels):
             return utils.correct_bandpass(data=data, n_channels=channels)
 
@@ -137,30 +237,32 @@ class TFTask:
 
     @classmethod
     def flatten_subband(cls):
-        """ :class:`~nenupy.io.tf.TFTask` to flatten each sub-band bandpass.
-            Based on the temporal median over each suband, a linear correction is applied to flatten the signal.
-            This :class:`~nenupy.io.tf.TFTask` calls the :func:`~nenupy.io.tf_utils.flatten_subband` function.
+        """:class:`~nenupy.io.tf.TFTask` to flatten each sub-band bandpass.
+        Based on the temporal median over each suband, a linear correction is applied to flatten the signal.
+        This :class:`~nenupy.io.tf.TFTask` calls the :func:`~nenupy.io.tf_utils.flatten_subband` function.
 
-            Example
-            -------
-            .. code-block:: python
-                :emphasize-lines: 3
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 4
 
-                >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
-                >>> sp = Spectra("/my/file.spectra")
-                >>> sp.pipeline = TFPipeline(sp, TFTask.flatten_subband())
-                >>> data = sp.get(...)
+            >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
 
-            .. figure:: ../_images/io_images/tf_sb_flatten.png
-                :width: 650
-                :align: center
+            >>> sp = Spectra("/my/file.spectra")
+            >>> sp.pipeline = TFPipeline(sp, TFTask.flatten_subband())
+            >>> data = sp.get(...)
 
-            Warning
-            -------
-            This correction assumes that the signal's spectrum could be considered flat at the sub-band resolution.
-            The method is not recommended for data other than Stokes I.
+        .. figure:: ../_images/io_images/tf_sb_flatten.png
+            :width: 650
+            :align: center
+
+        Warning
+        -------
+        This correction assumes that the signal's spectrum could be considered flat at the sub-band resolution.
+        The method is not recommended for data other than Stokes I.
 
         """
+
         def wrapper_task(data, channels):
             return utils.flatten_subband(data=data, channels=channels)
 
@@ -170,9 +272,22 @@ class TFTask:
     def remove_channels(cls):
         """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.remove_channels_per_subband` to set a list of sub-band channels to `NaN` values.
 
-            .. figure:: ../_images/io_images/tf_remove_channels.png
-                :width: 650
-                :align: center
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 4,6
+
+            >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
+
+            >>> sp = Spectra("/my/file.spectra")
+            >>> sp.pipeline = TFPipeline(sp, TFTask.remove_channels())
+            >>> result = sp.get(
+                    remove_channels=[0, 2, 4, 10, -1]
+                )
+
+        .. figure:: ../_images/io_images/tf_remove_channels.png
+            :width: 650
+            :align: center
 
         """
 
@@ -184,16 +299,26 @@ class TFTask:
             )
 
         return cls(
-            "Remove subband channels", wrapper_task, ["channels", "remove_channels"], repeatable=False
+            "Remove subband channels",
+            wrapper_task,
+            ["channels", "remove_channels"],
+            repeatable=False,
         )
 
     @classmethod
     def correct_polarization(cls):
-        """_summary_
+        """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.apply_dreambeam_corrections`.
+        This allows for beam correction (including leakage and parallactic angle correction).
 
-            warning : needs to be done at the beginning.
+        Warning
+        -------
+        This task must be computed early in the pipeline process as it involves full Jones operations.
+        As of now, NenuFAR cross-polarization terms are not fully taken into account by DreamBeam.
+        Results may vary and the tests we have made are not yet conclusive.
+        We are working on an improved version.
 
         """
+
         def wrapper_task(
             time_unix,
             frequency_hz,
@@ -233,12 +358,47 @@ class TFTask:
                 "dreambeam_dt",
                 "dreambeam_parallactic",
             ],
-            repeatable=False
+            repeatable=False,
         )
 
     @classmethod
     def correct_faraday_rotation(cls):
-        """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.de_faraday_data` to correct for Faraday rotation for a given ``'rotation_measure'`` set in :attr:`~nenupy.io.tf.TFPipeline.parameters`."""
+        """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.de_faraday_data` to correct for Faraday rotation for a given ``'rotation_measure'`` set in :attr:`~nenupy.io.tf.TFPipeline.parameters`.
+
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 6,7,17,18
+
+            >>> from nenupy.io.tf import Spectra, TFTask
+            >>> import astropy.units as u
+
+            >>> sp_pulsar = Spectra(".../pulsar.spectra")
+            >>> sp_pulsar.pipeline.set_default()
+            >>> sp_pulsar.pipeline.insert(TFTask.de_disperse(), 1)
+            >>> sp_pulsar.pipeline.insert(TFTask.correct_faraday_rotation(), 2)
+            >>> sp_pulsar.pipeline.info()
+            >>> defaraday_data = sp_pulsar.get(
+                    tmin="2023-10-02T08:40:40.8500000",
+                    tmax="2023-10-02T08:40:43.16000000",
+                    fmin=50,
+                    fmax=65,
+                    stokes=["U/I"],
+                    remove_channels=[0, 1, -1],
+                    rebin_df = 12207.03125 * 4 * u.Hz,
+                    dispersion_measure=2.972719 * u.pc / u.cm**3,
+                    rotation_measure=5.9 * u.rad / u.m**2
+                )
+            >>> defaraday_data[:600, :, :].plot(polarization="U/I", db=False)
+
+        .. figure:: ../_images/io_images/tf_pulsar_defaraday.png
+            :width: 650
+            :align: center
+
+        Notes
+        -----
+        In the above example, we first had to de-disperse the data with :meth:`~nenupy.io.tf.TFTask.de_disperse`.
+        """
 
         def apply_faraday(frequency_hz, data, rotation_measure):
             if rotation_measure is None:
@@ -249,18 +409,51 @@ class TFTask:
                 rotation_measure=rotation_measure,
             )
 
-        return cls("Correct faraday rotation", apply_faraday, ["rotation_measure"], repeatable=False)
+        return cls(
+            "Correct faraday rotation",
+            apply_faraday,
+            ["rotation_measure"],
+            repeatable=False,
+        )
 
     @classmethod
     def de_disperse(cls):
         """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.de_disperse_array` to de-disperse the data using the ``'dispersion_measure'`` set in :attr:`~nenupy.io.tf.TFPipeline.parameters`.
 
-        .. warning::
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 6,16
 
-            Due to the configuration of the underlying :class:`~dask.array.core.Array`, its :meth:`dask.array.Array.compute` method has to be applied priori to de-dispersing the data.
-            Therefore, a potential huge data volume may be computed at once.
-            By default, a security exception is raised to prevent computing a too large data set.
-            To bypass this limit, set ``'ignore_volume_warning'`` of :attr:`~nenupy.io.tf.TFPipeline.parameters` to `True`.
+            >>> from nenupy.io.tf import Spectra, TFTask
+            >>> import astropy.units as u
+
+            >>> sp_pulsar = Spectra(".../pulsar.spectra")
+            >>> sp_pulsar.pipeline.set_default()
+            >>> sp_pulsar.pipeline.insert(TFTask.de_disperse(), 1)
+            >>> sp_pulsar.pipeline.info()
+            >>> dedisperse_data = sp_pulsar.get(
+                    tmin="2023-10-02T08:40:40.8500000",
+                    tmax="2023-10-02T08:40:43.16000000",
+                    fmin=50,
+                    fmax=65,
+                    stokes=["I"],
+                    remove_channels=[0, 1, -1],
+                    rebin_df = 12207.03125 * 4 *u.Hz,
+                    dispersion_measure=2.972719 *u.pc / (u.cm**3)
+                )
+            >>> dedisperse_data.plot(polarization="I", db=True)
+
+        .. figure:: ../_images/io_images/tf_pulsar_dedispersion.png
+            :width: 650
+            :align: center
+
+        Warning
+        -------
+        Due to the configuration of the underlying :class:`~dask.array.core.Array`, its :meth:`dask.array.Array.compute` method has to be applied priori to de-dispersing the data.
+        Therefore, a potential huge data volume may be computed at once.
+        By default, a security exception is raised to prevent computing a too large data set.
+        To bypass this limit, set ``'ignore_volume_warning'`` of :attr:`~nenupy.io.tf.TFPipeline.parameters` to `True`.
 
         """
 
@@ -293,43 +486,44 @@ class TFTask:
             "De-disperse",
             wrapper_task,
             ["dt", "dispersion_measure", "ignore_volume_warning"],
-            repeatable=False
+            repeatable=False,
         )
 
     @classmethod
     def time_rebin(cls):
-        """ :class:`~nenupy.io.tf.TFTask` to re-bin the data in time.
-            The targetted time resolution is defined by the ``'rebin_dt'`` argument, set in :attr:`~nenupy.io.tf.TFPipeline.parameters`.
-            This :class:`~nenupy.io.tf.TFTask` calls the :func:`~nenupy.io.tf_utils.rebin_along_dimension` function.
+        """:class:`~nenupy.io.tf.TFTask` to re-bin the data in time.
+        The targetted time resolution is defined by the ``'rebin_dt'`` argument, set in :attr:`~nenupy.io.tf.TFPipeline.parameters`.
+        This :class:`~nenupy.io.tf.TFTask` calls the :func:`~nenupy.io.tf_utils.rebin_along_dimension` function.
 
-            Example
-            -------
-            .. code-block:: python
+        Example
+        -------
+        .. code-block:: python
 
-                >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
-                >>> import astropy.units as u
-                >>> sp = Spectra("/my/file.spectra")
-                >>> sp.pipeline = TFPipeline(sp, TFTask.time_rebin())
+            >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
+            >>> import astropy.units as u
+            >>> sp = Spectra("/my/file.spectra")
+            >>> sp.pipeline = TFPipeline(sp, TFTask.time_rebin())
 
-            Then, either perform a one_time application of the `rebin_dt` parameter (that is forgotten after the :meth:`~nenupy.io.tf.Spectra.get` call):
-            
-            .. code-block:: python
-                
-                >>> data = sp.get(..., rebin_dt=0.2*u.s,...)
+        Then, either perform a one_time application of the `rebin_dt` parameter (that is forgotten after the :meth:`~nenupy.io.tf.Spectra.get` call):
 
-            Or, set it for further usage:
+        .. code-block:: python
 
-            .. code-block:: python
-    
-                >>> sp.pipeline.parameters["rebin_dt"] = 0.2*u.s
-                >>> data = sp.get(...)
+            >>> data = sp.get(..., rebin_dt=0.2*u.s,...)
+
+        Or, set it for further usage:
+
+        .. code-block:: python
+
+            >>> sp.pipeline.parameters["rebin_dt"] = 0.2*u.s
+            >>> data = sp.get(...)
 
 
-            .. figure:: ../_images/io_images/tf_time_rebin.png
-                :width: 650
-                :align: center
-    
+        .. figure:: ../_images/io_images/tf_time_rebin.png
+            :width: 650
+            :align: center
+
         """
+
         def rebin_time(time_unix, data, dt, rebin_dt):
             if rebin_dt is None:
                 return time_unix, data
@@ -346,13 +540,32 @@ class TFTask:
 
     @classmethod
     def frequency_rebin(cls):
-        """_summary_
+        """:class:`~nenupy.io.tf.TFTask` to re-bin the data in frequency.
+        The targetted frequency resolution is defined by the ``'rebin_df'`` argument, set in :attr:`~nenupy.io.tf.TFPipeline.parameters`.
+        The minimum value is the frequency resolution of the data, i.e.
+        :attr:`~nenupy.io.tf.Spectra.df`.
+        This :class:`~nenupy.io.tf.TFTask` calls the :func:`~nenupy.io.tf_utils.rebin_along_dimension` function.
 
-            .. figure:: ../_images/io_images/tf_frequency_rebin.png
-                :width: 650
-                :align: center
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 5,7
+
+            >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
+            >>> import astropy.units as u
+
+            >>> sp = Spectra("/my/file.spectra")
+            >>> sp.pipeline = TFPipeline(sp, TFTask.frequency_rebin())
+            >>> result = sp.get(
+                    rebin_df=50 * u.kHz
+                )
+
+        .. figure:: ../_images/io_images/tf_frequency_rebin.png
+            :width: 650
+            :align: center
 
         """
+
         def rebin_freq(frequency_hz, data, df, rebin_df):
             if rebin_df is None:
                 return frequency_hz, data
@@ -365,15 +578,30 @@ class TFTask:
                 new_dx=rebin_df.to_value(u.Hz),
             )
 
-        return cls("Rebin in frequency", rebin_freq, ["df", "rebin_df"], repeatable=True)
+        return cls(
+            "Rebin in frequency", rebin_freq, ["df", "rebin_df"], repeatable=True
+        )
 
     @classmethod
     def get_stokes(cls):
-        """_summary_
+        """:class:`~nenupy.io.tf.TFTask` to compute the Stokes parameters by calling :func:`~nenupy.io.tf_utils.compute_stokes_parameters`.
+        The computed Stokes parameters are defined by the  ``'stokes'`` argument, set in :attr:`~nenupy.io.tf.TFPipeline.parameters`.
 
-            .. figure:: ../_images/io_images/tf_stokes.png
-                :width: 650
-                :align: center
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
+
+            >>> sp = Spectra("/my/file.spectra")
+            >>> sp.pipeline = TFPipeline(sp, TFTask.get_stokes())
+            >>> result = sp.get(stokes=["I", "U/I", "Q/I", "V/I"])
+
+            >>> result.plot(polarization="U/I") # to display
+
+        .. figure:: ../_images/io_images/tf_stokes.png
+            :width: 650
+            :align: center
 
         """
 
@@ -382,17 +610,35 @@ class TFTask:
                 return data
             return utils.compute_stokes_parameters(data_array=data, stokes=stokes)
 
-        return cls("Compute Stokes parameters", compute_stokes, ["stokes"], repeatable=False)
+        return cls(
+            "Compute Stokes parameters", compute_stokes, ["stokes"], repeatable=False
+        )
 
     def update(self, parameters: utils.TFPipelineParameters) -> None:
+        """Update the embedded function's arguments to those listed in ``parameters``
+        that match :attr:`~nenupy.io.tf.TFTask.args_to_update`.
+        Determine also if the :class:`~nenupy.io.tf.TFTask` is active or not, i.e.,
+        if the configured parameters enable it to be run.
+
+        Parameters
+        ----------
+        parameters : :class:`~nenupy.io.tf_utils.TFPipelineParameters`
+            Pipeline parameters object, it must contain the parameter requested by :attr:`~nenupy.io.tf.TFTask.args_to_update`.
+
+        Raises
+        ------
+        KeyError
+            Raised if the parameters listed in :attr:`~nenupy.io.tf.TFTask.args_to_update` do not correspond with those listed in ``parameters``.
+        """
+
         log.debug(f"Updating TFTask {self.name} parameters before running it.")
-        for arg in self.args_to_update:
-            if isinstance(arg, str):
-                key = arg
-                value = parameters[arg]
-            else:
-                raise Exception()
+        for key in self.args_to_update:
+            try:
+                value = parameters[key]
+            except KeyError:
+                raise
             log.debug(f"TFTask {self.name}: setting {key} to {value}")
+
             self._extra_params[key] = value
 
         # Check if func_call returns the correct function
@@ -407,6 +653,28 @@ class TFTask:
         data: da.Array,
         **kwds: Any,
     ) -> Any:
+        """Run the :class:`~nenupy.io.tf.TFTask`.
+        Before running the tasks, it is recommended to call
+        :meth:`~nenupy.io.tf.TFTask.update` first in order to take
+        into account the most up-to-date values of the parmaeters that
+        may be used by the task.
+
+        Parameters
+        ----------
+        time_unix : :class:`~numpy.ndarray`
+            Time description of the data array, in unix format (array of `float`)
+        frequency_hz : :class:`~numpy.ndarray`
+            Frequency description of the data array, in Hz (array of `float`)
+        data : :class:`~numpy.ndarray` or :class:`~dask.array.Array`
+            Data to be processed
+        **kwds : Any
+            Extra keyword arguments directly passed to the embedded function
+
+        Returns
+        -------
+        Tuple[:class:`~numpy.ndarray`, :class:`~numpy.ndarray`, :class:`~numpy.ndarray` or :class:`~dask.array.Array`]
+            (time_unix, frequency_hz, processed data)
+        """
         func_args = inspect.getfullargspec(self._func).args
 
         if ("time_unix" not in func_args) and ("frequency_hz" not in func_args):
@@ -433,17 +701,19 @@ class TFTask:
 class TFPipeline:
     """Class to manage the series of tasks designed to be applied to
     time-frequency data.
-
-    Parameters
-    ----------
-    data_obj : :class:`~nenupy.io.tf.Spectra`
-        An instance of :class:`~nenupy.io.tf.Spectra` needed to determine
-        the properties of the corresponding data file.
-    *tasks : :class:`~nenupy.io.tf.TFTask`
-        A sequence of tasks that will be applied when the :meth:`~nenupy.io.tf.TFPipeline.run` method is called.
     """
 
     def __init__(self, data_obj: Any, *tasks: TFTask):
+        """Generate an instance of :class:`~nenupy.io.tf.TFPipeline`.
+
+        Parameters
+        ----------
+        data_obj : :class:`~nenupy.io.tf.Spectra`
+            An instance of :class:`~nenupy.io.tf.Spectra` needed to determine
+            the properties of the corresponding data file.
+        *tasks : :class:`~nenupy.io.tf.TFTask`
+            A sequence of tasks that will be applied when the :meth:`~nenupy.io.tf.TFPipeline.run` method is called.
+        """
         self.data_obj = data_obj
 
         # Set the predefined parameter list and initialize the
@@ -508,7 +778,7 @@ class TFPipeline:
             >>> from nenupy.io.tf import Spectra, TFPipeline, TFTask
             >>> sp = Spectra("/my/file.spectra")
             >>> pipeline = TFPipeline(sp, TFTask.correct_bandpass(), TFTask.correct_faraday_rotation())
-            >>> pipeline.info() 
+            >>> pipeline.info()
             Pipeline configuration:
                 0 - Correct bandpass
                 (1 - Correct faraday rotation)
@@ -564,7 +834,9 @@ class TFPipeline:
         if operation.__class__.__name__ != TFTask.__name__:
             raise TypeError(f"Tried to append {type(operation)} instead of {TFTask}.")
         if self.contains(operation.name) and (not operation.repeatable):
-            log.warning(f"{operation} is already registered in the pipeline and is not repeatable.")
+            log.warning(
+                f"{operation} is already registered in the pipeline and is not repeatable."
+            )
             return
         self.tasks.insert(index, operation)
 
@@ -584,7 +856,9 @@ class TFPipeline:
         if operation.__class__.__name__ != TFTask.__name__:
             raise TypeError(f"Tried to append {type(operation)} instead of {TFTask}.")
         if self.contains(operation.name) and (not operation.repeatable):
-            log.warning(f"{operation} is already registered in the pipeline and is not repeatable.")
+            log.warning(
+                f"{operation} is already registered in the pipeline and is not repeatable."
+            )
             return
         self.tasks.append(operation)
 
@@ -640,27 +914,39 @@ class TFPipeline:
             del self.tasks[index]
 
     def contains(self, task_name: str) -> bool:
-        """_summary_
+        """Check if the pipeline contains a :class:`~nenupy.io.tf.TFTask` named ``task_name``.
 
         Parameters
         ----------
-        task_name : str
-            _description_
+        task_name : `str`
+            Name of the :class:`~nenupy.io.tf.TFTask`.
 
         Returns
         -------
-        bool
-            _description_
+        `bool`
+            Whether the task is present or not.
+
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.tf import Spectra, TFPipeline
+            >>> pipeline = TFPipeline( Spectra("/my/file.spectra") )
+            >>> pipeline.contains("Correct bandpass")
+            True
+
         """
         return np.any([op.name == task_name for op in self.tasks])
 
-    def run(self, time_unix: np.ndarray, frequency_hz: np.ndarray, data: da.Array) -> Tuple[np.ndarray, np.ndarray, da.Array]:
+    def run(
+        self, time_unix: np.ndarray, frequency_hz: np.ndarray, data: da.Array
+    ) -> Tuple[np.ndarray, np.ndarray, da.Array]:
         """Run all the tasks registered in the pipeline.
 
         Parameters
         ----------
         time_unix : :class:`~numpy.ndarray`
-            Original array of time samples in Unix format (should match the first dimension of `data`). 
+            Original array of time samples in Unix format (should match the first dimension of `data`).
         frequency_hz : :class:`~numpy.ndarray`
             Original array of frequency samples in Hz (should match the second dimension of `data`)
         data : :class:`~dask.array.Array`
@@ -683,26 +969,30 @@ class TFPipeline:
 # ============================================================= #
 # -------------------------- Spectra -------------------------- #
 class Spectra:
-
     """Class to read UnDySPuTeD Time-Frequency files (.spectra extension).
-
-    Parameters
-    ----------
-    filename : `str`
-        Path to the *UnDySPuTeD* file to read.
-
-    Raises
-    ------
-    ValueError
-        If the `filename` extension differs from '.spectra'.
 
     Notes
     -----
     .. versionadded:: 2.6.0
-   
+
     """
 
     def __init__(self, filename: str, check_missing_data: bool = True):
+        """Generate an instance of :class:`~nenupy.io.tf.Spectra`.
+
+        Parameters
+        ----------
+        filename : `str`
+            Path to the *UnDySPuTeD* file to read.
+        check_missing_data : `bool`, optional
+            Check for missing data, not checking may speed up the reading time, by default `True`
+
+        Raises
+        ------
+        ValueError
+            If the `filename` extension differs from '.spectra'.
+        """
+
         self.filename = filename
 
         # Decode the main header and lazy load the data
@@ -714,12 +1004,19 @@ class Spectra:
         data = self._lazy_load_data()
 
         # Compute the boolean mask of bad blocks
-        bad_block_mask = self._get_bad_data_mask(data, bypass_verification=~check_missing_data)
+        bad_block_mask = self._get_bad_data_mask(
+            data, bypass_verification=~check_missing_data
+        )
 
         # Compute the main data block descriptors (time / frequency / beam)
         subband_width_hz = SUBBAND_WIDTH.to_value(u.Hz)
-        self._block_start_unix = data["TIMESTAMP"][~bad_block_mask] + data["BLOCKSEQNUMBER"][~bad_block_mask] / subband_width_hz
-        self._subband_start_hz = data["data"]["channel"][0, :] * subband_width_hz # Assumed constant over time
+        self._block_start_unix = (
+            data["TIMESTAMP"][~bad_block_mask]
+            + data["BLOCKSEQNUMBER"][~bad_block_mask] / subband_width_hz
+        )
+        self._subband_start_hz = (
+            data["data"]["channel"][0, :] * subband_width_hz
+        )  # Assumed constant over time
         self._beam_indices_dict = utils.sort_beam_edges(
             beam_array=data["data"]["beam"][0],  # Asummed same for all time step
             n_channels=self.n_channels,
@@ -735,8 +1032,8 @@ class Spectra:
     # --------------------- Getter/Setter --------------------- #
     @property
     def filename(self) -> str:
-        """`str` : Path to the data file.
-        """
+        """`str` : Path to the .spectra file."""
+
         return self._filename
 
     @filename.setter
@@ -749,7 +1046,7 @@ class Spectra:
     @property
     def time_min(self) -> Time:
         """:class:`~astropy.time.Time` : Starting time of the data content.
-        
+
         Example
         -------
         .. code-block:: python
@@ -833,12 +1130,13 @@ class Spectra:
     # ------------------------ Methods ------------------------ #
     def info(self) -> None:
         """Display informations about the file.
-        
+
         Example
         -------
          .. code-block:: python
 
             >>> from nenupy.io.tf import Spectra
+
             >>> sp = Spectra("/my/file.spectra")
             >>> sp.info()
             filename: /my/file.spectra
@@ -908,7 +1206,7 @@ class Spectra:
             Stokes parameter selection, can either be given as a string or a list of strings, e.g. ``['I', 'Q', 'V/I']``. Note that the :meth:`~nenupy.io.tf.TFTask.get_stokes` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
         ignore_volume_warning : `bool`, default: `False`
             Ignore or not (default value) the limit regarding output data volume.
-            
+
         Returns
         -------
         :class:`~nenupy.beamlet.sdata.SData`
@@ -952,30 +1250,30 @@ class Spectra:
             if (file_name is None) or (file_name == ""):
                 # Simply compute the data
                 # The data volume security is ON
-                data = self._data_to_numpy_array(data) # compute() the Dask array
-                result = self._to_sdata(
-                    data=data,
-                    time=time,
-                    frequency=frequency
-                )
+                data = self._data_to_numpy_array(data)  # compute() the Dask array
+                result = self._to_sdata(data=data, time=time, frequency=frequency)
 
-                self.pipeline.parameters = parameters_copy # Reset the parameters
+                self.pipeline.parameters = parameters_copy  # Reset the parameters
                 return result
 
             else:
                 # Save the result of the pipeline in a file
                 # No security on the resulting data volume
-                log.info(f"Estimated data volume to store: {(data.nbytes * u.byte).to(u.Gibyte):.3f}...")
+                log.info(
+                    f"Estimated data volume to store: {(data.nbytes * u.byte).to(u.Gibyte):.3f}..."
+                )
                 utils.store_dask_tf_data(
                     file_name=file_name,
                     data=data,
                     time=time,
                     frequency=frequency,
-                    polarization=["XX", "XY", "YX", "YY"] if not self.pipeline.contains("Compute Stokes parameters") else self.pipeline.parameters["stokes"],
+                    polarization=["XX", "XY", "YX", "YY"]
+                    if not self.pipeline.contains("Compute Stokes parameters")
+                    else self.pipeline.parameters["stokes"],
                     mode="w" if self.pipeline.parameters["overwrite"] else "auto",
-                    beam=self.pipeline.parameters["beam"]
+                    beam=self.pipeline.parameters["beam"],
                 )
-                self.pipeline.parameters = parameters_copy # Reset the parameters
+                self.pipeline.parameters = parameters_copy  # Reset the parameters
                 return
 
         except Exception:
@@ -1043,7 +1341,7 @@ class Spectra:
                 )
             >>> data[0].shape, data[1].shape, data[2].shape
             ((384,), (2856,), (2856, 384, 2, 2))
-                
+
         """
 
         log.info(
@@ -1134,7 +1432,9 @@ class Spectra:
         try:
             beam_idx_start, beam_idx_stop = self._beam_indices_dict[str(beam)]
         except KeyError as e:
-            log.error(f"Beam index selection '{beam}' does not correspond to one of the recorded values: {list(self._beam_indices_dict.keys())}.")
+            log.error(
+                f"Beam index selection '{beam}' does not correspond to one of the recorded values: {list(self._beam_indices_dict.keys())}."
+            )
             raise
 
         # Find out the subband edges covering the selected frequency range
@@ -1212,7 +1512,9 @@ class Spectra:
         return tmp.view(np.dtype(global_struct))
 
     @staticmethod
-    def _get_bad_data_mask(data: np.ndarray, bypass_verification: bool = False) -> np.ndarray:
+    def _get_bad_data_mask(
+        data: np.ndarray, bypass_verification: bool = False
+    ) -> np.ndarray:
         """ """
 
         if bypass_verification:

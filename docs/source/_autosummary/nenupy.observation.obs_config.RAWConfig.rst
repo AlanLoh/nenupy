@@ -1,4 +1,4 @@
-nenupy.observation.obs\_config.RAWConfig
+﻿nenupy.observation.obs\_config.RAWConfig
 ========================================
 
 .. currentmodule:: nenupy.observation.obs_config
@@ -8,6 +8,7 @@ nenupy.observation.obs\_config.RAWConfig
    :show-inheritance:
    :inherited-members:
 
+   
    
    .. automethod:: __init__
 

@@ -26,7 +26,7 @@ from typing import Tuple, List
 import os
 from itertools import islice
 from astropy.time import Time, TimeDelta
-from astropy.coordinates import SkyCoord, AltAz, Angle
+from astropy.coordinates import SkyCoord, AltAz, Angle, ICRS
 import astropy.units as u
 from astropy.io import fits
 from healpy.fitsfunc import write_map, read_map
@@ -64,6 +64,29 @@ import logging
 
 log = logging.getLogger(__name__)
 
+# ============================================================= #
+# --------------------------- Tools --------------------------- #
+def _vis_rotation_matrix(skycoord: SkyCoord) -> np.ndarray:
+    """Define the rotation matrix for visibility rephasing."""
+    ra_rad = skycoord.ra.rad
+    dec_rad = skycoord.dec.rad
+
+    if np.isscalar(ra_rad):
+        ra_rad = np.array([ra_rad])
+        dec_rad = np.array([dec_rad])
+
+    cos_ra = np.cos(ra_rad)
+    sin_ra = np.sin(ra_rad)
+    cos_dec = np.cos(dec_rad)
+    sin_dec = np.sin(dec_rad)
+
+    return np.array(
+        [
+            [cos_ra, -sin_ra, np.zeros(ra_rad.size)],
+            [-sin_ra * sin_dec, -cos_ra * sin_dec, cos_dec],
+            [sin_ra * cos_dec, cos_ra * cos_dec, sin_dec],
+        ]
+    )
 
 # ============================================================= #
 # ------------------------- XST_Slice ------------------------- #
@@ -81,6 +104,7 @@ class XST_Slice:
         time: Time,
         frequency: u.Quantity,
         value: np.ndarray,
+        phase_center: SkyCoord = None
     ):
         r"""Generate an instance of :class:`~nenupy.io.xst.XST_Slice`.
 
@@ -94,11 +118,22 @@ class XST_Slice:
             Frequency description of the selected dataset
         value : :class:`~numpy.ndarray`
             Data selection values, it should have the shape :math:`(n_{\rm \nu},\, n_{t},\, n_{\rm bl})` where :math:`n_{\rm \nu}`, :math:`n_{t}` and :math:`n_{\rm bl}=n_{\rm ant}(n_{\rm ant} - 1)/2 + n_{\rm ant}` are respectively the number of frequency and time samples, and the number of baselines
+        phase_center : :class:`~astropy.coordinates.SkyCoord`
+            Phase center of the visibility selection (in ICRS), by default `None` (i.e., zenith)
         """
         self.mini_arrays = mini_arrays
         self.time = time
         self.frequency = frequency
         self.value = value
+        if phase_center is None:
+            phase_center = SkyCoord(
+                0*u.deg, 90*u.deg,
+                frame=AltAz(
+                    obstime=self.time[0] + (self.time[-1] - self.time[0]) / 2,
+                    location=nenufar_position
+                )
+            ).transform_to(ICRS)
+        self.phase_center = phase_center
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -266,32 +301,9 @@ class XST_Slice:
                 time=self.time,
             ).to_value(u.m)
 
-        # Define the rotation matrix
-        def rotation_matrix(skycoord):
-            """ """
-            ra_rad = skycoord.ra.rad
-            dec_rad = skycoord.dec.rad
-
-            if np.isscalar(ra_rad):
-                ra_rad = np.array([ra_rad])
-                dec_rad = np.array([dec_rad])
-
-            cos_ra = np.cos(ra_rad)
-            sin_ra = np.sin(ra_rad)
-            cos_dec = np.cos(dec_rad)
-            sin_dec = np.sin(dec_rad)
-
-            return np.array(
-                [
-                    [cos_ra, -sin_ra, np.zeros(ra_rad.size)],
-                    [-sin_ra * sin_dec, -cos_ra * sin_dec, cos_dec],
-                    [sin_ra * cos_dec, cos_ra * cos_dec, sin_dec],
-                ]
-            )
-
         # Transformation matrices
-        to_origin = rotation_matrix(zenith_phase_center)  # (3, 3, ntimes)
-        to_new_center = rotation_matrix(phase_center)  # (3, 3, 1)
+        to_origin = _vis_rotation_matrix(zenith_phase_center)  # (3, 3, ntimes)
+        to_new_center = _vis_rotation_matrix(phase_center)  # (3, 3, 1)
         total_transformation = np.matmul(
             np.transpose(to_new_center, (2, 0, 1)), to_origin
         )  # (3, 3, ntimes)
@@ -673,6 +685,17 @@ class Crosslet(ABC):
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
+    @property
+    @abstractmethod
+    def phase_center(self) -> SkyCoord:
+        """_summary_
+
+        Returns
+        -------
+        SkyCoord
+            _description_
+        """
+        return NotImplementedError
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -733,6 +756,86 @@ class Crosslet(ABC):
                 polarization=polarization,
                 mini_arrays=mas,
             ),
+        )
+
+    def rephase(self, phase_center: SkyCoord) -> XST_Slice:
+        """_summary_
+
+        Parameters
+        ----------
+        phase_center : SkyCoord
+            _description_
+
+        Returns
+        -------
+        XST_Slice
+            _description_
+
+        Raises
+        ------
+        ValueError
+            _description_
+        """
+
+        # Check the phase_center
+        if not phase_center.isscalar:
+            raise ValueError("phase_center must be scalar")
+
+        log.info(f"Rephasing the visibilities towards {phase_center}...")
+
+        # Normalize the current phase center
+        if self._phase_center.isscalar or self._phase_center.size != self.time.size:
+            if isinstance(self._phase_center.frame, AltAz):
+                current_phase_center_altaz = SkyCoord(
+                    np.ones(self.time.size) * self._phase_center.az.deg,
+                    np.ones(self.time.size) * self._phase_center.alt.deg,
+                    unit="deg",
+                    frame=AltAz(
+                        obstime=self.time,
+                        location=nenufar_position
+                    )
+                )
+                current_phase_center = altaz_to_radec(current_phase_center_altaz)
+            else:
+                current_phase_center = SkyCoord(
+                    np.ones(self.time.size) * self._phase_center.ra.deg,
+                    np.ones(self.time.size) * self._phase_center.dec.deg,
+                    unit="deg"
+                )
+        else:
+            current_phase_center = phase_center
+
+        # Compute the UVW coordinates
+        current_uvw = compute_uvw(
+            interferometer=NenuFAR()[self.mini_arrays],
+            phase_center=current_phase_center,
+            time=self.time,
+        ).to_value(u.m) # (times, nvis, 3)
+
+        # Transformation matrices
+        to_origin = _vis_rotation_matrix(current_phase_center)  # (3, 3, times)
+        to_new_center = _vis_rotation_matrix(phase_center)  # (3, 3, 1)
+        total_transformation = np.matmul(
+            np.transpose(to_new_center, (2, 0, 1)), to_origin
+        )  # (3, 3, ntimes)
+        rotUVW = np.matmul(
+            np.expand_dims((to_origin[2, :] - to_new_center[2, :]).T, axis=1),
+            np.transpose(to_origin, (2, 1, 0)),
+        )  # (ntimes, 1, 3)
+        phase = np.matmul(rotUVW, np.transpose(current_uvw, (0, 2, 1)))  # (ntimes, 1, nvis)
+        rotated_visibilities = np.exp(
+            2.0j
+            * np.pi
+            * phase
+            / wavelength(self.frequencies[0, :]).to_value(u.m)[None, :, None]
+        )  # (ntimes, nfreqs, nvis)
+
+        return XST_Slice(
+            mini_arrays=self.mini_arrays,
+            time=self.time,
+            frequency=self.frequencies,
+            value=rotated_visibilities,
+            phase_center=phase_center
         )
 
     def get_stokes(
@@ -993,6 +1096,7 @@ class Crosslet(ABC):
             time=self.time[time_mask],
             frequency=self.frequencies[frequency_mask],
             value=data.squeeze(),
+            phase_center=altaz_pointing.transform_to(ICRS)
         )
 
     # --------------------------------------------------------- #
@@ -1151,8 +1255,27 @@ class XST(StatisticsData, Crosslet):
     def __init__(self, file_name):
         super().__init__(file_name=file_name)
 
+        self._phase_center = SkyCoord(
+            0*u.deg, 90*u.deg,
+            frame=AltAz(
+                obstime=self.time[0] + (self.time[-1] - self.time[0]) / 2,
+                location=nenufar_position
+            )
+        )
+
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
+    @property
+    def phase_center(self) -> SkyCoord:
+        """_summary_
+
+        Returns
+        -------
+        SkyCoord
+            _description_
+        """
+        return self._phase_center
+
     @property
     def mini_arrays(self):
         """Retrieves the list of Mini-Arrays used to get the cross-correlations.
@@ -1915,6 +2038,14 @@ class NenufarTV(StatisticsData, Crosslet):
         self.data = None
         self._load_tv_data()
 
+        self._phase_center = SkyCoord(
+            0*u.deg, 90*u.deg,
+            frame=AltAz(
+                obstime=self.time[0] + (self.time[-1] - self.time[0]) / 2,
+                location=nenufar_position
+            )
+        )
+
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def compute_nenufar_tv(self, analog_pointing_file: str = None, fov_radius: u.Quantity = 27 * u.deg, resolution: u.Quantity = 0.5 * u.deg, stokes: str = "I") -> TV_Image:
@@ -1925,9 +2056,9 @@ class NenufarTV(StatisticsData, Crosslet):
         analog_pointing_file : `str`, optional
             NenuFAR analog pointing file (as read by :meth:`~nenupy.astro.pointing.from_file`), by default `None` (i.e., a zenithal pointing is assumed)
         fov_radius : :class:`~astropy.units.Quantity`, optional
-            Radius of the image field of view (passed to :meth:`~nenupy.io.xst.Crosslet.make_image`), by default 27 degrees
+            Radius of the image field of view (passed to :meth:`~nenupy.io.xst.XST_Slice.make_image`), by default 27 degrees
         resolution : :class:`~astropy.units.Quantity`, optional
-            Resolution of the image (passed to :meth:`~nenupy.io.xst.Crosslet.make_image`), by default 0.5 degree
+            Resolution of the image (passed to :meth:`~nenupy.io.xst.XST_Slice.make_image`), by default 0.5 degree
         stokes : `str`, optional
             Stokes parameter to display (passed to :meth:`~nenupy.io.xst.Crosslet.get_stokes`), by default "I"
 
@@ -1981,13 +2112,13 @@ class NenufarTV(StatisticsData, Crosslet):
         Parameters
         ----------
         sources : `list`, optional
-            List of celestial sources for which a near-field imprint will be computed (passed to :meth:`~nenupy.io.xst.Crosslet.make_nearfield`), by default []
+            List of celestial sources for which a near-field imprint will be computed (passed to :meth:`~nenupy.io.xst.XST_Slice.make_nearfield`), by default []
         stokes : `str`, optional
             Stokes parameter to display (passed to :meth:`~nenupy.io.xst.Crosslet.get_stokes`), by default "I"
         radius : :class:`~astropy.units.Quantity`, optional
-            Ground radius on which the near-field projection is computed (passed to :meth:`~nenupy.io.xst.Crosslet.make_nearfield`), by default 400 meters
+            Ground radius on which the near-field projection is computed (passed to :meth:`~nenupy.io.xst.XST_Slice.make_nearfield`), by default 400 meters
         npix : `int`, optional
-            Number of pixels of the image size (passed to :meth:`~nenupy.io.xst.Crosslet.make_nearfield`), by default 64.
+            Number of pixels of the image size (passed to :meth:`~nenupy.io.xst.XST_Slice.make_nearfield`), by default 64.
 
         Returns
         -------

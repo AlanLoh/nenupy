@@ -16,11 +16,13 @@ __maintainer__ = "Alan"
 __email__ = "alan.loh@obspm.fr"
 __status__ = "Production"
 __all__ = [
-    "compute_uvw"
+    "compute_uvw",
+    "UV_Coverage"
 ]
 
 
 import numpy as np
+from typing import Tuple
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
@@ -30,6 +32,7 @@ from astropy.time import Time
 from astropy.modeling import models, fitting
 import astropy.units as u
 
+from nenupy.instru import NenuFAR
 from nenupy.instru.interferometer import Interferometer
 from nenupy.astro import hour_angle, altaz_to_radec, wavelength
 from nenupy import nenufar_position
@@ -52,9 +55,8 @@ def compute_uvw(
     # Get the baselines in ITRF coordinates
     baselines_itrf = interferometer.baselines.bsl
     xyz = baselines_itrf[np.tril_indices(interferometer.size)].T
-    #xyz = np.array(baselines_itrf).T
 
-    log.info(f"Computing UVW (time steps: {time.size}, baselines: {xyz.shape[0]})...")
+    log.info(f"Computing UVW (time steps: {time.size}, baselines: {xyz.shape[1]})...")
 
     # Select zenith phase center if nothing is provided
     if phase_center is None:
@@ -161,6 +163,17 @@ class UV_Coverage:
             observer=observer
         )
         return cls(uvw=uvw)
+
+    @classmethod
+    def from_xst(cls, xst):
+        uvw = compute_uvw(
+            interferometer=NenuFAR()[xst.mini_arrays],
+            phase_center=xst.phase_center,
+            time=xst.time[0] + (xst.time[-1] - xst.time[0]) / 2,
+            observer=nenufar_position
+        )
+        return cls(uvw=uvw)
+
 
 
     def radial_profile(self,
@@ -458,8 +471,8 @@ class UV_Coverage:
         uv_min = min((uu.min().value, vv.min().value))
         uv_max = max((uu.max().value, vv.max().value))
         uv_width = np.abs(uv_min - uv_max)
-        ax_min = uv_min - 0.05 * uv_width
-        ax_max = uv_max + 0.05 * uv_width
+        ax_min = uv_min - 0.01 * uv_width
+        ax_max = uv_max + 0.01 * uv_width
 
         # Plot the hexagon bins
         fig = plt.figure(figsize=kwargs.get("figsize", (10, 10)))
@@ -472,7 +485,7 @@ class UV_Coverage:
             xscale="linear",
             yscale="linear",
             extent=(ax_min, ax_max, ax_min, ax_max),
-            cmap=kwargs.get("cmap", "Blues"),
+            cmap=kwargs.get("cmap", "copper"),
             edgecolors="face",
             mincnt=1,
             norm=LogNorm()#vmin=Z.min(), vmax=Z.max()),

@@ -9,6 +9,7 @@
    :inherited-members:
 
    
+   
    .. automethod:: __init__
 
    
@@ -19,6 +20,7 @@
       ~UV_Coverage.__init__
       ~UV_Coverage.azimuthal_profile
       ~UV_Coverage.compute
+      ~UV_Coverage.from_xst
       ~UV_Coverage.plot
       ~UV_Coverage.psf
       ~UV_Coverage.radial_profile

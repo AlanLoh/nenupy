@@ -9,6 +9,7 @@
    :inherited-members:
 
    
+   
    .. automethod:: __init__
 
    
@@ -23,6 +24,7 @@
       ~NenufarTV.get_beamform
       ~NenufarTV.get_stokes
       ~NenufarTV.info
+      ~NenufarTV.rephase
    
    
 
@@ -33,5 +35,6 @@
    .. autosummary::
    
       ~NenufarTV.frequencies
+      ~NenufarTV.phase_center
    
    

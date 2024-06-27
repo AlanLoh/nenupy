@@ -8,7 +8,11 @@
    :inherited-members:
 
    {% block methods %}
-   .. automethod:: __init__
+   {% for item in all_methods %}
+   {%- if item in ['__init__','__call__'] %}
+   .. automethod:: {{ item }}
+   {%- endif -%}
+   {%- endfor %}
 
    {% if methods %}
    .. rubric:: {{ _('Methods') }}

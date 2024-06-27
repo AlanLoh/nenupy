@@ -239,5 +239,5 @@ The :meth:`~nenupy.astro.pointing.Pointing.plot` method can be used to quickly v
 
     Numerical pointing (horizontal coordinates) vs. time for a Jupiter observation.
 
-Comparing the two last plots (made for the same observation), the *beamsquint* correction applied to the analog beam can clearly be seen.
+Comparing the two last plots (made for the same observation), the :ref:`beam_squint_simu_sec` applied to the analog beam can clearly be seen.
 The pointed elevations, for the latter, are lower than the ones pointed by the numerical beam.

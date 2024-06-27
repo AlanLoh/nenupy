@@ -3,6 +3,17 @@
     Support to Time-Frequency data
     ******************************
 
+    This module contains all the relevant functions to read
+    and process the NenuFAR beamformed time-frequency data.
+    The functions called by the various :class:`~nenupy.io.tf.TFTask`
+    are listed here.
+    This module's content is not meant to be used outside of this
+    scope unless the user knows what they are doing.
+
+    .. seealso::
+
+        :ref:`tf_reading_doc`
+
 """
 
 import numpy as np
@@ -44,8 +55,9 @@ __all__ = [
     "spectra_data_to_matrix",
     "store_dask_tf_data",
     "TFPipelineParameters",
-    "ReducedSpectra"
+    "ReducedSpectra",
 ]
+
 
 # ============================================================= #
 # ---------------- apply_dreambeam_corrections ---------------- #
@@ -227,7 +239,72 @@ def compute_spectra_time(
 def compute_stokes_parameters(
     data_array: np.ndarray, stokes: Union[List[str], str]
 ) -> np.ndarray:
-    """data_array: >2 D, last 2 dimensions are ((XX, XY), (YX, YY))"""
+    r"""Compute the Stokes parameters from data organized in Jones matrices.
+
+    ``data_array``'s last two dimensions are assumed to corresponds with:
+
+    .. math::
+
+        d = \begin{pmatrix}
+        X\overline{X} & X\overline{Y} \\
+        Y\overline{X} & Y\overline{Y}
+        \end{pmatrix},
+
+    So that the Stokes parameters are computed such as:
+
+    .. math::
+
+        \begin{align}
+        I &= \Re(X\overline{X}) + \Re(Y\overline{Y})\\
+        Q &= \Re(X\overline{X}) - \Re(Y\overline{Y})\\
+        U &= 2\Re(X\overline{Y})\\
+        V &= 2\Im(X\overline{Y})
+        \end{align}
+        
+    Parameters
+    ----------
+    data_array : :class:`~numpy.ndarray`
+        The data array (a Dask :class:`~dask.array.Array` is also accepted),
+        the first dimensions may corresponds with anything (for e.g., time,
+        frequency, beam...) and are kept through the computation, the last
+        two dimensions must be the :math:`2 \times 2` Jones matrices.
+    stokes : List[`str`] or `str`
+        Stokes parameters to compute, if a list is given, the result will
+        store them in the same order in the last result dimension, available
+        values are "I", "Q", "U", "V", "Q/I", "U/I", "V/I".
+
+    Returns
+    -------
+    :class:`~numpy.ndarray`
+        New data array transformed in Stokes parameters,
+        the last two dimensions are replaced by a single dimension
+        listing in order the requested stokes parameters.
+        If the input data_array is a Dask :class:`~dask.array.Array`,
+        the returned result is of the same type.
+
+    Raises
+    ------
+    Exception
+        Raised if the last two dimensions of data_array are different than (2, 2)
+    NotImplementedError
+        Raised if the requested Stokes parameter is not known
+    
+    Example
+    -------
+    .. code-block:: python
+
+        >>> from nenupy.io.tf import Spectra
+        >>> from nenupy.io.tf_utils import compute_stokes_parameters
+        
+        >>> sp = Spectra(".../my_file.spectra")
+        >>> result = compute_stokes_parameters(
+                data_array=sp.data[:1000, :100, :, :], # shape: (time, frequency, 2, 2)
+                stokes=["I", "U/I", "V/I"]
+            )
+        >>> result.shape
+        (1000, 100, 3)
+
+    """
 
     log.info(f"Computing Stokes parameters {stokes}...")
 
@@ -482,7 +559,6 @@ def get_bandpass(n_channels: int) -> np.ndarray:
 # ============================================================= #
 # ---------------------- flatten_subband ---------------------- #
 def flatten_subband(data: np.ndarray, channels: int) -> np.ndarray:
-
     # Check that data has not been altered, i.e. dimension 1 should be a multiple of channels
     if data.shape[1] % channels != 0:
         raise ValueError(
@@ -490,8 +566,8 @@ def flatten_subband(data: np.ndarray, channels: int) -> np.ndarray:
             f"not a multiple of channels={channels}. data's second "
             "dimension should be of size number_of_subbands*number_of_channels."
         )
-    n_subbands = int(data.shape[1]/channels)
-    pol_dims = data.ndim - 2 # the first two dimensions should be time and frequency
+    n_subbands = int(data.shape[1] / channels)
+    pol_dims = data.ndim - 2  # the first two dimensions should be time and frequency
 
     # Compute the median spectral profile (along the time axis)
     median_frequency_profile = np.nanmedian(data, axis=0)
@@ -507,20 +583,36 @@ def flatten_subband(data: np.ndarray, channels: int) -> np.ndarray:
 
     # Split the subband in two and compute the 2 medians that will be
     # used to compute the affine function that approximates each subband.
-    ind1, ind2 = int(np.floor(channels/2))/2, channels - int(np.floor(channels/2))/2
-    y1 = np.nanmedian(median_subband_profile[:, :int(np.floor(channels/2)), ...], axis=1)
-    y2 = np.nanmedian(median_subband_profile[:, int(np.ceil(channels/2)):, ...], axis=1)
+    ind1, ind2 = (
+        int(np.floor(channels / 2)) / 2,
+        channels - int(np.floor(channels / 2)) / 2,
+    )
+    y1 = np.nanmedian(
+        median_subband_profile[:, : int(np.floor(channels / 2)), ...], axis=1
+    )
+    y2 = np.nanmedian(
+        median_subband_profile[:, int(np.ceil(channels / 2)) :, ...], axis=1
+    )
 
     # Compute the linear approximations of each subbands, linear_subbands's shape is (channels, subbands, (polarizations...))
-    x_values = np.arange(channels)[(...,) + (np.newaxis,) * (pol_dims + 1)] # +1 --> subbands
-    linear_subbands = (x_values - ind1) * (y2 - y1) / (ind2 - ind1) + y1 # linear equation
+    x_values = np.arange(channels)[
+        (...,) + (np.newaxis,) * (pol_dims + 1)
+    ]  # +1 --> subbands
+    linear_subbands = (x_values - ind1) * (y2 - y1) / (
+        ind2 - ind1
+    ) + y1  # linear equation
 
     # Compute the subband mean value and the normalised linear subbands
-    subband_mean_values = np.nanmedian(linear_subbands, axis=0) # shape (subbands, (polarizations))
-    normalised_linear_subbands = np.swapaxes(linear_subbands / subband_mean_values[None, ...], 0, 1).reshape(data.shape[1:])
+    subband_mean_values = np.nanmedian(
+        linear_subbands, axis=0
+    )  # shape (subbands, (polarizations))
+    normalised_linear_subbands = np.swapaxes(
+        linear_subbands / subband_mean_values[None, ...], 0, 1
+    ).reshape(data.shape[1:])
 
     # Correct the data by the normalised linear subbands to flatten them
     return data / normalised_linear_subbands[None, ...]
+
 
 # ============================================================= #
 # -------------------- plot_dynamic_spectrum --------------------- #
@@ -528,7 +620,15 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.dates import AutoDateLocator, ConciseDateFormatter
 
-def plot_dynamic_spectrum(data: np.ndarray, time: Time, frequency: u.Quantity, fig: mpl.figure.Figure = None, ax: mpl.axes.Axes = None, **kwargs) -> Tuple[mpl.figure.Figure, mpl.axes.Axes]:
+
+def plot_dynamic_spectrum(
+    data: np.ndarray,
+    time: Time,
+    frequency: u.Quantity,
+    fig: mpl.figure.Figure = None,
+    ax: mpl.axes.Axes = None,
+    **kwargs,
+) -> Tuple[mpl.figure.Figure, mpl.axes.Axes]:
     """_summary_
 
     Parameters
@@ -549,16 +649,15 @@ def plot_dynamic_spectrum(data: np.ndarray, time: Time, frequency: u.Quantity, f
     Tuple[mpl.figure.Figure, mpl.axes.Axes]
         _description_
     """
-    
+
     if fig is None:
         fig = plt.figure(
-            figsize=kwargs.get("figsize", (10, 5)),
-            dpi=kwargs.get("dpi", 200)
+            figsize=kwargs.get("figsize", (10, 5)), dpi=kwargs.get("dpi", 200)
         )
-    
+
     if ax is None:
         ax = fig.add_subplot()
-    
+
     im = ax.pcolormesh(
         time.datetime,
         frequency.value,
@@ -567,14 +666,14 @@ def plot_dynamic_spectrum(data: np.ndarray, time: Time, frequency: u.Quantity, f
         norm=kwargs.get("norm", "linear"),
         cmap=kwargs.get("cmap", "YlGnBu_r"),
         vmin=kwargs.get("vmin", data.min()),
-        vmax=kwargs.get("vmax", data.max())
+        vmax=kwargs.get("vmax", data.max()),
     )
 
     # Colorbar
     cbar = plt.colorbar(im, pad=0.03)
     cbar.set_label(kwargs.get("clabel", ""))
 
-    # Global    
+    # Global
     ax.minorticks_on()
     ax.set_title(kwargs.get("title", ""))
 
@@ -588,6 +687,7 @@ def plot_dynamic_spectrum(data: np.ndarray, time: Time, frequency: u.Quantity, f
     ax.set_ylabel(kwargs.get("ylabel", f"Frequency ({frequency.unit})"))
 
     return fig, ax
+
 
 # ============================================================= #
 # -------------------- polarization_angle --------------------- #
@@ -681,7 +781,7 @@ def remove_channels_per_subband(
                    [nan, 20., nan, 28.]])
 
     """
-    
+
     if channels_to_remove is None:
         # Don't do anything
         return data
@@ -690,7 +790,7 @@ def remove_channels_per_subband(
             channels_to_remove = np.array(channels_to_remove)
         except:
             raise TypeError("channels_to_remove must be a numpy array.")
-    
+
     if len(channels_to_remove) == 0:
         # Empty list, no channels to remove
         return data
@@ -793,6 +893,7 @@ def spectra_data_to_matrix(fft0: da.Array, fft1: da.Array) -> da.Array:
     )
     return da.stack([row1, row2], axis=-1)
 
+
 # ============================================================= #
 # -------------------- store_dask_tf_data --------------------- #
 def _time_to_keywords(prefix: str, time: Time) -> dict:
@@ -803,8 +904,18 @@ def _time_to_keywords(prefix: str, time: Time) -> dict:
         f"{prefix.upper()}_UTC": time.isot + "Z",
     }
 
-def store_dask_tf_data(file_name: str, data: da.Array, time: Time, frequency: u.Quantity, polarization: np.ndarray, beam: int = 0, stored_frequency_unit: str = "MHz", mode="auto", **metadata) -> None:
 
+def store_dask_tf_data(
+    file_name: str,
+    data: da.Array,
+    time: Time,
+    frequency: u.Quantity,
+    polarization: np.ndarray,
+    beam: int = 0,
+    stored_frequency_unit: str = "MHz",
+    mode="auto",
+    **metadata,
+) -> None:
     log.info(f"Storing the data in '{file_name}'")
 
     # Check that the file_name has the correct extension
@@ -821,7 +932,6 @@ def store_dask_tf_data(file_name: str, data: da.Array, time: Time, frequency: u.
     frequency_max = frequency.max()
 
     with h5py.File(file_name, mode) as wf:
-
         beam_group_name = f"BEAM_{beam:03}"
 
         if mode == "w":
@@ -835,20 +945,28 @@ def store_dask_tf_data(file_name: str, data: da.Array, time: Time, frequency: u.
             wf.attrs.update(_time_to_keywords("OBSERVATION_START", time[0]))
             wf.attrs.update(_time_to_keywords("OBSERVATION_END", time[-1]))
             wf.attrs["TOTAL_INTEGRATION_TIME"] = (time[-1] - time[0]).sec
-            wf.attrs["OBSERVATION_FREQUENCY_MIN"] = frequency_min.to_value(stored_freq_quantity)
-            wf.attrs["OBSERVATION_FREQUENCY_MAX"] = frequency_max.to_value(stored_freq_quantity)
-            wf.attrs["OBSERVATION_FREQUENCY_CENTER"] = (
-                ((frequency_max + frequency_min) / 2).to_value(stored_freq_quantity)
+            wf.attrs["OBSERVATION_FREQUENCY_MIN"] = frequency_min.to_value(
+                stored_freq_quantity
             )
+            wf.attrs["OBSERVATION_FREQUENCY_MAX"] = frequency_max.to_value(
+                stored_freq_quantity
+            )
+            wf.attrs["OBSERVATION_FREQUENCY_CENTER"] = (
+                (frequency_max + frequency_min) / 2
+            ).to_value(stored_freq_quantity)
             wf.attrs["OBSERVATION_FREQUENCY_UNIT"] = stored_frequency_unit
 
-            sub_array_group = wf.create_group("SUB_ARRAY_POINTING_000") # TODO modify if a Spectra file can be generated from more than 1 analog beam
-        
+            sub_array_group = wf.create_group(
+                "SUB_ARRAY_POINTING_000"
+            )  # TODO modify if a Spectra file can be generated from more than 1 analog beam
+
         elif mode == "a":
             log.info("\tTrying to append data to existing file...")
             sub_array_group = wf["SUB_ARRAY_POINTING_000"]
             if beam_group_name in sub_array_group.keys():
-                raise Exception(f"File '{file_name}' already contains '{beam_group_name}'.")
+                raise Exception(
+                    f"File '{file_name}' already contains '{beam_group_name}'."
+                )
 
         else:
             raise KeyError(f"Invalid mode '{mode}'. Select 'w' or 'a' or 'auto'.")
@@ -856,8 +974,8 @@ def store_dask_tf_data(file_name: str, data: da.Array, time: Time, frequency: u.
         beam_group = sub_array_group.create_group(beam_group_name)
         beam_group.attrs.update(_time_to_keywords("TIME_START", time[0]))
         beam_group.attrs.update(_time_to_keywords("TIME_END", time[-1]))
-        beam_group.attrs["FREQUENCY_MIN"] = (frequency_min.to_value(stored_freq_quantity))
-        beam_group.attrs["FREQUENCY_MAX"] = (frequency_max.to_value(stored_freq_quantity))
+        beam_group.attrs["FREQUENCY_MIN"] = frequency_min.to_value(stored_freq_quantity)
+        beam_group.attrs["FREQUENCY_MAX"] = frequency_max.to_value(stored_freq_quantity)
         beam_group.attrs["FREQUENCY_UNIT"] = stored_frequency_unit
 
         coordinates_group = beam_group.create_group("COORDINATES")
@@ -866,7 +984,9 @@ def store_dask_tf_data(file_name: str, data: da.Array, time: Time, frequency: u.
         coordinates_group["time"] = time.jd
         coordinates_group["time"].make_scale("Time (JD)")
         coordinates_group["frequency"] = frequency.to_value(stored_freq_quantity)
-        coordinates_group["frequency"].make_scale(f"Frequency ({stored_frequency_unit})")
+        coordinates_group["frequency"].make_scale(
+            f"Frequency ({stored_frequency_unit})"
+        )
         coordinates_group.attrs["units"] = ["jd", stored_frequency_unit]
 
         log.info("\tTime and frequency axes written.")
@@ -875,7 +995,6 @@ def store_dask_tf_data(file_name: str, data: da.Array, time: Time, frequency: u.
         data = np.reshape(data, data.shape[:2] + (-1,))
 
         for pi in range(data.shape[-1]):
-
             current_polar = polarization[pi].upper()
             log.info(f"\tDealing with polarization '{current_polar}'...")
             data_i = data[:, :, pi]
@@ -883,9 +1002,7 @@ def store_dask_tf_data(file_name: str, data: da.Array, time: Time, frequency: u.
             # data_group = beam_group.create_group(f"{current_polar.upper()}")
 
             dataset = beam_group.create_dataset(
-                name=f"{current_polar}",
-                shape=data_i.shape,
-                dtype=data_i.dtype
+                name=f"{current_polar}", shape=data_i.shape, dtype=data_i.dtype
             )
 
             dataset.dims[0].label = "time"
@@ -896,7 +1013,8 @@ def store_dask_tf_data(file_name: str, data: da.Array, time: Time, frequency: u.
             with ProgressBar():
                 da.store(data_i, dataset, compute=True, return_stored=False)
 
-    log.info(f"\t'{file_name}' written.")   
+    log.info(f"\t'{file_name}' written.")
+
 
 # ============================================================= #
 # ------------------------ _Parameter ------------------------- #
@@ -968,7 +1086,9 @@ class _TFParameter(ABC):
 
     @abstractmethod
     def is_expected_value(self, value: Any) -> bool:
-        raise NotImplementedError(f"Need to implement 'is_expected_value' in child class {self.__class__.__name__}.")
+        raise NotImplementedError(
+            f"Need to implement 'is_expected_value' in child class {self.__class__.__name__}."
+        )
 
 
 class _FixedParameter(_TFParameter):
@@ -980,12 +1100,14 @@ class _FixedParameter(_TFParameter):
     @property
     def value(self) -> Any:
         return self._value
+
     @value.setter
     def value(self, v: Any):
         raise Exception(f"_FixedParameter {self.name}'s value attribute cannot be set.")
 
     def is_expected_value(self, value: Any) -> bool:
         raise Exception("This should not have been called!")
+
 
 class _ValueParameter(_TFParameter):
     def __init__(
@@ -1014,13 +1136,13 @@ class _ValueParameter(_TFParameter):
 
     def is_expected_value(self, value: Any) -> bool:
         if not (self.min_val is None):
-            if value < self.min_val - self.resolution/2:
+            if value < self.min_val - self.resolution / 2:
                 log.error(
                     f"{self.name}'s value ({value}) is lower than the min_val {self.min_val}!"
                 )
                 return False
         if not (self.max_val is None):
-            if value > self.max_val + self.resolution/2:
+            if value > self.max_val + self.resolution / 2:
                 log.error(
                     f"{self.name}'s value ({value}) is greater than the max_val {self.max_val}!"
                 )
@@ -1255,19 +1377,19 @@ class TFPipelineParameters:
             _BooleanParameter(
                 name="ignore_volume_warning",
                 default=False,
-                help_msg="Ignore or not (default value) the limit regarding output data volume."
+                help_msg="Ignore or not (default value) the limit regarding output data volume.",
             ),
             _BooleanParameter(
                 name="overwrite",
                 default=False,
-                help_msg="Overwrite or not (default value) the resulting HDF5 file."
-            )
+                help_msg="Overwrite or not (default value) the resulting HDF5 file.",
+            ),
         )
+
 
 # ============================================================= #
 # ---------------------- ReducedSpectra ----------------------- #
 class ReducedSpectra:
-
     def __init__(self, file_name: str):
         self.file_name = file_name
         self._rfile = h5py.File(file_name, "r")
@@ -1275,8 +1397,10 @@ class ReducedSpectra:
 
     def infos(self):
         return "hello"
-    
-    def get(self, subarray_pointing_id: int = 0, beam_id: int = 0, data_key: str = None) -> Tuple[Time, u.Quantity, np.ndarray]:
+
+    def get(
+        self, subarray_pointing_id: int = 0, beam_id: int = 0, data_key: str = None
+    ) -> Tuple[Time, u.Quantity, np.ndarray]:
         """_summary_
 
         Parameters
@@ -1294,7 +1418,9 @@ class ReducedSpectra:
         KeyError
             _description_
         """
-        data_ext = self._rfile[f"SUB_ARRAY_POINTING_{subarray_pointing_id:03}/BEAM_{beam_id:03}"]
+        data_ext = self._rfile[
+            f"SUB_ARRAY_POINTING_{subarray_pointing_id:03}/BEAM_{beam_id:03}"
+        ]
         available_keys = list(data_ext.keys())
         available_keys.remove("COORDINATES")
         if data_key is None:
@@ -1302,30 +1428,34 @@ class ReducedSpectra:
             data_key = available_keys[0]
         elif data_key not in available_keys:
             self.close()
-            raise KeyError(f"Invalid data_key '{data_key}', available values: {available_keys}.")
+            raise KeyError(
+                f"Invalid data_key '{data_key}', available values: {available_keys}."
+            )
         log.info(f"Selected data extension '{data_key}'.")
 
         times_axis, frequency_axis = self._build_axes(data_ext["COORDINATES"])
 
         return times_axis, frequency_axis, data_ext[data_key][:]
 
-    def plot(self, subarray_pointing_id: int = 0, beam_id: int = 0, data_key: str = None, **kwargs):
-
+    def plot(
+        self,
+        subarray_pointing_id: int = 0,
+        beam_id: int = 0,
+        data_key: str = None,
+        **kwargs,
+    ):
         time, frequency, data = self.get(subarray_pointing_id, beam_id, data_key)
 
         try:
             fig, ax = plot_dynamic_spectrum(
-                data=data,
-                time=time,
-                frequency=frequency,
-                **kwargs
+                data=data, time=time, frequency=frequency, **kwargs
             )
             plt.show()
 
         except:
             self.close()
             raise
-    
+
     def close(self):
         self._rfile.close()
         log.info(f"'{self.file_name}' closed.")
@@ -1339,7 +1469,7 @@ class ReducedSpectra:
         Tuple[Time, u.Quantity]
             _description_
         """
-        
+
         units = hdf5_coordinates_ext.attrs["units"]
 
         time = Time(hdf5_coordinates_ext["time"][:], format=units[0])

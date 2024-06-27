@@ -80,6 +80,46 @@ tools such as :meth:`~nenupy.io.xst.XST_Slice.plot_correlaton_matrix`:
 
     Cross-correlation matrix.
 
+.. _xst_uv_coverage_doc:
+
+UV coverage from XST
+--------------------
+
+UV coverage (:class:`~nenupy.astro.uvw.UV_Coverage`) corresponding with
+the loded XST data can be easily displayed using its classmethod 
+:meth:`~nenupy.astro.uvw.UV_Coverage.from_xst`: 
+
+.. code-block:: python
+
+    >>> from nenupy.io.xst import XST
+    >>> from nenupy.astro.uvw import UV_Coverage
+
+    >>> xst = XST(".../nenupy/tests/test_data/XST.fits")
+    >>> uvw = UV_Coverage.from_xst(xst)
+    >>> uvw.plot()
+
+.. figure:: ../_images/io_images/uv_coverage_nenucore.png
+    :width: 450
+    :align: center
+
+:meth:`~nenupy.astro.uvw.UV_Coverage.from_xst` takes also in input an
+:class:`~nenupy.io.xst.XST_Slice`, allowing for UV coverage display
+of selected visibilities:
+
+.. code-block:: python
+
+    >>> from nenupy.io.xst import XST
+    >>> from nenupy.astro.uvw import UV_Coverage
+
+    >>> xst = XST(".../nenupy/tests/test_data/XST.fits")
+    >>> xst_data = xst.get(miniarray_selection=np.array([0, 2, 10]))
+    >>> uvw = UV_Coverage.from_xst(xst_data)
+    >>> uvw.plot()
+
+.. figure:: ../_images/io_images/uv_coverage_nenupartial.png
+    :width: 450
+    :align: center
+
 .. _xst_beamforming_doc:
 
 Beamforming from cross-correlations
@@ -133,7 +173,7 @@ enables the calibration table used during the BST observation).
 
 To compare the result, the selected BST data, the beamformed data 
 using the calibration table and without using it (setting
-``calibration="none"`) are displayed together:
+``calibration="none"``) are displayed together:
 
 .. code-block:: python
 
@@ -159,38 +199,40 @@ using the calibration table and without using it (setting
 Image from XST
 --------------
 
-:meth:`~nenupy.io.xst.Crosslet.get_stokes`, :meth:`~nenupy.io.xst.XST_Slice.make_image`
-
-:meth:`~nenupy.astro.sky.SkySliceBase.plot`
+Once the XST data loaded (thanks to :class:`~nenupy.io.xst.XST` or :class:`~nenupy.io.xst.NenufarTV`),
+their selection (using for instance :meth:`~nenupy.io.xst.Crosslet.get_stokes`)
+outputs a :class:`~nenupy.io.xst.XST_Slice` instance.
+The method :meth:`~nenupy.io.xst.XST_Slice.make_image` enables visibility
+inversion to make a 'dirty image' from the dataset in the :class:`~nenupy.astro.sky.HpxSky` format.
+The method :meth:`~nenupy.astro.sky.SkySliceBase.plot` is used to display the final image.
 
 .. code-block:: python
 
-    import astropy.units as u
-    from astropy.coordinates import SkyCoord
+    >>> import astropy.units as u
+    >>> from astropy.coordinates import SkyCoord
 
-    xst_data = xst.get_stokes(
-        stokes="I",
-        miniarray_selection=None,
-        frequency_selection=">=20MHz",
-        time_selection=">=2019-11-19T15:15:00"
-    )
+    >>> xst_data = xst.get_stokes(
+            stokes="I",
+            miniarray_selection=None,
+            frequency_selection=">=20MHz",
+            time_selection=">=2019-11-19T15:15:00"
+        )
 
-    cyg_a = SkyCoord.from_name("Cyg A")
+    >>> cyg_a = SkyCoord.from_name("Cyg A")
 
-    im = xst_data.make_image(
-        resolution=1*u.deg,
-        fov_radius=20*u.deg,
-        phase_center=cyg_a,
-        stokes="I"
-    )
+    >>> im = xst_data.make_image(
+            resolution=1*u.deg,
+            fov_radius=20*u.deg,
+            phase_center=cyg_a,
+            stokes="I"
+        )
 
-    im[0, 0, 0].plot(
-        center=cyg_a,
-        radius=17*u.deg,
-        colorbar_label="Stokes I (arb. units)",
-        figsize=(8, 8),
-    )
-
+    >>> im[0, 0, 0].plot(
+            center=cyg_a,
+            radius=17*u.deg,
+            colorbar_label="Stokes I (arb. units)",
+            figsize=(8, 8),
+        )
 
 .. figure:: ../_images/io_images/xst_image.png
     :width: 450
@@ -202,44 +244,47 @@ Image from XST
 Near-field imprint from XST
 ---------------------------
 
-:meth:`~nenupy.io.xst.Crosslet.get_stokes`, :meth:`~nenupy.io.xst.XST_Slice.make_nearfield`
-
-:class:`~nenupy.io.xst.TV_Nearfield`, :meth:`~nenupy.io.xst.TV_Nearfield.save_png`
+Computing the near-field is pretty similar.
+Once the cross-correlations are selected using 
+:meth:`~nenupy.io.xst.Crosslet.get_stokes`,
+:meth:`~nenupy.io.xst.XST_Slice.make_nearfield` can be called to compute it.
+The returned values can be used to instanciate a :class:`~nenupy.io.xst.TV_Nearfield`
+object. The :meth:`~nenupy.io.xst.TV_Nearfield.save_png` method is finally
+used to display the map:
 
 .. code-block:: python
     :emphasize-lines: 13
 
-    from nenupy.io.xst import TV_Nearfield
+    >>> from nenupy.io.xst import TV_Nearfield
+    >>> import astropy.units as u
 
-    xst_data = xst.get_stokes(
-        stokes="I",
-        miniarray_selection=None,
-        frequency_selection=">=20MHz",
-        time_selection="==2019-11-29T16:16:46.000"
-    )
+    >>> xst_data = xst.get_stokes(
+            stokes="I",
+            miniarray_selection=None,
+            frequency_selection=">=20MHz",
+            time_selection="==2019-11-29T16:16:46.000"
+        )
 
-    radius = 400*u.m
-    npix = 64
-    nf, source_imprint = xst_data.make_nearfield(
-        radius=radius,
-        npix=npix,
-        sources=["Cyg A", "Cas A", "Sun"]
-    )
+    >>> radius = 400*u.m
+    >>> npix = 64
+    >>> nf, source_imprint = xst_data.make_nearfield(
+            radius=radius,
+            npix=npix,
+            sources=["Cyg A", "Cas A", "Sun"]
+        )
 
-    nearfield = TV_Nearfield(
-        nearfield=nf,
-        source_imprints=source_imprint,
-        npix=npix,
-        time=xst_data.time[0],
-        frequency=np.mean(xst_data.frequency),
-        radius=radius,
-        mini_arrays=xst_data.mini_arrays,
-        stokes="I"
-    )
+    >>> nearfield = TV_Nearfield(
+            nearfield=nf,
+            source_imprints=source_imprint,
+            npix=npix,
+            time=xst_data.time[0],
+            frequency=np.mean(xst_data.frequency),
+            radius=radius,
+            mini_arrays=xst_data.mini_arrays,
+            stokes="I"
+        )
 
-    nearfield.save_png(
-        figsize=(8, 8)
-    )
+    >>> nearfield.save_png()
 
 
 .. figure:: ../_images/io_images/xst_nearfield.png
@@ -252,27 +297,39 @@ Near-field imprint from XST
 NenuFAR TV
 ----------
 
-:class:`~nenupy.io.xst.NenufarTV`
+The class :class:`~nenupy.io.xst.NenufarTV` is exclusively used to read and load
+data corresponding with the `NenuFAR-TV <https://nenufar.obs-nancay.fr/nenufar-tv/>`_.
+Every 5 minutes, cross-correlations are taken along 16 sub-bands (for a total of 
+around 3 MHz bandwidth), with a 10-sec time resolution.
+The data are stored in binary files that can be simply decoded by:
 
 .. code-block:: python
 
-    from nenupy.io.xst import NenufarTV
+    >>> from nenupy.io.xst import NenufarTV
 
-    tv = NenufarTV("/path/to/nenufarTV.dat")
+    >>> tv = NenufarTV("/path/to/nenufarTV.dat")
 
 
 TV Image
 ^^^^^^^^
 
-:meth:`~nenupy.io.xst.NenufarTV.compute_nenufar_tv`
+Dedicated methods are attached to the :class:`~nenupy.io.xst.NenufarTV` class.
+The image can be directly computed using :meth:`~nenupy.io.xst.NenufarTV.compute_nenufar_tv`:
 
 .. code-block:: python
 
-    tv_image = tv.compute_nenufar_tv(
-        sources=["Cyg A", "Cas A"],
-        stokes="I"
-    )
-    tv_image.save_png()
+    >>> from nenupy.io.xst import NenufarTV
+    >>> import astropy.units as u
+
+    >>> tv = NenufarTV("/path/to/nenufarTV.dat")
+
+    >>> tv_image = tv.compute_nenufar_tv(
+            analog_pointing_file="<the_pointing_file.azana>",
+            fov_radius=27 * u.deg,
+            resolution=0.5 * u.deg,
+            stokes="I"
+        )
+    >>> tv_image.save_png()
 
 
 .. figure:: ../_images/io_images/nenufartv_im.png
@@ -285,17 +342,21 @@ TV Image
 TV Near-field
 ^^^^^^^^^^^^^
 
-:meth:`~nenupy.io.xst.NenufarTV.compute_nearfield_tv`
+The same is true for the near-field image, using the method 
+:meth:`~nenupy.io.xst.NenufarTV.compute_nearfield_tv`:
 
 .. code-block:: python
 
-    tv_nearfield = tv.compute_nearfield_tv(
-        sources=["Cyg A", "Cas A"],
-        stokes="I"
-    )
-    tv_nearfield.save_png()
+    >>> from nenupy.io.xst import NenufarTV
+    >>> import astropy.units as u
 
-:class:`~nenupy.io.xst.TV_Nearfield`, :meth:`~nenupy.io.xst.TV_Nearfield.save_png`
+    >>> tv = NenufarTV("/path/to/nenufarTV.dat")
+
+    >>> tv_nearfield = tv.compute_nearfield_tv(
+            sources=["Cyg A", "Cas A"],
+            stokes="I"
+        )
+    >>> tv_nearfield.save_png()
 
 .. figure:: ../_images/io_images/nenufartv_nf.png
     :width: 450

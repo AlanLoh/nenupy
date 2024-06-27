@@ -1,4 +1,4 @@
-nenupy.observation.obs\_config.PulsarSingleConfig
+﻿nenupy.observation.obs\_config.PulsarSingleConfig
 =================================================
 
 .. currentmodule:: nenupy.observation.obs_config
@@ -8,6 +8,7 @@ nenupy.observation.obs\_config.PulsarSingleConfig
    :show-inheritance:
    :inherited-members:
 
+   
    
    .. automethod:: __init__
 

@@ -60,12 +60,11 @@ intersphinx_mapping = {
     # 'nenupy': ('https://nenupy.readthedocs.io/en/latest/', None),
 }
 
-autodoc_typehints = "none"
-autosummary_generate = True  # Turn on sphinx.ext.autosummary
-
 copybutton_prompt_text = ">>> " # exclude from code-block copy
 copybutton_only_copy_prompt_lines = False # copy also the lines not strating by prompt
 
+autodoc_typehints = "none"
+autosummary_generate = True  # Turn on sphinx.ext.autosummary
 autodoc_mock_imports = [
     'pygsm',
     'pyvo',
@@ -145,10 +144,6 @@ html_css_files = [
 # html_logo = '../Logo-NenuFAR-noir.svg'
 html_logo = '../nenupy_logo.png'
 html_favicon = "../nenupy_logo.ico"
-html_theme_options = {
-    "logo_only": False,
-    "display_version": False,
-}
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32

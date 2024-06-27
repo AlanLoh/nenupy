@@ -9,6 +9,8 @@
    :inherited-members:
 
    
+   
+   .. automethod:: __call__
    .. automethod:: __init__
 
    

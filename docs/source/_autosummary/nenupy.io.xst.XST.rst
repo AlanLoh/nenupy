@@ -9,6 +9,7 @@
    :inherited-members:
 
    
+   
    .. automethod:: __init__
 
    
@@ -21,6 +22,7 @@
       ~XST.get_beamform
       ~XST.get_stokes
       ~XST.info
+      ~XST.rephase
    
    
 
@@ -32,5 +34,6 @@
    
       ~XST.frequencies
       ~XST.mini_arrays
+      ~XST.phase_center
    
    

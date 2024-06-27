@@ -9,6 +9,8 @@
    :inherited-members:
 
    
+   
+   .. automethod:: __call__
    .. automethod:: __init__
 
    
@@ -31,5 +33,12 @@
    
 
    
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~TFTask.args_to_update
+      ~TFTask.is_active
    
    
