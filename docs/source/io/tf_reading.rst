@@ -102,14 +102,14 @@ which can be displayed using :meth:`~nenupy.io.tf.TFPipeline.info`:
     :class:`~nenupy.io.tf.TFTask` lists all the pre-defined tasks available.
 
 The pipeline tasks are using the parameters listed in the 
-:attr:`~nenupy.io.tf.Spectra.parameters` attribute (returning a 
+:attr:`~nenupy.io.tf.TFPipeline.parameters` attribute (returning a 
 :class:`~nenupy.io.tf_utils.TFPipelineParameters` object) as their configuration.
 One can access the current state of these parameters by calling 
 :meth:`~nenupy.io.tf_utils.TFPipelineParameters.info`:
 
 .. code-block:: python
 
-    >>> sp.parameters.info()
+    >>> sp.pipeline.parameters.info()
     channels: 64
     dt: 0.02097152 s
     df: 3051.7578125 Hz

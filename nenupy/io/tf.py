@@ -1251,6 +1251,12 @@ class Spectra:
                 # Simply compute the data
                 # The data volume security is ON
                 data = self._data_to_numpy_array(data)  # compute() the Dask array
+
+                if data is None:
+                    # The hardcoded volume threshold is reached.
+                    log.warning("No data returned.")
+                    return
+
                 result = self._to_sdata(data=data, time=time, frequency=frequency)
 
                 self.pipeline.parameters = parameters_copy  # Reset the parameters
@@ -1583,6 +1589,8 @@ class Spectra:
             log.warning(
                 f"Data processing will produce {projected_data_volume.to(u.Gibyte)}."
                 f"The pipeline is interrupted because the volume threshold is {DATA_VOLUME_SECURITY_THRESHOLD.to(u.Gibyte)}."
+                "Consider reducing the amount of selected data."
+                "Otherwise, you may use the ignore_volume_warning argument (with caution!) or save the data output to HDF5 format."
             )
             return
 
