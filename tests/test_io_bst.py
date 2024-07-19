@@ -114,6 +114,7 @@ class TestBST:
             beam=0
         )
         assert data.value.shape == (779,)
+        assert data.value.ndim == 1
         data.plot(
             digital_pointing=True,
             analog_pointing=True

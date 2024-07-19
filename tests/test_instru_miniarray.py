@@ -243,7 +243,26 @@ class TestMiniArray:
             configuration=config
         )
         assert beam.value.shape == (2, 1, 1, 3)
-
+    
+    def test_beam_shape_4(self):
+        config = NenuFAR_Configuration(
+            beamsquint_correction=True,
+            beamsquint_frequency=50*u.MHz
+        )
+        beam = self.ma.beam(
+            sky=Sky(
+                coordinates=SkyCoord(100, 10, unit="deg"),
+                time=Time(["2022-01-01T12:00:00", "2022-01-01T13:00:00"]),
+                frequency=50*u.MHz,
+                polarization=Polarization.NW
+            ),
+            pointing=Pointing.zenith_tracking(
+                time=Time("2022-01-01T11:00:00"),
+                duration=TimeDelta(7200, format="sec")
+            ),
+            configuration=config
+        )
+        assert beam.value.shape == (2, 1, 1, 1)
 
     # ========================================================= #
     # -------------- test_instrument_temperature -------------- #

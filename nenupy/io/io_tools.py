@@ -24,6 +24,7 @@ __all__ = [
 from abc import ABC
 import operator
 import re
+from functools import partial
 from typing import Callable
 from astropy.io import fits
 from astropy.time import Time, TimeDelta
@@ -44,13 +45,16 @@ log = logging.getLogger(__name__)
 
 
 ops = {
-    '>': operator.gt,
-    '<': operator.lt,
-    '>=': operator.ge,
-    '<=': operator.le,
-    '==': operator.eq,
+    ">": operator.gt,
+    "<": operator.lt,
+    ">=": operator.ge,
+    "<=": operator.le,
+    "f==": u.isclose,
+    "t==": partial(np.isclose, rtol=1e-12, atol=0.0)
 }
 
+ST_DF = 195.3125 * u.kHz
+ST_DT = 1. * u.s
 
 # ============================================================= #
 # ---------------------- StatisticsData ----------------------- #
@@ -125,7 +129,7 @@ class StatisticsData(ABC):
                 # ) + 195.3125*u.kHz/2 # mid frequency
                 self.frequencies = sb2freq(
                     f[7].data['xstsubband'].astype("int")
-                ) + 195.3125*u.kHz/2 # mid frequency
+                ) + ST_DF / 2 # mid frequency
             except KeyError:
                 pass
 
@@ -133,15 +137,15 @@ class StatisticsData(ABC):
 
 
     @staticmethod
-    def _parse_condition(conditions, converter):
+    def _parse_condition(conditions: str, converter: Callable):
         """ """
         condition_list = conditions.replace(" ", "").split("&")
 
         cond = []
         for condition in condition_list:
             try:
-                op = re.search('((>=)|(<=)|(==)|(<)|(>))', condition).group(0)
-                val = re.search(f'(?<={op})(.*)', condition).group(0)
+                op = re.search("((>=)|(<=)|(t==)|(f==)|(<)|(>))", condition).group(0)
+                val = re.search(f"(?<={op})(.*)", condition).group(0)
             except AttributeError:
                 log.error(
                     f"Selection syntax '{condition}' not understood."
@@ -159,13 +163,15 @@ class StatisticsData(ABC):
             raise Exception
 
 
-    def _parse_time_condition(self, conditions):
+    def _parse_time_condition(self, conditions: str):
         """ """
+        conditions = conditions.replace("==", "t==")
         return self._parse_condition(conditions, lambda t: Time(t).jd)
 
 
-    def _parse_frequency_condition(self, conditions):
+    def _parse_frequency_condition(self, conditions: str):
         """ """
+        conditions = conditions.replace("==", "f==")
         return self._parse_condition(conditions, lambda f: u.Quantity(f))
 # ============================================================= #
 # ============================================================= #

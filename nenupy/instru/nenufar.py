@@ -117,7 +117,7 @@ class _AntennaGain:
         """ Return an antenna gain array shaped like (sky.time, sky.frequency, sky.coord)
         """
 
-        horizontal_coordinates = sky.horizontal_coordinates
+        horizontal_coordinates = sky.horizontal_coordinates # (time, coords)
 
         log.debug(
             f"Interpolating NenuFAR antenna response ('{self.polarization}' polarization) "
@@ -125,16 +125,13 @@ class _AntennaGain:
         )
 
         # Get the frequency from the Sky instance
-        freqs = sky.frequency.to_value(u.MHz)
+        freqs = sky.frequency.to_value(u.MHz) # (freqs))
 
         # Find the interpolated gain at the desired frequency
-        #gain = self.interpolated_gain(self.healpix_coords, freqs)
-        #gain = self.interpolated_gain((freqs, self.healpix_coords))
-        gain = self.interpolated_gain(freqs) # shape: (freq, pix_coord)
-        # if gain.ndim == 1:
-        #     gain = gain.reshape((1, gain.size))
+        gain = self.interpolated_gain(freqs) # (freq, pix_coord)
 
         # Find the interpolated gain at the desired coordinates for each frequency
+        final_shape = freqs.shape + horizontal_coordinates.shape
         gain = np.array([
             hp.pixelfunc.get_interp_val(
                 m=gain_i,
@@ -143,21 +140,21 @@ class _AntennaGain:
                 nest=False,
                 lonlat=True
             ) for gain_i in gain
-        ])
+        ]) # would like (freq, time, coord) but broadcasting happens...
+        gain = gain.reshape(final_shape)
 
-        if gain.ndim == 1:
-            # If only one or less dimension is larger than 1 element, get_interp_val returns a 1D array
-            # It's then esay to just reshape like the original array (minus the pol) since a single dimension is affected at best
-            original_shape = sky.value.shape
-            gain = gain.reshape((original_shape[0], original_shape[1], original_shape[3]))
-        elif gain.ndim == 2:
-            # The time dimension is not yet included
-            gain = gain.reshape((1,) + gain.shape)
-        # Return something shaped as (time, freq, coord)
-        if sky.time.size == 1:
-            return gain
-        return np.moveaxis(gain, 0, 1) # keep that!
-        #return gain.reshape((1,) + gain.shape) # use with RegularGridInterpolator
+        # if gain.ndim == 1:
+        #     # If only one or less dimension is larger than 1 element, get_interp_val returns a 1D array
+        #     # It's then esay to just reshape like the original array (minus the pol) since a single dimension is affected at best
+        #     original_shape = sky.value.shape
+        #     gain = gain.reshape((original_shape[0], original_shape[1], original_shape[3]))
+        # elif gain.ndim == 2:
+        #     # The time dimension is not yet included
+        #     gain = gain.reshape((1,) + gain.shape)
+        # # Return something shaped as (time, freq, coord)
+        # if sky.time.size == 1:
+        #     return gain
+        return np.moveaxis(gain, 0, 1) # (time, freq, coord)
 
 
 class Polarization(Enum):
