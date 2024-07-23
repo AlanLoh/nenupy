@@ -162,9 +162,55 @@ def apply_dreambeam_corrections(
 # ============================================================= #
 # --------------------- blocks_to_tf_data --------------------- #
 def blocks_to_tf_data(data: da.Array, n_block_times: int, n_channels: int) -> da.Array:
-    """Inverts the halves of each beamlet and reshape the
-    array in 2D (time, frequency) or 4D (time, frequency, 2, 2)
-    if this is an 'ejones' matrix.
+    """Parse time-frequency data at the reading of a .spectra file.
+    Invert the halves of each beamlet and reshape the
+    array in 2D (time, frequency) or 4D (time, frequency, 2, 2).
+
+    Parameters
+    ----------
+    data : :class:`~dask.array.Array`
+        Raw data. Number of dimensions should either be 4 (n_block, n_subband, n_time_per_block, n_channels) or 6 (n_block, n_subband, n_time_per_block, n_channels, 2, 2)
+    n_block_times : `int`
+        Number of time blocks
+    n_channels : `int`
+        Number of frequency channels in each beamlet
+
+    Returns
+    -------
+    :class:`~dask.array.Array`
+        Data reshaped
+
+    Raises
+    ------
+    ValueError
+        Raised if n_channels is odd
+    IndexError
+        Raised if the number of dimensions of data is different than 4 or 6
+
+    Warning
+    -------
+    Usage only within :class:`~nenupy.io.tf.Spectra`.
+            
+    Example
+    -------
+    .. code-block:: python
+
+        >>> from nenupy.io.tf_utils import blocks_to_tf_data
+        >>> import numpy as np
+
+        >>> n_block = 5
+        >>> n_subband = 32
+        >>> n_time_per_block = 24
+        >>> n_channels = 8
+        >>> data = np.ones(((n_block, n_subband, n_time_per_block, n_channels, 2, 2)))
+        >>> data_reshaped = blocks_to_tf_data(
+                data=data,
+                n_block_times=n_time_per_block,
+                n_channels=n_channels
+            )
+        >>> data_reshaped.shape
+        (120, 256, 2, 2)
+
     """
     ntb, nfb = data.shape[:2]
     n_times = ntb * n_block_times
@@ -199,7 +245,45 @@ def blocks_to_tf_data(data: da.Array, n_block_times: int, n_channels: int) -> da
 def compute_spectra_frequencies(
     subband_start_hz: np.ndarray, n_channels: int, frequency_step_hz: float
 ) -> da.Array:
-    """ """
+    """Compute the frequency axis of a time-frequency file.
+    Re-construct the whole frequency range, knowing the starting frequency of
+    each sub-band, the number of channels per sub-band and the frequency
+    resolution.
+
+    Parameters
+    ----------
+    subband_start_hz : :class:`~numpy.ndarray`
+        Array of sub-band starting frequencies
+    n_channels : `int`
+        Number of channels per subband
+    frequency_step_hz : `float`
+        Frequency resolution in Hz
+
+    Returns
+    -------
+    :class:`~dask.array.Array`
+        The frequency array (`Dask <https://docs.dask.org/en/stable/>`_ format), in Hz
+
+    Example
+    -------
+    .. code-block:: python
+        :emphasize-lines: 7,8,9,10,11
+
+        >>> from nenupy.io.tf_utils import compute_spectra_frequencies
+        >>> import astropy.units as u
+
+        >>> sb_start_freq = [50.1953125, 50.390625, 50.5859375, 50.781250] * u.MHz
+        >>> n_channels = 16
+        >>> df = 12.20703125 * u.kHz
+        >>> freq_axis = compute_spectra_frequencies(
+                subband_start_hz=sb_start_freq.to_value(u.Hz),
+                n_channels=n_channels,
+                frequency_step_hz=df.to_value(u.Hz)
+            )
+        >>> freq_axis.compute()
+        array([50097656.25, 50109863.28125,....50854492.1875, 50866699.21875])
+
+    """
 
     # Construct the frequency array
     frequencies = da.tile(np.arange(n_channels) - n_channels / 2, subband_start_hz.size)
@@ -218,7 +302,52 @@ def compute_spectra_frequencies(
 def compute_spectra_time(
     block_start_time_unix: np.ndarray, ntime_per_block: int, time_step_s: float
 ) -> da.Array:
-    """ """
+    """Compute the time axis of a time-frequency file.
+    Re-construct the whole time range, knowing the starting unix time of
+    each time block, the number of time samples per block and the time
+    resolution.
+
+    Parameters
+    ----------
+    block_start_time_unix : :class:`~numpy.ndarray`
+        Array of start times of each block, in UNIX format
+    ntime_per_block : `int`
+        Number of time samples per block
+    time_step_s : `float`
+        Time resolution in seconds
+
+    Returns
+    -------
+    :class:`~dask.array.Array`
+        The time array (`Dask <https://docs.dask.org/en/stable/>`_ format), in unix
+
+    Example
+    -------
+    .. code-block:: python
+        :emphasize-lines: 14,15,16,17,18
+
+        >>> from nenupy.io.tf_utils import compute_spectra_time
+        >>> from astropy.time import Time
+        >>> import astropy.units as u
+
+        >>> nffte = 42
+        >>> dt = 0.02097152 * u.s
+        >>> start_times = Time([
+                '2024-07-15T08:31:12.000', '2024-07-15T08:31:12.881',
+                '2024-07-15T08:31:13.762', '2024-07-15T08:31:14.642',
+                '2024-07-15T08:31:15.523', '2024-07-15T08:31:16.404',
+                '2024-07-15T08:31:17.285', '2024-07-15T08:31:18.166',
+                '2024-07-15T08:31:19.046', '2024-07-15T08:31:19.927'
+            ])
+        >>> time_axis = compute_spectra_time(
+                block_start_time_unix=start_times.unix,
+                ntime_per_block=nffte,
+                time_step_s=dt.to_value(u.s)
+            )
+        >>> time_axis.compute()
+        array([1721032272.0, 1721032272.0209715, ...])
+
+    """
 
     # Construct the elapsed time per block (1D array)
     time_seconds_per_block = da.arange(ntime_per_block, dtype="float64") * time_step_s
@@ -241,7 +370,7 @@ def compute_stokes_parameters(
 ) -> np.ndarray:
     r"""Compute the Stokes parameters from data organized in Jones matrices.
 
-    ``data_array``'s last two dimensions are assumed to corresponds with:
+    ``data_array``'s last two dimensions are assumed to be:
 
     .. math::
 
@@ -250,7 +379,7 @@ def compute_stokes_parameters(
         Y\overline{X} & Y\overline{Y}
         \end{pmatrix},
 
-    So that the Stokes parameters are computed such as:
+    so that the Stokes parameters are computed such as:
 
     .. math::
 
@@ -362,17 +491,22 @@ def compute_stokes_parameters(
 # --------------------- correct_bandpass ---------------------- #
 def correct_bandpass(data: np.ndarray, n_channels: int) -> np.ndarray:
     """Correct the Polyphase-filter band-pass response at each sub-band.
+    This methods computes the bandpass theoretical response of sub-bands
+    made of ``n_channels`` and multiply the ``data`` by this reponse. 
+    
+    Returns
+    -------
+    :class:`~numpy.ndarray`
+        Bandpass response corrected data.
 
-    .. image:: ../_images/bandpass_corr.png
-        :width: 800
-
-    :param data: _description_
-    :type data: np.ndarray
-    :param n_channels: _description_
-    :type n_channels: int
-    :raises ValueError: _description_
-    :return: _description_
-    :rtype: np.ndarray
+    Raises
+    ------
+    ValueError
+        Raised if the shape of data does not match the number of channels.
+    
+    See Also
+    --------
+    :func:`~nenupy.io.tf_utils.get_bandpass`
     """
 
     log.info("Correcting for bandpass...")
@@ -404,10 +538,67 @@ def correct_bandpass(data: np.ndarray, n_channels: int) -> np.ndarray:
 def crop_subband_edges(
     data: np.ndarray,
     n_channels: int,
-    lower_edge_channels: int,
-    higher_edge_channels: int,
+    lower_edge_channels: int = 0,
+    higher_edge_channels: int = 0,
 ) -> np.ndarray:
-    """ """
+    """Set edge channels of each subband to `NaN`.
+    Each subband of ``data`` is determined thanks to ``n_channels``
+    (and the function :func:`~nenupy.io.tf_utils.reshape_to_subbands`).
+    This method is a bit faster than :func:`~nenupy.io.tf_utils.remove_channels_per_subband`
+    but it is restricted to edge channels. The other method is prefered for its polyvalence.
+
+    Parameters
+    ----------
+    data : :class:`~numpy.ndarray`
+        Data to be corrected, must be at least two-dimensional, the first two dimensions being respectively the time and the frequency
+    n_channels : `int`
+        Number of channels per subband
+    lower_edge_channels : `int`
+        Number of channels to set to `NaN` for the lowest part of each subband, by default 0
+    higher_edge_channels : `int`
+        Number of channels to set to `NaN` for the highest part of each subband, by default 0
+
+    Returns
+    -------
+    :class:`~numpy.ndarray`
+        Corrected data, same shape as input array
+
+    Raises
+    ------
+    ValueError
+        Raised if the cropped channels are greater than ``n_channels``.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        >>> from nenupy.io.tf_utils import crop_subband_edges
+        >>> import numpy as np
+
+        >>> result = crop_subband_edges(
+                data=np.ones((2, 10)),
+                n_channels=5,
+                lower_edge_channels=1, # set to NaN the first channel of each subband
+                higher_edge_channels=0
+            )
+        >>> print(result)
+        [[nan  1.  1.  1.  1. nan  1.  1.  1.  1.]
+        [nan  1.  1.  1.  1. nan  1.  1.  1.  1.]]
+
+        >>> result = crop_subband_edges(
+                data=np.ones((2, 10)),
+                n_channels=5,
+                lower_edge_channels=0,
+                higher_edge_channels=2 # set to NaN the last 2 channels of each subband
+            )
+        >>> print(result)
+        [[ 1.  1.  1. nan nan  1.  1.  1. nan nan]
+        [ 1.  1.  1. nan nan  1.  1.  1. nan nan]]
+
+    See Also
+    --------
+    :func:`~nenupy.io.tf_utils.remove_channels_per_subband`
+    """
 
     log.info("Removing edge channels...")
 
@@ -416,13 +607,15 @@ def crop_subband_edges(
             f"{lower_edge_channels + higher_edge_channels} channels to crop out of {n_channels} channels subbands."
         )
 
-    n_times, n_freqs, _, _ = data.shape
+    original_shape = data.shape
+    n_times = original_shape[0]
+    n_freqs = original_shape[1]
     data = reshape_to_subbands(data=data, n_channels=n_channels)
 
     # Set to NaN edge channels
-    data[:, :, :lower_edge_channels, :, :] = np.nan  # lower edge
-    data[:, :, n_channels - higher_edge_channels :, :] = np.nan  # upper edge
-    data = data.reshape((n_times, n_freqs, 2, 2))
+    data[:, :, :lower_edge_channels, ...] = np.nan  # lower edge
+    data[:, :, n_channels - higher_edge_channels :, ...] = np.nan  # upper edge
+    data = data.reshape((n_times, n_freqs) + original_shape[2:])
 
     log.info(
         f"\t{lower_edge_channels} lower and {higher_edge_channels} higher "
@@ -532,11 +725,40 @@ def de_faraday_data(
 # ============================================================= #
 # ----------------------- get_bandpass ------------------------ #
 def get_bandpass(n_channels: int) -> np.ndarray:
-    """ """
+    """Compute the theoretical bandpass response of a sub-band.
+    Function and coefficient developped/computed by C. Viou.
+
+    Parameters
+    ----------
+    n_channels : int
+        Number of channels per sub-band
+
+    Returns
+    -------
+    :class:`~numpy.ndarray`
+        The bandpass response of a subband
+    
+    Raises
+    ------
+    ValueError
+        Raised if ``n_channels`` is lower than 16 or is odd.
+    
+    Example
+    -------
+    .. code-block:: python
+
+        >>> from nenupy.io.tf_utils import get_bandpass
+
+        >>> bp = get_bandpass(n_channels=32)
+
+    """
     kaiser_file = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "bandpass_coeffs.dat"
     )
     kaiser = np.loadtxt(kaiser_file)
+
+    if (n_channels < 16) or (n_channels%2 != 0):
+        raise ValueError("n_channels cannot be lower than 16 and must be even.")
 
     n_tap = 16
     over_sampling = n_channels // n_tap
@@ -556,14 +778,46 @@ def get_bandpass(n_channels: int) -> np.ndarray:
     return g**2.0
 
 
+# def smooth_subbands(data: np.ndarray, channels: int) -> np.ndarray:
+#     from scipy.signal import savgol_filter
+
+#     n_subbands = int(data.shape[1] / channels)
+#     subband_shape = (n_subbands, channels) + data.shape[2:]
+
+#     median_frequency_profile = np.nanmedian(data, axis=0)
+
+#     # Compute the Savgol filter of the frequency profile on a low order polynomial
+#     # The window is also of the order of the subband as we don't expect much change from one to another
+#     smoothed_fprofile = savgol_filter(
+#         median_frequency_profile,
+#         window_length=2 * channels + 1,
+#         polyorder=1
+#     )
+#     # smoothed_fprofile_sb = smoothed_fprofile.reshape(subband_shape)
+
+#     # Compute the shift between the median profile and the smoothed one
+#     relative_profile_difference = smoothed_fprofile / median_frequency_profile
+
+#     # Reshape per subband
+#     nan_values = np.isnan(median_frequency_profile)
+#     nan_values_sb = nan_values.reshape(subband_shape)
+#     difference_sb = relative_profile_difference.reshape(subband_shape)
+
+#     # Linear fit of the relative difference per subband
+#     non_nan_channels = np.sum(nan_values_sb, axis=1)
+#     linear_approx = np.arange(n_channels)[:, None] * (diff_sb[:, -1] - diff_sb[:, 0]) / n_channels + diff_sb[:, 0]
+
+
+
+
 # ============================================================= #
 # ---------------------- flatten_subband ---------------------- #
-def flatten_subband(data: np.ndarray, channels: int) -> np.ndarray:
+def flatten_subband(data: np.ndarray, channels: int, smooth_frequency_profile: bool = False) -> np.ndarray:
     # Check that data has not been altered, i.e. dimension 1 should be a multiple of channels
     if data.shape[1] % channels != 0:
         raise ValueError(
             f"data's frequency dimension (of size {data.shape[1]}) is "
-            f"not a multiple of channels={channels}. data's second "
+            f"not a multiple of {channels=}. data's second "
             "dimension should be of size number_of_subbands*number_of_channels."
         )
     n_subbands = int(data.shape[1] / channels)
@@ -594,13 +848,20 @@ def flatten_subband(data: np.ndarray, channels: int) -> np.ndarray:
         median_subband_profile[:, int(np.ceil(channels / 2)) :, ...], axis=1
     )
 
+    # Smooth the future slopes by shifting upward or downards y1 and y2 with respect to the difference
+    # between them and the next point of the next subband
+    # This step may result in non desirable results if subbands are not contiguous or not belonging to the same beam
+    if smooth_frequency_profile:
+        smooth_sb_diff = y1[1:, ...] - y2[:-1, ...]
+        y1[1:, ...] += smooth_sb_diff / 2
+        y2[:-1, ...] -= smooth_sb_diff / 2
+
     # Compute the linear approximations of each subbands, linear_subbands's shape is (channels, subbands, (polarizations...))
     x_values = np.arange(channels)[
         (...,) + (np.newaxis,) * (pol_dims + 1)
     ]  # +1 --> subbands
-    linear_subbands = (x_values - ind1) * (y2 - y1) / (
-        ind2 - ind1
-    ) + y1  # linear equation
+    slope = (y2 - y1) / (ind2 - ind1)
+    linear_subbands = (x_values - ind1) * slope + y1  # linear equation
 
     # Compute the subband mean value and the normalised linear subbands
     subband_mean_values = np.nanmedian(
@@ -615,7 +876,7 @@ def flatten_subband(data: np.ndarray, channels: int) -> np.ndarray:
 
 
 # ============================================================= #
-# -------------------- plot_dynamic_spectrum --------------------- #
+# ------------------- plot_dynamic_spectrum ------------------- #
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.dates import AutoDateLocator, ConciseDateFormatter
@@ -627,64 +888,152 @@ def plot_dynamic_spectrum(
     frequency: u.Quantity,
     fig: mpl.figure.Figure = None,
     ax: mpl.axes.Axes = None,
-    **kwargs,
+    figsize: Tuple[int, int] = (10, 5),
+    dpi: int = 200,
+    xlabel: str = None,
+    ylabel: str = None,
+    clabel: str = None,
+    title: str = None,
+    cmap: str = "YlGnBu_r",
+    norm: str = "linear",
+    vmin: float = None,
+    vmax: float = None
 ) -> Tuple[mpl.figure.Figure, mpl.axes.Axes]:
-    """_summary_
+    """Plot a dynamic spectrum.
+    This function uses :func:`~matplotlib.pyplot.pcolormesh` in the background.
 
     Parameters
     ----------
-    data : np.ndarray
-        _description_
-    time : Time
-        _description_
-    frequency : u.Quantity
-        _description_
-    fig : mpl.figure.Figure, optional
-        _description_, by default None
-    ax : mpl.axes.Axes, optional
-        _description_, by default None
+    data : :class:`~numpy.ndarray`
+        Two-dimensional array, shaped like (time, frequency).
+    time : :class:`~astropy.time.Time`
+        One-dimensional time array. 
+    frequency : :class:`~astropy.units.Quantity`
+        One-dimensional frequency array, if ``ylabel`` is `None`, the :attr:`~astropy.units.Quantity.unit` is automatically used to describe the axis.
+    fig : :class:`~matplotlib.figure.Figure`, optional
+        Matplotlib figure if already existing, by default `None`
+    ax : :class:`~matplotlib.axes.Axes`, optional
+        Matplotlib ax if already existing, by default `None`
+    figsize : Tuple[`int`, `int`], optional
+        Size of the figure in inches, by default (10, 5)
+    dpi : `int`, optional
+        Dots per inch (best quality is around 300), by default 200
+    xlabel : `str`, optional
+        Label of the x-axis (time), by default `None` (i.e., generic label)
+    ylabel : `str`, optional
+        Label of the y-axis (time), by default `None` (i.e., generic label)
+    clabel : `str`, optional
+        Label of the colorbar, by default `None` (i.e., empty)
+    title : `str`, optional
+        Title of the graph, by default `None` (i.e., empty)
+    cmap : `str`, optional
+        Colormap (see `matplotlib colormaps <link https://matplotlib.org/stable/users/explain/colors/colormaps.html>`_), by default "YlGnBu_r"
+    norm : `str`, optional
+        Normalization of the colorbar ('linear' or 'log'), by default "linear"
+    vmin : `float`, optional
+        Minimal data value to plot, by default `None`
+    vmax : `float`, optional
+        Maximal data value to plot, by default `None`
 
     Returns
     -------
-    Tuple[mpl.figure.Figure, mpl.axes.Axes]
-        _description_
+    Tuple[:class:`~matplotlib.figure.Figure`, :class:`~matplotlib.axes.Axes`]
+        The figure and ax objects
+
+    Raises
+    ------
+    ValueError
+        Raised if ``norm`` does not match supported value.
+    
+    Examples
+    --------
+    .. code-block:: python
+
+        >>> from nenupy.io.tf_utils import plot_dynamic_spectrum
+        >>> from astropy.time import Time, TimeDelta
+        >>> import astropy.units as u
+        >>> import matplotlib.pyplot as plt
+        >>> import numpy as np
+
+        >>> n_times = 20
+        >>> dt = TimeDelta(1800, format="sec")
+        >>> n_freqs = 10
+        >>> df = 1 * u.MHz
+        >>> fig, ax = plot_dynamic_spectrum(
+                data=np.arange(n_times * n_freqs).reshape((n_times, n_freqs)),
+                time=Time("2024-01-01 00:00:00") + np.arange(n_times) * dt,
+                frequency=50 * u.MHz + np.arange(n_freqs) * df,
+                clabel="my color bar",
+                norm="linear",
+            )
+    
+    .. figure:: ../_images/io_images/plot_dynamic_spectrum.png
+        :width: 650
+        :align: center
+
+    Warning
+    -------
+    Do not forget to release the matplotlib cache (using
+    :func:`~matplotlib.pyplot.close`), either after calling several times
+    this method, and/or once you are done with your desired plot.
+    Otherwise you may suffer from significant performance issues
+    as the plots stacks in the memory...
+
+        >>> plt.close(fig)
+
+    or 
+
+        >>> plt.close("all")
+
     """
 
     if fig is None:
-        fig = plt.figure(
-            figsize=kwargs.get("figsize", (10, 5)), dpi=kwargs.get("dpi", 200)
-        )
+        fig = plt.figure(figsize=figsize, dpi=dpi)
 
     if ax is None:
         ax = fig.add_subplot()
+
+    # Normalization
+    if norm == "linear":
+        if vmin is None:
+            vmin = data.min()
+        if vmax is None:
+            vmax = data.max()
+    elif norm == "log":
+        if vmin is None:
+            vmin = data[data > 0.].min()
+        if vmax is None:
+            vmax = data.max()
+    else:
+        raise ValueError("Invald norm, the following are supported: 'linear', 'log'.")
 
     im = ax.pcolormesh(
         time.datetime,
         frequency.value,
         data.T,
         shading="nearest",
-        norm=kwargs.get("norm", "linear"),
-        cmap=kwargs.get("cmap", "YlGnBu_r"),
-        vmin=kwargs.get("vmin", data.min()),
-        vmax=kwargs.get("vmax", data.max()),
+        norm=norm,
+        cmap=cmap,
+        vmin=data.min() if vmin is None else vmin,
+        vmax=data.max() if vmax is None else vmax,
     )
 
     # Colorbar
     cbar = plt.colorbar(im, pad=0.03)
-    cbar.set_label(kwargs.get("clabel", ""))
+    cbar.set_label(clabel)
 
     # Global
     ax.minorticks_on()
-    ax.set_title(kwargs.get("title", ""))
+    ax.set_title(title)
 
     # X axis
     locator = AutoDateLocator()
     ax.xaxis.set_major_locator(locator)
     ax.xaxis.set_major_formatter(ConciseDateFormatter(locator))
-    ax.set_xlabel(kwargs.get("xlabel", f"Time ({time.scale.upper()})"))
+    ax.set_xlabel(f"Time ({time.scale.upper()})" if xlabel is None else xlabel)
 
     # Y axis
-    ax.set_ylabel(kwargs.get("ylabel", f"Frequency ({frequency.unit})"))
+    ax.set_ylabel(f"Frequency ({frequency.unit})" if ylabel is None else ylabel)
 
     return fig, ax
 
@@ -754,32 +1103,49 @@ def remove_channels_per_subband(
     data: np.ndarray, n_channels: int, channels_to_remove: Union[list, np.ndarray]
 ) -> np.ndarray:
     """Set channel indices of a time-frequency dataset to `NaN` values.
-    The ``data`` array is first re-shaped as `(n_times, n_subbands, n_channels, 2, 2)` using :func:`~nenupy.io.tf_utils.reshape_to_subbands`.
+    Each subband of ``data`` is determined thanks to ``n_channels``
+    (and the function :func:`~nenupy.io.tf_utils.reshape_to_subbands`).
 
-    :param data: Time-frequency correlations array, its dimensions must be `(n_times, n_frequencies, 2, 2)`. The data type must be `float`.
-    :type data: :class:`~numpy.ndarray`
-    :param n_channels: Number of channels per sub-band.
-    :type n_channels: `int`
-    :param channels_to_remove: Array of channel indices to set at `NaN` values.
-    :type channels_to_remove: :class:`~numpy.ndarray` or `list`
-    :raises TypeError: If ``channels_to_remove`` is not of the correct type.
-    :raises IndexError: If any of the indices listed in ``channels_to_remove`` does not correspond to the ``n_channels`` argument.
-    :return: Time-frequency correlations array, shaped as the original input, except that some channels are set to `NaN`.
-    :rtype: :class:`~numpy.ndarray`
+    Parameters
+    ----------
+    data : :class:`~numpy.ndarray`
+        Data to be corrected, must be at least two-dimensional, the first two dimensions being respectively the time and the frequency
+    n_channels : `int`
+        Number of channels per subband
+    channels_to_remove : Union[`list`, :class:`~numpy.ndarray`]
+        Array of channel indices to set at `NaN` values, if `None` nothing is done and ``data`` is returned
 
-    :Example:
+    Returns
+    -------
+    :class:`~numpy.ndarray`
+        Time-frequency correlations array, shaped as the original input, except that some channels are set to `NaN`.
 
-        .. code-block:: python
+    Raises
+    ------
+    TypeError
+        Raised if ``channels_to_remove`` is not of the correct type or cannot be converted to a :class:`~numpy.ndarray`.
+    IndexError
+        Raised if any of the indices listed in ``channels_to_remove`` does not correspond to the ``n_channels`` argument.
 
-            >>> from nenupy.io.tf_utils import remove_channels_per_subband
-            >>> import numpy as np
-            >>>
-            >>> data = np.arange(2*4*2*2, dtype=float).reshape((2, 4, 2, 2))
-            >>> result = remove_channels_per_subband(data, 2, [0])
-            >>> result[:, :, 0, 0]
-            array([[nan,  4., nan, 12.],
-                   [nan, 20., nan, 28.]])
+    Examples
+    --------
+    .. code-block:: python
 
+        >>> from nenupy.io.tf_utils import remove_channels_per_subband
+        >>> import numpy as np
+
+        >>> result = remove_channels_per_subband(
+                data=np.ones((2, 10)),
+                n_channels=5,
+                channels_to_remove=[1, 3]
+            )
+        >>> print(result)
+        [[ 1. nan  1. nan  1.  1. nan  1. nan  1.]
+        [ 1. nan  1. nan  1.  1. nan  1. nan  1.]]
+
+    See Also
+    --------
+    :func:`~nenupy.io.tf_utils.crop_subband_edges`
     """
 
     if channels_to_remove is None:
@@ -801,12 +1167,12 @@ def remove_channels_per_subband(
 
     log.info("Removing channels...")
 
-    n_times, n_freqs, _, _ = data.shape
+    original_shape = data.shape
     data = reshape_to_subbands(data=data, n_channels=n_channels)
 
-    data[:, :, channels_to_remove, :, :] = np.nan
+    data[:, :, channels_to_remove, ...] = np.nan
 
-    data = data.reshape((n_times, n_freqs, 2, 2))
+    data = data.reshape(original_shape)
 
     log.info(f"\tChannels {channels_to_remove} set to NaN.")
 
@@ -1383,6 +1749,11 @@ class TFPipelineParameters:
                 name="overwrite",
                 default=False,
                 help_msg="Overwrite or not (default value) the resulting HDF5 file.",
+            ),
+            _BooleanParameter(
+                name="smooth_frequency_profile",
+                default=False,
+                help_msg="Smooth the adjacent subbands (option of task `flatten_subband`).",
             ),
         )
 

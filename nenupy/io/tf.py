@@ -263,10 +263,10 @@ class TFTask:
 
         """
 
-        def wrapper_task(data, channels):
-            return utils.flatten_subband(data=data, channels=channels)
+        def wrapper_task(data, channels, smooth_frequency_profile):
+            return utils.flatten_subband(data=data, channels=channels, smooth_frequency_profile=smooth_frequency_profile)
 
-        return cls("Flatten subband", wrapper_task, ["channels"], repeatable=False)
+        return cls("Flatten subband", wrapper_task, ["channels", "smooth_frequency_profile"], repeatable=False)
 
     @classmethod
     def remove_channels(cls):
@@ -977,7 +977,7 @@ class Spectra:
 
     """
 
-    def __init__(self, filename: str, check_missing_data: bool = True):
+    def __init__(self, filename: str, check_missing_data: bool = False):
         """Generate an instance of :class:`~nenupy.io.tf.Spectra`.
 
         Parameters
@@ -985,7 +985,7 @@ class Spectra:
         filename : `str`
             Path to the *UnDySPuTeD* file to read.
         check_missing_data : `bool`, optional
-            Check for missing data, not checking may speed up the reading time, by default `True`
+            Check for missing data, not checking may speed up the reading time, by default `False`
 
         Raises
         ------
@@ -1009,6 +1009,7 @@ class Spectra:
         )
 
         # Compute the main data block descriptors (time / frequency / beam)
+        log.info("Computing time-freequency axes...")
         subband_width_hz = SUBBAND_WIDTH.to_value(u.Hz)
         self._block_start_unix = (
             data["TIMESTAMP"][~bad_block_mask]
@@ -1194,6 +1195,8 @@ class Spectra:
             Desired rebinning time resolution, can either be given as a :class:`~astropy.units.Quantity` object or a float (assumed to be in sec in that case). Note that the :meth:`~nenupy.io.tf.TFTask.time_rebin` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
         rebin_df : `float` or :class:`~astropy.units.Quantity`, default: ``None``
             Desired rebinning frequency resolution, can either be given as a :class:`~astropy.units.Quantity` object or float (assumed to be in kHz in that case). Note that the :meth:`~nenupy.io.tf.TFTask.frequency_rebin` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        smooth_frequency_profile : `bool`, default `False`
+            Keyword used if :meth:`~nenupy.io.tf.TFTask.flatten_subband` is in the pipeline: smooth the frequency profile, this option mau result in unexpected behavior if the subbands are not contiguous or the selected beamlets do not belong to the same digital beam. 
         remove_channels : `list` or :class:`~numpy.ndarray`, default: ``None``
             List of subband channels to remove, e.g. `remove_channels=[0,1,-1]` would remove the first, second (low-freq) and last channels from each subband. Note that the :meth:`~nenupy.io.tf.TFTask.remove_channels` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
         dreambeam_skycoord : :class:`~astropy.coordinates.SkyCoord`, default: ``None``

@@ -1095,8 +1095,7 @@ class Crosslet(ABC):
         return ST_Slice(
             time=self.time[time_mask],
             frequency=self.frequencies[frequency_mask],
-            value=data.squeeze(),
-            phase_center=altaz_pointing.transform_to(ICRS)
+            value=data.squeeze()
         )
 
     # --------------------------------------------------------- #

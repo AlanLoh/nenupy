@@ -146,7 +146,7 @@ class JonesMatrix(PolarizerMatrix):
 
     @classmethod
     def elliptical(cls, theta: float, delta: float):
-        r"""Ideal elliptical, producing elliptically polarized light with azimuth :math:`\psi` and ellipticity :math:`\omega` such that :math`\tan(2\psi)=\tan(2\theta)\cos(\delta)` and :math:`\sin(2\omega)=\sin(2\theta)\sin(\delta).
+        r"""Ideal elliptical, producing elliptically polarized light with azimuth :math:`\psi` and ellipticity :math:`\omega` such that :math:`\tan(2\psi)=\tan(2\theta)\cos(\delta)` and :math:`\sin(2\omega)=\sin(2\theta)\sin(\delta)`.
 
         :param theta: in degrees.
         :type theta: `float`
@@ -264,7 +264,7 @@ class MuellerMatrix(PolarizerMatrix):
 
     @classmethod
     def elliptical(cls, theta: float, delta: float):
-        r"""Ideal elliptical, producing elliptically polarized light with azimuth :math:`\psi` and ellipticity :math:`\omega` such that :math`\tan(2\psi)=\tan(2\theta)\cos(\delta)` and :math:`\sin(2\omega)=\sin(2\theta)\sin(\delta).
+        r"""Ideal elliptical, producing elliptically polarized light with azimuth :math:`\psi` and ellipticity :math:`\omega` such that :math:`\tan(2\psi)=\tan(2\theta)\cos(\delta)` and :math:`\sin(2\omega)=\sin(2\theta)\sin(\delta)`.
 
         :param theta: in degrees.
         :type theta: `float`
@@ -315,7 +315,7 @@ class MuellerMatrix(PolarizerMatrix):
     def to_hermitian(self) -> np.ndarray:
         r"""
         .. math::
-            \mathbf{H} = \frac{1}{4} \sum_{i,j=0}^{3} M_{ij}( \mathbf{sigma_i} \kron \mathbf{\sigma}_j^{\star})
+            \mathbf{H} = \frac{1}{4} \sum_{i,j=0}^{3} M_{ij}( \mathbf{\sigma_i} \otimes \mathbf{\sigma}_j^{\star})
 
         ref : https://arxiv.org/pdf/1906.11198.pdf eq. 6
         """
