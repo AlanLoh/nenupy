@@ -387,7 +387,7 @@ def compute_stokes_parameters(
         I &= \Re(X\overline{X}) + \Re(Y\overline{Y})\\
         Q &= \Re(X\overline{X}) - \Re(Y\overline{Y})\\
         U &= 2\Re(X\overline{Y})\\
-        V &= - 2\Im(X\overline{Y})
+        V &= 2\Im(X\overline{Y})
         \end{align}
         
     Parameters
@@ -456,7 +456,7 @@ def compute_stokes_parameters(
         elif stokes_i == "U":
             data_i = data_array[..., 0, 1].real * 2
         elif stokes_i == "V":
-            data_i = - data_array[..., 0, 1].imag * 2
+            data_i = data_array[..., 0, 1].imag * 2
         elif stokes_i == "Q/I":
             data_i = (data_array[..., 0, 0].real - data_array[..., 1, 1].real) / (
                 data_array[..., 0, 0].real + data_array[..., 1, 1].real
@@ -469,7 +469,7 @@ def compute_stokes_parameters(
             )
         elif stokes_i == "V/I":
             data_i = (
-                - data_array[..., 0, 1].imag
+                data_array[..., 0, 1].imag
                 * 2
                 / (data_array[..., 0, 0].real + data_array[..., 1, 1].real)
             )
@@ -1340,26 +1340,35 @@ def remove_channels_per_subband(
 def reshape_to_subbands(data: np.ndarray, n_channels: int) -> np.ndarray:
     """Reshape a time-frequency data array by the sub-band dimension.
     Given a ``data`` array with one frequency axis of size `n_frequencies`, this functions split this axis in two axes of size `n_subbands` and ``n_channels``.
+    
+    Parameters
+    ----------
+    data : :class:`~numpy.ndarray`
+        Time-frequency correlations array, its second dimension must be the frequencies.
+    n_channels : `int`
+        Number of channels per subband.
 
-    :param data: Time-frequency correlations array, its second dimension must be the frequencies.
-    :type data: :class:`~numpy.ndarray`
-    :param n_channels: _description_
-    :type n_channels: int
-    :raises ValueError: _description_
-    :return: _description_
-    :rtype: :class:`~numpy.ndarray`
+    Returns
+    -------
+    :class:`~numpy.ndarray`
+        Data array, reshaped so that its frequency axis is split in subbands.
 
-        :Example:
+    Raises
+    ------
+    ValueError
+        Raised if ``n_channels`` does not notch the frequency dimension of ``data``.
 
-        .. code-block:: python
+    Examples
+    --------
+    .. code-block:: python
 
-            >>> from nenupy.io.tf_utils import reshape_to_subbands
-            >>> import numpy as np
-            >>>
-            >>> data = np.arange(3*10).reshape((3, 10))
-            >>> result = reshape_to_subbands(data, 5)
-            >>> result.shape
-            (3, 2, 5)
+        >>> from nenupy.io.tf_utils import reshape_to_subbands
+        >>> import numpy as np
+
+        >>> data = np.arange(3*10).reshape((3, 10))
+        >>> result = reshape_to_subbands(data, 5)
+        >>> result.shape
+        (3, 2, 5)
 
     """
 
@@ -1405,8 +1414,8 @@ def spectra_data_to_matrix(fft0: da.Array, fft1: da.Array) -> da.Array:
     .. math::
 
         \mathbf{d}_{\rm J}(t, \nu) = \begin{pmatrix}
-            X\overline{X} & \Re(X\overline{Y}) + i \Im(X\overline{Y}))\\
-            \Re(X\overline{Y}) - i \Im(X\overline{Y})) & Y\overline{Y}
+            X\overline{X} & \Re(X\overline{Y}) - i (-\Im(X\overline{Y}))\\
+            \Re(X\overline{Y}) + i (-\Im(X\overline{Y})) & Y\overline{Y}
         \end{pmatrix}
         = \begin{pmatrix}
             X\overline{X} & X\overline{Y}\\
@@ -1416,9 +1425,9 @@ def spectra_data_to_matrix(fft0: da.Array, fft1: da.Array) -> da.Array:
     Parameters
     ----------
     fft0 : :class:`~dask.array.Array`
-        The first data block in the .spectra files. Its last dimension corresponds to :math:`(E_x\overline{E_x}, E_y\overline{E_y}) = (X\overline{X}, Y\overline{Y}) = (X_rX_r+X_iX_i, Y_rY_r + Y_iY_i)`
+        The first data block in the .spectra files. Its last dimension corresponds to :math:`(X_rX_r+X_iX_i, Y_rY_r + Y_iY_i) \rightarrow (X\overline{X}, Y\overline{Y})`
     fft1 : :class:`~dask.array.Array`
-        The second data block in the .spectra files. Its last dimension corresponds to :math:`(\Re(E_x\overline{E_y}), \Im(E_x\overline{E_y})) = (\Re(X\overline{Y}), \Im(X\overline{Y})) = (X_rY_r + X_iY_i, X_rY_i - X_iY_r)`
+        The second data block in the .spectra files. Its last dimension corresponds to :math:`(X_rY_r + X_iY_i, X_rY_i - X_iY_r) \rightarrow (\Re(X\overline{Y}), -\Im(X\overline{Y}))`
 
     Returns
     -------
@@ -1427,10 +1436,10 @@ def spectra_data_to_matrix(fft0: da.Array, fft1: da.Array) -> da.Array:
 
     """    
     row1 = da.stack(
-        [fft0[..., 0], fft1[..., 0] + 1j * fft1[..., 1]], axis=-1  # XX  # XY*
+        [fft0[..., 0], fft1[..., 0] - 1j * fft1[..., 1]], axis=-1  # XX  # XY*
     )
     row2 = da.stack(
-        [fft1[..., 0] - 1j * fft1[..., 1], fft0[..., 1]], axis=-1  # YX*  # YY
+        [fft1[..., 0] + 1j * fft1[..., 1], fft0[..., 1]], axis=-1  # YX*  # YY
     )
     return da.stack([row1, row2], axis=-1)
 
