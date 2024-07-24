@@ -1438,12 +1438,103 @@ def store_dask_tf_data(
     mode="auto",
     **metadata,
 ) -> None:
+    """Store a `Dask <https://docs.dask.org/en/stable/>`_ array in a HDF5 file.
+    The array may be larger than memory, and may be the result of a pipeline.
+    The main metadata are present.
+    The file format is constructed similarly to what LOFAR is using.
+
+    Parameters
+    ----------
+    file_name : `str`
+        Name of the HDF5 file to be stored, if the file already exists and ``mode='a'``, a new dataset with the name of ``beam`` is added.
+    data : :class:`~dask.array.Array`
+        The data to store shaped like (time, frequency, (polarizations...)).
+    time : :class:`~astropy.time.Time`
+        The time axis describing dimension 0 of ``data``.
+    frequency : :class:`~astropy.units.Quantity`
+        The frequency axis describing dimension 1 of ``data``.
+    polarization : :class:`~numpy.ndarray`
+        The polarization axis, time-frequency dynamic spectra from ``data`` will be stored, split base on polarization.
+    beam : `int`, optional
+        Index of the digital beam (on which the creation of a new dataset within the file is based), by default 0
+    stored_frequency_unit : `str`, optional
+        The unit in which the frequency is stored, by default "MHz"
+    mode : `str`, optional
+        The writing mode, available modes are 'a' (append), 'w' (write/overwrite), 'auto' (try to append when the file exists), by default "auto"
+    **metadata : `dict`, optional
+        Any key-value metadata the user wants to add, they will be stored in the main header.
+
+    Raises
+    ------
+    ValueError
+        Raised if ``filename`` does not end with '.hdf5'.
+    Exception
+        Raised if trying to append data with a digital beam index already present in the file.
+    KeyError
+        Raised if the selected mode does not correspond to what is available.
+
+    Notes
+    -----
+    This method is called when the argument ``file_name`` of :meth:`~nenupy.io.tf.Spectra.get` is filled.
+
+    Examples
+    --------
+    .. code-block:: python
+        :emphasize-lines: 13,14,15,16,17,18,19
+
+        >>> import numpy as np
+        >>> import astropy.units as u
+        >>> from astropy.time import Time, TimeDelta
+        >>> import dask.array as da
+        >>> from nenupy.io.tf_utils import store_dask_tf_data
+        >>> import h5py
+
+        >>> n_times = 10
+        >>> n_freqs = 20
+        >>> polarizations = np.array(["I", "Q", "U"])
+        >>> data_shape = (n_times, n_freqs, polarizations.size)
+
+        >>> store_dask_tf_data(
+                file_name="test.hdf5",
+                data=da.arange(np.prod(data_shape)).reshape(data_shape),
+                time=Time("2024-01-01T00:00:00") + np.arange(n_times) * TimeDelta(10, format="sec"),
+                frequency=np.linspace(20, 80, n_freqs) * u.MHz,
+                polarization=polarizations,
+            )
+
+        >>> f = h5py.File("test.hdf5", "r")
+
+        >>> f.keys()
+        <KeysViewHDF5 ['SUB_ARRAY_POINTING_000']>
+
+        >>> analog_beam_dset = f['SUB_ARRAY_POINTING_000']
+        >>> analog_beam_dset.keys()
+        <KeysViewHDF5 ['BEAM_000']>
+
+        >>> digital_beam_dset = analog_beam_dset["BEAM_000"]
+        >>> digital_beam_dset.keys()
+        <KeysViewHDF5 ['COORDINATES', 'I', 'Q', 'U']>
+
+        >>> digital_beam_dset["I"].shape
+        (10, 20)
+        
+        >>> digital_beam_dset["COORDINATES"].keys(), digital_beam_dset["COORDINATES"].attrs["units"]
+        (<KeysViewHDF5 ['frequency', 'time']>, array(['jd', 'MHz'], dtype=object))
+
+        >>> digital_beam_dset["COORDINATES"]["frequency"][:]
+        array([20.        , 23.15789474, 26.31578947, 29.47368421, 32.63157895,
+            35.78947368, 38.94736842, 42.10526316, 45.26315789, 48.42105263,
+            51.57894737, 54.73684211, 57.89473684, 61.05263158, 64.21052632,
+            67.36842105, 70.52631579, 73.68421053, 76.84210526, 80.        ])
+
+    """
+
     log.info(f"Storing the data in '{file_name}'")
 
     # Check that the file_name has the correct extension
     if not file_name.lower().endswith(".hdf5"):
         raise ValueError(f"HDF5 files must ends with '.hdf5', got {file_name} instead.")
-    elif mode.lower() == "auto":
+    if mode.lower() == "auto":
         if os.path.isfile(file_name):
             mode = "a"
         else:
