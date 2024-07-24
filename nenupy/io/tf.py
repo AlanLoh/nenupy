@@ -404,8 +404,8 @@ class TFTask:
             if rotation_measure is None:
                 return frequency_hz, data
             return frequency_hz, utils.de_faraday_data(
-                frequency=frequency_hz * u.Hz,
                 data=data,
+                frequency=frequency_hz * u.Hz,
                 rotation_measure=rotation_measure,
             )
 
@@ -977,7 +977,7 @@ class Spectra:
 
     """
 
-    def __init__(self, filename: str, check_missing_data: bool = False):
+    def __init__(self, filename: str, check_missing_data: bool = True):
         """Generate an instance of :class:`~nenupy.io.tf.Spectra`.
 
         Parameters
@@ -1009,7 +1009,7 @@ class Spectra:
         )
 
         # Compute the main data block descriptors (time / frequency / beam)
-        log.info("Computing time-freequency axes...")
+        log.info("Computing time-frequency axes...")
         subband_width_hz = SUBBAND_WIDTH.to_value(u.Hz)
         self._block_start_unix = (
             data["TIMESTAMP"][~bad_block_mask]
