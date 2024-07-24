@@ -374,7 +374,7 @@ def compute_stokes_parameters(
 
     .. math::
 
-        d = \begin{pmatrix}
+        \mathbf{d} = \begin{pmatrix}
         X\overline{X} & X\overline{Y} \\
         Y\overline{X} & Y\overline{Y}
         \end{pmatrix},
@@ -387,7 +387,7 @@ def compute_stokes_parameters(
         I &= \Re(X\overline{X}) + \Re(Y\overline{Y})\\
         Q &= \Re(X\overline{X}) - \Re(Y\overline{Y})\\
         U &= 2\Re(X\overline{Y})\\
-        V &= 2\Im(X\overline{Y})
+        V &= - 2\Im(X\overline{Y})
         \end{align}
         
     Parameters
@@ -456,7 +456,7 @@ def compute_stokes_parameters(
         elif stokes_i == "U":
             data_i = data_array[..., 0, 1].real * 2
         elif stokes_i == "V":
-            data_i = data_array[..., 0, 1].imag * 2
+            data_i = - data_array[..., 0, 1].imag * 2
         elif stokes_i == "Q/I":
             data_i = (data_array[..., 0, 0].real - data_array[..., 1, 1].real) / (
                 data_array[..., 0, 0].real + data_array[..., 1, 1].real
@@ -469,7 +469,7 @@ def compute_stokes_parameters(
             )
         elif stokes_i == "V/I":
             data_i = (
-                data_array[..., 0, 1].imag
+                - data_array[..., 0, 1].imag
                 * 2
                 / (data_array[..., 0, 0].real + data_array[..., 1, 1].real)
             )
@@ -1400,18 +1400,37 @@ def sort_beam_edges(beam_array: np.ndarray, n_channels: int) -> dict:
 # ============================================================= #
 # ------------------ spectra_data_to_matrix ------------------- #
 def spectra_data_to_matrix(fft0: da.Array, fft1: da.Array) -> da.Array:
-    """fft0[..., :] = [XX, YY] = [XrXr+XiXi : YrYr+YiYi] = [ExEx*, EyEy*]
-    fft1[..., :] = [Re(X*Y), Im(X*Y)] = [XrYr+XiYi : XrYi-XiYr] = [Re(ExEy*), Im(ExEy*)]
-    Returns a (..., 2, 2) matrix (Dask)
+    r"""Reshape the data stored in the .spectra file into Jones formalism:
 
-    ExEy* = (XrYr+XiYi) + i(XiYr - XrYi)
-    EyEx* = (YrXr+YiXi) + i(YiXr - YrXi)
-    """
+    .. math::
+
+        \mathbf{d}_{\rm J}(t, \nu) = \begin{pmatrix}
+            X\overline{X} & \Re(X\overline{Y}) + i \Im(X\overline{Y}))\\
+            \Re(X\overline{Y}) - i \Im(X\overline{Y})) & Y\overline{Y}
+        \end{pmatrix}
+        = \begin{pmatrix}
+            X\overline{X} & X\overline{Y}\\
+            Y\overline{X} & Y\overline{Y}
+        \end{pmatrix}
+    
+    Parameters
+    ----------
+    fft0 : :class:`~dask.array.Array`
+        The first data block in the .spectra files. Its last dimension corresponds to :math:`(E_x\overline{E_x}, E_y\overline{E_y}) = (X\overline{X}, Y\overline{Y}) = (X_rX_r+X_iX_i, Y_rY_r + Y_iY_i)`
+    fft1 : :class:`~dask.array.Array`
+        The second data block in the .spectra files. Its last dimension corresponds to :math:`(\Re(E_x\overline{E_y}), \Im(E_x\overline{E_y})) = (\Re(X\overline{Y}), \Im(X\overline{Y})) = (X_rY_r + X_iY_i, X_rY_i - X_iY_r)`
+
+    Returns
+    -------
+    :class:`~dask.array.Array`
+        Reshaped data :math:`\mathbf{d}_{\rm J}`.
+
+    """    
     row1 = da.stack(
-        [fft0[..., 0], fft1[..., 0] - 1j * fft1[..., 1]], axis=-1  # XX  # XY*
+        [fft0[..., 0], fft1[..., 0] + 1j * fft1[..., 1]], axis=-1  # XX  # XY*
     )
     row2 = da.stack(
-        [fft1[..., 0] + 1j * fft1[..., 1], fft0[..., 1]], axis=-1  # YX*  # YY
+        [fft1[..., 0] - 1j * fft1[..., 1], fft0[..., 1]], axis=-1  # YX*  # YY
     )
     return da.stack([row1, row2], axis=-1)
 
