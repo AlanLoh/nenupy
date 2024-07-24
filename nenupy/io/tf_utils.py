@@ -801,7 +801,7 @@ def de_faraday_data(
 
     See Also
     --------
-    :func:`~nenupy.astro.astro_tools.faraday_angle`
+    :func:`~nenupy.astro.astro_tools.faraday_angle`, :meth:`~nenupy.io.tf.TFTask.correct_faraday_rotation`
 
     """
     log.info("Correcting for Faraday rotation...")
@@ -1155,13 +1155,64 @@ def polarization_angle(stokes_u: np.ndarray, stokes_q: np.ndarray) -> np.ndarray
 def rebin_along_dimension(
     data: np.ndarray, axis_array: np.ndarray, axis: int, dx: float, new_dx: float
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """ """
+    """Rebin ``data`` along its ``axis`` dimension.
+    The corresponding ``axis_array`` is also rebinned.
+    To compute the rebin factor, this function takes as input the inital
+    resolution ``dx`` and the final resolution ``new_dx``.
+    If this process results in a new dimension that is not a multiple of
+    the rebin factor, the last samples are leftover and not averaged.
+
+    Parameters
+    ----------
+    data : :class:`~numpy.ndarray`
+        Data array to be rebinned.
+    axis_array : :class:`~numpy.ndarray`
+        1D array, corresponding to the axis tp rebin.
+    axis : `int`
+        Index of the axis to rebin within ``data``.
+    dx : `float`
+        Inital resolution of ``axis_array``.
+    new_dx : `float`
+        Target resolution after rebinning. As the rebin factor is
+        taken as an integer value, the 'effective ``new_dx``' of the ``data``
+        after rebinning is the floor division btewwen ``dx`` and the target ``new_dx``.
+
+    Returns
+    -------
+    Tuple[:class:`~numpy.ndarray`, :class:`~numpy.ndarray`]
+        Rebinned axis and data.
+
+    Raises
+    ------
+    ValueError
+        Raised if ``axis_array`` is not 1D, or if the ``data[axis]``'s
+        size does not match ``axis_array``, or if ``dx`` is greater than ``new_dx``.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        >>> from nenupy.io.tf_utils import rebin_along_dimension
+        >>> new_axis, data_rebinned = rebin_along_dimension(
+                data=np.arange(11),
+                axis_array=np.arange(11),
+                axis=0,
+                dx=1,
+                new_dx=2.5 # this would result in a rebin-factor of 2.5//1.=2
+            )
+        >>> print(data_rebinned)
+        [0.5 2.5 4.5 6.5 8.5] # the last sample of data (i.e. 10) has not been considered
+
+    See Also
+    --------
+    :meth:`~nenupy.io.tf.TFTask.time_rebin`, :meth:`~nenupy.io.tf.TFTask.frequency_rebin`
+    """
 
     # Basic checks to make sure that dimensions are OK
     if axis_array.ndim != 1:
-        raise IndexError("axis_array should be 1D.")
+        raise ValueError("axis_array should be 1D.")
     elif data.shape[axis] != axis_array.size:
-        raise IndexError(
+        raise ValueError(
             f"Axis selected ({axis}) dimension {data.shape[axis]} does not match axis_array's shape {axis_array.shape}."
         )
     elif dx > new_dx:
