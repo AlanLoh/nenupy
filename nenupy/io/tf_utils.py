@@ -918,6 +918,75 @@ def get_bandpass(n_channels: int) -> np.ndarray:
 # ============================================================= #
 # ---------------------- flatten_subband ---------------------- #
 def flatten_subband(data: np.ndarray, channels: int, smooth_frequency_profile: bool = False) -> np.ndarray:
+    """Correct each subband if their levels is distributed like a sawtooth.
+    Sometimes, in particular for strong sources, the subbands adopt a strange behavior (an example is shown in :meth:`~nenupy.io.tf.TFTask.flatten_subband`).
+    This function aims at correcting this effect.
+
+    For a given subband:
+
+    * The median frequency profile is computed over the whole data time selection
+    * Affine function is computed based on two points taken as the medians of both half profiles of the subband
+    * This function is normalized by the median of the subband total profile
+    * The corrected subband is the original subband divided by this normalized linear profile
+
+    Parameters
+    ----------
+    data : :class:`~numpy.ndarray`
+        The data to correct, shaped like (time, frequency, (polarizations))
+    channels : `int`
+        Number of channels per subband.
+    smooth_frequency_profile : `bool`, optional
+        Not yet finalized..., by default `False`
+
+    Returns
+    -------
+    :class:`~numpy.ndarray`
+        The corrected data, where the subbands are flattened.
+
+    Raises
+    ------
+    ValueError
+        Raised if the ``data`` dimension 1, assumed to be the frequency, does not match ``channels``.
+
+    Examples
+    --------
+    .. code-block:: python
+        :emphasize-lines: 17,18,19,20
+
+        >>> from nenupy.io.tf_utils import flatten_subband
+        >>> import numpy as np
+        >>> import matplotlib.pyplot as plt
+
+        >>> n_channels = 32
+        >>> n_subbands = 10
+
+        >>> rng = np.random.default_rng(12345)
+        >>> coeffs = rng.uniform(-0.1, 0.1, size=n_subbands)
+
+        >>> x_data = np.linspace(0, 10, n_channels * n_subbands)
+        >>> y_data = np.ones(x_data.size) # Idel data are flat
+        >>> saw_pattern = (coeffs[:, None]*np.linspace(-3, 3, n_channels) )[None, :]
+        >>> noise = rng.uniform(-0.05, 0.05, x_data.size)
+        >>> y_data_altered = (y_data.reshape((n_subbands, n_channels)) + saw_pattern).ravel() + noise
+
+        >>> y_data_corrected = flatten_subband(
+                data=y_data_altered.reshape(1, y_data_altered.size, 1, 1),
+                channels=n_channels
+            )
+
+        >>> fig = plt.figure(figsize=(10, 5))
+        >>> for sb in range(n_subbands):
+        >>>     plt.axvline(x_data[sb*n_channels], color="black", linestyle=":")
+        >>> plt.plot(x_data, y_data, label="Original", linewidth=3, linestyle="--")
+        >>> plt.plot(x_data, y_data_altered, label="Altered")
+        >>> plt.plot(x_data, y_data_corrected[0, :, 0, 0], label="Corrected")
+        >>> plt.legend()
+
+    .. figure:: ../_images/io_images/flatten.png
+        :width: 650
+        :align: center
+
+    """
     # Check that data has not been altered, i.e. dimension 1 should be a multiple of channels
     if data.shape[1] % channels != 0:
         raise ValueError(
@@ -957,9 +1026,10 @@ def flatten_subband(data: np.ndarray, channels: int, smooth_frequency_profile: b
     # between them and the next point of the next subband
     # This step may result in non desirable results if subbands are not contiguous or not belonging to the same beam
     if smooth_frequency_profile:
-        smooth_sb_diff = y1[1:, ...] - y2[:-1, ...]
-        y1[1:, ...] += smooth_sb_diff / 2
-        y2[:-1, ...] -= smooth_sb_diff / 2
+        log.warning("smooth_frequency_profile not fully tested yet, ignoring...")
+        # smooth_sb_diff = y1[1:, ...] - y2[:-1, ...]
+        # y1[1:, ...] += smooth_sb_diff / 2
+        # y2[:-1, ...] -= smooth_sb_diff / 2
 
     # Compute the linear approximations of each subbands, linear_subbands's shape is (channels, subbands, (polarizations...))
     x_values = np.arange(channels)[
@@ -1146,7 +1216,24 @@ def plot_dynamic_spectrum(
 # ============================================================= #
 # -------------------- polarization_angle --------------------- #
 def polarization_angle(stokes_u: np.ndarray, stokes_q: np.ndarray) -> np.ndarray:
-    """ """
+    r"""Compute the linear polarization angle :math:`\psi`, given U and Q Stokes parameters.
+
+    .. math::
+
+        \psi = \frac{1}{2} \tan^{-1} \left( \frac{U}{Q} \right)
+
+    Parameters
+    ----------
+    stokes_u : :class:`~numpy.ndarray`
+        Stokes U.
+    stokes_q : :class:`~numpy.ndarray`
+        Stokes Q.
+
+    Returns
+    -------
+    :class:`~numpy.ndarray`
+        Polarization angle.
+    """
     return 0.5 * np.arctan(stokes_u / stokes_q)
 
 
@@ -1388,12 +1475,19 @@ def reshape_to_subbands(data: np.ndarray, n_channels: int) -> np.ndarray:
 # ============================================================= #
 # ---------------------- sort_beam_edges ---------------------- #
 def sort_beam_edges(beam_array: np.ndarray, n_channels: int) -> dict:
-    """Find out where in the frequency axis a beam starts and end.
-    This outputs a dictionnary such as:
-    {
-        "<beam_index>": (freq_axis_start_idx, freq_axis_end_idx,),
-        ...
-    }
+    r"""Find out where in the frequency axis a beam starts and end.
+
+    Parameters
+    ----------
+    beam_array : :class:`~numpy.ndarray`
+        Array of beams.
+    n_channels : `int`
+        Number of channels per subband.
+
+    Returns
+    -------
+    `dict`
+        Dictionnary of keys/values ``beam_index`` :math:`\leftrightarrow` ``(freq_axis_start_idx, freq_axis_end_idx)``
     """
     indices = {}
     unique_beams = np.unique(beam_array)
@@ -1404,7 +1498,6 @@ def sort_beam_edges(beam_array: np.ndarray, n_channels: int) -> dict:
             (b_idx[-1] + 1) * n_channels - 1,  # freq stop of beam
         )
     return indices
-
 
 # ============================================================= #
 # ------------------ spectra_data_to_matrix ------------------- #
