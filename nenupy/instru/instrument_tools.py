@@ -290,6 +290,50 @@ def read_cal_table(calibration_file: str = None) -> np.ndarray:
 
 
 # ============================================================= #
+# ---------------------- write_cal_table ---------------------- #
+# ============================================================= #
+def write_cal_table(
+        table: np.ndarray,
+        calibration_file: str = None,
+        header: str = None,
+        ) -> np.ndarray:
+    """ Write NenuFAR antenna delays calibration file.
+
+        :param table: 
+            Calibration table complex128 shaped as 
+            (frequency, mini-arrays, polarizations).
+        :type: :class:`~numpy.ndarray`
+
+        :param calibration_file: 
+            Name of the calibration file to write.
+        :type calibration_file: `str`
+
+        :param header: 
+            String header to add on top of file
+        :type header: `str`
+
+        :returns:
+            None
+        :type: None
+    """
+    assert calibration_file is not None, "You must provide a filename"
+    assert table.shape == (512, 96, 2), f"Table has wrong shape {table.shape}.  Expecting (512, 96, 2)"
+    assert table.dtype == np.dtype("complex128"), "Table dtype should be complex128"
+
+    with open(calibration_file, 'wb') as f:
+        log.info(f"Writing calibration table {calibration_file}")
+        
+        f.write(b"HeaderStart\n")
+        f.write(header.encode())
+        if header[-1] != "\n":
+            f.write(b"\n")
+        f.write(b"HeaderStop\n")
+        f.write(table.tobytes())
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
 # ---------------- generate_nenufar_subarrays ----------------- #
 # ============================================================= #
 def generate_nenufar_subarrays(
