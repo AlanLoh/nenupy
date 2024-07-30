@@ -1714,8 +1714,10 @@ class _AnalogBeamParsetBlock(_BeamParsetBlock):
     def _propagate_index(self) -> None:
         """
         """
-        for i, numbeam in enumerate(self.numerical_beams):
+        for _, numbeam in enumerate(self.numerical_beams):
             numbeam["noBeam"] = self.index
+        for _, phasecenter in enumerate(self.phase_centers):
+            phasecenter["noBeam"] = self.index
 
 # ============================================================= #
 
