@@ -408,3 +408,134 @@ def lofar_instrument_temperature(frequency: u.Quantity) -> u.Quantity:
     return instrument_temperature * u.K
 # ============================================================= #
 # ============================================================= #
+
+# ============================================================= #
+# -------------- mini_array_analog_pointing_grid -------------- #
+# ============================================================= #
+from astropy.coordinates import Latitude, Longitude, SkyCoord
+from typing import Tuple
+def mini_array_analog_pointing_grid(ma_rotation: u.Quantity = 0 * u.deg) -> Tuple[Longitude, Latitude]:
+    """_summary_
+
+
+    import matplotlib.pyplot as plt
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(projection="polar")
+    ax.set_rlim(90, 0)
+    ma_rot = 0 * u.deg
+    grid = SkyCoord(*mini_array_analog_pointing_grid(ma_rotation=ma_rot))
+    ax.scatter(grid.ra.rad, grid.dec.deg, 0.5)
+
+    Parameters
+    ----------
+    ma_rotation : u.Quantity, optional
+        _description_, by default 0*u.deg
+
+    Returns
+    -------
+    SkyCoord
+        _description_
+    """
+    dx = 2 * 5.5
+    # DY = dx * np.cos(np.pi / 6)
+    dmin_x = 0.165
+    # DMINY = dmin_x * np.cos(np.pi / 6)
+    dmin_d = dmin_x / dx
+    n_bits = 7
+    bits = 2**(n_bits - 1)
+
+    bits_array = np.arange(2*bits)
+    xx, yy = np.meshgrid(bits_array, bits_array)
+
+    xx_mask = xx >= 64
+    yy_mask = yy >= 64
+
+    k1 = (xx - bits + 1) * dmin_d
+    k2 = (bits - 1 - yy) * dmin_d
+    k1[xx_mask] = (xx[xx_mask] - bits) * dmin_d
+    k2[yy_mask] = (bits - yy[yy_mask]) * dmin_d
+
+    # theta =  0.5*np.arccos(1 - 2*(k1**2 + k2**2))
+    with np.errstate(invalid="ignore"):
+        theta = np.pi / 2 - (0.5 * np.arccos(1 - 2 * (k1**2 + k2**2)))
+    bad_values = np.isnan(theta)
+    # phi = np.arctan2(k2, k1) + np.pi
+    phi = np.pi / 2 - (np.arctan2(k2, k1) + np.pi) + ma_rotation.to_value("rad")
+
+    theta[bad_values] = - np.pi / 2
+    phi[bad_values] = 0.
+
+    return (
+        Longitude(phi, unit="rad"),
+        Latitude(theta, unit="rad"),
+    )
+
+def mini_array_pointing_order(coordinates: SkyCoord, ma_rotation: u.Quantity = 0 * u.deg, wrong_implementation: bool = False) -> np.ndarray:
+
+    if coordinates.ndim > 1:
+        raise Exception("coordinates can only have a single dimension.")
+    elif coordinates.ndim == 0:
+        coordinates = coordinates.reshape((1,))
+
+    ma_pointing_grid_lon, ma_pointing_grid_lat = mini_array_analog_pointing_grid(ma_rotation=ma_rotation)
+
+    # Find out the angular separation between coordinates and the ma pointing grid
+    # The resulting separation shape will be (n_coordinates, 128, 128)
+    def separation_vincenty(lon1, lat1, lon2, lat2):
+        """https://en.wikipedia.org/wiki/Great-circle_distance"""
+        lon_diff = np.abs(lon2 - lon1)
+        
+        cos_lon_diff = np.cos(lon_diff)
+        sin_lon_diff = np.sin(lon_diff)
+
+        cos_lat1 = np.cos(lat1)
+        sin_lat1 = np.sin(lat1)
+        cos_lat2 = np.cos(lat2)
+        sin_lat2 = np.sin(lat2)
+
+        part_1 = np.sqrt( (cos_lat2 * sin_lon_diff)**2 + (cos_lat1 * sin_lat2 - sin_lat1 * cos_lat2 * cos_lon_diff)**2)
+        part_2 = sin_lat1 * sin_lat2 + cos_lat1 * cos_lat2 * cos_lon_diff
+        
+        dist_rad = np.atan2(part_1, part_2)
+
+        return dist_rad
+    angular_sperarations = separation_vincenty(
+        lon1=coordinates.ra.rad[:, None, None],
+        lat1=coordinates.dec.rad[:, None, None],
+        lon2=ma_pointing_grid_lon.rad[None, :, :],
+        lat2=ma_pointing_grid_lat.rad[None, :, :]
+    )
+    sep_shape = angular_sperarations.shape
+    order = np.array(
+        np.unravel_index(
+            np.argmin(
+                angular_sperarations.reshape(
+                    (sep_shape[0], sep_shape[1] * sep_shape[2])
+                ),
+                axis=1
+            ),
+            sep_shape[1:],
+        )
+    )
+
+    # Correct for order #64 which is identical to # 63
+    if wrong_implementation:
+        order[order >= 64] -= 1
+    else:
+        order[order == 64] -= 1
+
+    return order.T
+
+def mini_array_pointing_coordinates(orders: np.ndarray, ma_rotation: u.Quantity = 0 * u.deg) -> SkyCoord:
+
+    if orders.ndim != 2:
+        raise Exception("orders must be 2D")
+    elif orders.shape[1] != 2:
+        raise Exception("orders must have its 2nd dimension of size 2")
+
+    ma_pointing_grid_lon, ma_pointing_grid_lat = mini_array_analog_pointing_grid(ma_rotation=ma_rotation)
+
+    return SkyCoord(
+        ma_pointing_grid_lon[orders[:, 0], orders[:, 1]],
+        ma_pointing_grid_lat[orders[:, 0], orders[:, 1]]
+    )
