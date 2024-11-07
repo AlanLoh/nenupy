@@ -1576,7 +1576,11 @@ class _ParsetBlock:
                 # The boolean values needs to be translated to strings
                 elif isinstance(value, bool):
                     value = "true" if value else "false"
-
+                    
+                # list with spaces can be a problem
+                elif isinstance(value, list):
+                    value = str(value).replace(' ', '')
+                    
                 # Updates the key value
                 self.configuration[key]["value"] = value
                 self.configuration[key]["modified"] = True
