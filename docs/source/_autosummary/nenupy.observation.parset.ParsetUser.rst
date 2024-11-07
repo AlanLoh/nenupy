@@ -27,6 +27,7 @@
       ~ParsetUser.remove_analog_beam
       ~ParsetUser.remove_numerical_beam
       ~ParsetUser.remove_phase_center
+      ~ParsetUser.replay_from_parset
       ~ParsetUser.set_observation_config
       ~ParsetUser.set_output_config
       ~ParsetUser.validate

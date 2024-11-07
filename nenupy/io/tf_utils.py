@@ -47,6 +47,8 @@ __all__ = [
     "flatten_subband",
     "get_bandpass",
     "plot_dynamic_spectrum",
+    "plot_lightcurve",
+    "plot_spectrum",
     "polarization_angle",
     "rebin_along_dimension",
     "remove_channels_per_subband",
@@ -55,6 +57,7 @@ __all__ = [
     "spectra_data_to_matrix",
     "store_dask_tf_data",
     "TFPipelineParameters",
+    "ReducedSpectraSlice",
     "ReducedSpectra",
 ]
 
@@ -71,7 +74,43 @@ def apply_dreambeam_corrections(
     skycoord: SkyCoord,
     parallactic: bool = True,
 ) -> np.ndarray:
-    """ """
+    """Correct for polarization systematics.
+
+    Parameters
+    ----------
+    time_unix : np.ndarray
+        _description_
+    frequency_hz : np.ndarray
+        _description_
+    data : np.ndarray
+        _description_
+    dt_sec : float
+        _description_
+    time_step_sec : float
+        _description_
+    n_channels : int
+        _description_
+    skycoord : SkyCoord
+        _description_
+    parallactic : bool, optional
+        _description_, by default True
+
+    Returns
+    -------
+    np.ndarray
+        _description_
+
+    Raises
+    ------
+    ValueError
+        _description_
+    ValueError
+        _description_
+    
+    Warning
+    -------
+    Do not use yet, still in development.
+    """
 
     log.info("Applying DreamBeam corrections...")
 
@@ -636,27 +675,89 @@ def de_disperse_array(
     """De-disperse in time an array ``data`` whose first two
     dimensions are time and frequency respectively. The array
     must be regularly sampled in time. The de-dispersion is made
-    relatively to the highest frequency. De-dedispersed array
-    is filled with ``NaN`` in time-frequency places where the
+    relatively to the highest frequency using :func:`~nenupy.astro.astro_tools.dispersion_delay`.
+    De-dedispersed array is filled with ``NaN`` in time-frequency places where the
     shifted values were.
 
-    :param data:
-        Data array to de-disperse.
-    :type data:
-        :class:`~numpy.ndarray`
-    :param frequencies:
+    Parameters
+    ----------
+    data : :class:`~numpy.ndarray`
+        Data array to de-disperse, its shape must be (time, frequency, (polarizations)).
+    frequencies : :class:`~astropy.units.Quantity`
         1D array of frequencies corresponding to the second
         dimension of ``data``.
-    :type frequencies:
-        :class:`~astropy.units.Quantity`
-    :param time_step:
+    time_step : :class:`~astropy.units.Quantity`
         Time step between two spectra.
-    :type time_step:
-        :class:`~astropy.units.Quantity`
-    :param dispersion_measure:
+    dispersion_measure : :class:`~astropy.units.Quantity`
         Dispersion Measure (in pc/cm3).
-    :type dispersion_measure:
-        :class:`~astropy.units.Quantity`
+
+    Returns
+    -------
+    :class:`~numpy.ndarray`
+        De-dispersed data.
+
+    Raises
+    ------
+    Exception
+        Raised if the data dimension is less than 2.
+    ValueError
+        Raised if the ``frequencies`` array does not match dimension 1 of ``data``.
+    
+    Examples
+    --------
+    .. code-block:: python
+        :emphasize-lines: 7,26,27,28,29,30,31
+
+        >>> import numpy as np
+        >>> import matplotlib.pyplot as plt
+        >>> import astropy.units as u
+        >>> from astropy.time import Time, TimeDelta
+
+        >>> from nenupy.astro import dispersion_delay
+        >>> from nenupy.io.tf_utils import de_disperse_array
+
+        >>> n_times = 100
+        >>> n_freqs = 75
+        >>> n_pols = 1
+        >>> data_shape = (n_times, n_freqs, n_pols)
+
+        >>> # Build fake dispersed data
+        >>> dm = 5 * u.pc / (u.cm**3)
+        >>> dt = TimeDelta(1, format="sec")
+        >>> frequencies = np.linspace(20, 80, n_freqs) * u.MHz
+        >>> times = Time("2024-01-01 00:00:00") + np.arange(n_times) * dt
+        >>> delay = dispersion_delay(frequency=frequencies, dispersion_measure=dm)
+        >>> time_delay_idx = np.argmin(np.abs((times - times[0]).sec[:, None] - delay.to_value(u.s)[None, :]), axis=0)
+        >>> dispersed_data = np.ones((data_shape))
+        >>> dispersed_data[time_delay_idx + 5, np.arange(n_freqs)] += 10
+        >>> dispersed_data[time_delay_idx + 20, np.arange(n_freqs)] += 10
+
+        >>> # Correct the dispersion
+        >>> de_dispersed_data = de_disperse_array(
+                data=dispersed_data,
+                frequencies=frequencies,
+                time_step=dt,
+                dispersion_measure=dm
+            )
+
+        >>> # Plot the comparison
+        >>> fig = plt.figure(figsize=(10, 4))
+        >>> axes = fig.subplots(nrows=1, ncols=2)
+        >>> im_0 = axes[0].pcolormesh(times.datetime, frequencies.to_value(u.MHz), dispersed_data[:, :, 0].T)
+        >>> im_1 = axes[1].pcolormesh(times.datetime, frequencies.to_value(u.MHz), de_dispersed_data[:, :, 0].T)
+        >>> axes[0].set_ylabel("Frequency (MHz)")
+        >>> axes[0].set_xlabel("Time")
+        >>> axes[0].tick_params(axis="x", labelrotation=45)
+        >>> axes[1].set_xlabel("Time")
+        >>> axes[1].tick_params(axis="x", labelrotation=45)
+
+    .. figure:: ../_images/io_images/dedispersion.png
+        :width: 650
+        :align: center
+
+    See Also
+    --------
+    :meth:`~nenupy.io.tf.TFTask.de_disperse`, :func:`~nenupy.astro.astro_tools.dispersion_delay`
     """
 
     log.info(f"De-dispersing data by DM={dispersion_measure.to(u.pc/u.cm**3)}...")
@@ -684,13 +785,26 @@ def de_disperse_array(
     cell_delays = np.round((delays / time_step).decompose().to_value()).astype(int)
 
     # Shift the array in time
-    time_size = data.shape[0]
-    for i in range(frequencies.size):
-        data[:, i, ...] = np.roll(data[:, i, ...], -cell_delays[i], 0)
-        # Mask right edge of dynspec
-        data[time_size - cell_delays[i] :, i, :, :] = np.nan
+    # dedispersed_data = data.copy()
+    # time_size = data.shape[0]
+    # for i in range(frequencies.size):
+    #     dedispersed_data[:, i, ...] = np.roll(data[:, i, ...], -cell_delays[i], 0)
+    #     # Mask right edge of dynspec
+    #     dedispersed_data[time_size - cell_delays[i] :, i, ...] = np.nan
 
-    return data
+    n_times = data.shape[0]
+    tf_shape = data.shape[:2]
+    pol_shape = data.shape[2:]
+    indices_to_keep = np.hstack([tt + np.arange(n_times - tt) + (i * n_times) for i, tt in enumerate(cell_delays)])
+    new_indices = indices_to_keep - cell_delays[(indices_to_keep//n_times)]
+    dedispersed_data = np.empty(data.shape).reshape((np.prod(tf_shape),) + pol_shape)
+    dedispersed_data[...] = np.nan
+    dedispersed_data[new_indices, ...] = data.reshape((np.prod(tf_shape),) + pol_shape, order="F")[indices_to_keep, ...] # data.ravel(order="F")[indices_to_keep]
+    dedispersed_data = dedispersed_data.reshape(data.shape, order="F")
+
+    log.info("\tDone de-dispersing.")
+
+    return dedispersed_data
 
 
 # ============================================================= #
@@ -1210,8 +1324,211 @@ def plot_dynamic_spectrum(
     # Y axis
     ax.set_ylabel(f"Frequency ({frequency.unit})" if ylabel is None else ylabel)
 
+    plt.tight_layout()
+
     return fig, ax
 
+def _plot_1d(
+        x: Any,
+        y: Any,
+        fig: mpl.figure.Figure = None,
+        ax: mpl.axes.Axes = None,
+        figsize: Tuple[int, int] = (10, 5),
+        dpi: int = 200,
+        xlabel: str = None,
+        ylabel: str = None,
+        title: str = None,
+        norm: str = "linear",
+        vmin: float = None,
+        vmax: float = None
+) -> Tuple[mpl.figure.Figure, mpl.axes.Axes]:
+
+    if fig is None:
+        fig = plt.figure(figsize=figsize, dpi=dpi)
+
+    if ax is None:
+        ax = fig.add_subplot()
+
+    # Normalization
+    if norm == "linear":
+        if vmin is None:
+            vmin = y.min()
+        if vmax is None:
+            vmax = y.max()
+    elif norm == "log":
+        if vmin is None:
+            vmin = y[y > 0.].min()
+        if vmax is None:
+            vmax = y.max()
+    else:
+        raise ValueError("Invald norm, the following are supported: 'linear', 'log'.")
+
+    im = ax.plot(x, y)
+
+    # Global
+    ax.minorticks_on()
+    ax.set_title(title)
+
+    # X axis
+    ax.set_xlabel(xlabel)
+
+    # Y axis
+    ax.set_yscale(norm)
+    ax.set_ylim(vmin, vmax)
+    ax.set_ylabel(ylabel)
+
+    plt.tight_layout()
+
+    return fig, ax
+
+def plot_lightcurve(
+    time: Time,
+    data: np.ndarray,
+    fig: mpl.figure.Figure = None,
+    ax: mpl.axes.Axes = None,
+    figsize: Tuple[int, int] = (10, 5),
+    dpi: int = 200,
+    xlabel: str = None,
+    ylabel: str = None,
+    title: str = None,
+    norm: str = "linear",
+    vmin: float = None,
+    vmax: float = None
+) -> Tuple[mpl.figure.Figure, mpl.axes.Axes]:
+    """Plot a light curve.
+    This function uses :func:`~matplotlib.pyplot.plot` in the background.
+
+    Parameters
+    ----------
+    time : :class:`~astropy.time.Time`
+        One-dimensional time array. 
+    data : :class:`~numpy.ndarray`
+        One-dimensional array, shaped like (time,).
+    fig : :class:`~matplotlib.figure.Figure`, optional
+        Matplotlib figure if already existing, by default `None`
+    ax : :class:`~matplotlib.axes.Axes`, optional
+        Matplotlib ax if already existing, by default `None`
+    figsize : Tuple[`int`, `int`], optional
+        Size of the figure in inches, by default (10, 5)
+    dpi : `int`, optional
+        Dots per inch (best quality is around 300), by default 200
+    xlabel : `str`, optional
+        Label of the x-axis (time), by default `None` (i.e., generic label)
+    ylabel : `str`, optional
+        Label of the y-axis (time), by default `None` (i.e., generic label)
+    title : `str`, optional
+        Title of the graph, by default `None` (i.e., empty)
+    norm : `str`, optional
+        Normalization of the colorbar ('linear' or 'log'), by default "linear"
+    vmin : `float`, optional
+        Minimal data value to plot, by default `None`
+    vmax : `float`, optional
+        Maximal data value to plot, by default `None`
+
+    Returns
+    -------
+    Tuple[:class:`~matplotlib.figure.Figure`, :class:`~matplotlib.axes.Axes`]
+        The figure and ax objects
+
+    Raises
+    ------
+    ValueError
+        Raised if ``norm`` does not match supported value.
+    """
+    
+    fig, ax = _plot_1d(
+        x=time.datetime,
+        y=data,
+        fig=fig,
+        ax=ax,
+        figsize=figsize,
+        dpi=dpi,
+        xlabel=f"Time ({time.scale.upper()})" if xlabel is None else xlabel,
+        ylabel=f"Amplitude" if ylabel is None else ylabel,
+        title=title,
+        norm=norm,
+        vmin=vmin,
+        vmax=vmax
+    )
+
+    # Time axis
+    locator = AutoDateLocator()
+    ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(ConciseDateFormatter(locator))
+
+    return fig, ax
+
+def plot_spectrum(
+    frequency: u.Quantity,
+    data: np.ndarray,
+    fig: mpl.figure.Figure = None,
+    ax: mpl.axes.Axes = None,
+    figsize: Tuple[int, int] = (10, 5),
+    dpi: int = 200,
+    xlabel: str = None,
+    ylabel: str = None,
+    title: str = None,
+    norm: str = "linear",
+    vmin: float = None,
+    vmax: float = None
+) -> Tuple[mpl.figure.Figure, mpl.axes.Axes]:
+    """Plot a spectrum.
+    This function uses :func:`~matplotlib.pyplot.plot` in the background.
+
+    Parameters
+    ----------
+    frequency : :class:`~astropy.units.Quantity`
+        One-dimensional frequency array, if ``ylabel`` is `None`, the :attr:`~astropy.units.Quantity.unit` is automatically used to describe the axis.
+    data : :class:`~numpy.ndarray`
+        One-dimensional array, shaped like (time,).
+    fig : :class:`~matplotlib.figure.Figure`, optional
+        Matplotlib figure if already existing, by default `None`
+    ax : :class:`~matplotlib.axes.Axes`, optional
+        Matplotlib ax if already existing, by default `None`
+    figsize : Tuple[`int`, `int`], optional
+        Size of the figure in inches, by default (10, 5)
+    dpi : `int`, optional
+        Dots per inch (best quality is around 300), by default 200
+    xlabel : `str`, optional
+        Label of the x-axis (time), by default `None` (i.e., generic label)
+    ylabel : `str`, optional
+        Label of the y-axis (time), by default `None` (i.e., generic label)
+    title : `str`, optional
+        Title of the graph, by default `None` (i.e., empty)
+    norm : `str`, optional
+        Normalization of the colorbar ('linear' or 'log'), by default "linear"
+    vmin : `float`, optional
+        Minimal data value to plot, by default `None`
+    vmax : `float`, optional
+        Maximal data value to plot, by default `None`
+
+    Returns
+    -------
+    Tuple[:class:`~matplotlib.figure.Figure`, :class:`~matplotlib.axes.Axes`]
+        The figure and ax objects
+
+    Raises
+    ------
+    ValueError
+        Raised if ``norm`` does not match supported value.
+    """
+    
+    fig, ax = _plot_1d(
+        x=frequency.to_value(frequency.unit),
+        y=data,
+        fig=fig,
+        ax=ax,
+        figsize=figsize,
+        dpi=dpi,
+        xlabel=f"Frequency ({frequency.unit})" if xlabel is None else xlabel,
+        ylabel=f"Amplitude" if ylabel is None else ylabel,
+        title=title,
+        norm=norm,
+        vmin=vmin,
+        vmax=vmax
+    )
+
+    return fig, ax
 
 # ============================================================= #
 # -------------------- polarization_angle --------------------- #
@@ -1925,19 +2242,64 @@ class _BooleanParameter(_TFParameter):
 # ============================================================= #
 # ------------------- TFPipelineParameters -------------------- #
 class TFPipelineParameters:
-    def __init__(self, *parameters):
-        self.parameters = parameters
-        self._original_parameters = parameters
+    """Class to handle the parameters used for the pipeline processing of the NenuFAR time-frequency data.
 
-    def __setitem__(self, name: str, value: Any):
-        """_summary_
+    Examples
+    --------
+    .. code-block:: python
+
+        >>> from nenupy.io.tf_utils import TFPipelineParameters, _ValueParameter, _BooleanParameter
+
+        >>> parameters = TFPipelineParameters(
+                _ValueParameter(
+                    name="param_1",
+                    default=1.,
+                    param_type=float,
+                    min_val=0.1,
+                    max_val=2.0
+                ),
+                _BooleanParameter(
+                    name="param_2",
+                    default=True
+                )
+            )
+
+    Parameters can be set, an error is sent if the value is outside the pre-defined range:
+
+    .. code-block:: python
+
+        >>> parameters["param_1"] = 1.5
+        >>> parameters["param_1"]
+        1.5
+
+        >>> parameters["param_1"] = 3
+        ERROR: param_1's value (3.0) is greater than the max_val 2.0!
+
+    See Also
+    --------
+    :ref:`custom_pipeline_param_doc`
+    """
+
+    def __init__(self, *parameters):
+        """Generate an instance of :class:`~nenupy.io.tf_utils.TFPipelineParameters`.
 
         Parameters
         ----------
-        name : str
-            _description_
-        value : Any
-            _description_
+        *parameters : :class:`nenupy.io.tf_utils._TFParameter`
+            Parameter description.
+        """
+        self.parameters = parameters
+        self._original_parameters = copy.deepcopy(parameters)
+
+    def __setitem__(self, name: str, value: Any):
+        """Set the value of a parameter.
+
+        Parameters
+        ----------
+        name : `str`
+            Name of the parameter.
+        value : `Any`
+            New value of the paramater.
         """
         param = self._get_parameter(name)
         param.value = value
@@ -1949,9 +2311,27 @@ class TFPipelineParameters:
         message = "\n".join([str(param) for param in self.parameters])
         return message
 
-    def info(self) -> None:
+    def info(self) -> str:
+        """Display information on each parameter and its current value.
+
+        Returns
+        -------
+        `str`
+            The info message.
+
+        Example
+        -------
+        .. code-block:: python
+
+            >>> print(parameters.info())
+            param_1: 1.0
+            param_2: True
+
+        """
+        message = ""
         for param in self.parameters:
-            print(f"{param.name}: {param.value}")
+            message += f"{param.name}: {param.value}\n"
+        return message
 
     def _get_parameter(self, name: str):
         for param in self.parameters:
@@ -1966,14 +2346,35 @@ class TFPipelineParameters:
     def reset(self) -> None:
         """Reset all parameters to their original values.
 
-        Returns
+        Example
         -------
-        _type_
-            _description_
+        .. code-block:: python
+
+            >>> print(parameters.info())
+            param_1: 1.0
+            param_2: True
+    
+            >>> parameters["param_1"] = 1.5
+            >>> print(parameters.info())
+            param_1: 1.5
+            param_2: True
+
+            >>> parameters.reset()
+            >>> print(parameters.info())
+            param_1: 1.0
+            param_2: True
+
         """
-        self.parameters = self._original_parameters
+        self.parameters = copy.deepcopy(self._original_parameters)
 
     def copy(self):
+        """Copy the :class:`~nenupy.io.tf_utils.TFPipelineParameters` instance.
+
+        Returns
+        -------
+        :class:`~nenupy.io.tf_utils.TFPipelineParameters`
+            The copy.
+        """
         return copy.deepcopy(self)
 
     @classmethod
@@ -1988,6 +2389,75 @@ class TFPipelineParameters:
         dt: u.Quantity,
         df: u.Quantity,
     ):
+        """Set the parameters to their default values.
+        It auto generates every instance of :class:`nenupy.io.tf_utils._TFParameter` for each available default parameter.
+        Some informations are required in ordedr to put limits to these parameter values.
+        
+        Parameters
+        ----------
+        time_min : :class:`~astropy.time.Time`
+            Minimal time that can be set to either ``'tmin'`` or ``'tmax'``.
+        time_max : :class:`~astropy.time.Time`
+            Maximal time that can be set to either ``'tmin'`` or ``'tmax'``.
+        freq_min : :class:`~astropy.units.Quantity`
+            Minimal frequency that can be set to either ``'fmin'`` or ``'fmax'``.
+        freq_max : :class:`~astropy.units.Quantity`
+            Maximal frequency that can be set to either ``'fmin'`` or ``'fmax'``.
+        beams : `list`
+            List of available beam indices.
+        channels : `int`
+            Number of channels per subband.
+        dt : :class:`~astropy.units.Quantity`
+            Time resolution.
+        df : :class:`~astropy.units.Quantity`
+            Frequency resolution.
+
+        Returns
+        -------
+        :class:`~nenupy.io.tf_utils.TFPipelineParameters`
+            Default parameters.
+        
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.tf_utils import TFPipelineParameters
+            >>> import astropy.units as u
+            >>> from astropy.time import Time
+
+            >>> default_params = TFPipelineParameters.set_default(
+                    time_min=Time("2024-01-01 12:00:00"),
+                    time_max=Time("2024-01-01 13:30:00"),
+                    freq_min=20*u.MHz,
+                    freq_max=80*u.MHz,
+                    beams=[0, 1],
+                    channels=32,
+                    dt=84 * u.ms,
+                    df=6 * u.kHz,
+                )
+            >>> print(default_params.info())
+            channels: 32
+            dt: 84.0 ms
+            df: 6.0 kHz
+            tmin: 2024-01-01 12:00:00.000
+            tmax: 2024-01-01 13:30:00.000
+            fmin: 20.0 MHz
+            fmax: 80.0 MHz
+            beam: 0
+            dispersion_measure: None
+            rotation_measure: None
+            rebin_dt: None
+            rebin_df: None
+            remove_channels: None
+            dreambeam_skycoord: None
+            dreambeam_dt: None
+            dreambeam_parallactic: True
+            stokes: I
+            ignore_volume_warning: False
+            overwrite: False
+            smooth_frequency_profile: False
+
+        """
         return cls(
             _FixedParameter(name="channels", value=channels),
             _FixedParameter(name="dt", value=dt),
@@ -2128,28 +2598,286 @@ class TFPipelineParameters:
 
 # ============================================================= #
 # ---------------------- ReducedSpectra ----------------------- #
+class ReducedSpectraSlice:
+
+    def __init__(self, time: Time, frequency: u.Quantity, polarization: np.ndarray, data: h5py._hl.dataset.Dataset):
+        self.time = time.reshape((1,)) if time.isscalar else time
+        self.frequency = frequency.reshape((1,)) if frequency.isscalar else frequency
+        self.polarization = np.array([polarization]) if np.isscalar(polarization) else np.array(polarization)
+
+        if (self.time.size == 0) or (self.frequency.size == 0) or (self.polarization.size == 0):
+            raise IndexError("Selection led to 0 a zero element dimension. Keep a minimum of one element.")
+
+        self.data = data.reshape((self.time.size, self.frequency.size, self.polarization.size))
+
+    def __getitem__(self, data_slice: slice):
+
+        if not isinstance(data_slice, tuple):
+            data_slice = (data_slice,)
+        elif len(data_slice) > 3:
+            raise IndexError("Maximal slice dimension is 3.")
+
+        time_slice = data_slice[0]
+        try:
+            frequency_slice = data_slice[1]
+        except IndexError:
+            frequency_slice = slice(None, None, None)
+        try:
+            polarization_slice = data_slice[2]
+        except IndexError:
+            polarization_slice = slice(None, None, None)
+
+        return ReducedSpectraSlice(
+            time=self.time[time_slice],
+            frequency=self.frequency[frequency_slice],
+            polarization=self.polarization[polarization_slice],
+            data=self.data[time_slice, frequency_slice, polarization_slice]
+        )
+
+    @property
+    def shape(self) -> Tuple[int]:
+        """_summary_
+
+        Returns
+        -------
+        Tuple[int]
+            _description_
+        """
+        return self.data.shape
+
+    def plot(self, polarization: str = None, **kwargs) -> None:
+        """_summary_
+
+        Parameters
+        ----------
+        polarization : str, optional
+            _description_, by default None
+
+        Returns
+        -------
+        _type_
+            _description_
+        
+        See Also
+        --------
+        :func:`~nenupy.io.tf_utils.plot_dynamic_spectrum`, :func:`~nenupy.io.tf_utils.plot_lightcurve`, :func:`~nenupy.io.tf_utils.plot_spectrum`
+        """
+
+        # Select a single polarization
+        if polarization is None:
+            polarization_id = 0
+        else:
+            try:
+                polarization_id = np.argwhere(self.polarization==polarization)[0, 0]
+            except IndexError:
+                log.error(f"Unable to find polarization '{polarization}'.")
+                polarization_id = 0
+        log.info(f"Selected polarization: '{self.polarization[polarization_id]}'.")
+
+        # Plot spectrum
+        if (self.data.shape[0] == 1) & (self.data.shape[1] > 1):
+           fig, ax = plot_spectrum(
+                data=self.data[0, :, polarization_id].ravel(),
+                frequency=self.frequency,
+                **kwargs
+            )
+
+        # Plot lightcurve
+        elif (self.data.shape[0] > 1) & (self.data.shape[1] == 1):
+            fig, ax = plot_lightcurve(
+                data=self.data[:, 0, polarization_id].ravel(),
+                time=self.time,
+                **kwargs
+            )
+
+        # Plot dynamic spectrum
+        elif (self.data.shape[0] > 1) & (self.data.shape[1] > 1):
+            fig, ax = plot_dynamic_spectrum(
+                data=self.data[:, :, polarization_id],
+                time=self.time,
+                frequency=self.frequency,
+                **kwargs
+            )
+
+        return fig, ax
+
+    def multi_plot(self, nrows: int, ncols: int, fig: mpl.figure.Figure = None, figsize: Tuple[int, int] = None, **kwargs):
+        """_summary_
+
+        Parameters
+        ----------
+        nrows : int
+            _description_
+        ncols : int
+            _description_
+        fig : mpl.figure.Figure, optional
+            _description_, by default None
+        figsize : Tuple[int, int], optional
+            _description_, by default None
+        
+        Example
+        -------
+        .. code-block:: python
+
+            >>> import numpy as np
+            >>> from astropy.time import Time, TimeDelta
+            >>> import astropy.units as u
+            >>> from nenupy.io.tf_utils import ReducedSpectraSlice
+
+            >>> pols = np.array(["I", "Q", "U", "V/I"])
+            >>> nt, nf, no = (10, 5, pols.size)
+            >>> data = (np.arange(1, nt + 1)[:, None] * np.arange(1, nf + 1)[None, :])[:, :, None] * 2**np.arange(no)[None, None, :]
+            >>> dd = ReducedSpectraSlice(
+                    time=Time.now() + np.arange(nt) * TimeDelta(1800, format="sec"),
+                    frequency=np.arange(nf) * u.MHz,
+                    polarization=pols,
+                    data=data  
+                )
+
+            >>> f, axes = dd[2:5, ...].multi_plot(2, 2, figsize=(15, 7), norm="linear", vmin=0, vmax=200)
+
+        .. figure:: ../_images/io_images/reducedspectra_multiplot.png
+            :width: 650
+            :align: center
+
+        """
+
+        if fig is None:
+            fig = plt.figure(figsize=(10 * ncols, 5 * nrows) if figsize is None else figsize)
+
+        # Remove some keywords that could double interact with the main figure
+        for key in ["ax", "title"]:
+            try:
+                del kwargs[key]
+                log.warning(f"Keyword '{key}' set but ignored in this plot configuration.")
+            except KeyError:
+                pass
+        kwargs["clabel"] = None
+
+        axes = fig.subplots(nrows=nrows, ncols=ncols, sharex=True, sharey=True)
+        axes = axes.ravel()
+        for i, polarization in enumerate(self.polarization):
+            _, _ = self.plot(
+                polarization=polarization,
+                fig=fig,
+                ax=axes[i],
+                title=f"Polarization: '{polarization}'",
+                **kwargs
+            )
+
+        plt.tight_layout()
+
+        return fig, axes
+
 class ReducedSpectra:
     def __init__(self, file_name: str):
         self.file_name = file_name
         self._rfile = h5py.File(file_name, "r")
         log.info(f"'{self.file_name}' opened.")
+    
+    def __getitem__(self, abeam_dbeam_id: Tuple[int, int]):
+        if len(abeam_dbeam_id) != 2:
+            raise IndexError("Two indices are expected (analog_beam, digital_beam).")
 
-    def infos(self):
-        return "hello"
+        time, frequency, polar, data = self.get(
+            subarray_pointing_id=abeam_dbeam_id[0],
+            beam_id=abeam_dbeam_id[1], 
+            data_key=None
+        )
+
+        return ReducedSpectraSlice(
+            time=time,
+            frequency=frequency,
+            polarization=polar,
+            data=data
+        )
+
+    def info(self, condense: bool = True) -> str:
+        """Print out informations about the file structure.
+
+        Parameters
+        ----------
+        condense : `bool`, optional
+            If set to `True`, the dataet attributes are not shown, by default `True`
+
+        Returns
+        -------
+        `str`
+            File informations.
+
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.io.tf_utils import ReducedSpectra
+
+            >>> rs = ReducedSpectra("/path/to/my/file.hdf5")
+            >>> print(rs.info())
+            Data Structure:
+            --- 'SUB_ARRAY_POINTING_000' ---
+                SUBARRAY_POINTING_ID: 0
+
+                    --- 'BEAM_000' ---
+                        BEAM_ID: 0
+                        DATASETS:
+                            'I': (10, 20)
+                            'Q': (10, 20)
+                            'U': (10, 20)
+
+        """
+
+        message = ""
+        s1 = " " * 2
+        s2 = " " * 6
+
+        if not condense:
+            for key, val in self._rfile.attrs.items():
+                message += f"{key}: {val}\n"
+        
+        message += "\nData Structure:\n"
+
+        analog_beams = list(self._rfile.keys())
+
+        for analog_beam in analog_beams:
+            message += f"{s1}--- '{analog_beam}' ---\n"
+            message += f"{s2}SUBARRAY_POINTING_ID: {int(analog_beam.split('_')[-1])}\n"
+
+            if not condense:
+                for key, val in self._rfile[analog_beam].attrs.items():
+                    message += f"{s2}{key}: {val}\n"
+
+            digital_beams = list(self._rfile[analog_beam].keys())
+
+            for digital_beam in digital_beams:
+                message += f"\n{s1}{s2}--- '{digital_beam}' ---\n"
+                message += f"{s1}{s2}{s2}BEAM_ID: {int(digital_beam.split('_')[-1])}\n"
+                message += f"{s1}{s2}{s2}DATASETS (time, frequency):\n"
+                for pol in list(self._rfile[analog_beam][digital_beam].keys())[1:]:
+                    message += f"{s1}{s2}{s2}{s1}'{pol}': {(self._rfile[analog_beam][digital_beam][pol].shape)}\n"
+
+                if not condense:
+                    for key, val in self._rfile[analog_beam][digital_beam].attrs.items():
+                        message += f"{s1}{s2}{s2}{key}: {val}\n"
+
+        return message
 
     def get(
-        self, subarray_pointing_id: int = 0, beam_id: int = 0, data_key: str = None
-    ) -> Tuple[Time, u.Quantity, np.ndarray]:
+        self, data_key: str = None, subarray_pointing_id: int = 0, beam_id: int = 0
+    ) -> Tuple[Time, u.Quantity, str, np.ndarray]:
         """_summary_
 
         Parameters
         ----------
         data_key : str, optional
             _description_, by default None
+        subarray_pointing_id : int, optional
+            _description_, by default 0
+        beam_id : int, optional
+            _description_, by default 0
 
         Returns
         -------
-        np.ndarray
+        Tuple[Time, u.Quantity, np.ndarray np.ndarray]
             _description_
 
         Raises
@@ -2157,42 +2885,52 @@ class ReducedSpectra:
         KeyError
             _description_
         """
-        data_ext = self._rfile[
-            f"SUB_ARRAY_POINTING_{subarray_pointing_id:03}/BEAM_{beam_id:03}"
-        ]
+
+        analog_beam = f"SUB_ARRAY_POINTING_{subarray_pointing_id:03}"
+        digital_beam = f"BEAM_{beam_id:03}"
+        data_ext = self._rfile[f"{analog_beam}/{digital_beam}"]
+        log.info(f"Data from analog/digital beam '{analog_beam}/{digital_beam}' loaded.")
+
         available_keys = list(data_ext.keys())
         available_keys.remove("COORDINATES")
+
         if data_key is None:
             # If no key is selected, take the first one by default
-            data_key = available_keys[0]
+            # data_key = available_keys[0]
+            log.info("No data_key selected, all datasets will be returned by default.")
+            polarization = np.array(available_keys)
         elif data_key not in available_keys:
-            self.close()
             raise KeyError(
                 f"Invalid data_key '{data_key}', available values: {available_keys}."
             )
-        log.info(f"Selected data extension '{data_key}'.")
+        else:
+            polarization = np.array([data_key])
+        log.info(f"Selected data extension '{polarization}'.")
 
         times_axis, frequency_axis = self._build_axes(data_ext["COORDINATES"])
 
-        return times_axis, frequency_axis, data_ext[data_key][:]
+        return times_axis, frequency_axis, polarization, np.stack([data_ext[pol] for pol in polarization], axis=-1)
 
     def plot(
         self,
+        data_key: str = None,
         subarray_pointing_id: int = 0,
         beam_id: int = 0,
-        data_key: str = None,
         **kwargs,
     ):
-        time, frequency, data = self.get(subarray_pointing_id, beam_id, data_key)
+        time, frequency, polar, data = self.get(
+            subarray_pointing_id=subarray_pointing_id,
+            beam_id=beam_id, 
+            data_key=data_key
+        )
 
         try:
             fig, ax = plot_dynamic_spectrum(
-                data=data, time=time, frequency=frequency, **kwargs
+                data=data[:], time=time, frequency=frequency, clabel=polar, **kwargs
             )
-            plt.show()
+            return fig, ax
 
         except:
-            self.close()
             raise
 
     def close(self):

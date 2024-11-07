@@ -20,7 +20,7 @@
       ~ReducedSpectra.__init__
       ~ReducedSpectra.close
       ~ReducedSpectra.get
-      ~ReducedSpectra.infos
+      ~ReducedSpectra.info
       ~ReducedSpectra.plot
    
    

@@ -1,4 +1,4 @@
-﻿nenupy.io.tf\_utils.TFPipelineParameters
+nenupy.io.tf\_utils.TFPipelineParameters
 ========================================
 
 .. currentmodule:: nenupy.io.tf_utils

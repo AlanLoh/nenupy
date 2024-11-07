@@ -1,4 +1,4 @@
-nenupy.io.tf\_utils
+﻿nenupy.io.tf\_utils
 ===================
 
 .. automodule:: nenupy.io.tf_utils
@@ -26,6 +26,8 @@ nenupy.io.tf\_utils
       flatten_subband
       get_bandpass
       plot_dynamic_spectrum
+      plot_lightcurve
+      plot_spectrum
       polarization_angle
       rebin_along_dimension
       remove_channels_per_subband
@@ -45,6 +47,7 @@ nenupy.io.tf\_utils
       :template: custom-class-template.rst
    
       ReducedSpectra
+      ReducedSpectraSlice
       TFPipelineParameters
    
    

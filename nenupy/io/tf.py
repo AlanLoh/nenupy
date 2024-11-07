@@ -1005,7 +1005,7 @@ class Spectra:
 
         # Compute the boolean mask of bad blocks
         bad_block_mask = self._get_bad_data_mask(
-            data, bypass_verification=~check_missing_data
+            data, bypass_verification=not check_missing_data
         )
 
         # Compute the main data block descriptors (time / frequency / beam)
@@ -1555,6 +1555,8 @@ class Spectra:
 
     def _to_dask_tf(self, data: np.ndarray, mask: np.ndarray) -> da.Array:
         """ """
+        log.info("Re-organize data into Jones matrices...")
+
         # Transform the array in a Dask array, one chunk per block
         # Filter out the bad blocks
         data = da.from_array(data, chunks=(1,))[~mask]
@@ -1567,6 +1569,8 @@ class Spectra:
         data = utils.blocks_to_tf_data(
             data=data, n_block_times=self._n_time_per_block, n_channels=self.n_channels
         )
+
+        log.info("Data loaded.")
 
         return data
 
