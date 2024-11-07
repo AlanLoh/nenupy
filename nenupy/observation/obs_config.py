@@ -595,7 +595,7 @@ class BSTConfig(_BackendConfig):
         totalTimes = np.array([])
         for db in dbeams.keys():
             dts = TimeDelta(
-                np.arange(dbeams[db]['duration']),
+                np.arange(int(dbeams[db]["duration"].replace("s", ""))),
                 format='sec'
             )
             dbTimes = dbeams[db]['startTime'] + dts
@@ -705,11 +705,11 @@ class NICKELConfig(_BackendConfig):
 
         # Hypothesis that only one analog beam is used!
         return NICKELConfig(
-            durationSec=anabeams[0]['duration'],
+            durationSec=int(anabeams[0]["duration"].replace("s", "")),
             timeRes=out['nri_dumpTime'],
             nSubBands=len(out['nri_subbandList']),
             nChannels=out['nri_channelization'],
-            nMAs=len(anabeams[0]['maList']),
+            nMAs=len(anabeams[0]["maList"]),
             startTime=parset.observation['startTime']
         )
 # ============================================================= #
@@ -999,7 +999,7 @@ class TFConfig(_UnDySPuTeDConfig):
                     _TFBeamConfig(
                         timeRes=dt,
                         freqRes=df,
-                        durationSec=digibeams[db]['duration'],
+                        durationSec=int(digibeams[db]["duration"].replace("s", "")),
                         nSubBands=len(digibeams[db]['subbandList'])
                     )
                 )
@@ -1129,8 +1129,8 @@ class RAWConfig(_UnDySPuTeDConfig):
                     continue
                 beamConfigs.append(
                     _RawBeamConfig(
-                        durationSec=digibeams[db]['duration'],
-                        nSubBands=len(digibeams[db]['subbandList'])
+                        durationSec=int(digibeams[db]["duration"].replace("s", "")),
+                        nSubBands=len(digibeams[db]["subbandList"])
                     )
                 )
         
@@ -1273,10 +1273,10 @@ class PulsarFoldConfig(_UnDySPuTeDConfig):
                 
                 beamConfigs.append(
                     _FoldBeamConfig(
-                        nSubBands=len(digibeams[db]['subbandList']),
+                        nSubBands=len(digibeams[db]["subbandList"]),
                         nPolars=1 if 'onlyi' in parameters else 4,
                         tFold=float(parameters.get('tfold', props['tFold']['default'])),
-                        durationSec=digibeams[db]['duration'],
+                        durationSec=int(digibeams[db]["duration"].replace("s", "")),
                         nBins=int(parameters.get('nbin', props['nBins']['default']))
                     )
                 )
@@ -1420,8 +1420,8 @@ class PulsarWaveConfig(_UnDySPuTeDConfig):
                 
                 beamConfigs.append(
                     _WaveolafBeamConfig(
-                        nSubBands=len(digibeams[db]['subbandList']),
-                        durationSec=digibeams[db]['duration']
+                        nSubBands=len(digibeams[db]["subbandList"]),
+                        durationSec=int(digibeams[db]["duration"].replace("s", ""))
                     )
                 )
 
@@ -1566,10 +1566,10 @@ class PulsarSingleConfig(_UnDySPuTeDConfig):
 
                 beamConfigs.append(
                     _SingleBeamConfig(
-                        nSubBands=len(digibeams[db]['subbandList']),
+                        nSubBands=len(digibeams[db]["subbandList"]),
                         nPolars=1 if 'onlyi' in parameters else 4,
                         dsTime=int(parameters.get('dstime', props['dsTime']['default'])),
-                        durationSec=digibeams[db]['duration'],
+                        durationSec=int(digibeams[db]["duration"].replace("s", "")),
                         nBits=int(parameters.get('nbits', props['nBits']['default']))
                     )
                 )

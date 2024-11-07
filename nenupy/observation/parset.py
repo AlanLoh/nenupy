@@ -29,10 +29,11 @@ from typing import Tuple, Callable
 import re
 import json
 from astropy.time import Time, TimeDelta
-from astropy.coordinates import SkyCoord, AltAz, ICRS
+from astropy.coordinates import SkyCoord, AltAz, ICRS, Angle
 import astropy.units as u
 # from ipywidgets.widgets.widget_output import Output
 import numpy as np
+from typing import Union
 
 from nenupy import nenufar_position
 from nenupy.instru import sb2freq
@@ -103,17 +104,20 @@ class _ParsetProperty(MutableMapping):
                     # A simple string
                     value.append(val[i])
 
-        elif value.lower() in ['on', 'enable', 'true']:
+        elif value.lower() in ['true']: #["on", "enable", "true"]
             # This is a 'True' boolean
             value = True
 
-        elif value.lower() in ['off', 'disable', 'false']:
+        elif value.lower() in ['false']: #["off", "disable", "false"]
             # This is a 'False' boolean
             value = False
         
         elif 'angle' in key.lower():
             # This is a float angle in degrees
             value = float(value) * u.deg
+        
+        elif "duration" in key.lower():
+            value = f"{value}s"
         
         elif value.isdigit():
             value = int(value)
@@ -124,6 +128,9 @@ class _ParsetProperty(MutableMapping):
                 value = Time(value.strip(), precision=0)
             except ValueError:
                 pass
+        
+        elif isinstance(value, str):
+            value = value.lower()
 
         else:
             pass
@@ -1169,7 +1176,6 @@ class Parset(object):
     #         f'Parset {self.parset} added to database {data_base.name}'
     #     )
 
-
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     def _decodeParset(self):
@@ -1574,8 +1580,12 @@ class _ParsetBlock:
                     value = str(int(np.round(value.sec))) + "s"
                 
                 # The boolean values needs to be translated to strings
-                elif isinstance(value, bool):
-                    value = "true" if value else "false"
+                # elif isinstance(value, bool):
+                #     value = "true" if value else "false"
+
+                # The lists must be squeezed
+                elif isinstance(value, list):
+                    value = f"[{','.join(str(element) for element in value)}]"
 
                 # Updates the key value
                 self.configuration[key]["value"] = value
@@ -1892,7 +1902,87 @@ class ParsetUser:
             for pc in anabeam.phase_centers
         )
 
-    
+
+    @classmethod
+    def replay_from_parset(cls, parset: Union[str, Parset], from_time: Time = Time.now(), same_lst: bool = False):
+
+        # Initialize a Parset object if not provided
+        if isinstance(parset, str):
+            parset = Parset(parset)
+
+        # Start a new ParsetUser object
+        new_parset = cls()
+
+        # Compute the time difference between the start times
+        parset_start = parset.anabeams[0]["startTime"]
+        if same_lst:
+            new_start = "to be done"
+        else:
+            new_start = Time(f"{from_time.iso.split()[0]}T{parset_start.iso.split()[1]}")
+        delta_time = new_start - parset_start
+        if delta_time.sec < 0:
+            raise ValueError(f"from_time needs to be after {parset_start.isot}")
+
+        def new_parameters(prop: _ParsetProperty, fields: list) -> dict:
+            params = {key: prop[key] for key in prop.keys() if key in fields}
+            # Add coordinates information
+            if "ra" in fields:
+                from nenupy.astro.target import FixedTarget
+                sky_coord = SkyCoord(Angle(prop["angle1"]), Angle(prop["angle2"]))
+                target = FixedTarget(sky_coord)
+                ra_hms = sky_coord.ra.to_string(u.hourangle, sep=":", pad=True)
+                dec_dms = sky_coord.dec.to_string(u.degree, sep=":", pad=True)
+                params["ra"] = f"'{ra_hms}'"
+                params["dec"] = f"'{dec_dms}'"
+            # Modify time instances
+            try:
+                params["startTime"] += delta_time
+            except KeyError:
+                pass
+            try:
+                params["filterTime"] = [filter_time + delta_time for filter_time in params["filterTime"]]
+            except KeyError:
+                pass
+            # Add transit date
+            if "transitDate" in fields:
+                prev_transit = target.next_meridian_transit(params["startTime"])
+                next_transit = target.next_meridian_transit(params["startTime"])
+                transit = prev_transit if np.abs((prev_transit - params["startTime"]).sec) < np.abs((next_transit - params["startTime"]).sec) else next_transit
+                transit.precision = 0
+                params["transitDate"] = transit
+            # Remove "seti" and "codalema"
+            try:
+                receivers = params["hd_receivers"].copy()
+                receivers.remove("seti")
+                receivers.remove("codalema")
+                params["hd_receivers"] = receivers
+            except KeyError:
+                pass
+            return params
+
+        # Set up the Observation configuration part
+        new_parset.set_observation_config(**new_parameters(parset.observation, new_parset.observation_fields))
+
+        # Re-create every analog / numerical beams and phase centers
+        for analog_beam in parset.anabeams.values():
+            new_parset.add_analog_beam(**new_parameters(analog_beam, new_parset.analog_beam_fields))
+
+        for digital_beam in parset.digibeams.values():
+            new_parset.add_numerical_beam(
+                anabeam_index=digital_beam["noBeam"],
+                **new_parameters(digital_beam, new_parset.numerical_beam_fields)
+            )
+
+        for phase_center in parset.phase_centers.values():
+            new_parset.add_phase_center(
+                anabeam_index=phase_center["noBeam"],
+                **new_parameters(phase_center, new_parset.phase_center_fields)
+            )
+
+        new_parset.set_output_config(**new_parameters(parset.output, new_parset.output_fields))
+
+        return new_parset
+
     def set_observation_config(self, **kwargs) -> None:
         """ Sets the configuration of the *parset_user* observation block.
             This method ingests any valid `keyword argument <https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html>`_ corresponding to an *Observation* configuration.
@@ -2314,7 +2404,9 @@ class ParsetUser:
                 # Perform a regex full match check, send a warning if invalid
                 if re.fullmatch(pattern=syntax_pattern, string=str(value)) is None:
                     log.error(
-                        f"Syntax error on '{value}' (key '{key}'). Please check https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html"
+                        f"Syntax error on '{value}' (key '{key}'). "
+                        f"\n\tExpected syntax: {syntax_pattern}."
+                        "\n\tPlease check https://doc-nenufar.obs-nancay.fr/UsersGuide/parsetFileuserparset_user.html"
                     )
                     all_keys_ok &= False
 
