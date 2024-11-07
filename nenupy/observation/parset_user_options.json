@@ -41,7 +41,7 @@
         "corAzel": {
             "required": false,
             "value": "enable",
-            "syntax": "(?i)^enable|disable$"
+            "syntax": "(?i)^(enable|disable|polys_2022|grid)$"
         },
         "topic": {
             "required": true,
@@ -98,8 +98,8 @@
         },
         "nri_receivers": {
             "required": false,
-            "value": "false",
-            "syntax": "(?i)^(true)|(false)$"
+            "value": "[nickel]",
+            "syntax": "(?i)^\\[nickel\\]$"
         },
         "nri_bitMode": {
             "required": false,
@@ -210,8 +210,8 @@
         },
         "antState": {
             "required": false,
-            "value": "[ON]",
-            "syntax": "(?i)^\\[ON\\]|\\[OFF\\]$"
+            "value": "ON",
+            "syntax": "(?i)^(ON|OFF)$"
         },
         "antList": {
             "required": false,
@@ -220,8 +220,8 @@
         },
         "maList": {
             "required": false,
-            "value": "[0..96]",
-            "syntax": "^\\[(\\d|[1-8]\\d|9[0-6]|10[0-5])(,(\\d|[1-8]\\d|9[0-6]|10[0-5])|\\.\\.(\\d|[1-8]\\d|9[0-6]|10[0-5])(?=(,|\\])))*\\]$"
+            "value": "[0..95]",
+            "syntax": "^\\[(\\d|[1-8]\\d|9[0-5]|10[0-7])(,(\\d|[1-8]\\d|9[0-5]|10[0-7])|\\.\\.(\\d|[1-8]\\d|9[0-5]|10[0-7])(?=(,|\\])))*\\]$"
         },
         "attList": {
             "required": false,
