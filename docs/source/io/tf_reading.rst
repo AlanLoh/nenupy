@@ -109,7 +109,7 @@ One can access the current state of these parameters by calling
 
 .. code-block:: python
 
-    >>> sp.pipeline.parameters.info()
+    >>> print( sp.pipeline.parameters.info() )
     channels: 64
     dt: 0.02097152 s
     df: 3051.7578125 Hz
@@ -129,6 +129,7 @@ One can access the current state of these parameters by calling
     stokes: I
     ignore_volume_warning: False
 
+.. _custom_pipeline_param_doc:
 
 Pipeline parameter modification
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
