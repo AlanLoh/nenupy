@@ -130,7 +130,7 @@ class XLSFile:
             # Find cells that have been filled
             values = np.unique(daily_data[daily_data != None])
             for value in values:
-                fullmatch = re.search(pattern=r"^(?P<kp>(SP|RP|LT)\S{2})\s+(?P<start>(\d+|\d+:\d+))-(?P<stop>(\d+|\d+:\d+))(?P<comment>\s+\(.+\))?(\s+)?$", string=value)
+                fullmatch = re.search(pattern=r"^(?P<kp>(ES|SP|RP|LT)\S{2})\s+(?P<start>(\d+|\d+:\d+))-(?P<stop>(\d+|\d+:\d+))(?P<comment>\s+\(.+\))?(\s+)?$", string=value)
                 if fullmatch is None:
                     print(f"Problem parsing: '{value}'")
                 # Add a new calendar if a different KP name is found
@@ -212,7 +212,7 @@ class XLSFile:
 
                     # Super strict check
                     try:
-                        fullmatch = re.search(pattern=r"^(?P<kp>(SP|RP|LT)\S{2})\s(?P<start>(\d+|\d+:\d+))-(?P<stop>(\d+|\d+:\d+))(?P<comment>\s\(.+\))?$", string=value)
+                        fullmatch = re.search(pattern=r"^(?P<kp>(ES|SP|RP|LT)\S{2})\s(?P<start>(\d+|\d+:\d+))-(?P<stop>(\d+|\d+:\d+))(?P<comment>\s\(.+\))?$", string=value)
                         assert fullmatch is not None
                     except AssertionError:
                         log.error(f"(Month {month_key}, Day {day}) - Strict syntax check failed on '{value}'")
@@ -224,7 +224,7 @@ class XLSFile:
 
                     # Read KP
                     try:
-                        kp_match = re.match(pattern=r"^(SP|RP|LT)\d+", string=value)
+                        kp_match = re.match(pattern=r"^(ES|SP|RP|LT)\d+", string=value)
                         # current_kp = value.split(" ")[0]#.replace("(", "").replace(")", "")
                         current_kp = kp_match.group()
                     except AttributeError:
@@ -237,7 +237,7 @@ class XLSFile:
 
                     # Read the start and stop hours
                     try:
-                        match = re.search(pattern=r"^(SP|RP|LT)\S+ (?P<start>\S+)-(?P<stop>\S+)", string=value)
+                        match = re.search(pattern=r"^(ES|SP|RP|LT)\S+ (?P<start>\S+)-(?P<stop>\S+)", string=value)
                         start = match["start"]
                         stop = match["stop"]
                         # start, stop = value.split(" ")[1].split("-")
@@ -594,7 +594,7 @@ class NenuCalendar:
 
             # Search the KP name
             ics_basename = os.path.basename(ics_file)
-            match = re.search(pattern=r"(SP|RP|LT)\S{2}", string=ics_basename)
+            match = re.search(pattern=r"(ES|SP|RP|LT)\S{2}", string=ics_basename)
             if match is None:
                 raise ValueError(f"ICS file name {ics_basename} does not contain a KP name.")
             kp = match.group()
@@ -624,7 +624,7 @@ class NenuCalendar:
             
             # Search the KP name
             xls_basename = os.path.basename(xls_file)
-            match = re.search(pattern=r"(SP|RP|LT)\S{2}", string=xls_basename)
+            match = re.search(pattern=r"(ES|SP|RP|LT)\S{2}", string=xls_basename)
             if match is None:
                 log.warning(f"ICS file name {xls_basename} does not contain a KP name.")
                 kp = "none"
@@ -677,11 +677,27 @@ class NenuCalendar:
         # log.info(f"total={total_hours} hours (day={daily_hours}, night={night_hours})")
         log.info(f"total={total_hours} hours")# (day={daily_hours}, night={night_hours})")
 
-    def write_vcr_csv(self, filename: str = "", add_error: bool = True) -> None:
-        all_events = [evt.event for evt in self.events]
+    def write_vcr_csv(self, path: str = "", add_error: bool = True) -> None:
+        """Write a CSV file from the events loaded in this NenuCalendar instance.
+        The CSV format is such that it can be imported to book KP slots in the VCR.
 
-        current_events, next_events = tee(sorted(self.events), 2)
+        Parameters
+        ----------
+        path : str, optional
+            The output path to store the booking file, by default ""
+        add_error : bool, optional
+            Duplicater the last line so that it results in an error (i.e., to check that this is the last remaining error while importing the data to the VCR), by default True
+        """
+
+        sorted_events = sorted(self.events)
+        current_events, next_events = tee(sorted_events, 2)
         next_events = chain(islice(next_events, 1, None), [None])
+
+        yyyy_mm_start = sorted_events[0].event.begin.datetime.strftime("%Y_%m")
+        yyyy_mm_stop = sorted_events[-1].event.end.datetime.strftime("%Y_%m")
+        filename = os.path.join(path, f"Booking_{yyyy_mm_start}_{yyyy_mm_stop}.csv")
+
+        log.info(f"Writing {filename}...")
 
         with open(filename, "w") as wfile:
             for event, next_event in zip(current_events, next_events):
@@ -694,30 +710,42 @@ class NenuCalendar:
                 if event in next_event:
                     raise Exception(f"There is an overlap between {event} and {next_event}!")
 
-                # Remove this line next time...
-                event_name = "LT02 filler" if (event.event.name.lower() == "filler" or event.event.name.lower() == "filer") else event.event.name
+                start = Time(event.event.begin.datetime, format="datetime")
+                start.precision = 0
+                stop = Time(event.event.end.datetime, format="datetime")
 
-                kp_match = re.search(pattern=r"(SP|RP|LT)\S{2}", string=event_name)
+                # Gather events belonging to the same KP that are consectutive in time
+                # This will modify the stop time
+                while (event.kp_name == next_event.kp_name) and (event.event.end == next_event.event.begin):
+                    # Check that there is no overlap!
+                    if event in next_event:
+                        raise Exception(f"There is an overlap between {event} and {next_event}!")
+                    if next_event is None:
+                        # End of the loop
+                        break
+                    log.info(f"Merging {event} and {next_event}")
+                    stop = Time(next_event.event.end.datetime, format="datetime")
+                    event = next(current_events)
+                    next_event = next(next_events)
+
+                stop.precision = 0
+
+                # TODO Remove the conditions next time...
+                event_name = "LT02 filler" if (event.event.name.lower() == "filler" or event.event.name.lower() == "filer") else event.event.name
+                if "LT00" in event.event.name:
+                    event_name = event_name.replace("LT00", "ES00")
+                if "RP5A" in event.event.name:
+                    event_name = event_name.replace("RP5A", "RP3A")
+
+                # Extract the KP name
+                kp_match = re.search(pattern=r"(ES|SP|RP|LT)\S{2}", string=event_name)
                 if kp_match is None:
                     raise Exception(f"Unable to read KP name from '{event_name}'")
                 kp = kp_match.group()
                 if kp != event.kp_name:
                     raise Exception(f"Inconsistency between kp_name {event.kp_name} and kp written {kp}")
 
-                start = Time(event.event.begin.datetime, format="datetime")
-                start.precision = 0
-
-                # Gather events belonging to the same KP
-                stop = Time(event.event.end.datetime, format="datetime")
-                if (event.kp_name == next_event.kp_name) and (event.event.end == next_event.event.begin):
-                    log.info(f"Merging {event} and {next_event}")
-                    stop = Time(next_event.event.end.datetime, format="datetime")
-                    # Skip # TODO check if that works
-                    event = next(current_events)
-                    next_event = next(next_events)
-
-                stop.precision = 0
-
+                # Write the CSV file
                 wfile.write(f"{start.iso},{stop.iso},{kp},NenuFAR booking\n")
 
             if add_error:

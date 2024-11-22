@@ -749,6 +749,38 @@ class Schedule(_TimeSlots):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+    @classmethod
+    def from_ics(cls, ics_file: str, dt: TimeDelta, name_selection: str = None):
+
+        # Read the ics file
+        from ics import Calendar
+        with open(ics_file, "r") as rfile:
+            ics_content = rfile.read()
+            calendar = Calendar(ics_content)
+
+        # Select a subset of events
+        sorted_events = sorted(calendar.events)
+        if not (name_selection is None):
+            sorted_events = [evt for evt in sorted_events if name_selection in evt.name]
+
+        # Determine the time min and max of the overall schedule
+        time_min = Time(sorted_events[0].begin.datetime, format="datetime")
+        time_max = Time(sorted_events[-1].end.datetime, format="datetime")
+
+        # Make the schedule
+        schedule = cls(
+            time_min=time_min,
+            time_max=time_max,
+            dt=dt
+        )
+
+        # Insert free slots
+        starts = Time([evt.begin.datetime for evt in sorted_events], format="datetime")
+        stops = Time([evt.end.datetime for evt in sorted_events], format="datetime")
+        schedule.set_free_slots(start_times=starts, stop_times=stops)
+
+        return schedule
+
     def insert(self, *blocks):
         r""" Inserts observation blocks or reserved blocks in the schedule.
         
