@@ -1008,13 +1008,26 @@ class Spectra:
             data, bypass_verification=not check_missing_data
         )
 
+        self._missing_data_time_indices = np.where(bad_block_mask)[0]
+
         # Compute the main data block descriptors (time / frequency / beam)
         log.info("Computing time-frequency axes...")
         subband_width_hz = SUBBAND_WIDTH.to_value(u.Hz)
+        # self._block_start_unix = (
+        #     data["TIMESTAMP"][~bad_block_mask]
+        #     + data["BLOCKSEQNUMBER"][~bad_block_mask] / subband_width_hz
+        # )
         self._block_start_unix = (
-            data["TIMESTAMP"][~bad_block_mask]
-            + data["BLOCKSEQNUMBER"][~bad_block_mask] / subband_width_hz
+            data["TIMESTAMP"]
+            + data["BLOCKSEQNUMBER"] / subband_width_hz
         )
+        # Reconstruct missing times
+        self._block_start_unix[bad_block_mask] = np.interp(
+            np.where(bad_block_mask)[0],
+            np.arange(self._block_start_unix.size)[~bad_block_mask],
+            self._block_start_unix[~bad_block_mask]
+        )
+
         self._subband_start_hz = (
             data["data"]["channel"][0, :] * subband_width_hz
         )  # Assumed constant over time
@@ -1528,7 +1541,7 @@ class Spectra:
 
         if bypass_verification:
             log.info("Skipping missing data verification...")
-            return np.zeros(data["TIMESTAMP"].size, dtype=bool)
+            return np.zeros(data.size, dtype=bool)
 
         log.info("Checking for missing data (can take up to 1 min)...")
 
@@ -1559,7 +1572,9 @@ class Spectra:
 
         # Transform the array in a Dask array, one chunk per block
         # Filter out the bad blocks
-        data = da.from_array(data, chunks=(1,))[~mask]
+        # data = da.from_array(data, chunks=(1,))[~mask]
+        data = da.from_array(data, chunks=(1,))
+        data[mask] = np.nan
 
         # Convert the data to cross correlation electric field matrix
         # The data will be shaped like (n_block, n_subband, n_time_per_block, n_channels, 2, 2)

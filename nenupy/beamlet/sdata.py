@@ -193,7 +193,8 @@ class SData(object):
             raise ValueError(
                 'Inconsistent polar parameters'
                 )
-        if not all(self.time == other.time):
+        if not all(self.time.isclose(other.time, self.time[1] - self.time[0])):
+            # Assumes times are the same if their shift is less than dt
             raise ValueError(
                 'Inconsistent time parameters'
                 )
