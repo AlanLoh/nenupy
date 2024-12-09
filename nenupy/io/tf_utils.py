@@ -164,7 +164,8 @@ def apply_dreambeam_corrections(
         (n_time_groups, time_group_size)
     )[:, 0]
     time_start_idx = np.argmax(db_time >= group_start_time[0])
-    time_stop_idx = db_time.size - np.argmax(db_time[::-1] < group_start_time[-1])
+    # time_stop_idx = db_time.size - np.argmax(db_time[::-1] < group_start_time[-1])
+    time_stop_idx = time_start_idx + n_time_groups - 1
 
     jones = db_jones[
         time_start_idx : time_stop_idx + 1, freq_start_idx : freq_stop_idx + 1, :, :

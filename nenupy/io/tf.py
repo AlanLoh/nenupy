@@ -349,7 +349,7 @@ class TFTask:
             return time_unix, frequency_hz, data
 
         return cls(
-            "Polarizartion corection with DreamBeam",
+            "Polarization corection with DreamBeam",
             wrapper_task,
             [
                 "channels",
