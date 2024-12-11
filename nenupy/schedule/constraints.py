@@ -176,7 +176,7 @@ import matplotlib.pyplot as plt
 from copy import copy
 from typing import List
 
-from nenupy.schedule.targets import _Target
+from nenupy.schedule.targets import _Target, SSTarget
 
 import logging
 log = logging.getLogger(__name__)
@@ -1024,6 +1024,74 @@ class NightTimeCnst(Constraint):
 # ============================================================= #
 # ============================================================= #
 
+# ============================================================= #
+# -------------------- SolarProximityCnst --------------------- #
+# ============================================================= #
+class SolarProximityCnst(Constraint):
+    """ """
+
+    def __init__(self,
+            closer: bool = False,
+            min_separation_deg: float = None,
+            max_separation_deg: float = None,
+            weight: float = 1
+        ):
+        super().__init__(weight=weight)
+        self.closer = closer
+        self.min_separation_deg = min_separation_deg
+        self.max_separation_deg = max_separation_deg
+    
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+    def get_score(self, indices: np.ndarray) -> np.ndarray:
+        """ """
+        return np.mean(
+            np.where(
+                self.score[indices] > 0.,
+                1,
+                0
+            )
+        )
+
+    # --------------------------------------------------------- #
+    # ----------------------- Internal ------------------------ #
+    def _evaluate(self, target: _Target, sun_position: SSTarget):
+        """
+        """
+        separation = target.target.separation(sun_position).deg
+
+        # Set to NaN intervals where the separation is outside requested values
+        if not (self.min_separation_deg is None):
+            separation[separation < self.min_separation_deg] = np.nan
+        if not (self.max_separation_deg is None):
+            separation[separation > self.max_separation_deg] = np.nan
+
+        if all(np.isnan(separation)):
+            log.warning(
+                "Constraint <SolarProximityCnst(min_separation_deg="
+                f"{self.min_separation_deg}, max_separation_deg={self.max_separation_deg})> "
+                "cannot be satisfied over the given time range."
+            )
+            self.score = separation[1:] * np.nan
+
+        else:
+            sep_min = np.nanmin(separation)
+            sep_max = np.nanmax(separation)
+            # farther_normalized_score = (separation - sep_min) / (sep_max - sep_min)
+            # if self.closer:
+            #     self.score = 1 - farther_normalized_score
+            # else:
+            #     self.score = farther_normalized_score
+            if self.closer:
+                # Add .1 to avoid 0
+                self.score = (sep_max + 0.1 - separation) / np.nanmax(sep_max + 0.1 - separation)
+            else:
+                self.score = separation / sep_max
+
+        return self.score
+# ============================================================= #
+# ============================================================= #
+
 
 # ============================================================= #
 # ------------------------ Constraints ------------------------ #
@@ -1119,7 +1187,7 @@ class Constraints(object):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def evaluate(self, target, time, nslots=1, sun_elevation=None):
+    def evaluate(self, target, time, nslots=1, sun_elevation=None, sun_position=None):
         """
         """
         cnts = np.zeros((self.size, time.size - 1))
@@ -1131,6 +1199,8 @@ class Constraints(object):
                 cnts[i, :] = cnt(tuple(time), nslots)
             elif isinstance(cnt, NightTimeCnst):
                 cnts[i, :] = cnt(sun_elevation)
+            elif isinstance(cnt, SolarProximityCnst):
+                cnts[i, :] = cnt(target, sun_position)
             else:
                 unEvaluatedCnst += 1
         if unEvaluatedCnst == self.size:
@@ -1149,7 +1219,7 @@ class Constraints(object):
         return self.score
     
 
-    def evaluate_various_nslots(self, target: _Target, time: Time, test_indices: List[np.ndarray], sun_elevation=None) -> List[np.ndarray]:
+    def evaluate_various_nslots(self, target: _Target, time: Time, test_indices: List[np.ndarray], sun_elevation=None, sun_position=None) -> List[np.ndarray]:
         scores = []
 
         # Loop over each set of indices
@@ -1157,9 +1227,19 @@ class Constraints(object):
             
             # Copy target and only keep the time/coordinates around the boundaries of test_indices to optimize the computations
             min_idx, max_idx = np.min(indices_window), np.max(indices_window) + 1
-            sliced_target = None if target is None else target[min_idx : max_idx] # Perform a copy without damaging the original object
-            time = time[min_idx : max_idx]
-            sun_elevation = None if sun_elevation is None else sun_elevation[min_idx : max_idx]
+            if target is None:
+                sliced_target = None
+            else:
+                sliced_target = target[min_idx : max_idx] # Perform a copy without damaging the original object
+            sliced_time = time[min_idx : max_idx]
+            if sun_elevation is None:
+                sun_elev = None
+            else:
+                sun_elev = sun_elevation[min_idx : max_idx]
+            if sun_position is None:
+                sun_pos = None
+            else:
+                sun_pos = sun_position[min_idx : max_idx]
 
             nslots = indices_window.size - 1
 
@@ -1171,9 +1251,11 @@ class Constraints(object):
                 if isinstance(constraint, TargetConstraint) and (sliced_target is not None):
                     constraint_scores[constraint_i, :] = constraint(sliced_target, nslots)
                 elif isinstance(constraint, ScheduleConstraint):
-                    constraint_scores[constraint_i, :] = constraint(tuple(time), nslots)
+                    constraint_scores[constraint_i, :] = constraint(tuple(sliced_time), nslots)
                 elif isinstance(constraint, NightTimeCnst):
-                    constraint_scores[constraint_i, :] = constraint(sun_elevation)
+                    constraint_scores[constraint_i, :] = constraint(sun_elev[:-1]) # already taken at mid dt
+                elif isinstance(constraint, SolarProximityCnst) and (sliced_target is not None):
+                    constraint_scores[constraint_i, :] = constraint(sliced_target, sun_pos[:-1])
                 else:
                     n_unevaluated_constraints += 1
 

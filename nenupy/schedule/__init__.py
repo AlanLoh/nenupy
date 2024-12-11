@@ -14,6 +14,7 @@ from .constraints import (
     LocalTimeCnst,
     TimeRangeCnst,
     NightTimeCnst,
+    SolarProximityCnst,
     Constraints
 )
 from .obsblocks import Block, ObsBlock, ReservedBlock

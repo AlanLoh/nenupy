@@ -25,6 +25,7 @@ from astropy.time import Time, TimeDelta
 from astropy.table import Table
 import numpy as np
 from copy import deepcopy, copy
+import itertools
 
 from nenupy.schedule.obsblocks import (
     Block,
@@ -160,7 +161,7 @@ class ScheduleBlock(ObsBlock):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def evaluate_score(self, time, sun_elevation):
+    def evaluate_score(self, time, sun_elevation, sun_position):
         """
         """
         # Evaluate the target positions over time and compute the
@@ -175,7 +176,8 @@ class ScheduleBlock(ObsBlock):
                 target=self.target,
                 time=time,
                 nslots=self.nSlots,
-                sun_elevation=sun_elevation
+                sun_elevation=sun_elevation,
+                sun_position=sun_position
             )
 
             log.debug(
@@ -591,8 +593,8 @@ class _TimeSlots(object):
             )
 
         period = time_max - time_min
-        time_steps = int( np.ceil(period/dt) )
-        dt_shifts = np.arange(time_steps)*dt
+        time_steps = int(np.floor(period / dt))
+        dt_shifts = np.arange(time_steps) * dt
 
         slot_starts = time_min + dt_shifts
         slot_stops = slot_starts + dt
@@ -676,19 +678,22 @@ class Schedule(_TimeSlots):
         self.observation_blocks = ScheduleBlocks(dt=self.dt)
         self.reserved_blocks = None
 
-        # Store the Sun's elevation
-        sun = SSTarget.fromName('Sun')
-        sun.computePosition(
-            Time(
-                np.append(
-                    self._startsJD,
-                    self._startsJD[-1] + self.dt.jd
-                ),
-                format='jd'
-            )
-        )
-        elevation = sun.elevation.deg
-        self.sun_elevation = (elevation[1:] + elevation[:-1])/2
+        # Store the Sun's elevation and position
+        sun = SSTarget.fromName("Sun")
+        # sun.computePosition(
+        #     Time(
+        #         np.append(
+        #             self._startsJD,
+        #             self._startsJD[-1] + self.dt.jd
+        #         ),
+        #         format="jd"
+        #     )
+        # )
+        # elevation = sun.elevation.deg
+        # self.sun_elevation = (elevation[1:] + elevation[:-1]) / 2
+        sun.computePosition(Time(self._startsJD + self.dt.jd / 2, format="jd"))
+        self.sun_elevation = sun.elevation.deg
+        self.sun_position = sun._fk5
 
         self._obs_extension_done = False
 
@@ -1009,7 +1014,8 @@ class Schedule(_TimeSlots):
 
         """
         # Ré-initialize the booking, in case the user calls this method several times
-        self._reset_observation_block_bookings()
+        if kwargs.get("reset_booking", True):
+            self._reset_observation_block_bookings()
 
         # Pre-compute the constraints scores
         self._compute_block_constraint_scores(**kwargs)
@@ -1027,6 +1033,17 @@ class Schedule(_TimeSlots):
             log.info(
                 f'Fitting {sum(self._toSchedule)} observation blocks...'
             )
+
+        # Remove blocks if they cannot be fully inserted
+        if kwargs.get("very_strict", False):
+            for i, blk in enumerate(self.observation_blocks):
+                if not self._toSchedule[i]:
+                    continue
+                non_null_constraints = self._cnstScores[i] > 0
+                consecutive_dt = np.array([ sum( 1 for _ in group ) for key, group in itertools.groupby(non_null_constraints) if key ])
+                if not np.any(consecutive_dt >= blk.nSlots):
+                    log.warning(f"Removed <ObsBlock> #{blk.blockIdx} '{blk.name}': no consecutive {blk.nSlots} slots found, 'very_strict' config!")
+                    self._toSchedule[i] = False
 
         if optimize:
             # All the observation blocks are booked at
@@ -1094,6 +1111,9 @@ class Schedule(_TimeSlots):
             elif kwargs.get('sort_by_availability', False):
                 sort_idx = np.argsort(np.sum(self._cnstScores > 0, axis=1))
                 block_indices = block_indices[sort_idx]
+            elif kwargs.get("sort_by_nslots", False):
+                sort_idx = np.argsort([blk.nSlots for blk in self.observation_blocks])[::-1]
+                block_indices = block_indices[sort_idx]
 
             # Block are booked iteratively 
             # for i, blk in enumerate(self.observation_blocks):
@@ -1149,9 +1169,9 @@ class Schedule(_TimeSlots):
             )
 
 
-    def extend_scheduled_observations(self, relative_score_threshold: float = 0.8) -> None:
+    def extend_scheduled_observations(self, relative_score_threshold: float = 1., max_duration: TimeDelta = None) -> None:
         """ """
-        if self._obs_extension_done:
+        if self._obs_extension_done and (max_duration is None):
             log.warning("Scheduled observations have already been extended.")
             return
         
@@ -1173,8 +1193,15 @@ class Schedule(_TimeSlots):
         for block in self.observation_blocks:
             if not block.isBooked:
                 continue
-            extdt = block.max_extended_duration
+
+            # If max_duration argument is set, use it instead of the ObsBlock value 
+            if max_duration is None:
+                extdt = block.max_extended_duration
+            else:
+                extdt = max_duration
+
             extend_mask.append(extdt is not None)
+
             try:
                 n_slots = int(np.ceil(extdt.sec/self.dt.sec))
             except AttributeError: # extdt is None, and doesnt have .sec
@@ -1184,8 +1211,13 @@ class Schedule(_TimeSlots):
             # slot_extension.append(n_slots if extdt is not None else 0)
             # indices.append(block.blockIdx)
 
+            if block.nSlots == n_slots:
+                # Block is already at maximum size
+                slot_extension_indices.append([])
+                continue
+
             # Compute the constraint score for each possibility (i.e. from self.nSlots to n_slots)
-            extended_windows_size = np.arange(block.nSlots + 1, n_slots + 1) + 1 # Add 1 to evaluate the constraints
+            extended_windows_size = np.arange(block.nSlots + 1, n_slots + 1)# + 1 # Add 1 to evaluate the constraints
             extended_windows_slots = [np.arange(window_size) - int(window_size/2) + block.startIdx + int(block.nSlots/2) for window_size in extended_windows_size]
             # Deal with edges (don't check indices outside of the Schedule range)
             #extended_windows_slots = [window_indices[(window_indices >= 0) * (window_indices < self.size - 1)] for window_indices in extended_windows_slots] # self.size - 1 to compensate for the constraints evaluation
@@ -1195,7 +1227,8 @@ class Schedule(_TimeSlots):
                 target=block.target,
                 time=times,
                 test_indices=extended_windows_slots,
-                sun_elevation=self.sun_elevation
+                sun_elevation=copy(self.sun_elevation),
+                sun_position=copy(self.sun_position)
             )
 
             # Compute the mean score
@@ -1209,12 +1242,17 @@ class Schedule(_TimeSlots):
 
             # Filter out the constraint score to discard those that diminish the block score
             # Add a relative threshold in order to filter...
-            positive_gradient_mask = constraint_score >= constraint_score[0] * relative_score_threshold
+            # Do not put >= as a score of 0 would be extended
+            positive_gradient_mask = constraint_score > constraint_score[0] * relative_score_threshold
             slot_extension_indices.append([slot_indices for slot_indices, better_option in zip(extended_windows_slots, positive_gradient_mask) if better_option])
 
         # Iteratively try to increase the observation blocks
         iteration_i = 0
-        max_iteration = max([len(indices) for indices in slot_extension_indices])
+        try:
+            max_iteration = max([len(indices) for indices in slot_extension_indices])
+        except ValueError:
+            # Nothing in slot_extension_indices
+            max_iteration = 0
         while iteration_i < max_iteration:
             
             booked_block_i = 0
@@ -1648,7 +1686,11 @@ class Schedule(_TimeSlots):
             if blk.constraints.score is None:
                 # If != 1, the constraint score has already been computed
                 # Append the last time slot to get the last slot top
-                blk.evaluate_score(time=times, sun_elevation=self.sun_elevation)
+                blk.evaluate_score(
+                    time=times,
+                    sun_elevation=self.sun_elevation,
+                    sun_position=self.sun_position
+                )
 
             # Set other attributes relying on the schedule
             blk.nSlots = int(np.ceil(blk.duration/self.dt))

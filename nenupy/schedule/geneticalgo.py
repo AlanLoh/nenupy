@@ -246,7 +246,7 @@ class GeneticAlgorithm(object):
 
             # Show status
             if self.generation%modGen == 0:
-                log.debug(
+                log.info(
                     f'Generation {self.generation}, '
                     f'best score: {self._bestScore}.'
                 )
