@@ -1,4 +1,4 @@
-﻿nenupy.schedule.constraints.LocalSiderealTimeCnst
+nenupy.schedule.constraints.LocalSiderealTimeCnst
 =================================================
 
 .. currentmodule:: nenupy.schedule.constraints

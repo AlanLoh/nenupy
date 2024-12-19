@@ -1,4 +1,4 @@
-﻿nenupy.schedule.constraints.ElevationCnst
+nenupy.schedule.constraints.ElevationCnst
 =========================================
 
 .. currentmodule:: nenupy.schedule.constraints

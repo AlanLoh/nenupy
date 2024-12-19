@@ -1,9 +1,9 @@
-nenupy.schedule.constraints.ScheduleConstraint
+nenupy.schedule.constraints.SolarProximityCnst
 ==============================================
 
 .. currentmodule:: nenupy.schedule.constraints
 
-.. autoclass:: ScheduleConstraint
+.. autoclass:: SolarProximityCnst
    :members:
    :show-inheritance:
    :inherited-members:
@@ -18,8 +18,9 @@ nenupy.schedule.constraints.ScheduleConstraint
 
    .. autosummary::
    
-      ~ScheduleConstraint.__init__
-      ~ScheduleConstraint.plot
+      ~SolarProximityCnst.__init__
+      ~SolarProximityCnst.get_score
+      ~SolarProximityCnst.plot
    
    
 
@@ -29,6 +30,6 @@ nenupy.schedule.constraints.ScheduleConstraint
 
    .. autosummary::
    
-      ~ScheduleConstraint.weight
+      ~SolarProximityCnst.weight
    
    

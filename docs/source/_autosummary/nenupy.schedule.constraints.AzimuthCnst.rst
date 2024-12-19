@@ -1,4 +1,4 @@
-﻿nenupy.schedule.constraints.AzimuthCnst
+nenupy.schedule.constraints.AzimuthCnst
 =======================================
 
 .. currentmodule:: nenupy.schedule.constraints

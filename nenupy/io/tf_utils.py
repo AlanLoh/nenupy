@@ -33,7 +33,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from nenupy.astro import dispersion_delay, faraday_angle
-from nenupy.astro.beam_correction import compute_jones_matrices
+from nenupy.astro.beam_correction import compute_jones_matrices, compute_projection_corrections
 
 __all__ = [
     "blocks_to_tf_data",
@@ -132,7 +132,14 @@ def apply_dreambeam_corrections(
     leftover_time_samples = time_size % time_group_size
 
     # Computing DreamBeam matrices
-    db_time, db_frequency, db_jones = compute_jones_matrices(
+    # db_time, db_frequency, db_jones = compute_jones_matrices(
+    #     start_time=Time(time_unix[0], format="unix", precision=7),
+    #     time_step=TimeDelta(time_group_size * dt_sec, format="sec"),
+    #     duration=TimeDelta(time_unix[-1] - time_unix[0], format="sec"),
+    #     skycoord=skycoord,
+    #     parallactic=parallactic,
+    # )
+    db_time, db_frequency, db_jones = compute_projection_corrections(
         start_time=Time(time_unix[0], format="unix", precision=7),
         time_step=TimeDelta(time_group_size * dt_sec, format="sec"),
         duration=TimeDelta(time_unix[-1] - time_unix[0], format="sec"),
@@ -141,7 +148,7 @@ def apply_dreambeam_corrections(
     )
     db_time = db_time.unix
     db_frequency = db_frequency.to_value(u.Hz)
-    db_jones = np.swapaxes(db_jones, 0, 1)
+    db_jones = np.swapaxes(db_jones, 0, 1) # swap frequency and time axes
 
     # Reshape the data at the time and frequency resolutions
     # Take into account leftover times
@@ -427,7 +434,7 @@ def compute_stokes_parameters(
         I &= \Re(X\overline{X}) + \Re(Y\overline{Y})\\
         Q &= \Re(X\overline{X}) - \Re(Y\overline{Y})\\
         U &= 2\Re(X\overline{Y})\\
-        V &= 2\Im(X\overline{Y})
+        V &= -2\Im(X\overline{Y})
         \end{align}
         
     Parameters
@@ -496,7 +503,7 @@ def compute_stokes_parameters(
         elif stokes_i == "U":
             data_i = data_array[..., 0, 1].real * 2
         elif stokes_i == "V":
-            data_i = data_array[..., 0, 1].imag * 2
+            data_i = - data_array[..., 0, 1].imag * 2 # no negative sign? because data_array[..., 0, 1] = [XrYr + XiYi ; XrYi - XiYr] which is the opposite of XY*=YrXr+YiXi + i(XiYr - XrYi)
         elif stokes_i == "Q/I":
             data_i = (data_array[..., 0, 0].real - data_array[..., 1, 1].real) / (
                 data_array[..., 0, 0].real + data_array[..., 1, 1].real
@@ -509,7 +516,7 @@ def compute_stokes_parameters(
             )
         elif stokes_i == "V/I":
             data_i = (
-                data_array[..., 0, 1].imag
+                - data_array[..., 0, 1].imag
                 * 2
                 / (data_array[..., 0, 0].real + data_array[..., 1, 1].real)
             )
@@ -1845,13 +1852,26 @@ def spectra_data_to_matrix(fft0: da.Array, fft1: da.Array) -> da.Array:
     :class:`~dask.array.Array`
         Reshaped data :math:`\mathbf{d}_{\rm J}`.
 
-    """    
-    row1 = da.stack(
-        [fft0[..., 0], fft1[..., 0] - 1j * fft1[..., 1]], axis=-1  # XX  # XY*
-    )
-    row2 = da.stack(
-        [fft1[..., 0] + 1j * fft1[..., 1], fft0[..., 1]], axis=-1  # YX*  # YY
-    )
+    """
+    # fft0 = [XrXr+XiXi : YrYr+YiYi]
+    # fft1 = [XrYr+XiYi : XrYi-XiYr]
+    xx = fft0[..., 0] # XrXr + XiXi = XX*
+    yy = fft0[..., 1] # YrYr + YiYi = YY*
+    xy = fft1[..., 0] - 1j * fft1[..., 1] # XrYr + XiYi - i(XrYi - XiYr) = XY*
+    yx = fft1[..., 0] + 1j * fft1[..., 1] # XrYr + XiYi + i(XrYi - XiYr) = YX*
+    # row1 = da.stack(
+    #     [fft0[..., 0], fft1[..., 0] - 1j * fft1[..., 1]], axis=-1  # XX  # XY*
+    # )
+    # row2 = da.stack(
+    #     [fft1[..., 0] + 1j * fft1[..., 1], fft0[..., 1]], axis=-1  # YX*  # YY
+    # )
+    # Check using:
+    # xx = np.ones(30).reshape((3, 10))
+    # xy = 2 * np.ones(30).reshape((3, 10))
+    # yx = 3 * np.ones(30).reshape((3, 10))
+    # yy = 4 * np.ones(30).reshape((3, 10))
+    row1 = da.stack([xx, yx], axis=-1)
+    row2 = da.stack([xy, yy], axis=-1)
     return da.stack([row1, row2], axis=-1)
 
 

@@ -23,6 +23,7 @@
       ~Schedule.export
       ~Schedule.extend_scheduled_observations
       ~Schedule.fine_tune
+      ~Schedule.from_ics
       ~Schedule.insert
       ~Schedule.match_booking
       ~Schedule.plot

@@ -1,4 +1,4 @@
-﻿nenupy.schedule.constraints.TargetConstraint
+nenupy.schedule.constraints.TargetConstraint
 ============================================
 
 .. currentmodule:: nenupy.schedule.constraints

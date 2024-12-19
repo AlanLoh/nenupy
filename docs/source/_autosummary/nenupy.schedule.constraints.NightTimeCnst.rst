@@ -1,4 +1,4 @@
-﻿nenupy.schedule.constraints.NightTimeCnst
+nenupy.schedule.constraints.NightTimeCnst
 =========================================
 
 .. currentmodule:: nenupy.schedule.constraints

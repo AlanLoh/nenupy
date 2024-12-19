@@ -797,7 +797,8 @@ class TFPipeline:
             print(message)
 
     def set_default(self) -> None:
-        """Set the default pipeline.
+        """Set the default pipeline. This will reset any existing list of :class:`~nenupy.io.tf.TFTask`.
+        This method also reset the parameters configuration (listed in :attr:`~nenupy.io.tf.TFPipeline.parameters`).
         The list of tasks is:
 
         - Bandpass correction (:meth:`~nenupy.io.tf.TFTask.correct_bandpass`)
@@ -808,6 +809,7 @@ class TFPipeline:
 
         """
 
+        self.parameters.reset()
         self.tasks = [
             TFTask.correct_bandpass(),
             TFTask.remove_channels(),

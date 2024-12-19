@@ -1,4 +1,4 @@
-﻿nenupy.schedule.constraints.TimeRangeCnst
+nenupy.schedule.constraints.TimeRangeCnst
 =========================================
 
 .. currentmodule:: nenupy.schedule.constraints

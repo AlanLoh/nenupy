@@ -1,4 +1,4 @@
-﻿nenupy.schedule.constraints.MeridianTransitCnst
+nenupy.schedule.constraints.MeridianTransitCnst
 ===============================================
 
 .. currentmodule:: nenupy.schedule.constraints

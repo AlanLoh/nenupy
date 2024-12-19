@@ -1,4 +1,4 @@
-﻿nenupy.schedule.constraints.LocalTimeCnst
+nenupy.schedule.constraints.LocalTimeCnst
 =========================================
 
 .. currentmodule:: nenupy.schedule.constraints

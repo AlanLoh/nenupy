@@ -1,4 +1,4 @@
-nenupy.schedule.constraints
+﻿nenupy.schedule.constraints
 ===========================
 
 .. automodule:: nenupy.schedule.constraints
@@ -28,6 +28,7 @@ nenupy.schedule.constraints
       MeridianTransitCnst
       NightTimeCnst
       ScheduleConstraint
+      SolarProximityCnst
       TargetConstraint
       TimeRangeCnst
    

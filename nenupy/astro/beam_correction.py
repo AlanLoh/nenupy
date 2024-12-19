@@ -3,6 +3,7 @@
 
 __all__ = [
    "compute_jones_matrices",
+   "compute_projection_correction",
    "convert_to_mueller",
    "matrices_to_hdf5"
 ]
@@ -12,6 +13,7 @@ from nenupy.astro.jones_mueller import JonesMatrix, MuellerMatrix
 from astropy.coordinates import SkyCoord
 from astropy.time import Time, TimeDelta
 import astropy.units as u
+import numpy as np
 import h5py
 from typing import Union, Tuple
 import logging
@@ -20,6 +22,8 @@ log.setLevel(logging.INFO)
 
 try:
     from dreambeam.rime.scenarios import on_pointing_axis_tracking
+    from dreambeam.rime.jones import DualPolFieldPointSrc, PJones
+    from dreambeam.telescopes.rt import load_mountedfeed
 except ModuleNotFoundError:
     # This will raise an error eventually with an appropriate message
     pass
@@ -65,6 +69,78 @@ def compute_jones_matrices(
     return Time(times, format="datetime"), frequencies*u.Hz, JonesMatrix(Jn)
 # ============================================================= #
 
+# ============================================================= #
+# -------------- compute_projection_corrections --------------- #
+def compute_projection_corrections(
+        start_time: Time,
+        time_step: TimeDelta,
+        duration: TimeDelta,
+        skycoord: SkyCoord,
+        parallactic: bool = True
+    ) -> Tuple[Time, u.Quantity, JonesMatrix]:
+    """_summary_
+    Took apart on_pointing_axis_tracking method from Dreambeam to only take into account
+    parallactic angle and projection effects.
+
+    Parameters
+    ----------
+    start_time : Time
+        _description_
+    time_step : TimeDelta
+        _description_
+    duration : TimeDelta
+        _description_
+    skycoord : SkyCoord
+        _description_
+    parallactic : bool, optional
+        _description_, by default True
+
+    Returns
+    -------
+    Tuple[Time, u.Quantity, JonesMatrix]
+        _description_
+
+    Raises
+    ------
+    ValueError
+        _description_
+    """
+    log.info("\tComputing Jones projection matrices using DreamBeam...")
+
+    if time_step.sec <= 1.:
+        raise ValueError("DreamBeam does not allow for time intervals lesser than 1 sec.")
+
+    try:
+        stnfeed = load_mountedfeed(
+            tscopename="NenuFAR",
+            station="NenuFAR",
+            band="LBA",
+            modelname="Hamaker-NEC4_Charrier_v1r1"
+        )
+        stnrot = stnfeed.stnRot
+        freqs = stnfeed.getfreqs() # list
+
+        pointingdir = (skycoord.ra.rad, skycoord.dec.rad, "J2000")
+        srcfld = DualPolFieldPointSrc(pointingdir)
+
+        timespy = []
+        nrTimSamps = int((duration.datetime.total_seconds() / time_step.datetime.seconds)) + 1
+        for ti in range(0, nrTimSamps):
+            timespy.append(start_time.datetime + ti * time_step.datetime)
+        pjones = PJones(timespy, np.transpose(stnrot), do_parallactic_rot=parallactic)
+        pjonesOfSrc = pjones.op(srcfld)
+        jones = pjonesOfSrc.getValue()
+        jones = np.repeat(jones[None, ...], len(freqs), axis=0)
+
+    except NameError:
+        log.error(
+            "DreamBeam is not installed. "
+            "See installation instructions https://github.com/2baOrNot2ba/dreamBeam"
+        )
+        raise
+
+    return Time(timespy, format="datetime"), freqs * u.Hz, JonesMatrix(jones)
+# ============================================================= #
 
 # ============================================================= #
 # -------------------- convert_to_mueller --------------------- #
