@@ -1,4 +1,4 @@
-nenupy.astro.beam\_correction
+﻿nenupy.astro.beam\_correction
 =============================
 
 .. automodule:: nenupy.astro.beam_correction
@@ -15,6 +15,7 @@ nenupy.astro.beam\_correction
       :toctree:
    
       compute_jones_matrices
+      compute_projection_corrections
       convert_to_mueller
       matrices_to_hdf5
    

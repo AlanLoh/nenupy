@@ -3,7 +3,7 @@
 
 __all__ = [
    "compute_jones_matrices",
-   "compute_projection_correction",
+   "compute_projection_corrections",
    "convert_to_mueller",
    "matrices_to_hdf5"
 ]

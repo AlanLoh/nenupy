@@ -33,6 +33,7 @@
    nenupy.schedule.geneticalgo
    nenupy.schedule.obsblocks
    nenupy.schedule.open_time
+   nenupy.schedule.satellite_position
    nenupy.schedule.schedule
    nenupy.schedule.targets
 

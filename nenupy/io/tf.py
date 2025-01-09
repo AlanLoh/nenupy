@@ -362,6 +362,55 @@ class TFTask:
         )
 
     @classmethod
+    def correct_parallactic_rotation(cls):
+        """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.correct_parallactic`.
+        This allows for parallactic angle correction by aplying the inverse rotation.
+
+        Warning
+        -------
+        This task must be computed early in the pipeline process as it involves full Jones operations.
+
+        """
+
+        def wrapper_task(
+            time_unix,
+            frequency_hz,
+            data,
+            dt,
+            channels,
+            dreambeam_dt,
+            dreambeam_skycoord,
+        ):
+            # DreamBeam correction (beam gain + parallactic angle)
+            if (
+                (dreambeam_dt is None)
+                or (dreambeam_skycoord is None)
+            ):
+                return time_unix, frequency_hz, data
+            data = utils.correct_parallactic(
+                time_unix=time_unix,
+                frequency_hz=frequency_hz,
+                data=data,
+                dt_sec=dt.to_value(u.s),
+                time_step_sec=dreambeam_dt.to_value(u.s),
+                n_channels=channels,
+                skycoord=dreambeam_skycoord
+            )
+            return time_unix, frequency_hz, data
+
+        return cls(
+            "Parallactic corection",
+            wrapper_task,
+            [
+                "channels",
+                "dt",
+                "dreambeam_skycoord",
+                "dreambeam_dt",
+            ],
+            repeatable=False,
+        )
+
+    @classmethod
     def correct_faraday_rotation(cls):
         """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.de_faraday_data` to correct for Faraday rotation for a given ``'rotation_measure'`` set in :attr:`~nenupy.io.tf.TFPipeline.parameters`.
 

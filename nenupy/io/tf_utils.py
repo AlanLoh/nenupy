@@ -32,15 +32,17 @@ import logging
 
 log = logging.getLogger(__name__)
 
-from nenupy.astro import dispersion_delay, faraday_angle
+from nenupy.astro import dispersion_delay, faraday_angle, parallactic_angle
 from nenupy.astro.beam_correction import compute_jones_matrices, compute_projection_corrections
 
 __all__ = [
+    "apply_dreambeam_corrections",
     "blocks_to_tf_data",
     "compute_spectra_frequencies",
     "compute_spectra_time",
     "compute_stokes_parameters",
     "correct_bandpass",
+    "correct_parallactic",
     "crop_subband_edges",
     "de_disperse_array",
     "de_faraday_data",
@@ -578,6 +580,90 @@ def correct_bandpass(data: np.ndarray, n_channels: int) -> np.ndarray:
 
     # Re-reshape the data into time, frequency, (2, 2) array
     return data.reshape((n_times, n_freqs, 2, 2))
+
+
+# ============================================================= #
+# -------------------- correct_parallactic -------------------- #
+def correct_parallactic(
+        time_unix: np.ndarray,
+        frequency_hz: np.ndarray,
+        data: np.ndarray,
+        dt_sec: float,
+        time_step_sec: float,
+        n_channels: int,
+        skycoord: SkyCoord
+    ) -> np.ndarray:
+
+    # Basic checks to make sure the dimensions are correct
+    freq_size = frequency_hz.size
+    time_size = time_unix.size
+    if time_size != data.shape[0]:
+        raise ValueError("There is a problem in the time dimension!")
+    if (freq_size != data.shape[1]) or (freq_size % n_channels != 0):
+        raise ValueError("There is a problem in the frequency dimension!")
+    n_subbands = int(freq_size / n_channels)
+
+    # Compute the number of time samples that will be corrected together
+    time_group_size = int(np.round(time_step_sec / dt_sec))
+    log.debug(
+        f"\tGroups of {time_group_size} time blocks will be corrected altogether ({dt_sec*time_group_size} sec resolution)."
+    )
+    n_time_groups = time_size // time_group_size
+    leftover_time_samples = time_size % time_group_size
+
+    # Build the time array for the Jones solutions
+    start_time = Time(time_unix[0], format="unix", precision=7)
+    jones_times = start_time + np.arange(time_group_size) * TimeDelta(time_group_size * dt_sec, format="sec")
+    jones_unix = jones_times.unix
+
+    # Reshape the data at the time and frequency resolutions
+    # Take into account leftover times
+    data_leftover = data[-leftover_time_samples:, ...].reshape(
+        (leftover_time_samples, n_subbands, n_channels, 2, 2)
+    )
+    data = data[: time_size - leftover_time_samples, ...].reshape(
+        (n_time_groups, time_group_size, n_subbands, n_channels, 2, 2)
+    )
+
+    # Do the same with the time
+    group_start_time = time_unix[: time_size - leftover_time_samples].reshape(
+        (n_time_groups, time_group_size)
+    )[:, 0]
+    time_start_idx = np.argmax(jones_unix >= group_start_time[0])
+    time_stop_idx = time_start_idx + n_time_groups - 1
+
+    par_angle = parallactic_angle(coordinates=skycoord, time=jones_times).rad
+    jones_parallactic = np.array([
+        [np.cos(par_angle), - np.sin(par_angle)],
+        [np.sin(par_angle), np.cos(par_angle)]
+    ])
+    jones_parallactic = np.swapaxes(jones_parallactic, 2, 0)
+    jones_parallactic = np.linalg.inv(jones_parallactic)
+
+    jones = jones_parallactic[
+        time_start_idx : time_stop_idx + 1, :, :
+    ][:, None, None, None, :, :]
+    jones_leftover = jones_parallactic[
+        -1, :, :
+    ][None, None, None, :, :]
+
+    # Compute the Hermitian matrices
+    jones_transpose = np.swapaxes(jones, -2, -1)
+    jones_leftover_transpose = np.swapaxes(jones_leftover, -2, -1)
+    jones_hermitian = np.conjugate(jones_transpose)
+    jones_leftover_hermitian = np.conjugate(jones_leftover_transpose)
+
+    return np.concatenate(
+        (
+            np.matmul(jones, np.matmul(data, jones_hermitian)).reshape(
+                (time_size - leftover_time_samples, freq_size, 2, 2)
+            ),
+            np.matmul(
+                jones_leftover, np.matmul(data_leftover, jones_leftover_hermitian)
+            ).reshape((leftover_time_samples, freq_size, 2, 2)),
+        ),
+        axis=0
+    )
 
 
 # ============================================================= #
