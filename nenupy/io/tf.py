@@ -324,15 +324,15 @@ class TFTask:
             frequency_hz,
             data,
             dt,
-            dreambeam_dt,
+            calib_dt,
             channels,
-            dreambeam_skycoord,
+            skycoord,
             dreambeam_parallactic,
         ):
             # DreamBeam correction (beam gain + parallactic angle)
             if (
-                (dreambeam_dt is None)
-                or (dreambeam_skycoord is None)
+                (calib_dt is None)
+                or (skycoord is None)
                 or (dreambeam_parallactic is None)
             ):
                 return time_unix, frequency_hz, data
@@ -341,9 +341,9 @@ class TFTask:
                 frequency_hz=frequency_hz,
                 data=data,
                 dt_sec=dt.to_value(u.s),
-                time_step_sec=dreambeam_dt.to_value(u.s),
+                time_step_sec=calib_dt.to_value(u.s),
                 n_channels=channels,
-                skycoord=dreambeam_skycoord,
+                skycoord=skycoord,
                 parallactic=dreambeam_parallactic,
             )
             return time_unix, frequency_hz, data
@@ -354,8 +354,8 @@ class TFTask:
             [
                 "channels",
                 "dt",
-                "dreambeam_skycoord",
-                "dreambeam_dt",
+                "skycoord",
+                "calib_dt",
                 "dreambeam_parallactic",
             ],
             repeatable=False,
@@ -378,13 +378,13 @@ class TFTask:
             data,
             dt,
             channels,
-            dreambeam_dt,
-            dreambeam_skycoord,
+            calib_dt,
+            skycoord,
         ):
             # DreamBeam correction (beam gain + parallactic angle)
             if (
-                (dreambeam_dt is None)
-                or (dreambeam_skycoord is None)
+                (calib_dt is None)
+                or (skycoord is None)
             ):
                 return time_unix, frequency_hz, data
             data = utils.correct_parallactic(
@@ -392,9 +392,9 @@ class TFTask:
                 frequency_hz=frequency_hz,
                 data=data,
                 dt_sec=dt.to_value(u.s),
-                time_step_sec=dreambeam_dt.to_value(u.s),
+                time_step_sec=calib_dt.to_value(u.s),
                 n_channels=channels,
-                skycoord=dreambeam_skycoord
+                skycoord=skycoord
             )
             return time_unix, frequency_hz, data
 
@@ -404,8 +404,8 @@ class TFTask:
             [
                 "channels",
                 "dt",
-                "dreambeam_skycoord",
-                "dreambeam_dt",
+                "skycoord",
+                "calib_dt",
             ],
             repeatable=False,
         )
@@ -1263,12 +1263,12 @@ class Spectra:
             Keyword used if :meth:`~nenupy.io.tf.TFTask.flatten_subband` is in the pipeline: smooth the frequency profile, this option mau result in unexpected behavior if the subbands are not contiguous or the selected beamlets do not belong to the same digital beam. 
         remove_channels : `list` or :class:`~numpy.ndarray`, default: ``None``
             List of subband channels to remove, e.g. `remove_channels=[0,1,-1]` would remove the first, second (low-freq) and last channels from each subband. Note that the :meth:`~nenupy.io.tf.TFTask.remove_channels` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
-        dreambeam_skycoord : :class:`~astropy.coordinates.SkyCoord`, default: ``None``
-            Tracked celestial coordinates used during `DreamBeam <https://dreambeam.readthedocs.io/en/latest/>`_ correction (along with ``'dreambeam_dt'`` and ``'dreambeam_parallactic'``), a :class:`~astropy.coordinates.SkyCoord` object is expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
-        dreambeam_dt : `float` or :class:`~astropy.units.Quantity`, default: ``None``
-            `DreamBeam <https://dreambeam.readthedocs.io/en/latest/>`_ correction time resolution (along with ``'dreambeam_skycoord'`` and ``'dreambeam_parallactic'``), a :class:`~astropy.Quantity` object or a float (assumed in seconds) are expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        skycoord : :class:`~astropy.coordinates.SkyCoord`, default: ``None``
+            Tracked celestial coordinates used for beam and polarization corrections, a :class:`~astropy.coordinates.SkyCoord` object is expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` or :meth:`~nenupy.io.tf.TFTask.correct_parallactic_rotation` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+        calib_dt : `float` or :class:`~astropy.units.Quantity`, default: ``None``
+            Time resolution used for beam and polarization corrections, a :class:`~astropy.Quantity` object or a float (assumed in seconds) are expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` or :meth:`~nenupy.io.tf.TFTask.correct_parallactic_rotation` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
         dreambeam_parallactic : `bool`, default: `True`
-            `DreamBeam <https://dreambeam.readthedocs.io/en/latest/>`_ parallactic angle correction (along with ``'dreambeam_skycoord'`` and ``'dreambeam_dt'``), a boolean is expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
+            `DreamBeam <https://dreambeam.readthedocs.io/en/latest/>`_ parallactic angle correction (along with ``'skycoord'`` and ``'calib_dt'``), a boolean is expected. Note that the :meth:`~nenupy.io.tf.TFTask.correct_polarization` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
         stokes : `str` or `list[str]`, default: ``"I"``
             Stokes parameter selection, can either be given as a string or a list of strings, e.g. ``['I', 'Q', 'V/I']``. Note that the :meth:`~nenupy.io.tf.TFTask.get_stokes` task should be present in the planned pipeline (:attr:`~nenupy.io.tf.Spectra.pipeline`).
         ignore_volume_warning : `bool`, default: `False`

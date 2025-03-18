@@ -506,6 +506,8 @@ def compute_stokes_parameters(
             data_i = data_array[..., 0, 1].real * 2
         elif stokes_i == "V":
             data_i = - data_array[..., 0, 1].imag * 2 # no negative sign? because data_array[..., 0, 1] = [XrYr + XiYi ; XrYi - XiYr] which is the opposite of XY*=YrXr+YiXi + i(XiYr - XrYi)
+        elif stokes_i == "L":
+            data_i = np.sqrt( (data_array[..., 0, 0].real - data_array[..., 1, 1].real)**2 + (data_array[..., 0, 1].real * 2)**2 )
         elif stokes_i == "Q/I":
             data_i = (data_array[..., 0, 0].real - data_array[..., 1, 1].real) / (
                 data_array[..., 0, 0].real + data_array[..., 1, 1].real
@@ -521,6 +523,10 @@ def compute_stokes_parameters(
                 - data_array[..., 0, 1].imag
                 * 2
                 / (data_array[..., 0, 0].real + data_array[..., 1, 1].real)
+            )
+        elif stokes_i == "L/I":
+            data_i = np.sqrt( (data_array[..., 0, 0].real - data_array[..., 1, 1].real)**2 + (data_array[..., 0, 1].real * 2)**2 ) / (
+                data_array[..., 0, 0].real + data_array[..., 1, 1].real
             )
         else:
             raise NotImplementedError(f"Stokes parameter {stokes_i} unknown.")
@@ -613,7 +619,7 @@ def correct_parallactic(
 
     # Build the time array for the Jones solutions
     start_time = Time(time_unix[0], format="unix", precision=7)
-    jones_times = start_time + np.arange(time_group_size) * TimeDelta(time_group_size * dt_sec, format="sec")
+    jones_times = start_time + np.arange(n_time_groups + 1) * TimeDelta(time_group_size * dt_sec, format="sec")
     jones_unix = jones_times.unix
 
     # Reshape the data at the time and frequency resolutions
@@ -638,7 +644,7 @@ def correct_parallactic(
         [np.sin(par_angle), np.cos(par_angle)]
     ])
     jones_parallactic = np.swapaxes(jones_parallactic, 2, 0)
-    jones_parallactic = np.linalg.inv(jones_parallactic)
+    # jones_parallactic = np.linalg.inv(jones_parallactic)
 
     jones = jones_parallactic[
         time_start_idx : time_stop_idx + 1, :, :
@@ -2556,8 +2562,8 @@ class TFPipelineParameters:
             rebin_dt: None
             rebin_df: None
             remove_channels: None
-            dreambeam_skycoord: None
-            dreambeam_dt: None
+            skycoord: None
+            calib_dt: None
             dreambeam_parallactic: True
             stokes: I
             ignore_volume_warning: False
@@ -2662,17 +2668,17 @@ class TFPipelineParameters:
                 help_msg="List of subband channels to remove, e.g. `remove_channels=[0,1,-1]` would remove the first, second (low-freq) and last channels from each subband.",
             ),
             _ValueParameter(
-                name="dreambeam_skycoord",
+                name="skycoord",
                 default=None,
                 param_type=SkyCoord,
-                help_msg="Tracked celestial coordinates used during DreamBeam correction (along with 'dreambeam_dt' and 'dreambeam_parallactic'), an astropy.SkyCoord object is expected.",
+                help_msg="Tracked celestial coordinates used for beam and polarization corrections, an astropy.SkyCoord object is expected.",
             ),
             _ValueParameter(
-                name="dreambeam_dt",
+                name="calib_dt",
                 default=None,
                 param_type=u.Quantity,
                 partial_type_kw={"unit": "s"},
-                help_msg="DreamBeam correction time resolution (along with 'dreambeam_skycoord' and 'dreambeam_parallactic'), an astropy.Quantity or a float (assumed in seconds) are expected.",
+                help_msg="Time resolution used for beam and polarization corrections, an astropy.Quantity or a float (assumed in seconds) are expected.",
             ),
             _BooleanParameter(
                 name="dreambeam_parallactic",
