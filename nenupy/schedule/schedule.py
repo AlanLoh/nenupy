@@ -940,7 +940,7 @@ class Schedule(_TimeSlots):
         self.set_free_slots(start_times=starts, stop_times=stops)
 
 
-    def book(self, optimize=False, **kwargs):
+    def book(self, optimize=False, minimal_score: float = 0, **kwargs):
         r""" Distributes the :attr:`~nenupy.schedule.schedule.Schedule.observation_blocks` over the schedule time slots.
             The observing constraints are evaluated over the whole schedule.
 
@@ -1114,6 +1114,11 @@ class Schedule(_TimeSlots):
             elif kwargs.get("sort_by_nslots", False):
                 sort_idx = np.argsort([blk.nSlots for blk in self.observation_blocks])[::-1]
                 block_indices = block_indices[sort_idx]
+            elif "sort_by_indices" in kwargs:
+                sort_idx = kwargs["sort_by_indices"]
+                if sort_idx.size != self.observation_blocks.size:
+                    raise IndexError("sort_by_indices size does not match observation_blocks.")
+                block_indices = block_indices[sort_idx]
 
             # Block are booked iteratively 
             # for i, blk in enumerate(self.observation_blocks):
@@ -1142,6 +1147,11 @@ class Schedule(_TimeSlots):
                     n_unscheduled_blocks += 1
                     log.warning(
                         f"<ObsBlock> #{i} '{blk.name}' cannot be scheduled."
+                    )
+                    continue
+                elif not np.any(score >= minimal_score):
+                    log.warning(
+                        f"<ObsBlock> #{i} '{blk.name}' score is < {minimal_score} -> not booked."
                     )
                     continue
                 bestStartIdx = np.argmax(
