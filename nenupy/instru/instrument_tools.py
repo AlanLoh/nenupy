@@ -29,9 +29,10 @@ __all__ = [
 
 import numpy as np
 import astropy.units as u
-from typing import List
+from typing import List, Tuple
 from os.path import join, dirname
 from scipy.interpolate import interp2d
+from astropy.coordinates import Latitude, Longitude, SkyCoord
 
 from nenupy.instru import lna_gain
 from nenupy.astro.astro_tools import sky_temperature
@@ -412,29 +413,30 @@ def lofar_instrument_temperature(frequency: u.Quantity) -> u.Quantity:
 # ============================================================= #
 # -------------- mini_array_analog_pointing_grid -------------- #
 # ============================================================= #
-from astropy.coordinates import Latitude, Longitude, SkyCoord
-from typing import Tuple
 def mini_array_analog_pointing_grid(ma_rotation: u.Quantity = 0 * u.deg) -> Tuple[Longitude, Latitude]:
-    """_summary_
+    """Compute the grod of analog pointing for a given Mini-Array rotation.
 
+    Example
+    -------
+    .. code-block:: python
 
-    import matplotlib.pyplot as plt
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(projection="polar")
-    ax.set_rlim(90, 0)
-    ma_rot = 0 * u.deg
-    grid = SkyCoord(*mini_array_analog_pointing_grid(ma_rotation=ma_rot))
-    ax.scatter(grid.ra.rad, grid.dec.deg, 0.5)
+        >>> import matplotlib.pyplot as plt
+        >>> fig = plt.figure(figsize=(10, 10))
+        >>> ax = fig.add_subplot(projection="polar")
+        >>> ax.set_rlim(90, 0)
+        >>> ma_rot = 0 * u.deg
+        >>> grid = SkyCoord(*mini_array_analog_pointing_grid(ma_rotation=ma_rot))
+        >>> ax.scatter(grid.ra.rad, grid.dec.deg, 0.5)
 
     Parameters
     ----------
-    ma_rotation : u.Quantity, optional
-        _description_, by default 0*u.deg
+    ma_rotation : :class:`~astropy.units.Quantity`, optional
+        Rotation of the Minni-Array, by default `0*u.deg`
 
     Returns
     -------
-    SkyCoord
-        _description_
+    Tuple[:class:`~astropy.coordinates.Longitude`, :class:`~astropy.coordinates.Latitude`]
+        Horizontal coordinates of the pointing grid.
     """
     dx = 2 * 5.5
     # DY = dx * np.cos(np.pi / 6)

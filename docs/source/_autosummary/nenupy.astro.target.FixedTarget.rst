@@ -43,6 +43,8 @@
    
       ~FixedTarget.culmination_azimuth
       ~FixedTarget.custom_ho_coordinates
+      ~FixedTarget.elevation_max
+      ~FixedTarget.elevation_min
       ~FixedTarget.frequency
       ~FixedTarget.ground_projection
       ~FixedTarget.horizontal_coordinates

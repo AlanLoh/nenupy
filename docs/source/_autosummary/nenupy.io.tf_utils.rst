@@ -20,6 +20,7 @@
       compute_spectra_time
       compute_stokes_parameters
       correct_bandpass
+      correct_parallactic
       crop_subband_edges
       de_disperse_array
       de_faraday_data

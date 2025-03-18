@@ -1,4 +1,4 @@
-﻿nenupy.io.tf\_utils.ReducedSpectra
+nenupy.io.tf\_utils.ReducedSpectra
 ==================================
 
 .. currentmodule:: nenupy.io.tf_utils

@@ -21,6 +21,7 @@
       ~TFTask.__init__
       ~TFTask.correct_bandpass
       ~TFTask.correct_faraday_rotation
+      ~TFTask.correct_parallactic_rotation
       ~TFTask.correct_polarization
       ~TFTask.de_disperse
       ~TFTask.flatten_subband

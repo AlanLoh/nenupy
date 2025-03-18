@@ -5,7 +5,7 @@ __author__ = "Alan Loh"
 __copyright__ = "Copyright 2023, nenupy"
 __credits__ = ["Alan Loh"]
 __license__ = "MIT"
-__version__ = "2.7.16"
+__version__ = "2.8.0"
 __maintainer__ = "Alan Loh"
 __email__ = "alan.loh@obspm.fr"
 
@@ -66,6 +66,11 @@ with open(join(dirname(__file__), "telescopes.json")) as array_file:
         lat=arrays["nenufar"]["lat"] * u.deg,
         lon=arrays["nenufar"]["lon"] * u.deg,
         height=arrays["nenufar"]["height"] * u.m,
+    )
+    nda_position = EarthLocation(
+        lat=arrays["nancay_decameter_array"]["lat"] * u.deg,
+        lon=arrays["nancay_decameter_array"]["lon"] * u.deg,
+        height=arrays["nancay_decameter_array"]["height"] * u.m,
     )
     log.debug("NenuFAR position loaded.")
 

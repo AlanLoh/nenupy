@@ -53,7 +53,7 @@ MA_ROTATIONS = np.array([0, 30, 20, 50, 10, 40])
 # ----------------------- SourceInLobes ----------------------- #
 # ============================================================= #
 class SourceInLobes:
-    """ """
+    """ SourceInLobes object """
 
     def __init__(self, time: Time, frequency: u.Quantity, value: np.ndarray):
         self.time = time
@@ -355,6 +355,8 @@ class BeamLobes:
 
             threshold_moc[i, :, :] = source_in_grating_lobes
 
+        self.moc = np.nanmean(threshold_moc, axis=0) > 0 # TODO : a tester....
+
         return SourceInLobes(
             time=self.time,
             frequency=self.frequency,
@@ -425,6 +427,9 @@ class BeamLobes:
             for t_idx in range(self.time.size):
                 intersecting_moc = self.moc[f_idx, t_idx].intersection(gsm_moc[f_idx])
                 gsm_in_grating_lobes[f_idx, t_idx] = int(not intersecting_moc.empty())
+
+                # TODO : improvement fraction of intersection vs. beam size 
+                # gsm_in_grating_lobes[f_idx, t_idx] = intersecting_moc.sky_fraction / grating_lobes.moc[f_idx, t_idx].sky_fraction # TODO : turn dtype to float !
             
         self._src_display = {
             "moc": gsm_moc,
@@ -469,7 +474,6 @@ class BeamLobes:
             frequency=self.frequency,
             value=source_in_grating_lobes
         )
-
 
     def plot(self,
             time: Time,

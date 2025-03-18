@@ -43,6 +43,8 @@
    
       ~SolarSystemTarget.culmination_azimuth
       ~SolarSystemTarget.custom_ho_coordinates
+      ~SolarSystemTarget.elevation_max
+      ~SolarSystemTarget.elevation_min
       ~SolarSystemTarget.frequency
       ~SolarSystemTarget.ground_projection
       ~SolarSystemTarget.horizontal_coordinates

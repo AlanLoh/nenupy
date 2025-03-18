@@ -1053,7 +1053,6 @@ class NenuFAR(Interferometer):
 
             ~NenuFAR.beam
             ~NenuFAR.effective_area
-            ~NenuFAR.attenuation_from_zenith
             ~NenuFAR.instrument_temperature
             ~nenupy.instru.interferometer.Interferometer.plot
             ~nenupy.instru.interferometer.Interferometer.array_factor

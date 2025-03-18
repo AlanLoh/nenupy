@@ -1,4 +1,4 @@
-﻿nenupy.io.tf\_utils.ReducedSpectraSlice
+nenupy.io.tf\_utils.ReducedSpectraSlice
 =======================================
 
 .. currentmodule:: nenupy.io.tf_utils
