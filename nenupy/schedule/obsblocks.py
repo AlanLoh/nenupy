@@ -28,6 +28,8 @@ import numpy as np
 import functools
 from copy import deepcopy
 from astropy.time import Time, TimeDelta
+import operator
+from typing import Callable
 
 from nenupy.schedule.targets import _Target
 from nenupy.schedule.constraints import Constraints
@@ -273,7 +275,7 @@ class Block(object):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def get(self, **kwargs):
+    def get(self, operation: Callable = operator.eq, **kwargs):
         """
             Example:
                 bb = aa.get(program='es00')
@@ -284,7 +286,7 @@ class Block(object):
             )
         (attr, value), = kwargs.items()
         blocks = (
-            blk for blk in self if getattr(blk, attr)==value
+            blk for blk in self if operation(getattr(blk, attr), value)
         )
         return Block(*blocks)
 
@@ -864,11 +866,12 @@ class ReservedBlock(Block):
         .. rubric:: Attributes and Methods Documentation
     """
 
-    def __init__(self, time_min, time_max):
+    def __init__(self, time_min, time_max, name: str = None):
         # These atrributes are filled once the ReservedBlk
         # has been inserted over a time range
         self.time_min = time_min
         self.time_max = time_max
+        self.name = name
 
         self.blockIdx = 0
         self.isBooked = False
@@ -921,11 +924,12 @@ class ReservedBlock(Block):
         )
         starts = Time(bookings["start"])
         stops = Time(bookings["stop"])
-        for start, stop in zip(starts, stops):
+        for start, stop, kp in zip(starts, stops, bookings["kp"]):
             reserved.append(
                 cls(
                     time_min=start,
-                    time_max=stop
+                    time_max=stop,
+                    name=str(kp)
                 )
             )
         return functools.reduce(
