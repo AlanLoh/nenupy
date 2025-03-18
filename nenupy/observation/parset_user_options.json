@@ -252,6 +252,10 @@
         "azelFile": {
             "required": false,
             "value": "My_AzEl_File.csv"
+        },
+        "corAzel": {
+            "required": false,
+            "value": "default"
         }
     },
     "Beam": {
@@ -373,6 +377,10 @@
             "required": false,
             "value": "0.0",
             "syntax": "^(-|\\+)?\\d{1,2}(\\.\\d*)?$"
+        },
+        "corAzel": {
+            "required": false,
+            "value": "default"
         }
     },
     "PhaseCenter": {
