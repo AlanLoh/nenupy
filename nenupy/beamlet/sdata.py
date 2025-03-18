@@ -551,7 +551,7 @@ class SData(object):
     # ------------------------ Methods ------------------------ #
     def plot(self, fig=None, ax=None, polarization=None, figname=None, db=True, **kwargs):
         """
-            kwargs keys: cmap, title, cblabel, figsize, altaza, vmin, vmax
+            kwargs keys: cmap, title, show_colorbar, cblabel, figsize, altaza, vmin, vmax
         """
         import matplotlib.pyplot as plt
         import matplotlib.dates as mdates
@@ -643,8 +643,9 @@ class SData(object):
                         if (ptime < self.datetime[0]) or (ptime > self.datetime[-1]):
                             continue
                         ax.axvline(ptime.datetime, linestyle='-.', color='black')
-            cbar = plt.colorbar(im, pad=0.03)#format='%.1e')
-            cbar.set_label(kwargs['cblabel'])
+            if kwargs.get("show_colorbar", True):
+                cbar = plt.colorbar(im, pad=0.03)#format='%.1e')
+                cbar.set_label(kwargs['cblabel'])
 
             if kwargs.get("overlay", None) is not None:
                 #ax = plt.gca()
