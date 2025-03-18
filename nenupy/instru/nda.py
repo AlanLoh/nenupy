@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 from nenupy.instru.interferometer import Interferometer
 from nenupy.astro.sky import Sky
 from nenupy.astro.pointing import Pointing
+from nenupy import nda_position
 
 import numpy as np
 import astropy.units as u
@@ -38,19 +39,20 @@ from enum import Enum
 class _NDAAntennaGain:
     """ """
 
-    def __init__(self, polarization: str = 'RH'):
+    def __init__(self, polarization: str = "RH"):
         self.polarization = polarization
 
 
     def __getitem__(self, sky: Sky) -> np.ndarray:
-        ...
+        log.warning("NDA antenna model not implemented")
+        return np.ones(sky.value[:, :, 0, :].shape) # (time, freq, coord)
 
 
 class NDAPolarization(Enum):
     """ """
 
-    LH = _NDAAntennaGain('LH')
-    RH = _NDAAntennaGain('RH')
+    LH = _NDAAntennaGain("LH")
+    RH = _NDAAntennaGain("RH")
 # ============================================================= #
 # ============================================================= #
 
@@ -61,9 +63,9 @@ class NDAPolarization(Enum):
 class NDA(Interferometer):
 
     def __init__(self):
-        position = EarthLocation(...)
-        antenna_names = ...
-        antenna_positions = ...
+        position = nda_position
+        antenna_names = np.arange(72)
+        antenna_positions = np.loadtxt("/Users/aloh/Downloads/adam.txt")
         antenna_gains = np.array([
             self._antenna_gain for _ in range(antenna_names.size)
         ])
