@@ -139,6 +139,57 @@ class Target(AstroObject, ABC):
             return 0*u.deg
 
 
+    @property
+    def elevation_min(self) -> Angle:
+        r"""Returns the minimal elevation of the target with respect to the observer.
+
+        It is computed as:
+
+        .. math::
+            \theta_{\rm min} [\rm{deg}] = 90 - l - \delta
+        
+        where :math:`l` is the observer's latitude, :math:`\delta` the source's declination.
+            
+
+        Returns
+        -------
+        :class:`~astropy.coordinates.Angle`
+            The minimal elevation.
+        """    
+        ninety_deg = Angle(90, unit="deg")
+
+        min_elev = - ninety_deg + self.observer.lat + self.coordinates.dec
+        if min_elev < (- ninety_deg):
+            min_elev += 2 * (- ninety_deg - min_elev)
+
+        return min_elev
+
+
+    @property
+    def elevation_max(self) -> Angle:
+        r"""Returns the maximal elevation of the target with respect to the observer.
+
+        It is computed as:
+
+        .. math::
+            \theta_{\rm max} [\rm{deg}] = 90 - l + \delta
+        
+        where :math:`l` is the observer's latitude, :math:`\delta` the source's declination.
+
+        Returns
+        -------
+        :class:`~astropy.coordinates.Angle`
+            The maximal elevation.
+        """
+        ninety_deg = Angle(90, unit="deg")
+
+        max_elev = ninety_deg - self.observer.lat + self.coordinates.dec
+        if max_elev > ninety_deg:
+            max_elev -= 2 * (max_elev - ninety_deg)
+
+        return max_elev
+
+
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def separation(self, other: Target) -> Angle:
