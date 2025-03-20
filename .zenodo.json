@@ -1,0 +1,36 @@
+{
+    "creators": [
+        {
+            "name": "Loh, Alan",
+            "orcid": "0000-0002-4698-9542",
+            "affiliation": [
+                "https://ror.org/02eptjh02",
+                "https://ror.org/01vqrde47"
+            ]
+        }
+    ],
+
+    "license": "MIT",
+
+    "title": "nenupy",
+
+    "description": "NenuFAR python package",
+
+    "keywords": ["Radioastronomy", "Simulations", "Data analysis", "Scheduling"],
+
+    "related_identifiers": [
+        {
+            "scheme": "url",
+            "identifier": "https://github.com/AlanLoh/nenupy/",
+            "relation": "isSupplementedBy",
+            "resource_type": "software"
+        },
+        {
+          "scheme": "url",
+          "identifier": "https://nenupy.readthedocs.io/",
+          "relation": "isDocumentedBy",
+          "resource_type": "publication-softwaredocumentation"
+        }
+    ]
+
+}

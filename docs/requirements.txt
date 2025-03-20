@@ -16,3 +16,4 @@ recommonmark
 sphinx_copybutton
 pytz
 h5py
+ics
