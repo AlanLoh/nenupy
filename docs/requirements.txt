@@ -18,4 +18,3 @@ pytz
 h5py
 ics
 openpyxl
-calendar
