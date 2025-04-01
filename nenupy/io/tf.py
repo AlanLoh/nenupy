@@ -1625,7 +1625,8 @@ class Spectra:
         # Filter out the bad blocks
         # data = da.from_array(data, chunks=(1,))[~mask]
         data = da.from_array(data, chunks=(1,))
-        data[mask] = np.nan
+        data["data"]["fft0"][mask] = np.nan
+        data["data"]["fft1"][mask] = np.nan
 
         # Convert the data to cross correlation electric field matrix
         # The data will be shaped like (n_block, n_subband, n_time_per_block, n_channels, 2, 2)
