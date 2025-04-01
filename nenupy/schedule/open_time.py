@@ -851,103 +851,103 @@ class NenuCalendar:
         pdf_document.close()
 
 
-    def plot(self, tmin: Time = None, tmax: Time = None, **kwargs):
+    # def plot(self, tmin: Time = None, tmax: Time = None, **kwargs):
 
-        utc_frame = pytz.UTC
+    #     utc_frame = pytz.UTC
 
-        time_min = Time(tmin.isot.split("T")[0])
-        time_max = tmax
+    #     time_min = Time(tmin.isot.split("T")[0])
+    #     time_max = tmax
         
-        n_subplots = int(np.ceil((tmax - tmin) / TimeDelta(1, format="jd")))
+    #     n_subplots = int(np.ceil((tmax - tmin) / TimeDelta(1, format="jd")))
 
-        fig, axs = plt.subplots(
-            nrows=n_subplots,
-            ncols=1,
-            figsize=kwargs.get("figsize", (8, 3*n_subplots))
-        )
+    #     fig, axs = plt.subplots(
+    #         nrows=n_subplots,
+    #         ncols=1,
+    #         figsize=kwargs.get("figsize", (8, 3*n_subplots))
+    #     )
 
-        drawn_events = []
-        def on_click(event):
-            # Figure out the one
-            nonlocal drawn_events
-            for evt in drawn_events:
-                if evt.contains(event):
-                    print("yeah", evt.event.name)
-        #     print('%s click: button=%d, x=%d, y=%d, xdata=%f, ydata=%f' %
-        #         ('double' if event.dblclick else 'single', event.button,
-        #         event.x, event.y, event.xdata, event.ydata))
+    #     drawn_events = []
+    #     def on_click(event):
+    #         # Figure out the one
+    #         nonlocal drawn_events
+    #         for evt in drawn_events:
+    #             if evt.contains(event):
+    #                 print("yeah", evt.event.name)
+    #     #     print('%s click: button=%d, x=%d, y=%d, xdata=%f, ydata=%f' %
+    #     #         ('double' if event.dblclick else 'single', event.button,
+    #     #         event.x, event.y, event.xdata, event.ydata))
         
-        # selected_artist = None
-        # previous_color = None
-        # def on_key_press(event):
-        #     nonlocal selected_artist
-        #     if selected_artist is None:
-        #         return
-        #     elif event.key == "up":
-        #         print("go to past")
-        #         # self._shift_event_one_day_earlier(event)
-        #     elif event.key == "down":
-        #         print("go to future")
-        #         # self._shift_event_one_day_later(event)
-        #     else:
-        #         return
-        # def unselect_block_event():
-        #     nonlocal selected_artist
-        #     nonlocal previous_color
-        #     if selected_artist is None: return
-        #     selected_artist.set(facecolor=previous_color)
-        #     selected_artist = None
-        # def select_block_event(artist):
-        #     nonlocal selected_artist
-        #     nonlocal previous_color
-        #     selected_artist = artist
-        #     previous_color = selected_artist.get_facecolor()
-        #     print(selected_artist.__dir__())
-        #     # find the corresponding event
-        #     selected_artist.set(facecolor="tab:red")
+    #     # selected_artist = None
+    #     # previous_color = None
+    #     # def on_key_press(event):
+    #     #     nonlocal selected_artist
+    #     #     if selected_artist is None:
+    #     #         return
+    #     #     elif event.key == "up":
+    #     #         print("go to past")
+    #     #         # self._shift_event_one_day_earlier(event)
+    #     #     elif event.key == "down":
+    #     #         print("go to future")
+    #     #         # self._shift_event_one_day_later(event)
+    #     #     else:
+    #     #         return
+    #     # def unselect_block_event():
+    #     #     nonlocal selected_artist
+    #     #     nonlocal previous_color
+    #     #     if selected_artist is None: return
+    #     #     selected_artist.set(facecolor=previous_color)
+    #     #     selected_artist = None
+    #     # def select_block_event(artist):
+    #     #     nonlocal selected_artist
+    #     #     nonlocal previous_color
+    #     #     selected_artist = artist
+    #     #     previous_color = selected_artist.get_facecolor()
+    #     #     print(selected_artist.__dir__())
+    #     #     # find the corresponding event
+    #     #     selected_artist.set(facecolor="tab:red")
 
-        # def onpick(event):
-        #     if event.mouseevent.button != 1: return
-        #     print(event)
-        #     event_block = event.artist
-        #     unselect_block_event()
-        #     select_block_event(event_block)
-        #     fig.canvas.draw()#plt.draw() #redraw
+    #     # def onpick(event):
+    #     #     if event.mouseevent.button != 1: return
+    #     #     print(event)
+    #     #     event_block = event.artist
+    #     #     unselect_block_event()
+    #     #     select_block_event(event_block)
+    #     #     fig.canvas.draw()#plt.draw() #redraw
 
-        # cid = fig.canvas.mpl_connect("button_press_event", on_click)
-        # fig.canvas.mpl_connect("pick_event", onpick)
-        # fig.canvas.mpl_connect("key_press_event", on_key_press)
+    #     # cid = fig.canvas.mpl_connect("button_press_event", on_click)
+    #     # fig.canvas.mpl_connect("pick_event", onpick)
+    #     # fig.canvas.mpl_connect("key_press_event", on_key_press)
 
-        for i, ax in enumerate(axs):
-            # Plot time limits
-            ax_time_min = time_min + i * TimeDelta(1, format="jd")
-            ax_time_max = time_min + (i + 1) * TimeDelta(1, format="jd")
-            ax.set_xlim(
-                left=ax_time_min.datetime,
-                right=ax_time_max.datetime
-            )
+    #     for i, ax in enumerate(axs):
+    #         # Plot time limits
+    #         ax_time_min = time_min + i * TimeDelta(1, format="jd")
+    #         ax_time_max = time_min + (i + 1) * TimeDelta(1, format="jd")
+    #         ax.set_xlim(
+    #             left=ax_time_min.datetime,
+    #             right=ax_time_max.datetime
+    #         )
 
-            # for kp, kp_color in zip(self.kp_names, self.kp_colors):
+    #         # for kp, kp_color in zip(self.kp_names, self.kp_colors):
     
-                #for event in self.calendars[kp].events:
-            for evt in self.events:
+    #             #for event in self.calendars[kp].events:
+    #         for evt in self.events:
 
-                if not self._time_intersection(
-                    time1=(evt.event.begin, evt.event.end),
-                    # time2=(ax_time_min.datetime.replace(tzinfo=utc_frame), ax_time_max.datetime.replace(tzinfo=utc_frame))
-                    time2=(time_min.datetime.replace(tzinfo=utc_frame), time_max.datetime.replace(tzinfo=utc_frame))
-                ):
-                    # Event outside of plot range
-                    continue
+    #             if not self._time_intersection(
+    #                 time1=(evt.event.begin, evt.event.end),
+    #                 # time2=(ax_time_min.datetime.replace(tzinfo=utc_frame), ax_time_max.datetime.replace(tzinfo=utc_frame))
+    #                 time2=(time_min.datetime.replace(tzinfo=utc_frame), time_max.datetime.replace(tzinfo=utc_frame))
+    #             ):
+    #                 # Event outside of plot range
+    #                 continue
 
-                # self._plot_event(ax=ax, event=event, color=kp_color)
-                evt.draw(ax=ax)
-                evt.connect_to_plot_events()
-                #drawn_events.append(evt)
+    #             # self._plot_event(ax=ax, event=event, color=kp_color)
+    #             evt.draw(ax=ax)
+    #             evt.connect_to_plot_events()
+    #             #drawn_events.append(evt)
         
-        plt.tight_layout()
-        plt.show()
-        # plt.close("all")
+    #     plt.tight_layout()
+    #     plt.show()
+    #     # plt.close("all")
     
     @staticmethod
     def _time_intersection(time1: Tuple[datetime.datetime, datetime.datetime], time2: Tuple[datetime.datetime, datetime.datetime]) -> bool:
