@@ -26,6 +26,7 @@
       de_faraday_data
       flatten_subband
       get_bandpass
+      mitigate_rfi_along_axis
       plot_dynamic_spectrum
       plot_lightcurve
       plot_spectrum

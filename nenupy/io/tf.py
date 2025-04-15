@@ -663,6 +663,92 @@ class TFTask:
             "Compute Stokes parameters", compute_stokes, ["stokes"], repeatable=False
         )
 
+    @classmethod
+    def mitigate_frequency_rfi(cls, sigma_clip: float = 2, polynomial_degree: int = 5):
+        """:class:`~nenupy.io.tf.TFTask` to perform RFI mitigation by sigma clipping using :func:`~nenupy.io.tf_utils.mitigate_rfi_along_axis`.
+        This task specifically catch outliers by comparison with the smoothed median spectral profile of the selected dataset.
+        Several instances of this task may be chained together to clip iteratively the data.
+        To obtain better results, this can be combined with :meth:`~nenupy.io.tf.TFTask.mitigate_time_rfi`.
+
+        Parameters
+        ----------
+        sigma_clip : `float`, optional
+            Argument passed to :func:`~nenupy.io.tf_utils.mitigate_rfi_along_axis`, by default 2
+        polynomial_degree : int, optional
+            Argument passed to :func:`~nenupy.io.tf_utils.mitigate_rfi_along_axis`, by default 5
+
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 4
+
+            >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
+
+            >>> sp = Spectra("/my/file.spectra")
+            >>> sp.pipeline = TFPipeline(sp, TFTask.mitigate_frequency_rfi(sigma_clip=2, polynomial_degree=4))
+            >>> result = sp.get()
+
+        .. figure:: ../_images/io_images/tf_rfimitigation_freq.png
+            :width: 650
+            :align: center
+
+        """
+
+        def mitigate_rfi(data):
+            return utils.mitigate_rfi_along_axis(
+                data,
+                axis=0,
+                sigma_clip=sigma_clip,
+                polynomial_degree=polynomial_degree
+            )
+
+        return cls(
+            f"Mitigate frequency RFI sig={sigma_clip:.2f}", mitigate_rfi, repeatable=True
+        )
+
+    @classmethod
+    def mitigate_time_rfi(cls, sigma_clip: float = 2, polynomial_degree: int = 5):
+        """:class:`~nenupy.io.tf.TFTask` to perform RFI mitigation by sigma clipping using :func:`~nenupy.io.tf_utils.mitigate_rfi_along_axis`.
+        This task specifically catch outliers by comparison with the smoothed median time profile of the selected dataset.
+        Several instances of this task may be chained together to clip iteratively the data.
+        To obtain better results, this can be combined with :meth:`~nenupy.io.tf.TFTask.mitigate_frequency_rfi`.
+
+        Parameters
+        ----------
+        sigma_clip : `float`, optional
+            Argument passed to :func:`~nenupy.io.tf_utils.mitigate_rfi_along_axis`, by default 2
+        polynomial_degree : int, optional
+            Argument passed to :func:`~nenupy.io.tf_utils.mitigate_rfi_along_axis`, by default 5
+
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 4
+
+            >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
+
+            >>> sp = Spectra("/my/file.spectra")
+            >>> sp.pipeline = TFPipeline(sp, TFTask.mitigate_time_rfi(sigma_clip=2, polynomial_degree=4))
+            >>> result = sp.get()
+
+        .. figure:: ../_images/io_images/tf_rfimitigation_time.png
+            :width: 650
+            :align: center
+
+        """
+
+        def mitigate_rfi(data):
+            return utils.mitigate_rfi_along_axis(
+                data,
+                axis=1,
+                sigma_clip=sigma_clip,
+                polynomial_degree=polynomial_degree
+            )
+
+        return cls(
+            f"Mitigate time RFI sig={sigma_clip:.2f}", mitigate_rfi, repeatable=True
+        )
+
     def update(self, parameters: utils.TFPipelineParameters) -> None:
         """Update the embedded function's arguments to those listed in ``parameters``
         that match :attr:`~nenupy.io.tf.TFTask.args_to_update`.
@@ -1621,12 +1707,18 @@ class Spectra:
         """ """
         log.info("Re-organize data into Jones matrices...")
 
-        # Transform the array in a Dask array, one chunk per block
+        # Transform the array in a Dask array, a few chunks per block
+        log.info("\tConvert data to Dask array")
+        block_size = self.n_subbands * self.n_channels * self._n_time_per_block
+        block_volume = np.dtype(np.complex64).itemsize * block_size * u.byte
+        chunck_size = int(60 // block_volume.to_value(u.Mibyte)) # we want the chunk size to be close to 60MB
+        data = da.from_array(data, chunks=(chunck_size,)) # it was (1,)
+
         # Filter out the bad blocks
-        # data = da.from_array(data, chunks=(1,))[~mask]
-        data = da.from_array(data, chunks=(1,))
-        data["data"]["fft0"][mask] = np.nan
-        data["data"]["fft1"][mask] = np.nan
+        if np.all(~ mask):
+            log.info("\tSet bad values to NaN.")
+            data["data"]["fft0"][mask] = np.nan
+            data["data"]["fft1"][mask] = np.nan
 
         # Convert the data to cross correlation electric field matrix
         # The data will be shaped like (n_block, n_subband, n_time_per_block, n_channels, 2, 2)
@@ -1661,10 +1753,10 @@ class Spectra:
             not self.pipeline.parameters["ignore_volume_warning"]
         ):
             log.warning(
-                f"Data processing will produce {projected_data_volume.to(u.Gibyte)}."
-                f"The pipeline is interrupted because the volume threshold is {DATA_VOLUME_SECURITY_THRESHOLD.to(u.Gibyte)}."
-                "Consider reducing the amount of selected data."
-                "Otherwise, you may use the ignore_volume_warning argument (with caution!) or save the data output to HDF5 format."
+                f"Data processing will produce {projected_data_volume.to(u.Gibyte)}.\n"
+                f"\tThe pipeline is interrupted because the volume threshold is {DATA_VOLUME_SECURITY_THRESHOLD.to(u.Gibyte)}.\n"
+                "\tConsider reducing the amount of selected data.\n"
+                "\tOtherwise, you may use the ignore_volume_warning argument (with caution!) or save the data output to HDF5 format."
             )
             return
 

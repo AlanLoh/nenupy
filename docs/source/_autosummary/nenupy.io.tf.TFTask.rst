@@ -27,6 +27,8 @@
       ~TFTask.flatten_subband
       ~TFTask.frequency_rebin
       ~TFTask.get_stokes
+      ~TFTask.mitigate_frequency_rfi
+      ~TFTask.mitigate_time_rfi
       ~TFTask.remove_channels
       ~TFTask.time_rebin
       ~TFTask.update

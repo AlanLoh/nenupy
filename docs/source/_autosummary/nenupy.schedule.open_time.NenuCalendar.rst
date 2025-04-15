@@ -22,7 +22,6 @@
       ~NenuCalendar.from_xls
       ~NenuCalendar.info
       ~NenuCalendar.month_plot
-      ~NenuCalendar.plot
       ~NenuCalendar.write_vcr_csv
    
    

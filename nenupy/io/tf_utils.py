@@ -48,6 +48,7 @@ __all__ = [
     "de_faraday_data",
     "flatten_subband",
     "get_bandpass",
+    "mitigate_rfi_along_axis",
     "plot_dynamic_spectrum",
     "plot_lightcurve",
     "plot_spectrum",
@@ -436,7 +437,8 @@ def compute_stokes_parameters(
         I &= \Re(X\overline{X}) + \Re(Y\overline{Y})\\
         Q &= \Re(X\overline{X}) - \Re(Y\overline{Y})\\
         U &= 2\Re(X\overline{Y})\\
-        V &= -2\Im(X\overline{Y})
+        V &= -2\Im(X\overline{Y})\\
+        L &= \sqrt{U^2 + Q^2}
         \end{align}
         
     Parameters
@@ -449,7 +451,7 @@ def compute_stokes_parameters(
     stokes : List[`str`] or `str`
         Stokes parameters to compute, if a list is given, the result will
         store them in the same order in the last result dimension, available
-        values are "I", "Q", "U", "V", "Q/I", "U/I", "V/I".
+        values are "I", "Q", "U", "V", "L", "Q/I", "U/I", "V/I", "L/I".
 
     Returns
     -------
@@ -1262,6 +1264,134 @@ def flatten_subband(data: np.ndarray, channels: int, smooth_frequency_profile: b
 
     # Correct the data by the normalised linear subbands to flatten them
     return data / normalised_linear_subbands[None, ...]
+
+
+# ============================================================= #
+# ------------------ mitigate_rfi_along_axis ------------------ #
+def mitigate_rfi_along_axis(data: da.Array, axis: int = 0, sigma_clip: float = 2., polynomial_degree: int = 4) -> da.Array:
+    """Perform sigma clipping along a given axis.
+    Compute the median over one axis of a time-frequency dataset to obtain a background profile.
+    Fit a polynomial function (of degree ``polynomial_degree``) to this profile, which will serve as a smooth background profile (the decimal logarithm of the data is used for fitting).
+    Set every data points whose value is above ``sigma_clip`` times the background profile to NaN values.
+
+    Parameters
+    ----------
+    data : :class:`~dask.Array`
+        The data to correct for RFI-like features, shaped like (time, frequency, (polarizations))
+    axis : `int`, optional
+        Axis over which the median is computed, if ``axis=0`` the median will be done along the time dimension to obtain a spectral profile along which the RFI would be determined (and similarly for ``axis=1``), by default 0
+    sigma_clip : `float`, optional
+        The factor above the background at which the data would be clipped, by default 2.
+    polynomial_degree : `int`, optional
+        Degree of the polynomial function fitted to the time or spectral profile in order to smooth them, by default 4
+
+    Returns
+    -------
+    :class:`~dask.Array`
+        The data whose outliers are set to NaN values.
+
+    Raises
+    ------
+    Exception
+        If the input data is less than 2D.
+    IndexError
+        If the selected ``axis`` is neither 0 or 1.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        >>> from nenupy.io.tf_utils import mitigate_rfi_along_axis
+        >>> import numpy as np
+        >>> import matplotlib.pyplot as plt
+        >>> import matplotlib as mpl
+        >>> import dask.array as da
+
+        >>> polluted_data = 10**(4 + np.sin( np.pi * np.radians(np.arange(50))) + 0.5 * np.random.random((200, 50)))
+        >>> polluted_data[110:150, 20:22] += 10**9
+        >>> polluted_data[:, 10::20] += 10**7.5
+        >>> polluted_data[::20, :] += 10**10
+        >>> polluted_data[np.diag_indices(50)] += 10**9
+
+        >>> data_clean_axis_0 = mitigate_rfi_along_axis(
+                data=da.from_array(polluted_data),
+                axis=0,
+                sigma_clip=3,
+                polynomial_degree=5
+            )
+        >>> data_clean_axis_1 = mitigate_rfi_along_axis(
+                data=da.from_array(polluted_data),
+                axis=1,
+                sigma_clip=3,
+                polynomial_degree=5
+            )
+        >>> colors = mpl.colormaps.get_cmap("YlGnBu_r")
+        >>> colors.set_bad(color="red")
+
+        >>> vmin, vmax = 0, 8
+        >>> fig = plt.figure(figsize=(10, 4))
+        >>> axes = fig.subplots(nrows=1, ncols=3)
+        >>> axes[0].imshow(polluted_data.T, origin="lower", aspect="auto", cmap=colors, vmin=vmin, vmax=vmax)
+        >>> axes[0].set_title("Polluted data")
+        >>> axes[1].imshow(data_clean_axis_0.T, origin="lower", aspect="auto", cmap=colors, vmin=vmin, vmax=vmax)
+        >>> axes[1].set_title("Spectral mitigation")
+        >>> axes[2].imshow(data_clean_axis_1.T, origin="lower", aspect="auto", cmap=colors, vmin=vmin, vmax=vmax)
+        >>> axes[2].set_title("Temporal mitigation")
+    
+    .. figure:: ../_images/io_images/rfi_mitigation.png
+        :width: 650
+        :align: center
+
+    """
+    data = data.copy()
+
+    # Compute a profile of the data set along one axis (either time or frequency)
+    if data.ndim < 2:
+        raise Exception("The data should at least be 2D.")
+
+    if axis == 0:
+        log.info("RFI mitigation over the spectral profile.")
+    elif axis ==1:
+        log.info("RFI mitigation over the time profile.")
+    else:
+        raise IndexError("axis should either be 0 (median along time axis) or 1 (median along frequency axis).")
+
+    log.info("\tComputing the profile...")
+    with ProgressBar():
+        # Comoute the profile of the opposite axis in order to flatten the data in the other dimension
+        other_profile = np.nanmedian(
+            np.abs(data), axis=0 if axis==1 else 1, keepdims=True
+        ).compute()
+        other_profile /= np.nanmax(other_profile, keepdims=True) # normalize before dividing
+        flattened_data = np.abs(data / other_profile)
+
+        # Convert to log to ease the fitting process
+        # Compute the median profile
+        profile = np.log10(
+            np.nanmedian(flattened_data, axis=axis)
+        ).compute()
+
+    # Make sure to not include NaN values for the fitting
+    not_nan = np.isfinite(profile) # may have serval other dimensions
+    not_nan = np.all(not_nan, axis=tuple(range(1, not_nan.ndim)))
+
+    # Fit every polarization-equivalent higher dimension by a polynomial function
+    # Flatten the dimensions to ease the process and reshape everything afterward
+    log.info("\tPolynomial fitting...")
+    original_shape = profile.shape
+    profile = profile.reshape((original_shape[0], int(np.prod(original_shape[1:]))))
+    xaxis = np.arange(original_shape[0])
+    fits_coeffs = np.array([np.polyfit(xaxis[not_nan], y[not_nan, ...], polynomial_degree) for y in profile.T])
+    smooth_profile = 10**np.array([np.poly1d(f)(xaxis) for f in fits_coeffs]).T.reshape(original_shape)
+
+    # Set data higher than background * sigma_clip to NaN
+    log.info(f"\tClipping out data above {sigma_clip} x background...")
+    if axis == 1:
+        smooth_profile = smooth_profile[:, None]
+    # profile_std = np.nanstd(smooth_profile, axis=0, keepdims=True)
+    data[flattened_data > sigma_clip * smooth_profile] = np.nan
+
+    return data
 
 
 # ============================================================= #
