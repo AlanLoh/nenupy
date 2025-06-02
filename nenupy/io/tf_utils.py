@@ -1272,7 +1272,7 @@ def mitigate_rfi_along_axis(data: da.Array, axis: int = 0, sigma_clip: float = 2
     """Perform sigma clipping along a given axis.
     Compute the median over one axis of a time-frequency dataset to obtain a background profile.
     Fit a polynomial function (of degree ``polynomial_degree``) to this profile, which will serve as a smooth background profile (the decimal logarithm of the data is used for fitting).
-    Set every data points whose value is above ``sigma_clip`` times the background profile to NaN values.
+    Set every data points whose value is above ``sigma_clip`` times the standard dedviation of the background profile to NaN values.
 
     Parameters
     ----------
@@ -1358,7 +1358,7 @@ def mitigate_rfi_along_axis(data: da.Array, axis: int = 0, sigma_clip: float = 2
 
     log.info("\tComputing the profile...")
     with ProgressBar():
-        # Comoute the profile of the opposite axis in order to flatten the data in the other dimension
+        # Compute the profile of the opposite axis in order to flatten the data in the other dimension
         other_profile = np.nanmedian(
             np.abs(data), axis=0 if axis==1 else 1, keepdims=True
         ).compute()
@@ -1389,7 +1389,8 @@ def mitigate_rfi_along_axis(data: da.Array, axis: int = 0, sigma_clip: float = 2
     if axis == 1:
         smooth_profile = smooth_profile[:, None]
     # profile_std = np.nanstd(smooth_profile, axis=0, keepdims=True)
-    data[flattened_data > sigma_clip * smooth_profile] = np.nan
+    # data[flattened_data > sigma_clip * smooth_profile] = np.nan
+    data[flattened_data > smooth_profile + sigma_clip * np.nanstd(smooth_profile)] = np.nan
 
     return data
 
@@ -1855,11 +1856,17 @@ def rebin_along_dimension(
     initial_size = axis_array.size
     bin_size = int(np.floor(new_dx / dx))
     final_size = int(np.floor(initial_size / bin_size))
-    leftovers = initial_size % final_size
-
+    # If new_dx is bin_size than initial_size this would lead to a final size of 0
+    # Instead, we want to simply average the whole dimension at once 
+    if final_size == 0:
+        final_size = 1
+        bin_size = initial_size
+        log.info(f"\tdx: {dx} | new_dx: {new_dx} -> rebin factor: {bin_size} (data size reached!).")
+    else:
+        log.info(f"\tdx: {dx} | new_dx: {new_dx} -> rebin factor: {bin_size}.")
+    
+    leftovers = initial_size % (final_size * bin_size)
     d_shape = data.shape
-
-    log.info(f"\tdx: {dx} | new_dx: {new_dx} -> rebin factor: {bin_size}.")
 
     # Reshape the data and the axis to ease the averaging
     data = data[

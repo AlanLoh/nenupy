@@ -44,15 +44,18 @@
       ~PolarizerMatrix.getfield
       ~PolarizerMatrix.half_waveplate_retarder
       ~PolarizerMatrix.item
+      ~PolarizerMatrix.itemset
       ~PolarizerMatrix.left_circular
       ~PolarizerMatrix.linear
       ~PolarizerMatrix.linear_retarder
       ~PolarizerMatrix.max
       ~PolarizerMatrix.mean
       ~PolarizerMatrix.min
+      ~PolarizerMatrix.newbyteorder
       ~PolarizerMatrix.nonzero
       ~PolarizerMatrix.partition
       ~PolarizerMatrix.prod
+      ~PolarizerMatrix.ptp
       ~PolarizerMatrix.put
       ~PolarizerMatrix.quarter_waveplate_retarder
       ~PolarizerMatrix.ravel
@@ -70,7 +73,6 @@
       ~PolarizerMatrix.sum
       ~PolarizerMatrix.swapaxes
       ~PolarizerMatrix.take
-      ~PolarizerMatrix.to_device
       ~PolarizerMatrix.tobytes
       ~PolarizerMatrix.tofile
       ~PolarizerMatrix.tolist
@@ -92,18 +94,13 @@
       ~PolarizerMatrix.base
       ~PolarizerMatrix.ctypes
       ~PolarizerMatrix.data
-      ~PolarizerMatrix.device
       ~PolarizerMatrix.dtype
       ~PolarizerMatrix.flags
       ~PolarizerMatrix.flat
       ~PolarizerMatrix.imag
-      ~PolarizerMatrix.itemset
       ~PolarizerMatrix.itemsize
-      ~PolarizerMatrix.mT
       ~PolarizerMatrix.nbytes
       ~PolarizerMatrix.ndim
-      ~PolarizerMatrix.newbyteorder
-      ~PolarizerMatrix.ptp
       ~PolarizerMatrix.real
       ~PolarizerMatrix.shape
       ~PolarizerMatrix.size
