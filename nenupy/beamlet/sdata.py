@@ -152,6 +152,9 @@ from astropy.time import Time
 import astropy.units as u
 import numpy as np
 import logging
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import matplotlib as mpl
 log = logging.getLogger(__name__)
 
 
@@ -553,9 +556,6 @@ class SData(object):
         """
             kwargs keys: cmap, title, show_colorbar, cblabel, figsize, altaza, vmin, vmax
         """
-        import matplotlib.pyplot as plt
-        import matplotlib.dates as mdates
-
         if polarization is None:
             pol_idx = 0
         else:
@@ -676,6 +676,33 @@ class SData(object):
                 f'Time (UTC from {self.time[0].isot})'
             )
             ax.set_ylabel('Frequency (MHz)')
+        
+        # Y axis scaling
+        yscale = kwargs.get("yscale", None)
+        if not (yscale is None):
+            if isinstance(yscale, str):
+                if yscale.lower() == "log":
+                    forward_func = lambda x: np.log10(x)
+                    backward_func = lambda x: 10**(x)
+                elif yscale.lower() == "lin":
+                    forward_func = lambda x: x
+                    backward_func = lambda x: x
+                elif yscale.lower() == "f-1":
+                    forward_func = lambda x: x**(-1)
+                    backward_func = lambda x: x**(-1)
+                    ax.yaxis.set_inverted(True)
+                elif yscale.lower() == "f-2":
+                    forward_func = lambda x: x**(-2)
+                    backward_func = lambda x: x**(-0.5)
+                    ax.yaxis.set_inverted(True)
+                else:
+                    raise NotImplementedError(f"Y-axis scaling '{yscale}' not known -yet-.")
+            elif isinstance(yscale, tuple):
+                yscale = forward_func, backward_func
+            else:
+                raise ValueError(f"Y-axis scaling '{yscale}' not understood...")
+            ax.set_yscale(mpl.scale.FuncScale(ax, (forward_func, backward_func)))
+
         ax.set_title(kwargs['title'])
 
         # Set x axis labels        
@@ -685,9 +712,12 @@ class SData(object):
         )
 
         # Save or show
-        if not (ax is None):
-            return
-        elif (figname is None) or (figname == ""):
+        #if not (ax is None):
+        #    return
+        #elif (figname is None) or (figname == ""):
+        if (figname is None) or (figname == ""):
+            if not (ax is None):
+                return
             plt.show()
         else:
             fig.savefig(
