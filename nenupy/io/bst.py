@@ -298,7 +298,8 @@ class BST(StatisticsData):
                 )
             ]),
             analog_pointing_times=self.analog_pointing[0],
-            digital_pointing_times=self.digital_pointing[0]
+            digital_pointing_times=self.digital_pointing[0],
+            polarization=polarization
         )
 # ============================================================= #
 # ============================================================= #

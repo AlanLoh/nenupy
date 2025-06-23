@@ -39,6 +39,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from scipy import ndimage
 
 from nenupy.instru.instrument_tools import sb2freq
+from nenupy.beamlet.sdata import SData
 
 import logging
 log = logging.getLogger(__name__)
@@ -230,10 +231,12 @@ class ST_Slice:
             frequency: u.Quantity,
             value: np.ndarray,
             analog_pointing_times: Time = Time([], format='jd'),
-            digital_pointing_times: Time = Time([], format='jd')
+            digital_pointing_times: Time = Time([], format='jd'),
+            polarization: str = "NW"
         ):
         self._time = time
         self._frequency = frequency
+        self._polarization = polarization
         self._value = value
         self._analog_pointing_times = analog_pointing_times
         self._digital_pointing_times = digital_pointing_times
@@ -270,7 +273,8 @@ class ST_Slice:
             frequency=new_freq,
             value=new_data,
             analog_pointing_times=self.analog_pointing_times,
-            digital_pointing_times=self.digital_pointing_times
+            digital_pointing_times=self.digital_pointing_times,
+            polarization=self.polarization
         )
 
 
@@ -309,7 +313,8 @@ class ST_Slice:
             frequency=self.frequency,
             value=new_data,
             analog_pointing_times=new_ana_times,
-            digital_pointing_times=new_digi_times
+            digital_pointing_times=new_digi_times,
+            polarization=self.polarization
         )
 
 
@@ -326,7 +331,8 @@ class ST_Slice:
             frequency=self.frequency[slice_tuple[1]],
             value=self.value[slice_tuple],
             analog_pointing_times=self.analog_pointing_times,
-            digital_pointing_times=self.digital_pointing_times
+            digital_pointing_times=self.digital_pointing_times,
+            polarization=self.polarization
         )
 
 
@@ -375,6 +381,17 @@ class ST_Slice:
 
 
     @property
+    def polarization(self) -> str:
+        """ Data record polarization.
+            
+            :getter: Polarization value.
+            
+            :type: `str`
+        """
+        return self._polarization
+
+
+    @property
     def value(self) -> np.ndarray:
         """ Data values.
             
@@ -406,6 +423,22 @@ class ST_Slice:
         """
         return self._digital_pointing_times
 
+
+    @property
+    def sdata(self) -> SData:
+        """_summary_
+
+        Returns
+        -------
+        SData
+            _description_
+        """
+
+        return SData(data=self.value[..., None],
+            time=self.time,
+            freq=self.frequency,
+            polar=self.polarization
+        )
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -689,7 +722,8 @@ class ST_Slice:
             frequency=frequency,
             value=value,
             analog_pointing_times=self.analog_pointing_times,
-            digital_pointing_times=self.digital_pointing_times
+            digital_pointing_times=self.digital_pointing_times,
+            polarization=self.polarization
         )
 
     # def rebin(array, x_step: int = None, y_step: int = None) -> np.ndarray:
@@ -774,11 +808,12 @@ class ST_Slice:
             frequency=self.frequency,
             value=cleaned_values,
             analog_pointing_times=self.analog_pointing_times,
-            digital_pointing_times=self.digital_pointing_times
+            digital_pointing_times=self.digital_pointing_times,
+            polarization=self.polarization
         )
 
 
-    def fit_transit(self, only_gaussian: bool = False, upper_threshold=None, **kwargs):
+    def fit_transit(self, method: str = "gaussian", upper_threshold=None, **kwargs):
         """ Do a fit.
 
             kwargs
@@ -798,8 +833,11 @@ class ST_Slice:
         def poly(t, c1=1.):#, c2=1.):#, c3):
             return c1*t#, c1*np.power(t, 2.)# + c3
 
+        def background_gaussian(t, amp, mu, sig, c1, c2):
+            return gaussian(t, amp, mu, sig) + poly(t, c1) + c2
+
         def combined(t, coeff_a, coeff_b, amp, mu, sig, c1):
-            return analog_switch_load(t, coeff_a, coeff_b) + gaussian(t, amp, mu, sig) + poly(c1)
+            return analog_switch_load(t, coeff_a, coeff_b) + poly(t, c1) + gaussian(t, amp, mu, sig) 
 
         data = self.value.copy()
         x_data_to_fit = np.arange(data.size) + 1
@@ -811,7 +849,7 @@ class ST_Slice:
             data_mask = np.ones(data.size, dtype=bool)
         data[np.isnan(data)] = np.nanmedian(data)
 
-        if only_gaussian:
+        if method.lower() == "gaussian":
             filtered_data = ndimage.median_filter(
                 data,
                 size=kwargs.get("filter_window", (100))
@@ -858,20 +896,46 @@ class ST_Slice:
             # df = x_data_to_fit.size-1 # or dof of the gaussian? 
             # chi2.sf(chi_2, df)
 
+        elif method.lower() == "gaussian_bkg":
+            max_data = data.max()
+            data /= max_data
+            dt = (self.time[-1] - self.time[0]) / self.time.size
+            popt, pcov = curve_fit(
+                background_gaussian, #amp, mu, sig, c1, c2
+                x_data_to_fit,
+                data,
+                p0=[1., np.mean(x_data_to_fit), TimeDelta(70, format="sec")/dt, 0., np.nanmedian(data)],
+                method="trf",
+                bounds=( #coeff_a, coeff_b, amp, mu, sig, c1
+                    [1e-4, 0, TimeDelta(50, format="sec")/dt, -5e-1, np.nanmin(data)],
+                    [1.5, x_data_to_fit.max(), TimeDelta(3*60, format="sec")/dt, 5e-1, np.nanmax(data)])
+            )
+            fitted_values = max_data*background_gaussian(np.arange(self.time.size) + 1, *popt)
+            interpolated_time_jd = np.interp(popt[1], x_data_to_fit, self.time.jd[data_mask])
+            expected = background_gaussian(x_data_to_fit, *popt)
+            # chi_square = np.sum(
+            #     (data[indices] - expected[indices])**2/expected[indices]
+            # )
+            chi_square = np.sum(
+                (np.log10(data) - np.log10(fitted_values))**2/np.log10(fitted_values)
+            )
 
         else:
             max_data = data.max()
             data /= max_data
+            dt = (self.time[-1] - self.time[0]) / self.time.size
 
             popt, pcov = curve_fit(
                 combined,
                 x_data_to_fit,
                 data,
-                p0=[1e-3, np.nanmin(data), 1., np.mean(x_data_to_fit), x_data_to_fit.max()/20, 0.],
+                p0=[1e-3, np.nanmin(data), 1., np.mean(x_data_to_fit), TimeDelta(60, format="sec")/dt, 0.],
                 method="trf",
                 bounds=( #coeff_a, coeff_b, amp, mu, sig, c1
-                    [1e-5,   0, 1e-3,            0,              x_data_to_fit.max()/35, -1e3],
-                    [1e3, np.nanmin(data), 1.5, x_data_to_fit.max(), x_data_to_fit.max()/20,  1e3])
+                    [1e-5,         0,     1e-4,                   0, TimeDelta(50, format="sec")/dt, -1e-2],
+                    [1e3, np.nanmin(data), 1.5, x_data_to_fit.max(), TimeDelta(3*60, format="sec")/dt, 1e-2]
+                ),
+                nan_policy="omit"
             )
 
             fitted_values = max_data*combined(np.arange(self.time.size) + 1, *popt)
@@ -879,11 +943,11 @@ class ST_Slice:
 
             # Chi square
             # Evaluate the chis2 on a reduce interval around the transit peak
-            peak_index = int(np.floor(popt[3]))
-            mask = fitted_values >= fitted_values[peak_index] - (fitted_values[peak_index]-max_data*popt[1])/2.
-            groups = np.split(np.arange(fitted_values.size), np.where(np.diff(mask) != 0)[0]+1)
-            peak_in_group_mask = [peak_index in group for group in groups]
-            indices = groups[np.argwhere(peak_in_group_mask)[0][0]]
+            # peak_index = int(np.floor(popt[3]))
+            # mask = fitted_values >= fitted_values[peak_index] - (fitted_values[peak_index]-max_data*popt[1])/2.
+            # groups = np.split(np.arange(fitted_values.size), np.where(np.diff(mask) != 0)[0]+1)
+            # peak_in_group_mask = [peak_index in group for group in groups]
+            # indices = groups[np.argwhere(peak_in_group_mask)[0][0]]
             
             #chi_square = np.sum((self.value - fitted_values)**2/fitted_values)
             # plt.plot(data[indices]*max_data, label="data")
@@ -892,13 +956,12 @@ class ST_Slice:
             # plt.show()
             # stop
             expected = combined(x_data_to_fit, *popt)
-            chi_square = np.sum(
-                (data[indices] - expected[indices])**2/expected[indices]
-            )
             # chi_square = np.sum(
-            #     (self.value[indices] - fitted_values[indices])**2/fitted_values[indices]
+            #     (data[indices] - expected[indices])**2/expected[indices]
             # )
-            #degree_of_freedom = self.value.size - 6
+            chi_square = np.sum(
+                (np.log10(data) - np.log10(fitted_values))**2/np.log10(fitted_values)
+            )
 
         # Compute the fitted transit time
         transit_time = Time(interpolated_time_jd, format="jd")
@@ -908,7 +971,8 @@ class ST_Slice:
             frequency=self.frequency,
             value=fitted_values,
             analog_pointing_times=self.analog_pointing_times,
-            digital_pointing_times=self.digital_pointing_times
+            digital_pointing_times=self.digital_pointing_times,
+            polarization=self.polarization
         ), transit_time, chi_square, popt
 
 
@@ -933,7 +997,8 @@ class ST_Slice:
             frequency=self.frequency,
             value=ndimage.median_filter(self.value, size=filter_size),
             analog_pointing_times=self.analog_pointing_times,
-            digital_pointing_times=self.digital_pointing_times
+            digital_pointing_times=self.digital_pointing_times,
+            polarization=self.polarization
         )
 
 
@@ -1036,10 +1101,10 @@ class ST_Slice:
         )
 
         # X label
-        ax.set_xlabel("Frequency (MHz)")
+        ax.set_xlabel(kwargs.get("xlabel", "Frequency (MHz)"))
 
         # Y label
-        ax.set_ylabel("dB" if kwargs.get("decibel", True) else "Amp")
+        ax.set_ylabel(kwargs.get("ylabel", "dB" if kwargs.get("decibel", True) else "Amp"))
 
 
     def _plot_lightcurve(self, data, ax, fig, **kwargs):
@@ -1063,10 +1128,10 @@ class ST_Slice:
             mdates.DateFormatter("%H:%M:%S")
         )
         fig.autofmt_xdate()
-        ax.set_xlabel(f"Time (UTC since {self.time[0].isot})")
+        ax.set_xlabel(kwargs.get("xlabel", f"Time (UTC since {self.time[0].isot})"))
 
         # Y label
-        ax.set_ylabel("dB" if kwargs.get("decibel", True) else "Amp")
+        ax.set_ylabel(kwargs.get("ylabel", "dB" if kwargs.get("decibel", True) else "Amp"))
 
 
     def _plot_dynamic_spectrum(self, data, ax, fig, **kwargs):
@@ -1105,7 +1170,7 @@ class ST_Slice:
             ax.set_ylim(ylim)
 
         if kwargs.get("set_colorbar", True):
-            cbar = plt.colorbar(im, pad=0.03)#format='%.1e')
+            cbar = fig.colorbar(im, ax=ax, pad=0.03)#format='%.1e')
             cbar.set_label(kwargs.get("colorbar_label", "dB" if kwargs.get("decibel", True) else "Amp"))
         # cax = inset_axes(
         #     ax,
@@ -1125,10 +1190,10 @@ class ST_Slice:
             mdates.DateFormatter("%H:%M:%S")
         )
         fig.autofmt_xdate()
-        ax.set_xlabel(f"Time (UTC since {self.time[0].isot})")
+        ax.set_xlabel(kwargs.get("xlabel", f"Time (UTC since {self.time[0].isot})"))
 
         # Y label
-        ax.set_ylabel(f"Frequency (MHz)")
+        ax.set_ylabel(kwargs.get("ylabel", f"Frequency (MHz)"))
 
 
     def _rebin_frequency_indices(self, df: u.Quantity) -> np.ndarray:
@@ -1212,7 +1277,8 @@ class ST_Slice:
                 frequency=self.frequency,
                 value=operation(self.value, other.value),
                 analog_pointing_times=analog_pointings[analog_id_max],
-                digital_pointing_times=digital_pointings[digital_id_max]
+                digital_pointing_times=digital_pointings[digital_id_max],
+                polarization=self.polarization
             )
         else:
             # Perform a normal numpy operation
@@ -1221,7 +1287,8 @@ class ST_Slice:
                 frequency=self.frequency,
                 value=operation(self.value, other),
                 analog_pointing_times=self.analog_pointing_times,
-                digital_pointing_times=self.digital_pointing_times
+                digital_pointing_times=self.digital_pointing_times,
+                polarization=self.polarization
             )
     
     @staticmethod
