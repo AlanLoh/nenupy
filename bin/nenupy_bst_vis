@@ -1,0 +1,363 @@
+#! /usr/bin/python3
+# -*- coding: utf-8 -*-
+
+import tkinter as tk
+from tkinter import filedialog
+
+
+from matplotlib.backends.backend_tkagg import (
+    FigureCanvasTkAgg
+)
+from matplotlib.figure import Figure
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+from astropy.time import Time
+import numpy as np
+
+from nenupy.io.bst import BST
+
+import logging
+log = logging.getLogger("nenupy")
+log.setLevel(logging.INFO)
+
+APP_HEIGHT = 800
+APP_WIDTH = 1000
+PLOT_FRAME_HEIGHT = APP_HEIGHT
+PLOT_FRAME_WIDTH = APP_WIDTH
+FRAME_RELIEF = "flat"
+FRAME_BORDER_WIDTH = 5
+
+DPI = 150
+BACKGROUND_COLOR = "0.9"
+MAX_CLICK_LENGTH = 0.2 # in seconds; anything longer is a drag motio
+
+
+class FigureClick():
+
+    def __init__(self, ax, drag_func=None, left_click_func=None, right_click_func=None):
+        self.ax = ax
+        self.drag_func = drag_func # takes as input ((x0, y0), (x1, y1))
+        self.right_click_func = right_click_func # takes as input ((x0, y0))
+
+        self.press = False
+        self.move = False
+        self.press_time = Time.now()
+
+        self.zoom_rect_start_xy = (0, 0)
+        self.profile_center_xy = (0, 0)
+
+    @staticmethod
+    def new_rectangle():
+        return Rectangle((0, 0), 1, 1, 
+            facecolor=None, edgecolor="tab:orange",
+            linewidth=1, linestyle="--", fill=False
+        )
+
+    def on_press(self, event) -> None:
+        if event.inaxes == self.ax:
+            if event.button == 1: # left click
+                self.press_time = Time.now()
+                self.zoom_rect_start_xy = (event.xdata, event.ydata)
+                # Add rectangle
+                self.rect = self.new_rectangle()
+                self.ax.add_patch(self.rect)
+                self.press = True
+
+            # Draw the frequency and time profiles
+            elif event.button == 3: # Right click
+                reset = False
+                self.profile_center_xy = (event.xdata, event.ydata)
+                self.right_click_func(self.profile_center_xy)
+
+    def on_move(self, event) -> None:
+        if self.press:
+            self.move = True
+            # Draw the rectangle
+            self.rect.set_width(event.xdata - self.zoom_rect_start_xy[0])
+            self.rect.set_height(event.ydata - self.zoom_rect_start_xy[1])
+            self.rect.set_xy(self.zoom_rect_start_xy)
+            self.ax.figure.canvas.draw()
+
+    def on_release(self, event) -> None:
+        if self.press and self.move:
+            if event.inaxes == self.ax:
+                if event.button == 1 and (Time.now() - self.press_time).sec > MAX_CLICK_LENGTH:
+                    self.drag_func(self.zoom_rect_start_xy, (event.xdata, event.ydata))
+
+        self.press = False
+        self.move = False
+        self.rect = self.new_rectangle()
+        self.ax.add_patch(self.rect)
+
+# ============================================================= #
+# ------------------- DynamicSpectrumFrame -------------------- #
+class DynamicSpectrumFrame(tk.Frame):
+
+    def __init__(self, master, **kwargs):
+        super().__init__(master=master, **kwargs)
+
+        self.data = None
+        self.lines = []
+
+        self.fig = Figure(
+            dpi=DPI,
+            facecolor=BACKGROUND_COLOR,
+            tight_layout=True
+        )
+        axes = self.fig.subplots(nrows=2, ncols=2,
+            sharex=False, sharey=False,
+            width_ratios=(1, 0.3), height_ratios=(0.3, 1))
+        axes[0, 1].axis("off")
+        self.ax = axes[1, 0]
+
+        # Initialize empty plots
+        self.ax.set_facecolor(BACKGROUND_COLOR)
+        self.ax.set_ylim(10, 85)
+        self.ax.set_ylabel("Frequency (MHz)")
+        self.ax.set_xlabel("Time (UTC)")
+
+        self.time_profile_ax = axes[0, 0]
+        self.time_profile_ax.set_ylim(0, 1)
+        self.time_profile_ax.set_facecolor(BACKGROUND_COLOR)
+
+        self.frequency_profile_ax = axes[1, 1]
+        self.frequency_profile_ax.set_xlim(0, 1)
+        self.frequency_profile_ax.set_facecolor(BACKGROUND_COLOR)
+
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self)
+        self.canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        c = FigureClick(ax=self.ax, drag_func=self.zoom_in, right_click_func=self.display_profiles)
+
+        def onpress(event):
+            # Not sure why its needed...
+            return c.on_press(event)
+        self.cpress = self.canvas.mpl_connect("button_press_event", onpress)
+        # self.cpress = self.canvas.mpl_connect("button_press_event", c.on_press)
+        self.crelease = self.canvas.mpl_connect("button_release_event", c.on_release)
+        self.cmove = self.canvas.mpl_connect("motion_notify_event", c.on_move)
+
+        self.pack_propagate(False)
+
+    def clear_axes(self) -> None:
+        self.ax.clear()
+        self.time_profile_ax.clear()
+        self.frequency_profile_ax.clear()
+
+    def zoom_in(self, start_xy, stop_xy) -> None:
+
+        # If no BST is loaded do nothing
+        if self.master.bst is None:
+            # Remove all previously added patches (rectangles...)
+            [p.remove() for p in reversed(self.ax.patches)]
+            # Re-draw the figure to clear away these patches
+            self.canvas.draw()
+            return
+
+        start = Time(mpl.dates.num2date(start_xy[0]), format="datetime")
+        stop = Time(mpl.dates.num2date(stop_xy[0]), format="datetime")
+        if start > stop:
+            start, stop = stop, start
+        freqstart = start_xy[1]
+        freqstop = stop_xy[1]
+        if freqstart > freqstop:
+            freqstart, freqstop = freqstop, freqstart
+
+        log.info(f"Zooming time: {start.isot} - {stop.isot}")
+        log.info(f"Zooming frequency: {freqstart} - {freqstop}")
+
+        self.clear_axes()
+
+        beam_index = int(self.master.selected_beam.get().split("#")[1])
+        self.data = self.master.bst.get(
+            time_selection=f">= {start.isot} & <= {stop.isot}",
+            frequency_selection=f">= {freqstart}MHz & <= {freqstop}MHz",
+            beam=beam_index,
+            polarization=self.master.selected_polarization.get()
+        )
+        self.data.plot(fig_ax=(self.fig, self.ax), set_colorbar=False)
+        self.canvas.draw()
+
+    def display_profiles(self, xy) -> None:
+
+        # If no BST is loaded do nothing
+        if self.master.bst is None:
+            # Remove all previously added patches (rectangles...)
+            [p.remove() for p in reversed(self.ax.patches)]
+            # Re-draw the figure to clear away these patches
+            self.canvas.draw()
+            return
+
+        self.time_profile_ax.clear()
+        self.frequency_profile_ax.clear()
+        [line.remove() for line in self.lines]
+        self.lines = []
+
+        self.lines.append(self.ax.axvline(xy[0], linewidth=1, linestyle="--", zorder=30))
+        self.lines.append(self.ax.axhline(xy[1], linewidth=1, linestyle="--", zorder=30))
+        
+        # Plot frequency profile
+        selected_time = Time(mpl.dates.num2date(xy[0]), format="datetime")
+        t_index = np.argmin(np.abs(self.data.time.jd - selected_time.jd))
+        self.frequency_profile_ax.plot(10*np.log10(self.data.value[t_index, :]), self.data.frequency.to_value("MHz"))
+        self.frequency_profile_ax.set_xlabel("dB")
+        self.frequency_profile_ax.set_ylim(self.ax.get_ylim())
+        self.frequency_profile_ax.set_yticks([])
+        selected_time_print = "\n".join(selected_time.isot.split("T"))
+        self.frequency_profile_ax.text(
+            np.mean(self.frequency_profile_ax.get_xlim()),
+            self.frequency_profile_ax.get_ylim()[1] - 0.05*np.diff(self.frequency_profile_ax.get_ylim()),
+            f" {selected_time_print}",
+            fontsize=7, verticalalignment="top", horizontalalignment="center"
+        )
+
+        # Plot time profile
+        f_index = np.argmin(np.abs(self.data.frequency.to_value("MHz") - xy[1]))
+        self.time_profile_ax.plot(self.data.time.datetime, 10*np.log10(self.data.value[:, f_index]))
+        self.time_profile_ax.set_ylabel("dB")
+        self.time_profile_ax.set_xlim(self.ax.get_xlim())
+        self.time_profile_ax.set_xticks([])
+        self.time_profile_ax.text(
+            np.mean(self.time_profile_ax.get_xlim()),
+            self.time_profile_ax.get_ylim()[1] - 0.05*np.diff(self.time_profile_ax.get_ylim()),
+            f" {xy[1]:.2f} MHz",
+            fontsize=7, verticalalignment="top", horizontalalignment="center"
+        )
+
+        self.canvas.draw()
+
+    def update(self) -> None:
+        self.clear_axes()
+        beam_index = int(self.master.selected_beam.get().split("#")[1])
+        self.data = self.master.bst.get(beam=beam_index, polarization=self.master.selected_polarization.get())
+        self.data.plot(fig_ax=(self.fig, self.ax), set_colorbar=False)
+        self.canvas.draw()
+
+# ============================================================= #
+# ------------------------- BSTVisApp ------------------------- #
+class BSTVisApp(tk.Tk):
+
+    def __init__(self):
+        super().__init__()
+
+        self.bst_file = ""
+        self.bst = None
+
+        self.geometry(f"{APP_WIDTH}x{APP_HEIGHT}")
+
+        # BST file selection
+        self._bst_file_name_input = tk.StringVar(self)
+        self.bst_file_entry = tk.Entry(self, textvariable=self._bst_file_name_input, width=40)
+        self.bst_file_entry.bind("<Return>", self.load_bst)
+        self.bst_file_entry.grid(column=0, row=0)
+
+        self.browse_bst_button = tk.Button(
+            self,
+            text="Browse BST Files",
+            command=self._browse_bst_file,
+        )
+        self.browse_bst_button.grid(column=1, row=0)
+
+        # Beam selection
+        self.beam_list = ["Beam#0"]
+        self.selected_beam = tk.StringVar(self, value=self.beam_list[0])
+        self.beam_menu = tk.OptionMenu(self, self.selected_beam,
+            *self.beam_list, command=self._select_beam)
+        self.beam_menu.grid(column=2, row=0)
+
+        # Polarisation selection
+        self.polarization_list = ["NW", "NE"]
+        self.selected_polarization = tk.StringVar(self, value=self.polarization_list[0])
+        self.polarization_menu = tk.OptionMenu(self, self.selected_polarization,
+            *self.polarization_list, command=self._select_polarization)
+        self.polarization_menu.grid(column=3, row=0)
+
+        self.reset_button = tk.Button(
+            self,
+            text="Reset",
+            command=self._reset_plot
+        )
+        self.reset_button.grid(column=4, row=0)
+
+        # Plot
+        self.plot_frame = DynamicSpectrumFrame(self,
+            borderwidth=FRAME_BORDER_WIDTH, relief=FRAME_RELIEF,
+            width=PLOT_FRAME_WIDTH,
+            height=PLOT_FRAME_HEIGHT
+        )
+        self.plot_frame.grid(column=0, row=1, rowspan=1, columnspan=5, sticky="news")
+    
+        self.eval("tk::PlaceWindow . center")
+        self.title("nenupy - BST")
+
+    @property
+    def bst_file_name(self) -> tk.StringVar:
+        return self._bst_file_name
+    @bst_file_name.setter
+    def bst_file_name(self, file_name: tk.StringVar) -> None:
+        file_name_str = file_name.get()
+        if file_name_str == "":
+            pass
+        elif not file_name_str.endswith(".fits"):
+            raise ValueError("FITS file expected.")
+        else:
+            log.info(f"Loading {file_name_str}...")
+            self.bst = BST(file_name_str)
+            self.beam_list = self.bst.digital_beams
+
+            # Reset beam index
+            self.selected_beam.set(self.beam_list[0])
+
+            # Reset beam menu
+            menu = self.beam_menu["menu"]
+            menu.delete(0, "end")
+            for beam_index in self.beam_list:
+                option = f"Beam#{beam_index}"
+                menu.add_command(
+                    label=option,
+                    command=lambda value=option: self._select_beam(value)
+                )
+            self.selected_beam.set("Beam#0")
+                    # command=lambda value=beam_index: self.selected_beam.set(f"Beam#{value}"))
+
+            self.plot_frame.update()
+
+        self._bst_file_name = file_name
+        
+    def load_bst(self, event):
+        self.bst_file_name = self._bst_file_name_input
+
+    def _browse_bst_file(self):
+        filename = filedialog.askopenfilename(
+            # initialdir = "/",
+            initialdir="/Users/aloh/Documents/Work/NenuFAR/calibration/pointing_shift/pointing_calibration_2025/DATA/TRANSITS",
+            title="Select a BST file",
+            filetypes=(("FITS files", "*.fits"), (".", "*"))
+        )
+        self.bst_file_entry.delete(0, tk.END)
+        self.bst_file_entry.insert(0, filename)
+        self.bst_file_name = tk.StringVar(self, filename)
+    
+    def _select_beam(self, beam_selected: str):
+        self.selected_beam.set(beam_selected)
+        self.plot_frame.update()
+    
+    def _select_polarization(self, selected_polarization: str) -> None:
+        self.selected_polarization.set(selected_polarization)
+        self.plot_frame.update()
+
+    def _reset_plot(self):
+        self.plot_frame.update()
+
+# ============================================================= #
+# --------------------- run_bst_visu_app ---------------------- #
+def run_bst_visu_app() -> None:
+    app = BSTVisApp()
+    app.mainloop()
+
+# ============================================================= #
+# ------------------------- __main__ -------------------------- #
+if __name__ == "__main__":
+
+        run_bst_visu_app()
