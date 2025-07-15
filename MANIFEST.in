@@ -13,3 +13,5 @@ include nenupy/io/bandpass_coeffs.dat
 include nenupy/observation/parset_user_options.json
 include nenupy/undysputed/bandpass_coeffs.dat
 include nenupy/skymodel/lfsky.fits
+include nenupy/instru/cor_azel_mix.sav
+include nenupy/instru/cor_azel_polys_2022.sav

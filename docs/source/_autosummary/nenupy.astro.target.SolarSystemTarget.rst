@@ -23,9 +23,11 @@
       ~SolarSystemTarget.hour_angle
       ~SolarSystemTarget.local_sidereal_time
       ~SolarSystemTarget.meridian_transit
+      ~SolarSystemTarget.meridian_transit_2
       ~SolarSystemTarget.next_meridian_transit
       ~SolarSystemTarget.next_rise_time
       ~SolarSystemTarget.next_set_time
+      ~SolarSystemTarget.plot
       ~SolarSystemTarget.previous_meridian_transit
       ~SolarSystemTarget.previous_rise_time
       ~SolarSystemTarget.previous_set_time

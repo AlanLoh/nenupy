@@ -22,6 +22,7 @@
       mini_array_pointing_coordinates
       mini_array_pointing_order
       miniarrays_rotated_like
+      pointing_correction
       read_cal_table
       sb2freq
    

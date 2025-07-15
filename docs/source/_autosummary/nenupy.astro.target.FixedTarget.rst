@@ -23,9 +23,11 @@
       ~FixedTarget.hour_angle
       ~FixedTarget.local_sidereal_time
       ~FixedTarget.meridian_transit
+      ~FixedTarget.meridian_transit_2
       ~FixedTarget.next_meridian_transit
       ~FixedTarget.next_rise_time
       ~FixedTarget.next_set_time
+      ~FixedTarget.plot
       ~FixedTarget.previous_meridian_transit
       ~FixedTarget.previous_rise_time
       ~FixedTarget.previous_set_time

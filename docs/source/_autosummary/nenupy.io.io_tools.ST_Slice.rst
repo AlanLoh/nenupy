@@ -38,6 +38,8 @@
       ~ST_Slice.analog_pointing_times
       ~ST_Slice.digital_pointing_times
       ~ST_Slice.frequency
+      ~ST_Slice.polarization
+      ~ST_Slice.sdata
       ~ST_Slice.time
       ~ST_Slice.value
    

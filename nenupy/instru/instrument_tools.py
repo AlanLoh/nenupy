@@ -23,7 +23,8 @@ __all__ = [
     "miniarrays_rotated_like",
     "read_cal_table",
     "generate_nenufar_subarrays",
-    "lofar_instrument_temperature"
+    "lofar_instrument_temperature",
+    "pointing_correction"
 ]
 
 
@@ -31,12 +32,12 @@ import numpy as np
 import astropy.units as u
 from typing import List, Tuple
 from os.path import join, dirname
-from scipy.interpolate import interp2d
-from astropy.coordinates import Latitude, Longitude, SkyCoord
+from astropy.coordinates import Latitude, Longitude, SkyCoord, AltAz
+from scipy.io import readsav
+from scipy.interpolate import RegularGridInterpolator
 
-from nenupy.instru import lna_gain
+from nenupy.instru import lna_gain, nenufar_miniarrays
 from nenupy.astro.astro_tools import sky_temperature
-from nenupy.instru import nenufar_miniarrays
 
 import logging
 log = logging.getLogger(__name__)
@@ -241,13 +242,16 @@ def miniarrays_rotated_like(rotations: List[int] = [0]) -> np.ndarray:
 # ============================================================= #
 # ---------------------- read_cal_table ----------------------- #
 # ============================================================= #
-def read_cal_table(calibration_file: str = None) -> np.ndarray:
+def read_cal_table(calibration_file: str = None, n_mini_arrays: int = 96) -> np.ndarray:
     """ Reads NenuFAR antenna delays calibration file.
 
         :param calibration_file: 
             Name of the calibration file to read. If ``None`` or
             ``'default'`` the standard calibration file is read.
         :type calibration_file: `str`
+        :param n_mini_arrays:
+            Number of Mini-Arrays recorded in the table
+        :type n_mini_arrays: `int`
 
         :returns: 
             Antenna delays shaped as 
@@ -257,9 +261,12 @@ def read_cal_table(calibration_file: str = None) -> np.ndarray:
     if (calibration_file is None) or (calibration_file.lower() == "default"):
         calibration_file = join(
             dirname(__file__),
-            'cal_pz_2_multi_2019-02-23.dat',
+            "cal_pz_2_multi_2019-02-23.dat",
         )
-    with open(calibration_file, 'rb') as f:
+    if n_mini_arrays != 96:
+        log.warning("The residual delay calibration table should contain 96 MAs. Maybe there's a hidden mistake.")
+    
+    with open(calibration_file, "rb") as f:
         log.info(
             "Loading calibration table {}".format(
                 calibration_file
@@ -270,11 +277,16 @@ def read_cal_table(calibration_file: str = None) -> np.ndarray:
             line = f.readline()
             header.append(line)
             if line.startswith(b"HeaderStop"):
+                hd_size = sum([len(s) for s in header])
                 break
-    hd_size = sum([len(s) for s in header])
+            elif not line:
+                # No header?
+                hd_size = 0
+                break
+    
     dtype = np.dtype(
         [
-            ('data', 'float64', (512, 96, 2, 2))
+            ("data", "float64", (512, n_mini_arrays, 2, 2))
         ]
     )
     tmp = np.memmap(
@@ -283,8 +295,15 @@ def read_cal_table(calibration_file: str = None) -> np.ndarray:
         mode="r",
         offset=hd_size
     )
-    decoded = tmp.view(dtype)[0]["data"]
+
+    try:
+        decoded = tmp.view(dtype)[0]["data"]
+    except ValueError:
+        log.error("Try another value of n_mini_arrays")
+        raise
+
     data = decoded[..., 0] + 1.j*decoded[..., 1]
+
     return data
 # ============================================================= #
 # ============================================================= #
@@ -541,3 +560,116 @@ def mini_array_pointing_coordinates(orders: np.ndarray, ma_rotation: u.Quantity 
         ma_pointing_grid_lon[orders[:, 0], orders[:, 1]],
         ma_pointing_grid_lat[orders[:, 0], orders[:, 1]]
     )
+
+# ============================================================= #
+# -------------------- pointing_correction -------------------- #
+def pointing_correction(altaz_coordinates: SkyCoord, correction_year: str = "2022") -> SkyCoord:
+    """Modify horizontal coordinates by the empirical pointing correction.
+    NenuFAR used to suffer from a pointing issue due to the coordinates frame upon which the beamforming delays were computed.
+    Although this issue disappeared on 2025 June 17th 12:00 UTC, two instances of pointing corrections were derived.
+    Their goal was to compensate for the angular shift that was measured.
+    Two sets of correction files were applied, and the year could be specified by `correction_year`.
+
+    Parameters
+    ----------
+    altaz_coordinates : :class:`~astropy.coordinates.SkyCoord`
+        Sky coordinates in horizontal frame (i.e. :class:`~astropy.coordinates.AltAz` frame) to be corrected for.
+    correction_year : `str`, optional
+        Correction year (either "2019", "2022" or "none") if "none" or anything else, no correction is applied, by default "2022".
+
+    Returns
+    -------
+    :class:`~astropy.coordinates.SkyCoord`
+        The corrected coordinates in horizontal frame.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        >>> from nenupy.instru.instrument_tools import pointing_correction
+        >>> from astropy.coordinates import SkyCoord, AltAz
+        >>> from astropy.time import Time
+        >>> from nenupy import nenufar_position
+        >>> import numpy as np
+        >>> import matplotlib.pyplot as plt
+
+        >>> azs = np.linspace(0, 360, 200)
+        >>> alts = np.linspace(0, 90, 200)
+        >>> azimuths, elevations = np.meshgrid(azs, alts)
+        >>> coords = SkyCoord(
+        >>>     azimuths,
+        >>>     elevations,
+        >>>     unit="deg",
+        >>>     frame=AltAz(
+        >>>         obstime=Time("2025-06-17 12:00:00"),
+        >>>         location=nenufar_position
+        >>>     )
+        >>> )
+        >>> coords_corrected = pointing_correction(coords, "2022")
+
+        >>> fig = plt.figure(figsize=(7, 7))
+        >>> ax = fig.add_subplot(projection="polar")
+        >>> im = ax.pcolormesh(np.radians(azs), alts, coords_corrected.separation(coords).deg)
+        >>> ax.set_rlim(90, 0)
+        >>> ax.set_theta_zero_location("N")
+        >>> cb = fig.colorbar(im, fraction=0.045, pad=0.08)
+        >>> cb.set_label("Angular separation (deg)")
+
+    .. figure:: ../_images/instru_images/pointing_correction.png
+        :width: 650
+        :align: center
+
+    """
+
+    # Check that the coordinates or in horizontal frame.
+    if not isinstance(altaz_coordinates.frame, AltAz):
+        raise ValueError("Input coordinates are expected to be expressed on an AltAz frame.")
+
+    # Do not take into account elevations less than 15 deg (c.f. SAV files)
+    low_alt_mask = altaz_coordinates.alt.deg > 15
+
+    # Correction file selection
+    if correction_year == "2022":
+        correction_file = join(
+            dirname(__file__),
+            "cor_azel_polys_2022.sav",
+        )
+    elif correction_year == "2019":
+        correction_file = join(
+            dirname(__file__),
+            "cor_azel_mix.sav",
+        )
+    elif correction_year.lower() == "none":
+        return altaz_coordinates
+    else:
+        log.warning("Available corrections are '2019' or '2022' or 'none'. Setting 'none' instead.")
+        return altaz_coordinates
+
+    # Read the IDL Sav file
+    correction_data = readsav(correction_file)
+
+    # Parse data and axes
+    delta_az_data = correction_data["daz_cor"]
+    delta_alt_data = correction_data["del_cor"]
+    az_vector = np.linspace(0, 360, 361)
+    alt_vector = np.linspace(15, 90, 76)
+
+    # Define the interpolation functions to access the whole range of coordinates
+    delta_az_func = RegularGridInterpolator((alt_vector, az_vector), delta_az_data)
+    delta_alt_func = RegularGridInterpolator((alt_vector, az_vector), delta_alt_data)
+
+    # Compute the delta azimuth and elevation
+    coords = np.array([altaz_coordinates[low_alt_mask].alt.deg, altaz_coordinates[low_alt_mask].az.deg]).T
+    delta_az = np.zeros(low_alt_mask.shape)
+    delta_az[low_alt_mask] = delta_az_func(coords)
+    delta_alt = np.zeros(low_alt_mask.shape)
+    delta_alt[low_alt_mask] = delta_alt_func(coords)
+
+    # Return the modified set of coordinates
+    new_coordinates = SkyCoord(
+        altaz_coordinates.az + delta_az / 60 * u.deg,
+        altaz_coordinates.alt + delta_alt / 60 * u.deg,
+        frame=altaz_coordinates.frame
+    )
+
+    return new_coordinates
