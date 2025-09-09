@@ -18,6 +18,7 @@
       compute_projection_corrections
       convert_to_mueller
       matrices_to_hdf5
+      pointing_correction_factor
    
    
 
