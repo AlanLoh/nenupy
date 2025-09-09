@@ -29,7 +29,7 @@ import numpy as np
 from astropy.time import Time
 import astropy.units as u
 from astropy.io import fits
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, AltAz
 from dask.diagnostics import ProgressBar
 from typing import List
 import matplotlib.pyplot as plt
@@ -37,7 +37,7 @@ import matplotlib.dates as mdates
 
 from mocpy import MOC
 
-from nenupy import DummyCtMgr
+from nenupy import DummyCtMgr, nenufar_position
 from nenupy.astro.pointing import Pointing
 from nenupy.astro.sky import HpxSky
 from nenupy.astro.astro_tools import SolarSystemSource, solar_system_source, local_sidereal_time
@@ -93,7 +93,12 @@ class SourceInLobes:
             str
             
         """
-        fig = plt.figure(figsize=kwargs.get("figsize", (10, 6)))
+        fig = kwargs.get("fig", None)
+        if fig is None:
+            fig = plt.figure(figsize=kwargs.get("figsize", (10, 6)))
+        ax = kwargs.get("ax", None)
+        if ax is None:
+            fig.add_subplot()
 
         roll_index = 0
         if time_unit == "utc":
@@ -112,22 +117,21 @@ class SourceInLobes:
             time_to_plot = self.lst_time.rad
             time_label = "Local Sidereal Time (rad)"
 
-        plt.pcolormesh(
+        im = ax.pcolormesh(
             np.roll(time_to_plot, -roll_index),
             self.frequency.to(u.MHz).value,
             np.roll(self.value, -roll_index, axis=1),
             shading="auto",
             cmap=kwargs.get("cmap", "Blues")
         )
-        plt.grid(alpha=0.5)
-        plt.ylabel("Frequency (MHz)")
-        plt.xlabel(time_label)
-        plt.title(kwargs.get("title", ""))
-        cb = plt.colorbar(pad=0.03)
+        ax.grid(alpha=0.5)
+        ax.set_ylabel("Frequency (MHz)")
+        ax.set_xlabel(time_label)
+        ax.set_title(kwargs.get("title", ""))
+        cb = fig.colorbar(im, pad=0.03)
         cb.set_label("Sources in beam lobes")
 
         # Format of the time axis tick labels
-        ax = plt.gca()
         if time_unit == "utc":
             ax.xaxis.set_major_formatter(
                 mdates.DateFormatter("%H:%M:%S")
@@ -140,13 +144,15 @@ class SourceInLobes:
         # Save or show the figure
         figname = kwargs.get("figname", "")
         if figname != "":
-            plt.savefig(
+            fig.savefig(
                 figname,
                 dpi=300,
                 bbox_inches="tight",
                 transparent=True
             )
             log.info(f"Figure '{figname}' saved.")
+        elif "fig" in kwargs or "ax" in kwargs:
+            return
         else:
             plt.show()
         plt.close("all")
@@ -549,7 +555,20 @@ class BeamLobes:
 
 
     def _get_skycoord_array(self, sources: List[str]) -> SkyCoord:
-        """ """
+        """Generate an array of cooridnates per source per time.
+
+        Parameters
+        ----------
+        sources : List[str]
+            Sources names.
+            Can either be 'Cyg X-3' or 'Sun' (in the latter case, the position will be updated for every time).
+            Or with a specific format 'altaz:(180,45)'.
+
+        Returns
+        -------
+        SkyCoord
+            Array of source coordinates
+        """
         ra = np.zeros((len(sources), self.time.size))
         dec = np.zeros(ra.shape)
         for i, source in enumerate(sources):
@@ -557,6 +576,13 @@ class BeamLobes:
                 src = solar_system_source(source, time=self.time)
                 ra[i, :] = src.ra.deg
                 dec[i, :] = src.dec.deg
+            elif source.lower().startswith("altaz:"):
+                source = source[6:] # remove 'altaz:'
+                az, alt = source.replace("(", "").replace(")", "").split(",")
+                altaz = SkyCoord(float(az), float(alt), unit="deg", frame=AltAz(obstime=self.time, location=nenufar_position))
+                radec = altaz.transform_to("icrs")
+                ra[i, :] = radec.ra.deg
+                dec[i, :] = radec.dec.deg
             else:
                 src = SkyCoord.from_name(source)
                 ra[i, :] = np.repeat(src.ra.deg, self.time.size)
