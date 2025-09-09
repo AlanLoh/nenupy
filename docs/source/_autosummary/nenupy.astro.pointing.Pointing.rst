@@ -18,6 +18,7 @@
    .. autosummary::
    
       ~Pointing.__init__
+      ~Pointing.azel_driftscan
       ~Pointing.from_bst
       ~Pointing.from_file
       ~Pointing.hour_angle

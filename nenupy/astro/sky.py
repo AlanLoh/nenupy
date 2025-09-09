@@ -232,7 +232,7 @@ class SkySliceBase(AstroObject):
             radius=radius
         )
         fig = plt.figure(figsize=figsize)
-        ax = plt.subplot(
+        ax = fig.add_subplot(
             projection=wcs,
             frame_class=EllipticalFrame
         )

@@ -102,7 +102,7 @@ class Pointing(AstroObject):
     def __init__(self,
             coordinates: SkyCoord,
             time: Time,
-            duration: TimeDelta = TimeDelta(1, format="sec"),
+            duration: TimeDelta = None,#TimeDelta(1, format="sec"),
             observer: EarthLocation = nenufar_position
         ):
         self.coordinates = coordinates
@@ -278,8 +278,16 @@ class Pointing(AstroObject):
         """
         return self._duration
     @duration.setter
-    def duration(self, d):
-        if (d.size != 1) and (d.size != self.time.size):
+    def duration(self, d: TimeDelta):
+        if d is None:
+            d = TimeDelta(1.0, format="sec")
+            # if self.time.isscalar:
+            #     d = TimeDelta(1.0, format="sec")
+            # else:
+            #     # The duration of each pointing is reconstructed by the difference between two consecutive pointings
+            #     # The last duration is set to 0
+            #     d = (self.time[1:] - self.time[:-1])[::-1].insert(0, 0)[::-1]
+        elif (d.size != 1) and (d.size != self.time.size):
             raise IndexError(
                 f"'duration' of size {d.size} does not match 'time' of size {self.time.size}."
             )
@@ -299,7 +307,7 @@ class Pointing(AstroObject):
         # to be identical. Therefore, only the diagonal terms are needed.
         # Otherwise, radec_to_altaz will recompute altaz for each
         # radec and each time by default.
-        altaz = super().horizontal_coordinates
+        altaz = super().horizontal_coordinates#.squeeze()
         if altaz.size == 1:
             return altaz
         elif altaz.shape[0] == altaz.size:
@@ -419,13 +427,12 @@ class Pointing(AstroObject):
             az = np.append(az, [0]*u.deg)
             el = np.append(el, [90]*u.deg)
             time = time.insert(1, bst.time[-1])
-
-        if time.size > max_points:
+        elif time.size > max_points:
             julian_days = time.jd
             jd_rebin = np.linspace(julian_days[0], julian_days[-1], max_points)
             az = np.interp(jd_rebin, julian_days, az)
             el = np.interp(jd_rebin, julian_days, el)
-            time = Time(jd_rebin, format='jd')
+            time = Time(jd_rebin, format="jd")
 
         altaz_coords = SkyCoord(
             az[:-1],
@@ -602,7 +609,7 @@ class Pointing(AstroObject):
     def target_tracking(cls,
             target: Target,
             time: Time,
-            duration: TimeDelta = TimeDelta(3600, format="sec"),
+            duration: TimeDelta = None,
             observer: EarthLocation = nenufar_position,
         ):
         """ Instantiates a :class:`~nenupy.astro.pointing.Pointing`
@@ -619,8 +626,9 @@ class Pointing(AstroObject):
             :param duration:
                 Duration of each individual pointing. If this argument is
                 a scalar, then it will be applied to every start time (defined
-                in ``time``).
-                Default is one hour.
+                in ``time``). If set to None, the duration is set to the difference
+                between two time steps, the last being set at 0.
+                Default is `None`.
             :type duration:
                 :class:`~astropy.time.TimeDelta`
             :param observer:
@@ -807,9 +815,63 @@ class Pointing(AstroObject):
 
 
     @classmethod
+    def azel_driftscan(cls,
+            time: Time,
+            az: float,
+            alt: float,
+            duration: TimeDelta = None,
+            observer: EarthLocation = nenufar_position
+        ):
+        """Return an instance of :class:`~nenupy.astro.pointing.Pointing` in drift scan mode.
+        Azimuth `az` and elevation `alt` are fixed at every `time` step.
+
+        Parameters
+        ----------
+        time : :class:`~astropy.time.Time`
+            Time steps of the pointing.
+        az : `float`
+            Pointed azimuth in degrees.
+        alt : `float`
+            Pointed elevation in degrees.
+        duration : :class:`~astropy.time.TimeDelta`, optional
+            Duration of the pointings (if a scalar is given it is applied to all time steps), by default `None` (the duration is set to the difference between each time steps, the last one set at 0).
+        observer : :class:`~astropy.coordinates.EarthLocation`, optional
+            Earth location from where the target is observed, by default `nenufar_position`.
+
+        Returns
+        -------
+        :class:`~nenupy.astro.pointing.Pointing`
+            The drift scan pointing instance.
+        """
+        if not time.isscalar:
+            az = np.repeat(az, time.size)
+            alt = np.repeat(alt, time.size)
+        altaz = SkyCoord(
+            az,
+            alt,
+            unit="deg",
+            frame=AltAz(
+                obstime=time,
+                location=observer
+            )
+        )
+        pointing = cls(
+            coordinates=altaz_to_radec(
+                altaz=altaz,
+                fast_compute=False
+            ),
+            time=time,
+            duration=duration,
+            observer=observer
+        )
+        pointing.custom_ho_coordinates = altaz.reshape((1,)) if altaz.isscalar else altaz
+        return pointing
+
+
+    @classmethod
     def zenith_tracking(cls,
             time: Time,
-            duration: TimeDelta = TimeDelta(1, format="sec"),
+            duration: TimeDelta = None,
             observer: EarthLocation = nenufar_position
         ):
         """ Instantiates a :class:`~nenupy.astro.pointing.Pointing`
@@ -848,30 +910,12 @@ class Pointing(AstroObject):
                     )
 
         """
-        az = 0
-        el = 90
-        if not time.isscalar:
-            az = np.repeat(az, time.size)
-            el = np.repeat(el, time.size)
-        altaz = SkyCoord(
-            az,
-            el,
-            unit="deg",
-            frame=AltAz(
-                obstime=time,
-                location=observer
-            )
-        )
-        pointing = cls(
-            coordinates=altaz_to_radec(
-                altaz=altaz,
-                fast_compute=False
-            ),
+        return cls.azel_driftscan(
             time=time,
+            az=0,
+            alt=90,
             duration=duration,
             observer=observer
         )
-        pointing.custom_ho_coordinates = altaz.reshape((1,)) if altaz.isscalar else altaz
-        return pointing
 # ============================================================= #
 # ============================================================= #
