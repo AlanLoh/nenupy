@@ -29,7 +29,7 @@ import functools
 from copy import deepcopy
 from astropy.time import Time, TimeDelta
 import operator
-from typing import Callable
+from typing import Callable, List
 
 from nenupy.schedule.targets import _Target
 from nenupy.schedule.constraints import Constraints
@@ -885,13 +885,17 @@ class ReservedBlock(Block):
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     @classmethod
-    def from_VCR(cls, file_name):
+    def from_VCR(cls, file_name: str, exclude_kps: List[str] = []):
         """ Instantiates a :class:`~nenupy.schedule.obsblocks.ReservedBlock` object from the `Virtual Control Room <https://gui-nenufar.obs-nancay.fr/Planning/>`_ current booking list.
 
             :param file_name:
                 CSV file describing the VCR current booking.
             :type file_name:
                 `str`
+            :param exclude_kps:
+                List of KPs not to consider as ReservedBlock, by default ``[]``.
+            :type exclude_kps:
+                `list[str]`
 
             :returns:
                 Reserved slots from the VCR active bookings.
@@ -902,29 +906,30 @@ class ReservedBlock(Block):
                 Only users with 'administrator' status may download the booking files.
 
         """
-        reserved = []
-        # with open(file_name, 'r') as rfile:
-        #     for line in rfile.readlines():
-        #         words = line.split(',')
-        #         print(words[0])
-        #         reserved.append(
-        #             cls(
-        #                 time_min=Time(words[0]),
-        #                 time_max=Time(words[1])
-        #             )
-        #         )
+        # Make sure that everything defined in exclude_kps is in lower cases
+        exclude_kps = [e_kp.lower() for e_kp in exclude_kps]
+
+        # Parse the booking CSV file        
         bookings = np.loadtxt(
             file_name,
             skiprows=1,
             delimiter=',',
             dtype={
-                'names': ('start', 'stop', 'kp', 'comment'),
-                'formats': ('U19', 'U19', 'U4', 'U50')
+                "names": ("start", "stop", "kp", "comment"),
+                "formats": ("U19", "U19", "U4", "U50")
             }
         )
         starts = Time(bookings["start"])
         stops = Time(bookings["stop"])
+
+        reserved = []
         for start, stop, kp in zip(starts, stops, bookings["kp"]):
+            
+            # Skip the reserved block definition if the KP is not to be considered
+            if kp.lower() in exclude_kps:
+                continue
+
+            # Create a ReservedBlock instance
             reserved.append(
                 cls(
                     time_min=start,
@@ -932,16 +937,12 @@ class ReservedBlock(Block):
                     name=str(kp)
                 )
             )
+
+        # Concatenate all ReservedBlock instances together
         return functools.reduce(
             lambda x, y: x+y,
             reserved
         )
-    # @classmethod
-    # def fromBookingFile(cls, fileName):
-    #     """ Parse VCR booking.
-    #     """
-    #     blocks = []
-    #     return cls()
 
 
     def is_within(self, start: Time, stop: Time) -> bool:
