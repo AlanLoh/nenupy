@@ -22,7 +22,9 @@ dependencies = [
     "dask[array]",
     "healpy",
     "pytz",
-    "h5py"
+    "h5py",
+    "ics",
+    "openpyxl"
 ]
 
 [project.optional-dependencies]

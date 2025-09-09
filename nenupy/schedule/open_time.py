@@ -130,7 +130,7 @@ class XLSFile:
             # Find cells that have been filled
             values = np.unique(daily_data[daily_data != None])
             for value in values:
-                fullmatch = re.search(pattern=r"^(?P<kp>(ES|SP|RP|LT)\S{2})\s+(?P<start>(\d+|\d+:\d+))-(?P<stop>(\d+|\d+:\d+))(?P<comment>\s+\(.+\))?(\s+)?$", string=value)
+                fullmatch = re.search(pattern=r"^(?P<kp>(ES|SP|RP|LT)\S{2})\s+(?P<start>(\d+|\d+:\d+))\s*-\s*(?P<stop>(\d+|\d+:\d+))(?P<comment>\s+\(.+\))?(\s+)?$", string=value)
                 if fullmatch is None:
                     print(f"Problem parsing: '{value}'")
                 # Add a new calendar if a different KP name is found
@@ -172,6 +172,14 @@ class XLSFile:
         return calendars
 
     def to_ics(self, save_path: str = "") -> None: # Assumes the file is perfect!
+        """Convert the Excel document to an ICS calendar.
+        The name of the ICS file will be ``<kp>.ics`` where ``<kp>`` is the Key project code found in the Excel file.
+
+        Parameters
+        ----------
+        save_path : str, optional
+            Path where the ICS file will be saved, by default ""
+        """
         
         calendars = self.to_ical()
 
@@ -182,6 +190,8 @@ class XLSFile:
     
             with open(output, "w") as wf:
                 wf.writelines(calendars[kp].serialize_iter())
+            
+            log.info(f"iCalendar {os.path.abspath(output)} written.")
 
     def info(self, kp: str = "", strict: bool = False):
         
@@ -190,6 +200,7 @@ class XLSFile:
         night_total = 0
         errors = 0
         n_values = 0
+        kp_list = []
 
         for month_key in self.data.keys():
 
@@ -215,29 +226,31 @@ class XLSFile:
                         fullmatch = re.search(pattern=r"^(?P<kp>(ES|SP|RP|LT)\S{2})\s(?P<start>(\d+|\d+:\d+))-(?P<stop>(\d+|\d+:\d+))(?P<comment>\s\(.+\))?$", string=value)
                         assert fullmatch is not None
                     except AssertionError:
-                        log.error(f"(Month {month_key}, Day {day}) - Strict syntax check failed on '{value}'")
-                        errors += 1
                         if strict:
+                            log.error(f"(Month {month_key}, Day {day}) - Strict syntax check failed on '{value}'")
+                            errors += 1
                             continue
                         else:
                             pass
 
                     # Read KP
                     try:
-                        kp_match = re.match(pattern=r"^(ES|SP|RP|LT)\d+", string=value)
+                        kp_match = re.match(pattern=r"^(ES|SP|RP|LT)\S{2}", string=value)
                         # current_kp = value.split(" ")[0]#.replace("(", "").replace(")", "")
                         current_kp = kp_match.group()
                     except AttributeError:
                         log.error(f"(Month {month_key}, Day {day}) - Impossible to read KP '{value}'")
                         errors += 1
                         continue
+                    if not current_kp in kp_list:
+                        kp_list.append(current_kp)
                     # Skip if not the selected kp
                     if (kp != "") and (current_kp != kp):
                         continue
 
                     # Read the start and stop hours
                     try:
-                        match = re.search(pattern=r"^(ES|SP|RP|LT)\S+ (?P<start>\S+)-(?P<stop>\S+)", string=value)
+                        match = re.search(pattern=r"^(ES|SP|RP|LT)\S{2}\s+(?P<start>\S+)\s*-\s*(?P<stop>\S+)", string=value)
                         start = match["start"]
                         stop = match["stop"]
                         # start, stop = value.split(" ")[1].split("-")
@@ -296,6 +309,7 @@ class XLSFile:
 
         log.info(f"total={hour_total} hours (day={day_total}, night={night_total})")
         log.info(f"{errors=} / entries={n_values}")
+        log.info(f"Key project(s) found: {kp_list}")
 
     def _read_sheet(self) -> List[Worksheet]:
         sheets = []
@@ -648,34 +662,90 @@ class NenuCalendar:
         # TBD: How much time is scheduled
         
         total_hours = 0
-        # daily_hours = 0
-        # night_hours = 0
+        daily_hours = 0
+        night_hours = 0
 
         for evt in self.events:
-            # start = evt.event.begin.datetime
-            # start_hour = start.hour + start.minute / 60 + start.second / 3600
-            # stop = evt.event.end.datetime
-            # stop_hour = stop.hour + stop.minute / 60 + stop.second / 3600
-            # if stop_hour < start_hour:
-            #     # This is the next day
-            #     stop_hour += 24
-            # start_val = Angle(start_hour, unit="hourangle")
-            # stop_val = Angle(stop_hour, unit="hourangle")
-            # hours = (stop_val - start_val).hour
+            start = evt.event.begin.datetime
+            start_hour = start.hour + start.minute / 60 + start.second / 3600
+            stop = evt.event.end.datetime
+            stop_hour = stop.hour + stop.minute / 60 + stop.second / 3600
+            
+            if stop_hour <= start_hour:
+                d_hours1, n_hours1 = _sort_night_time(
+                    start_hour=Angle(start_hour, unit="hourangle"),
+                    stop_hour=Angle(24, unit="hourangle"),
+                    current_day=Time(evt.event.begin.datetime, format="datetime")
+                )
+                d_hours2, n_hours2 = _sort_night_time(
+                    start_hour=Angle(0, unit="hourangle"),
+                    stop_hour=Angle(stop_hour, unit="hourangle"),
+                    current_day=Time(evt.event.begin.datetime, format="datetime")
+                )
+                d_hours = d_hours1 + d_hours2
+                n_hours = n_hours1 + n_hours2
+            else:
+                start_val = Angle(start_hour, unit="hourangle")
+                stop_val = Angle(stop_hour, unit="hourangle")
+                # hours = (stop_val - start_val).hour
+                d_hours, n_hours = _sort_night_time(
+                    start_hour=start_val,
+                    stop_hour=stop_val,
+                    current_day=Time(evt.event.begin.datetime, format="datetime")
+                )
 
-            # d_hours, n_hours = _sort_night_time(
-            #     start_hour=start_val,
-            #     stop_hour=stop_val,
-            #     current_day=Time(evt.event.begin.datetime, format="datetime")
-            # )
-
-            # daily_hours += d_hours
-            # night_hours += n_hours
+            daily_hours += d_hours
+            night_hours += n_hours
             td = evt.event.end.datetime - evt.event.begin.datetime
-            total_hours += td.days * 24 + td.seconds / 3600
+            evt_hours = td.days * 24 + td.seconds / 3600
+            if not np.isclose(d_hours + n_hours, evt_hours, rtol=1e-10, atol=1/60): # 1 min tolerance
+                log.warning(f"{evt} mismatch {evt_hours} vs. {d_hours=} {n_hours=}...")
+            total_hours += evt_hours
 
-        # log.info(f"total={total_hours} hours (day={daily_hours}, night={night_hours})")
-        log.info(f"total={total_hours} hours")# (day={daily_hours}, night={night_hours})")
+        log.info(f"total={total_hours} hours (day={daily_hours}, night={night_hours})")
+        # log.info(f"total={total_hours} hours")# (day={daily_hours}, night={night_hours})")
+
+    def write_summary_csv(self, path: str = "", filename: str = "") -> None:
+        """Write a CSV file summarizing the events.
+
+        Parameters
+        ----------
+        path : str, optional
+            The output path to store the summary, by default ""
+        filename : str, optional
+            The name of the output CSV (should end with .csv), no path name, by default "" (i.e. 'calendar_summary.csv')
+        """
+        sorted_events = sorted(self.events)
+
+        if filename != "":
+            assert filename.endswith(".csv"), f"Filename {filename} should end with .csv"
+            filename = os.path.join(path, os.path.basename(filename))
+        else:
+            filename = os.path.join(path, "calendar_summary.csv")
+
+        with open(filename, "w") as wfile:
+            wfile.write(f"start_iso,stop_iso,kp_code,name\n")
+            for event in sorted_events:
+                event_name = event.event.name
+
+                # Extract the KP name
+                kp_match = re.search(pattern=r"(ES|SP|RP|LT)\S{2}", string=event_name)
+                if kp_match is None:
+                    raise Exception(f"Unable to read KP name from '{event_name}'")
+                kp = kp_match.group()
+                if kp != event.kp_name:
+                    raise Exception(f"Inconsistency between kp_name {event.kp_name} and kp written {kp}")
+
+                start = Time(event.event.begin.datetime, format="datetime")
+                start.precision = 0
+                stop = Time(event.event.end.datetime, format="datetime")
+                stop.precision = 0
+
+                # Write the CSV file
+                wfile.write(f"{start.iso},{stop.iso},{kp},{event_name}\n")
+    
+        log.info(f"{filename} written.")
+        
 
     def write_vcr_csv(self, path: str = "", add_error: bool = True) -> None:
         """Write a CSV file from the events loaded in this NenuCalendar instance.
