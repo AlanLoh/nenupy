@@ -27,6 +27,7 @@
       LocalTimeCnst
       MeridianTransitCnst
       NightTimeCnst
+      PeriodicCnst
       ScheduleConstraint
       SolarProximityCnst
       TargetConstraint

@@ -200,7 +200,7 @@ def pointing_correction_factor(
         digital_pointing: Pointing, analog_pointing: Pointing,
         times: Time, frequencies: u.Quantity,
         nenufar: NenuFAR = NenuFAR(),
-        polarization: np.ndarray | Polarization = Polarization.NW,
+        polarization: Union[np.ndarray, Polarization] = Polarization.NW,
         nenufar_config: NenuFAR_Configuration = NenuFAR_Configuration(),
         correction_year: str = "2022",
         return_interpolation: bool = False

@@ -40,8 +40,8 @@ r"""
     Single constraint
     -----------------
 
-    There are several constraints that could be defined (see
-    :ref:`constraints_summary`). The simplest and probably most
+    There are several constraints that could be defined.
+    The simplest and probably most
     basic one is the 'elevation constraint' (embedded in the 
     :class:`~nenupy.schedule.constraints.ElevationCnst` class) since
     observing at :math:`e > 0^\circ` is a necessary requirement
@@ -121,26 +121,8 @@ r"""
     .. image:: ../_images/sch_constraints.png
         :width: 800
 
-    .. _constraints_summary:
-
-    Constraint classes
-    ------------------
-
-    .. autosummary::
-
-        ~nenupy.schedule.constraints.Constraints
-        ~nenupy.schedule.constraints.ElevationCnst
-        ~nenupy.schedule.constraints.MeridianTransitCnst
-        ~nenupy.schedule.constraints.AzimuthCnst
-        ~nenupy.schedule.constraints.LocalTimeCnst
-        ~nenupy.schedule.constraints.TimeRangeCnst
-        ~nenupy.schedule.constraints.LocalSiderealTimeCnst
-        ~nenupy.schedule.constraints.NightTimeCnst
-
-
     .. inheritance-diagram:: nenupy.schedule.constraints
         :parts: 3
-
 
 """
 
@@ -163,6 +145,7 @@ __all__ = [
     'LocalTimeCnst',
     'TimeRangeCnst',
     'NightTimeCnst',
+    'PeriodicCnst',
     'Constraints'
 ]
 
@@ -173,8 +156,9 @@ from astropy.time import Time, TimeDelta
 from astropy.coordinates import Angle, Longitude
 import pytz
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from copy import copy
-from typing import List
+from typing import List, Tuple, Union
 
 from nenupy.schedule.targets import _Target, SSTarget
 
@@ -196,111 +180,118 @@ class Constraint(ABC):
         self.weight = weight
 
 
-    def __call__(self, *arg):
-        """ Test de docstring
+    def __call__(self, *arg) -> np.ndarray:
+        """Evaluate the constraint against the schedule properties.
+
+        Returns
+        -------
+        :class:`~numpyp.ndarray`
+            The constraint score evaluated at each time step.
+
+        Raises
+        ------
+        AttributeError
+            If the constraint does not have an `_evaluate()` method.
         """
-        if not hasattr(self, '_evaluate'):
+        if not hasattr(self, "_evaluate"):
             raise AttributeError(
-                '<Constraint> should not be used on its own.'
+                "<Constraint> should not be used on its own."
             )
         return self._evaluate(*arg)
 
     
     def __str__(self):
-        """
-        """
         return f'{self.__class__}'
 
 
     # --------------------------------------------------------- #
     # --------------------- Getter/Setter --------------------- #
     @property
-    def weight(self):
-        """
+    def weight(self) -> Union[int, float]:
+        """ Relative weight associated to the constraint.
+            The constraint score of an observation block within a given schedule
+            is ultimately taken at the weighted mean among all the constraints
+            associated to this observaiton request.
         """
         return self._weight
     @weight.setter
-    def weight(self, w):
+    def weight(self, w: Union[int, float]):
         if not isinstance(w, (float, int)):
             raise TypeError(
-                '<weight> should be a number.'
+                "<weight> should be a number."
             )
         elif w <= 0:
             raise ValueError(
-                '<weight> should be > 0.'
+                "<weight> should be > 0."
             )
         self._weight = w
     
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def plot(self, **kwargs):
-        """ Plots the constraint's score previously evaluated.
+    def plot(self, fig: mpl.figure.Figure = None, ax: mpl.axes.Axes = None, **kwargs) -> None:
+        """ Plot the constraint's score previously evaluated.
 
-            :param figsize:
-                Size of the figure. Default: ``(10, 5)``.
-            :type figsize:
-                `tuple`
-            :param figname:
-                Name of the figure to be stored. Default: ``''``,
-                the figure is only displayed.
-            :type figname:
-                `str`
-            :param marker:
-                Plot marker type (see :func:`matplotlib.pyplot.plot`).
-                Default: ``'.'``.
-            :type marker:
-                `str`
-            :param linestyle:
-                Plot line style (see :func:`matplotlib.pyplot.plot`).
-                Default: ``':'``
-            :type linestyle:
-                `str`
-            :param linewidth:
-                Plot line width (see :func:`matplotlib.pyplot.plot`).
-                Default: ``1``
-            :type linewidth:
-                `int` or `float`
+            Parameters
+            ----------
+            fig : :class:`~matplotlib.figure.Figure`
+                Figure instance to re-use for plotting purposes, by default `None` (i.e., a new :class:`~matplotlib.figure.Figure` will be created)
+            ax : :class:`~matplotlib.axes.Axes`
+                Ax instance to re-use for plotting purposes, by default `None` (i.e., a new :class:`~matplotlib.axes.Axes` will be created)
+
+            Other Parameters
+            ----------------
+            figsize : [`float`, `float`]
+                Size of the figure, by default ``(10, 5)``
+            figname : `str`
+                Name of the figure to be saved, by default ``''`` (i.e., the figure is only displayed)
+            marker : `str`
+                Plot marker type (see :func:`matplotlib.pyplot.plot`), by default ``'.'``
+            linestyle : `str`
+                Plot line style (see :func:`matplotlib.pyplot.plot`), by default ``':'``
+            linewidth: `int`
+                Plot line width (see :func:`matplotlib.pyplot.plot`), by default ``1``
         """
         fig = plt.figure(
-            figsize=kwargs.get('figsize', (10, 5))
+            figsize=kwargs.get("figsize", (10, 5))
         )
-        self._plot_constraint(**kwargs)
-        plt.xlabel('Time index')
-        plt.ylabel('Constraint score')
-        plt.title(f'{self.__class__}')
+        ax = fig.add_subplot()
+        self._plot_constraint(ax=ax, **kwargs)
+        ax.set_xlabel("Time index")
+        ax.set_ylabel("Constraint score")
+        ax.set_title(f"{self}")
 
         # Save or show the figure
-        figname = kwargs.get('figname', '')
-        if figname != '':
-            plt.savefig(
+        figname = kwargs.get("figname", "")
+        if figname != "":
+            fig.savefig(
                 figname,
                 dpi=300,
-                bbox_inches='tight',
+                bbox_inches="tight",
                 transparent=True
             )
             log.info(f"Figure '{figname}' saved.")
         else:
             plt.show()
-        plt.close('all')
+        plt.close("all")
 
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _plot_constraint(self, **kwargs):
+    def _plot_constraint(self, ax: mpl.axes.Axes,**kwargs) -> None:
         """ Internal method to plot a single constraint without
             initializing the figure object.
         """
-        plt.plot(
+        ax.plot(
             np.where(
                 np.isnan(self.score),
                 0,
                 self.score
             ),
-            marker=kwargs.get('marker', '.'),
-            linestyle=kwargs.get('linestyle', ':'),
-            linewidth=kwargs.get('linewidth', 1),
-            label=f'{self.__class__}'
+            marker=kwargs.get("marker", "."),
+            linestyle=kwargs.get("linestyle", ":"),
+            linewidth=kwargs.get("linewidth", 1),
+            label=f"{self.__class__}"
         )
 
 
@@ -1024,6 +1015,112 @@ class NightTimeCnst(Constraint):
 # ============================================================= #
 # ============================================================= #
 
+
+# ============================================================= #
+# ----------------------- PeriodicCnst ------------------------ #
+# ============================================================= #
+class PeriodicCnst(ScheduleConstraint):
+    """Constraint to force a block to be scheduled within periodical time intervals in the schedule.
+    
+        Examples
+        --------
+        .. code-block:: python
+
+            >>> from nenupy.schedule.constraints import PeriodicCnst
+            >>> from astropy.time import Time, TimeDelta
+
+            >>> start = Time("2025-12-01 00:00:00")
+            >>> p = TimeDelta(2, format="jd")
+            >>> tol = TimeDelta(0.3, format="jd")
+            >>> cnt = PeriodicCnst(
+                    start_time=start,
+                    periodicity=p,
+                    tolerance=tol
+                )
+
+            >>> times = start + np.arange(300) * TimeDelta(1800, format="sec")
+            >>> score = cnt(times)
+            >>> fig = plt.figure(figsize=(10, 5))
+            >>> ax = fig.add_subplot()
+
+            >>> for i in range(4):
+            >>>     middle = start + i * p
+            >>>     ax.axvline(middle.datetime, linestyle=":", color="black")
+            >>>     ax.axvspan((middle - tol).datetime, (middle + tol).datetime, color="tab:orange", alpha=0.5)
+
+            >>> ax.plot(times[:-1].datetime, np.ones(times[:-1].size), marker=".", linestyle="")
+            >>> mask = ~ np.isnan(score)
+            >>> ax.plot(times[:-1].datetime[mask], np.ones(times[:-1].size)[mask], marker=".", linestyle="")
+            >>> ax.set_xlabel("Time")
+
+        .. figure:: ../_images/schedule_images/periodic_cnst.png
+            :width: 650
+            :align: center
+
+    """
+
+    def __init__(self,
+            start_time: Time,
+            periodicity: TimeDelta,
+            tolerance: TimeDelta, 
+            weight: float = 1
+        ):
+        """Return an instance of :class:`~nenupy.schedule.constraints.PeriodicCnst`.
+
+        Parameters
+        ----------
+        start_time : :class:`~astropy.time.Time`
+            Center of the first time interval.
+        periodicity : :class:`~astropy.time.TimeDelta`
+            Time duration before the next repetition of the time interval.
+        tolerance : :class:`~astropy.time.TimeDelta`
+            half-width of each time interval.
+        weight : `float`, optional
+            Constraint weight used to ponderate constraints with respect to one another, by default 1
+        """
+        super().__init__(weight=weight)
+        self.start_time = start_time
+        self.periodicity = periodicity
+        self.tolerance = tolerance
+
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+    def get_score(self, indices: np.ndarray) -> float:
+        """Return the constraint score evaluated on a schedule ``indices``.
+        The constraint must have been evaluated first.
+
+        Parameters
+        ----------
+        indices : :class:`~numpyp.ndarray`
+            Time indices on which the constraint score should be computed.
+            The indices must match the array stored in :attr:`~nenupy.scedule.constraints.Constraint.score`.
+
+        Returns
+        -------
+        `float`
+            The constraint score evaluated as its average on ``indices``.
+        """
+        self._is_numpy_instance(indices)
+        return np.mean(self.score[indices], axis=-1)
+
+    # --------------------------------------------------------- #
+    # ----------------------- Internal ------------------------ #
+    def _evaluate(self, time: Tuple, nslots: int = None) -> np.ndarray:
+        """
+        """
+        self._is_time_instance(time)
+
+        integer_time_div = (time - self.start_time).jd % self.periodicity.jd
+        time_mask = (integer_time_div <= self.tolerance.jd) + (integer_time_div >= self.periodicity.jd - self.tolerance.jd)
+
+        score = time_mask[:-1].astype(float)
+        self.score = np.where(score==0, np.nan, score)
+
+        return self.score
+# ============================================================= #
+# ============================================================= #
+
+
 # ============================================================= #
 # -------------------- SolarProximityCnst --------------------- #
 # ============================================================= #
@@ -1196,7 +1293,7 @@ class Constraints(object):
             if isinstance(cnt, TargetConstraint) and (target is not None):
                 cnts[i, :] = cnt(target, nslots)
             elif isinstance(cnt, ScheduleConstraint):
-                cnts[i, :] = cnt(tuple(time), nslots)
+                cnts[i, :] = cnt(time, nslots)
             elif isinstance(cnt, NightTimeCnst):
                 cnts[i, :] = cnt(sun_elevation)
             elif isinstance(cnt, SolarProximityCnst):
@@ -1251,7 +1348,7 @@ class Constraints(object):
                 if isinstance(constraint, TargetConstraint) and (sliced_target is not None):
                     constraint_scores[constraint_i, :] = constraint(sliced_target, nslots)
                 elif isinstance(constraint, ScheduleConstraint):
-                    constraint_scores[constraint_i, :] = constraint(tuple(sliced_time), nslots)
+                    constraint_scores[constraint_i, :] = constraint(sliced_time, nslots)
                 elif isinstance(constraint, NightTimeCnst):
                     constraint_scores[constraint_i, :] = constraint(sun_elev[:-1]) # already taken at mid dt
                 elif isinstance(constraint, SolarProximityCnst) and (sliced_target is not None):
@@ -1287,32 +1384,33 @@ class Constraints(object):
         fig = plt.figure(
             figsize=kwargs.get('figsize', (10, 5))
         )
+        ax = fig.add_subplot()
         for cnt in self:
             # Overplot each constraint
-            cnt._plot_constraint(**kwargs)
+            cnt._plot_constraint(ax=ax, **kwargs)
 
-        plt.plot(
+        ax.plot(
             self.score,
-            label='Total'
+            label="Total"
         )
 
-        plt.xlabel('Time index')
-        plt.ylabel('Constraint score')
-        plt.legend()
+        ax.set_xlabel("Time index")
+        ax.set_ylabel("Constraint score")
+        ax.legend()
 
         # Save or show the figure
-        figname = kwargs.get('figname', '')
-        if figname != '':
+        figname = kwargs.get("figname", "")
+        if figname != "":
             plt.savefig(
                 figname,
                 dpi=300,
-                bbox_inches='tight',
+                bbox_inches="tight",
                 transparent=True
             )
             log.info(f"Figure '{figname}' saved.")
         else:
             plt.show()
-        plt.close('all')
+        plt.close("all")
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #

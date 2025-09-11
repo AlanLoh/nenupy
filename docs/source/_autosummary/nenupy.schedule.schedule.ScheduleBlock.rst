@@ -21,6 +21,7 @@
       ~ScheduleBlock.evaluate_score
       ~ScheduleBlock.get
       ~ScheduleBlock.is_within
+      ~ScheduleBlock.periodic_observation
       ~ScheduleBlock.plot
       ~ScheduleBlock.reset
    

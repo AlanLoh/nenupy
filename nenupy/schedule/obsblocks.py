@@ -26,13 +26,13 @@ __all__ = [
 
 import numpy as np
 import functools
-from copy import deepcopy
+from copy import copy, deepcopy
 from astropy.time import Time, TimeDelta
 import operator
 from typing import Callable, List
 
 from nenupy.schedule.targets import _Target
-from nenupy.schedule.constraints import Constraints
+from nenupy.schedule.constraints import Constraints, TimeRangeCnst
 
 import logging
 log = logging.getLogger(__name__)
@@ -223,7 +223,7 @@ class Block(object):
         blocks = []
         for block in self._blocks:
             for i in range(n):
-                copied_block = deepcopy(block)
+                copied_block = copy(block)
                 try:
                     # Do not get a copy of the target attribute
                     # if it exists. Therefore any costly computation
@@ -349,17 +349,6 @@ class ObsBlock(Block):
 
         .. seealso::
             :ref:`observation_request_sec`
-
-        .. rubric:: Attributes Summary
-
-        .. autosummary::
-
-            ~ObsBlock.program
-            ~ObsBlock.target
-            ~ObsBlock.constraints
-
-        .. rubric:: Attributes and Methods Documentation
-
     """
 
     def __init__(
@@ -452,6 +441,72 @@ class ObsBlock(Block):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
+    def periodic_observation(self, start_time: Time, stop_time: Time, periodicity: TimeDelta, tolerance: TimeDelta) -> Block:
+        r"""Create duplicates of the observing block periodically spread in time between ``start_time`` and ``stop_time``.
+        This methods adds to the :class:`~nenupy.schedule.obsblocks.ObsBlock`'s constraints a new :class:`~nenupy.schedule.constraints.TimeRangeCnst`.
+        Each copied block is then constrained to occur at :math:`t_0 + n \times \Delta t \pm \delta t` (where :math:`t_0` is ``start_time``, :math:`\Delta t` is ``periodicity`` and :math:`\delta t` is the ``tolerance``).
+
+        Parameters
+        ----------
+        start_time : :class:`~astropy.time.Time`
+            The start time of the duplication period.
+        stop_time : :class:`~astropy.time.Time`
+            The stop time of the duplication period.
+        periodicity : :class:`~astropy.time.TimeDelta`
+            The time periodicity at which the time block is repeated. 
+        tolerance : :class:`~astropy.time.TimeDelta`
+            The tolerance in time duration with respect to a strict repetition.
+            The higher the tolerance, the easier the block will be scheduled.
+            Keep also in mind that if the tolerance is too small and the starting time poorly chosen, the target may never be observed (for instance the allowed time range may not match when the target is above the horizon).
+
+        Returns
+        -------
+        :class:`~nenupy.scheudle.obsblock.Block`
+            The observations blocks.
+
+        Warning
+        -------
+        The original :class:`~nenupy.schedule.obsblocks.ObsBlock` cannot already contain an instance of :class:`~nenupy.schedule.constraints.TimeRangeCnst`.
+        An error is raised in this case.
+
+        Examples
+        --------
+        .. code-block:: python
+            :emphasize-lines: 10,11,12,13,14,15
+
+            >>> from nenupy.schedule import ObsBlock, ESTarget
+            >>> from astropy.time import Time, TimeDelta
+
+            >>> crab = ObsBlock(
+                    name="Crab",
+                    program="LT03",
+                    target=ESTarget.fromName("Crab"),
+                    duration=TimeDelta(3600, format="sec")
+                )
+            >>> crab_blocks = crab.periodic_observation(
+                    start_time=Time("2025-06-01 00:00:00"),
+                    stop_time=Time("2025-12-01 00:00:00"),
+                    periodicity=TimeDelta(28, format="jd"),
+                    tolerance=TimeDelta(3, format="jd")
+                )        
+                
+        """
+        # Copy the current block as many times as one could fit in between the time range
+        # Need to manually deepcopy it to avoid pointer errors
+        number_repetitions = int(np.ceil((stop_time - start_time) / periodicity))
+        blocks = [deepcopy(self) for _ in range(number_repetitions)]
+
+        # For each of these newly copied block, add a TimeRange constraint to force them being scheduled periodically
+        for i, blk in enumerate(blocks):
+            time_ith = start_time + i * periodicity
+            blk.constraints = deepcopy(self.constraints) + TimeRangeCnst(
+                time_min=time_ith - tolerance,
+                time_max=time_ith + tolerance
+            )
+
+        # Return the concatenation of all these observation blocks
+        return sum(blocks)
+
     # @classmethod
     # def fromJson(self, jsonFile):
     #     """

@@ -19,6 +19,7 @@
    
       ~ObsBlock.__init__
       ~ObsBlock.get
+      ~ObsBlock.periodic_observation
       ~ObsBlock.reset
    
    

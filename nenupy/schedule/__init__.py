@@ -14,6 +14,7 @@ from .constraints import (
     LocalTimeCnst,
     TimeRangeCnst,
     NightTimeCnst,
+    PeriodicCnst,
     SolarProximityCnst,
     Constraints
 )
