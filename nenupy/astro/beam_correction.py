@@ -204,7 +204,7 @@ def pointing_correction_factor(
         nenufar_config: NenuFAR_Configuration = NenuFAR_Configuration(),
         correction_year: str = "2022",
         return_interpolation: bool = False
-    ) -> np.ndarray | RegularGridInterpolator:
+    ) -> Union[np.ndarray, RegularGridInterpolator]:
     """Compute the factor needed to correct the intensity of the sources observed when NenuFAR (in beamformed mode) suffered from a pointing offset (i.e., before 2025 June 17).
     The output correction factor is an array shaped like (``times``, ``frequencies``, ``polarization``).
     There's no need in computing it on a fine time-frequency grid since, the evolution is quite smooth over a few minutes and can be interpolated to match the original dataset.
