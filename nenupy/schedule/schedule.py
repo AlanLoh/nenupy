@@ -129,7 +129,7 @@ class ScheduleBlock(ObsBlock):
 
 
     @property
-    def score(self):
+    def score(self) -> float:
         """
         """
         if self.indices is None:
@@ -140,8 +140,11 @@ class ScheduleBlock(ObsBlock):
             for constraint in self.constraints:
                 scores.append(constraint.get_score(self.indices))
                 weights.append(constraint.weight)
-            #return np.nanmean(scores, axis=0)
-            return np.average(scores, weights=weights, axis=0)
+            weighted_score = np.average(scores, weights=weights, axis=0)
+            if np.isnan(weighted_score):
+                return 0.
+            else:
+                return weighted_score
 
 
     @property
