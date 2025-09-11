@@ -341,7 +341,10 @@ class TargetConstraint(Constraint):
         """
         """
         if not isinstance(angle, Angle):
-            angle = Angle(angle, unit='deg')
+            try:
+                angle = Angle(angle, unit="deg")
+            except:
+                raise Exception("An angle is expected.")
         return angle
 # ============================================================= #
 # ============================================================= #
@@ -487,7 +490,7 @@ class ElevationCnst(TargetConstraint):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _evaluate(self, target, nslots):
+    def _evaluate(self, target, nslots = None):
         """ Evaluates the constraint :class:`~nenupy.schedule.constraint.ElevationCnst`
             on the ``target`` which astronomical positions need
             to be computed first (using :meth:`~nenupy.schedule.targets._Target.computePosition`).
@@ -517,7 +520,7 @@ class ElevationCnst(TargetConstraint):
                 "given time range."
             )
             # self.score = elevation[1:]*0.
-            self.score = elevation[1:]*np.nan
+            self.score = elevation[1:] * np.nan
         elif not self.scale_elevation:
             self.score = elevMean/elevMean
         else:
