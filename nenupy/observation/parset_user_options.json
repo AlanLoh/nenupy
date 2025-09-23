@@ -304,12 +304,12 @@
         "ra": {
             "required": false,
             "value": "right_ascension",
-            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$'"
         },
         "dec": {
             "required": false,
             "value": "declination",
-            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$'"
         },
         "startHA": {
             "required": false,
@@ -419,12 +419,12 @@
         "ra": {
             "required": false,
             "value": "right_ascension",
-            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$'"
         },
         "dec": {
             "required": false,
             "value": "declination",
-            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$'"
         },
         "startHA": {
             "required": false,

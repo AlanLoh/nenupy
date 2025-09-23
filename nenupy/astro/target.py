@@ -37,6 +37,8 @@ __all__ = [
 from abc import ABC, abstractmethod
 from typing import Callable
 import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import logging
 log = logging.getLogger(__name__)
 
@@ -60,34 +62,6 @@ class Target(AstroObject, ABC):
     """ Abstract class to handle target objects.
 
         .. versionadded:: 2.0.0
-
-        .. rubric:: Attributes Summary
-
-        .. autosummary::
-
-            ~Target.coordinates
-            ~Target.time
-            ~Target.observer
-            ~Target.is_circumpolar
-            ~Target.culmination_azimuth
-
-        .. rubric:: Methods Summary
-
-        .. autosummary::
-
-            ~Target.separation
-            ~Target.meridian_transit
-            ~Target.next_meridian_transit
-            ~Target.previous_meridian_transit
-            ~Target.azimuth_transit
-            ~Target.rise_time
-            ~Target.next_rise_time
-            ~Target.previous_rise_time
-            ~Target.set_time
-            ~Target.next_set_time
-            ~Target.previous_set_time
-
-        .. rubric:: Attributes and Methods Documentation
     
     """
 
@@ -232,6 +206,87 @@ class Target(AstroObject, ABC):
             )
         return self.coordinates.separation(other.coordinates)
 
+    def plot(self, figname: str = "", fig: mpl.figure.Figure = None, return_ax: bool = False, **kwargs) -> mpl.axes.Axes:
+        """Plot the horizontal position of the Target as a scatter plot in polar coordinates.
+
+        Parameters
+        ----------
+        figname : `str`, optional
+            If anything is set (e.g., ``"my_plot.png"``) the figure will be saved, by default ``""``
+        fig : :class:~`matplotlib.figure.Figure`, optional
+            The parent figure, if nothing is provided a new figure is created, by default `None`
+        return_ax : `bool`, optional
+            Return the ax containing the plot, by default `False`
+        
+        Other Parameters
+        ----------------
+        figsize : (`float`, `float`), optional
+            Figure size passed to matplotlib, by default ``(5, 5)``
+        markersize : `float`, optional
+            Size of the marker, by default ``30```
+        cmap : `str`, optional
+            Colormap, by default ``"viridis"``
+
+        Returns
+        -------
+        :class:`~matplotlib.axes.Axes`
+            The plot ax as defined by matplotlib
+
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 7
+
+            >>> from nenupy.astro.target import FixedTarget
+            >>> from astropy.time import Time, TimeDelta
+            >>> import numpy as np
+
+            >>> times = Time("2025-04-18T00:30:00") + np.arange(10) * TimeDelta(600, format="sec")
+            >>> target = FixedTarget.from_name("Cyg A", time=times)
+            >>> target.plot()
+
+        """
+
+        # Initialize a new figure if none is provided
+        if fig is None:
+            fig = plt.figure(figsize=kwargs.get("figsize", (5, 5)))
+
+        # Instance of subplot in polar coordinates
+        ax = fig.add_subplot(projection="polar")
+        ax.set_rlim(bottom=90, top=0) # limit to observable elevation range
+        ax.set_theta_zero_location("S") # set geographical North at the bottom
+        ax.set_theta_direction(-1) # azimuth increasing clockwise
+
+        # Get the horizontal coordinates
+        altaz = self.horizontal_coordinates
+        time_jd = self.time.jd
+
+        # Make a scatter plot
+        sc = ax.scatter(
+            altaz.az.rad, altaz.alt.deg,
+            s=kwargs.get("markersize", 30),
+            c=time_jd,
+            cmap=kwargs.get("cmap", "viridis"),
+            zorder=10
+        )
+        
+        # Add a colorbar to show time progression if time is not scalar
+        if self.time.size > 1:
+            cbar = fig.colorbar(sc, ax=ax, pad=0.1, fraction=0.04)
+            # Add 10 colorbar ticks, in Julian days
+            cbar.ax.set_yticks(np.linspace(time_jd[0], time_jd[-1], 10))
+            # Convert the JD to ISO for better lisibility
+            time_ticks = Time(cbar.get_ticks(), format="jd")
+            time_ticks.precision = 0
+            _ = cbar.ax.set_yticklabels(time_ticks.iso)
+
+        if figname != "":
+            fig.savefig(figname, dpi=300, bbox_inches="tight")
+            log.info(f"Figure {figname} saved.")
+        elif return_ax:
+            return ax
+        else:
+            plt.show()
 
     def meridian_transit(self,
             t_min: Time = Time.now(),
@@ -310,6 +365,53 @@ class Target(AstroObject, ABC):
             precision=precision
         )
 
+
+    def meridian_transit_2(self,
+            t_min: Time = Time.now(),
+            duration: TimeDelta = TimeDelta(86400, format="sec"),
+            time_sampling: TimeDelta = TimeDelta(30*60, format="sec"),
+            fast_compute: bool = False
+        ) -> Time:
+
+        # Make sure that the time_sampling is at least 5 times lower than duration
+        # otherwise the interpolation would not work with a maximal value of 12h
+        if time_sampling > duration / 5:
+            time_sampling = duration / 5
+        twelve_hours = TimeDelta(12 * 3600, format="sec")
+        if time_sampling > twelve_hours:
+            time_sampling = twelve_hours
+        time_steps = int(duration / time_sampling)
+        log.debug(f"Meridian transit computed by interpolating over {time_steps} times samples.")
+
+        # Compute the time samples
+        times = t_min + np.arange(time_steps) * time_sampling
+
+        # Compute the source coordinates at these times
+        # The hour angle is the one looked for to check the transit, it should crosses 0 deg.
+        fk5 = self._get_source_coordinates(
+            time=times
+        ).transform_to(FK5(equinox=times))
+        ha = hour_angle(
+            radec=fk5,
+            time=times,
+            observer=self.observer,
+            fast_compute=fast_compute
+        )
+
+        # Modify the hour angle to flatten it, i.e.:
+        # - spot the transition from 360->0 deg
+        # - rearange the array by adding iteratiely 360deg at each transition window to get a linear curve
+        indices = np.where((np.roll(ha, shift=-1) - ha)[:-1] < 0)
+        indices_iter = np.unique([0] + [ind + 1 for ind in indices[0]] + [ha.size])
+        flattened_ha = np.concatenate([ha[indices_iter[i]:indices_iter[i + 1] ].deg + i * 360 for i in range(indices_iter.size - 1)])
+
+        # Send this array to get the crossing time
+        return self._interpolate_crossing_times(
+            times=times,
+            angle_deg=flattened_ha,
+            crossing_angle_deg=0,
+            angle_boundary_deg=360
+        )
 
     def azimuth_transit(self,
             azimuth: u.Quantity = 180*u.deg,
@@ -955,6 +1057,32 @@ class Target(AstroObject, ABC):
             dt /= down_factor
 
         return times[transit_indices] + dt/2.
+
+
+    @staticmethod
+    def _interpolate_crossing_times(
+            times: Time,
+            angle_deg: np.ndarray,
+            crossing_angle_deg: float,
+            angle_boundary_deg: int = 360
+        ) -> Time:
+        """Find the times at which ``angle_deg`` crosses ``crossing_angle_deg``.
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        Time
+            _description_
+        """
+        x = np.linspace(0, 1, angle_deg.size)
+        n_cycles = np.ceil(angle_deg.max() / angle_boundary_deg)
+        flattened_crossing_values = np.arange(1, n_cycles) * angle_boundary_deg + crossing_angle_deg
+        relative_crossing = np.interp(flattened_crossing_values, angle_deg, x)
+        exposure = times[-1] - times[0]
+        return times[0] + relative_crossing * exposure
+
 # ============================================================= #
 # ============================================================= #
 

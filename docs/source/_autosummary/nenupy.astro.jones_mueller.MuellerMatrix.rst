@@ -44,15 +44,18 @@
       ~MuellerMatrix.getfield
       ~MuellerMatrix.half_waveplate_retarder
       ~MuellerMatrix.item
+      ~MuellerMatrix.itemset
       ~MuellerMatrix.left_circular
       ~MuellerMatrix.linear
       ~MuellerMatrix.linear_retarder
       ~MuellerMatrix.max
       ~MuellerMatrix.mean
       ~MuellerMatrix.min
+      ~MuellerMatrix.newbyteorder
       ~MuellerMatrix.nonzero
       ~MuellerMatrix.partition
       ~MuellerMatrix.prod
+      ~MuellerMatrix.ptp
       ~MuellerMatrix.put
       ~MuellerMatrix.quarter_waveplate_retarder
       ~MuellerMatrix.ravel
@@ -70,7 +73,6 @@
       ~MuellerMatrix.sum
       ~MuellerMatrix.swapaxes
       ~MuellerMatrix.take
-      ~MuellerMatrix.to_device
       ~MuellerMatrix.to_hermitian
       ~MuellerMatrix.to_jones
       ~MuellerMatrix.tobytes
@@ -94,18 +96,13 @@
       ~MuellerMatrix.base
       ~MuellerMatrix.ctypes
       ~MuellerMatrix.data
-      ~MuellerMatrix.device
       ~MuellerMatrix.dtype
       ~MuellerMatrix.flags
       ~MuellerMatrix.flat
       ~MuellerMatrix.imag
-      ~MuellerMatrix.itemset
       ~MuellerMatrix.itemsize
-      ~MuellerMatrix.mT
       ~MuellerMatrix.nbytes
       ~MuellerMatrix.ndim
-      ~MuellerMatrix.newbyteorder
-      ~MuellerMatrix.ptp
       ~MuellerMatrix.real
       ~MuellerMatrix.shape
       ~MuellerMatrix.size

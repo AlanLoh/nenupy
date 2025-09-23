@@ -45,14 +45,17 @@
       ~JonesVector.getfield
       ~JonesVector.horizontal
       ~JonesVector.item
+      ~JonesVector.itemset
       ~JonesVector.left_circular
       ~JonesVector.linear
       ~JonesVector.max
       ~JonesVector.mean
       ~JonesVector.min
+      ~JonesVector.newbyteorder
       ~JonesVector.nonzero
       ~JonesVector.partition
       ~JonesVector.prod
+      ~JonesVector.ptp
       ~JonesVector.put
       ~JonesVector.ravel
       ~JonesVector.repeat
@@ -69,7 +72,6 @@
       ~JonesVector.sum
       ~JonesVector.swapaxes
       ~JonesVector.take
-      ~JonesVector.to_device
       ~JonesVector.to_stokes
       ~JonesVector.tobytes
       ~JonesVector.tofile
@@ -93,18 +95,13 @@
       ~JonesVector.base
       ~JonesVector.ctypes
       ~JonesVector.data
-      ~JonesVector.device
       ~JonesVector.dtype
       ~JonesVector.flags
       ~JonesVector.flat
       ~JonesVector.imag
-      ~JonesVector.itemset
       ~JonesVector.itemsize
-      ~JonesVector.mT
       ~JonesVector.nbytes
       ~JonesVector.ndim
-      ~JonesVector.newbyteorder
-      ~JonesVector.ptp
       ~JonesVector.real
       ~JonesVector.shape
       ~JonesVector.size

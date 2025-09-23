@@ -46,14 +46,17 @@
       ~StokesVector.getfield
       ~StokesVector.horizontal
       ~StokesVector.item
+      ~StokesVector.itemset
       ~StokesVector.left_circular
       ~StokesVector.linear
       ~StokesVector.max
       ~StokesVector.mean
       ~StokesVector.min
+      ~StokesVector.newbyteorder
       ~StokesVector.nonzero
       ~StokesVector.partition
       ~StokesVector.prod
+      ~StokesVector.ptp
       ~StokesVector.put
       ~StokesVector.ravel
       ~StokesVector.repeat
@@ -70,7 +73,6 @@
       ~StokesVector.sum
       ~StokesVector.swapaxes
       ~StokesVector.take
-      ~StokesVector.to_device
       ~StokesVector.to_jones
       ~StokesVector.tobytes
       ~StokesVector.tofile
@@ -94,18 +96,13 @@
       ~StokesVector.base
       ~StokesVector.ctypes
       ~StokesVector.data
-      ~StokesVector.device
       ~StokesVector.dtype
       ~StokesVector.flags
       ~StokesVector.flat
       ~StokesVector.imag
-      ~StokesVector.itemset
       ~StokesVector.itemsize
-      ~StokesVector.mT
       ~StokesVector.nbytes
       ~StokesVector.ndim
-      ~StokesVector.newbyteorder
-      ~StokesVector.ptp
       ~StokesVector.real
       ~StokesVector.shape
       ~StokesVector.size

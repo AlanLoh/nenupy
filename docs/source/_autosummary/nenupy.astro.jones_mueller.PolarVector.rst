@@ -45,14 +45,17 @@
       ~PolarVector.getfield
       ~PolarVector.horizontal
       ~PolarVector.item
+      ~PolarVector.itemset
       ~PolarVector.left_circular
       ~PolarVector.linear
       ~PolarVector.max
       ~PolarVector.mean
       ~PolarVector.min
+      ~PolarVector.newbyteorder
       ~PolarVector.nonzero
       ~PolarVector.partition
       ~PolarVector.prod
+      ~PolarVector.ptp
       ~PolarVector.put
       ~PolarVector.ravel
       ~PolarVector.repeat
@@ -69,7 +72,6 @@
       ~PolarVector.sum
       ~PolarVector.swapaxes
       ~PolarVector.take
-      ~PolarVector.to_device
       ~PolarVector.tobytes
       ~PolarVector.tofile
       ~PolarVector.tolist
@@ -92,18 +94,13 @@
       ~PolarVector.base
       ~PolarVector.ctypes
       ~PolarVector.data
-      ~PolarVector.device
       ~PolarVector.dtype
       ~PolarVector.flags
       ~PolarVector.flat
       ~PolarVector.imag
-      ~PolarVector.itemset
       ~PolarVector.itemsize
-      ~PolarVector.mT
       ~PolarVector.nbytes
       ~PolarVector.ndim
-      ~PolarVector.newbyteorder
-      ~PolarVector.ptp
       ~PolarVector.real
       ~PolarVector.shape
       ~PolarVector.size
