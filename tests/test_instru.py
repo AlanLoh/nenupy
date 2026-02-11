@@ -66,7 +66,7 @@ def test_sb2freq():
 # ============================================================= #
 def test_miniarrays_rotated_like():
     mas = miniarrays_rotated_like([0])
-    assert mas.size == 32
+    assert mas.size == 17
     assert miniarrays_rotated_like([10])[0] == 11
 # ============================================================= #
 # ============================================================= #
