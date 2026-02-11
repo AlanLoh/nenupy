@@ -135,20 +135,20 @@ def apply_dreambeam_corrections(
     leftover_time_samples = time_size % time_group_size
 
     # Computing DreamBeam matrices
-    # db_time, db_frequency, db_jones = compute_jones_matrices(
-    #     start_time=Time(time_unix[0], format="unix", precision=7),
-    #     time_step=TimeDelta(time_group_size * dt_sec, format="sec"),
-    #     duration=TimeDelta(time_unix[-1] - time_unix[0], format="sec"),
-    #     skycoord=skycoord,
-    #     parallactic=parallactic,
-    # )
-    db_time, db_frequency, db_jones = compute_projection_corrections(
+    db_time, db_frequency, db_jones = compute_jones_matrices(
         start_time=Time(time_unix[0], format="unix", precision=7),
         time_step=TimeDelta(time_group_size * dt_sec, format="sec"),
         duration=TimeDelta(time_unix[-1] - time_unix[0], format="sec"),
         skycoord=skycoord,
         parallactic=parallactic,
     )
+    # db_time, db_frequency, db_jones = compute_projection_corrections(
+    #     start_time=Time(time_unix[0], format="unix", precision=7),
+    #     time_step=TimeDelta(time_group_size * dt_sec, format="sec"),
+    #     duration=TimeDelta(time_unix[-1] - time_unix[0], format="sec"),
+    #     skycoord=skycoord,
+    #     parallactic=parallactic,
+    # )
     db_time = db_time.unix
     db_frequency = db_frequency.to_value(u.Hz)
     db_jones = np.swapaxes(db_jones, 0, 1) # swap frequency and time axes

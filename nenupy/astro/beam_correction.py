@@ -57,7 +57,7 @@ def compute_jones_matrices(
             telescopename="NenuFAR",
             stnid="NenuFAR",
             band="LBA",
-            antmodel="Hamaker-NEC4_Charrier_v1r1",
+            antmodel="Hamaker-NEC4_Charrier_v1r2",
             obstimebeg=start_time.datetime,
             obsdur=duration.datetime,
             obstimestp=time_step.datetime,
@@ -123,7 +123,7 @@ def compute_projection_corrections(
             tscopename="NenuFAR",
             station="NenuFAR",
             band="LBA",
-            modelname="Hamaker-NEC4_Charrier_v1r1"
+            modelname="Hamaker-NEC4_Charrier_v1r2"
         )
         stnrot = stnfeed.stnRot
         freqs = stnfeed.getfreqs() # list
