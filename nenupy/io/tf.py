@@ -1152,22 +1152,11 @@ class Spectra:
             )
             bad_block_mask = None
 
+        # Compute the main data block descriptors (time / frequency / beam)
+
         self._block_start_unix = self._reconstruct_time(data, bad_block_mask)
 
-        # Compute the main data block descriptors (time / frequency / beam)
-        # log.info("Computing time-frequency axes...")
-        # subband_width_hz = SUBBAND_WIDTH.to_value(u.Hz)
-        # self._block_start_unix = (
-        #     data["TIMESTAMP"]
-        #     + data["BLOCKSEQNUMBER"] / subband_width_hz
-        # )
-        # # Reconstruct missing times
-        # self._block_start_unix[bad_block_mask] = np.interp(
-        #     np.where(bad_block_mask)[0],
-        #     np.arange(self._block_start_unix.size)[~bad_block_mask],
-        #     self._block_start_unix[~bad_block_mask]
-        # )
-
+        log.info("Computing frequzency axis...")
         self._subband_start_hz = (
             data["data"]["channel"][0, :] * SUBBAND_WIDTH.to_value(u.Hz)
         )  # Assumed constant over time
@@ -1700,7 +1689,7 @@ class Spectra:
 
         return bad_block_mask
 
-    def _reconstruct_time(self, data: np.ndarray, bad_block_mask: np.ndarray|None = None) -> np.ndarray:
+    def _reconstruct_time(self, data: np.ndarray, bad_block_mask: np.ndarray = None) -> np.ndarray:
         log.info("Computing time axis...")
         if bad_block_mask is not None:
             start_unix = data["TIMESTAMP"] + data["BLOCKSEQNUMBER"] / SUBBAND_WIDTH.to_value(u.Hz)
@@ -1712,11 +1701,11 @@ class Spectra:
             )
             return start_unix
         else:
-            n_timeblocks, _ = data["lane"].shape
+            n_timeblocks, _ = data["data"]["lane"].shape
             start = data[0]["TIMESTAMP"] + data[0]["BLOCKSEQNUMBER"] / SUBBAND_WIDTH.to_value(u.Hz)
-            return start + da.arange(n_timeblocks * self._n_time_per_block, dtype="float64") * self.dt
+            return start + da.arange(n_timeblocks, dtype="float64") * self._n_time_per_block * self.dt.to_value(u.s)
 
-    def _to_dask_tf(self, data: np.ndarray, mask: np.ndarray|None) -> da.Array:
+    def _to_dask_tf(self, data: np.ndarray, mask: np.ndarray) -> da.Array:
         """ """
         log.info("Re-organize data into Jones matrices...")
 
