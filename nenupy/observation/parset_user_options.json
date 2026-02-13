@@ -98,13 +98,13 @@
         },
         "nri_receivers": {
             "required": false,
-            "value": "[nickel]",
-            "syntax": "(?i)^\\[nickel\\]$"
+            "value": "false",
+            "syntax": "(?i)^(true)|(false)$"
         },
         "nri_bitMode": {
             "required": false,
             "value": "8",
-            "syntax": "^((8)|(16))$"
+            "syntax": "^((4)|(8)|(16))$"
         },
         "nri_subbandList": {
             "required": false,
@@ -126,7 +126,8 @@
         },
         "nri_dumpTime": {
             "required": false,
-            "value": "1"
+            "value": "1",
+            "syntax": "^((0.5)|(1)|(2)$"
         },
         "nri_correctbandPass": {
             "required": false,
@@ -304,12 +305,12 @@
         "ra": {
             "required": false,
             "value": "right_ascension",
-            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$'"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
         },
         "dec": {
             "required": false,
             "value": "declination",
-            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$'"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
         },
         "startHA": {
             "required": false,
@@ -419,12 +420,12 @@
         "ra": {
             "required": false,
             "value": "right_ascension",
-            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$'"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
         },
         "dec": {
             "required": false,
             "value": "declination",
-            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))$'"
+            "syntax": "^'(-|\\+)?((\\d+(\\.\\d*)?)|(\\d{2}:\\d{2}:\\d{2}(\\.\\d*)?))'$"
         },
         "startHA": {
             "required": false,

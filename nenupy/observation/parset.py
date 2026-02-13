@@ -28,6 +28,7 @@ from copy import deepcopy
 from typing import Tuple, Callable
 import re
 import json
+import ast
 from astropy.time import Time, TimeDelta
 from astropy.coordinates import SkyCoord, AltAz, ICRS, Angle
 import astropy.units as u
@@ -37,7 +38,7 @@ from typing import Union
 
 from nenupy import nenufar_position
 from nenupy.instru import sb2freq
-from nenupy.astro.target import SolarSystemTarget
+from nenupy.astro.target import SolarSystemTarget, FixedTarget
 from nenupy.observation import PARSET_OPTIONS
 # from nenupy.observation.sqldatabase import DuplicateParsetEntry, UserNameNotFound
 
@@ -117,6 +118,13 @@ class _ParsetProperty(MutableMapping):
             value = float(value) * u.deg
         
         elif "duration" in key.lower():
+            if isinstance(value, u.Quantity):
+                value = value.to_value(u.s)
+            elif isinstance(value, TimeDelta):
+                value = value.sec
+            elif isinstance(value, str):
+                if value.endswith("s"):
+                    value = value.rstrip("s")
             value = f"{value}s"
         
         elif value.isdigit():
@@ -791,9 +799,9 @@ class Parset(object):
             raise TypeError(
                 'parset must be a string.'
             )
-        if not p.endswith('.parset'):
+        if not (p.endswith('.parset') or p.endswith('.parset_user')):
             raise ValueError(
-                'parset file must end with .parset'
+                'parset file must end with .parset or .parset_user'
             )
         p = abspath(p)
         if not isfile(p):
@@ -1200,21 +1208,21 @@ class Parset(object):
                 elif line.startswith('Output'):
                     self.output[key] = value
                 
-                elif line.startswith('AnaBeam'):
+                elif line.lower().startswith('anabeam'):
                     anaIdx = int(re.search(r'\[(\d*)\]', dicoName).group(1))
                     if anaIdx not in self.anabeams.keys():
                         self.anabeams[anaIdx] = _ParsetProperty()
                         self.anabeams[anaIdx]['anaIdx'] = str(anaIdx)
                     self.anabeams[anaIdx][key] = value
                 
-                elif line.startswith('Beam'):
+                elif line.lower().startswith('beam'):
                     digiIdx = int(re.search(r'\[(\d*)\]', dicoName).group(1))
                     if digiIdx not in self.digibeams.keys():
                         self.digibeams[digiIdx] = _ParsetProperty()
                         self.digibeams[digiIdx]['digiIdx'] = str(digiIdx)
                     self.digibeams[digiIdx][key] = value
                 
-                elif line.startswith('PhaseCenter'):
+                elif line.lower().startswith('phasecenter'):
                     pcIdx = int(re.search(r'\[(\d*)\]', dicoName).group(1))
                     if pcIdx not in self.phase_centers.keys():
                         self.phase_centers[pcIdx] = _ParsetProperty()
@@ -1580,8 +1588,8 @@ class _ParsetBlock:
                     value = str(int(np.round(value.sec))) + "s"
                 
                 # The boolean values needs to be translated to strings
-                # elif isinstance(value, bool):
-                #     value = "true" if value else "false"
+                elif isinstance(value, bool):
+                    value = "true" if value else "false"
 
                 # The lists must be squeezed
                 elif isinstance(value, list):
@@ -1793,31 +1801,6 @@ class ParsetUser:
 
         .. rubric:: Attributes Summary
 
-        .. autosummary::
-
-            ~ParsetUser.analog_beam_fields
-            ~ParsetUser.numerical_beam_fields
-            ~ParsetUser.phase_center_fields
-            ~ParsetUser.observation_fields
-            ~ParsetUser.output_fields
-
-        .. rubric:: Methods Summary
-
-        .. autosummary::
-
-            ~ParsetUser.set_observation_config
-            ~ParsetUser.set_output_config
-            ~ParsetUser.add_analog_beam
-            ~ParsetUser.add_numerical_beam
-            ~ParsetUser.modify_analog_beam
-            ~ParsetUser.modify_numerical_beam
-            ~ParsetUser.remove_analog_beam
-            ~ParsetUser.remove_numerical_beam
-            ~ParsetUser.validate
-            ~ParsetUser.write
-
-        .. rubric:: Attributes and Methods Documentation
-
     """
 
     def __init__(self):
@@ -1904,7 +1887,7 @@ class ParsetUser:
 
 
     @classmethod
-    def replay_from_parset(cls, parset: Union[str, Parset], from_time: Time = Time.now(), same_lst: bool = False):
+    def replay_from_parset(cls, parset: Union[str, Parset], from_time: Time = Time.now(), duration: TimeDelta = None, same_lst: bool = False):
 
         # Initialize a Parset object if not provided
         if isinstance(parset, str):
@@ -1925,39 +1908,68 @@ class ParsetUser:
 
         def new_parameters(prop: _ParsetProperty, fields: list) -> dict:
             params = {key: prop[key] for key in prop.keys() if key in fields}
-            # Add coordinates information
-            if "ra" in fields:
-                from nenupy.astro.target import FixedTarget
-                sky_coord = SkyCoord(Angle(prop["angle1"]), Angle(prop["angle2"]))
-                target = FixedTarget(sky_coord)
-                ra_hms = sky_coord.ra.to_string(u.hourangle, sep=":", pad=True)
-                dec_dms = sky_coord.dec.to_string(u.degree, sep=":", pad=True)
-                params["ra"] = f"'{ra_hms}'"
-                params["dec"] = f"'{dec_dms}'"
-            # Modify time instances
-            try:
-                params["startTime"] += delta_time
-            except KeyError:
-                pass
-            try:
-                params["filterTime"] = [filter_time + delta_time for filter_time in params["filterTime"]]
-            except KeyError:
-                pass
-            # Add transit date
-            if "transitDate" in fields:
+            if "trackingType" in fields:
+                # Modify time instances
+                try:
+                    params["startTime"] += delta_time
+                except KeyError:
+                    pass
+                try:
+                    params["duration"] = params["duration"] if duration is None else duration
+                except KeyError:
+                    pass
+                try:
+                    # If analog beam
+                    params["filterTime"] = [filter_time + delta_time for filter_time in params["filterTime"]]
+                except KeyError:
+                    pass
+
+                # We are within a coordinates-type field
+                if prop.get("trackingType", None) is None:
+                    return params
+                elif prop["trackingType"] == "tracking":
+                    if prop.get("directionType", "J2000") == "J2000":
+                        try:
+                            sky_coord = SkyCoord(Angle(prop["angle1"]), Angle(prop["angle2"]))
+                        except KeyError:
+                            # 'angle1' and 'angle2' are only found in .parset files.
+                            # If the replay is from a parset_user, this may be different
+                            try:
+                                sky_coord = SkyCoord(Angle(prop["ra"]), Angle(prop["dec"]))
+                            except ValueError:
+                                # If angles are not decimal, try hms/dms
+                                sky_coord = SkyCoord(Angle(ast.literal_eval(prop["ra"]), unit=u.h), Angle(ast.literal_eval(prop["dec"]), unit=u.deg))
+                        target = FixedTarget(sky_coord)
+                        ra_hms = sky_coord.ra.to_string(u.hourangle, sep=":", pad=True)
+                        dec_dms = sky_coord.dec.to_string(u.degree, sep=":", pad=True)
+                        params["ra"] = f"'{ra_hms}'"
+                        params["dec"] = f"'{dec_dms}'"
+                    else:
+                        target = SolarSystemTarget.from_name(prop["directionType"], time=params["startTime"])
+                elif prop["trackingType"] == "pointingto":
+                    raise NotImplementedError(f"trackingType {prop['trackingType']} not implemented.")
+                else:
+                    raise NotImplementedError(f"trackingType {prop['trackingType']} not implemented.")
+            
+                # Add transit date
                 prev_transit = target.next_meridian_transit(params["startTime"])
                 next_transit = target.next_meridian_transit(params["startTime"])
                 transit = prev_transit if np.abs((prev_transit - params["startTime"]).sec) < np.abs((next_transit - params["startTime"]).sec) else next_transit
                 transit.precision = 0
                 params["transitDate"] = transit
+
             # Remove "seti" and "codalema"
             try:
                 receivers = params["hd_receivers"].copy()
-                receivers.remove("seti")
-                receivers.remove("codalema")
+                for rec in ["seti", "codalema"]:
+                    try:
+                        receivers.remove(rec)
+                    except ValueError:
+                        pass
                 params["hd_receivers"] = receivers
             except KeyError:
                 pass
+
             return params
 
         # Set up the Observation configuration part
@@ -1969,13 +1981,13 @@ class ParsetUser:
 
         for digital_beam in parset.digibeams.values():
             new_parset.add_numerical_beam(
-                anabeam_index=digital_beam["noBeam"],
+                anabeam_index=digital_beam.get("noBeam", 0),
                 **new_parameters(digital_beam, new_parset.numerical_beam_fields)
             )
 
         for phase_center in parset.phase_centers.values():
             new_parset.add_phase_center(
-                anabeam_index=phase_center["noBeam"],
+                anabeam_index=phase_center.get("noBeam", 0),
                 **new_parameters(phase_center, new_parset.phase_center_fields)
             )
 
