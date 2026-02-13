@@ -187,7 +187,11 @@ def apply_dreambeam_corrections(
     # Invert the matrices that will be used to correct the observed signals
     # Jones matrices are at the subband resolution and an arbitrary time resolution
     jones = np.linalg.inv(jones)
-    jones_leftover = np.linalg.inv(jones_leftover)
+    try:
+        jones_leftover = np.linalg.inv(jones_leftover)
+    except:
+        log.warning("Set leftover dreambeam matrix to identity.")
+        jones_leftover[...] = np.broadcast_to(np.identity(2)[None, None, None, ...], jones_leftover.shape)
 
     # Compute the Hermitian matrices
     jones_transpose = np.swapaxes(jones, -2, -1)

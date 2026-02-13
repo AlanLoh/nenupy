@@ -1140,33 +1140,36 @@ class Spectra:
         self.df = None
         data = self._lazy_load_data()
 
-        # Compute the boolean mask of bad blocks
-        bad_block_mask = self._get_bad_data_mask(
-            data, bypass_verification=not check_missing_data
-        )
+        if check_missing_data:
+            # Compute the boolean mask of bad blocks
+            bad_block_mask = self._get_bad_data_mask(data)
+            # self._missing_data_time_indices = np.where(bad_block_mask)[0]
+        else:
+            log.warning(
+                "No check on missing data. "
+                "There may be some time inconsistencies. "
+                "To ensure best results, although with a longer loading time, please use `check_missing_data=True` while reading Spectra."
+            )
+            bad_block_mask = None
 
-        self._missing_data_time_indices = np.where(bad_block_mask)[0]
+        self._block_start_unix = self._reconstruct_time(data, bad_block_mask)
 
         # Compute the main data block descriptors (time / frequency / beam)
-        log.info("Computing time-frequency axes...")
-        subband_width_hz = SUBBAND_WIDTH.to_value(u.Hz)
+        # log.info("Computing time-frequency axes...")
+        # subband_width_hz = SUBBAND_WIDTH.to_value(u.Hz)
         # self._block_start_unix = (
-        #     data["TIMESTAMP"][~bad_block_mask]
-        #     + data["BLOCKSEQNUMBER"][~bad_block_mask] / subband_width_hz
+        #     data["TIMESTAMP"]
+        #     + data["BLOCKSEQNUMBER"] / subband_width_hz
         # )
-        self._block_start_unix = (
-            data["TIMESTAMP"]
-            + data["BLOCKSEQNUMBER"] / subband_width_hz
-        )
-        # Reconstruct missing times
-        self._block_start_unix[bad_block_mask] = np.interp(
-            np.where(bad_block_mask)[0],
-            np.arange(self._block_start_unix.size)[~bad_block_mask],
-            self._block_start_unix[~bad_block_mask]
-        )
+        # # Reconstruct missing times
+        # self._block_start_unix[bad_block_mask] = np.interp(
+        #     np.where(bad_block_mask)[0],
+        #     np.arange(self._block_start_unix.size)[~bad_block_mask],
+        #     self._block_start_unix[~bad_block_mask]
+        # )
 
         self._subband_start_hz = (
-            data["data"]["channel"][0, :] * subband_width_hz
+            data["data"]["channel"][0, :] * SUBBAND_WIDTH.to_value(u.Hz)
         )  # Assumed constant over time
         self._beam_indices_dict = utils.sort_beam_edges(
             beam_array=data["data"]["beam"][0],  # Asummed same for all time step
@@ -1175,6 +1178,7 @@ class Spectra:
 
         # Transform the data in Dask Array, once correctly reshaped
         self.data = self._to_dask_tf(data=data, mask=bad_block_mask)
+    
 
         self.pipeline = TFPipeline(self)
         self.pipeline.set_default()
@@ -1671,15 +1675,8 @@ class Spectra:
         return tmp.view(np.dtype(global_struct))
 
     @staticmethod
-    def _get_bad_data_mask(
-        data: np.ndarray, bypass_verification: bool = False
-    ) -> np.ndarray:
+    def _get_bad_data_mask(data: np.ndarray) -> np.ndarray:
         """ """
-
-        if bypass_verification:
-            log.info("Skipping missing data verification...")
-            return np.zeros(data.size, dtype=bool)
-
         log.info("Checking for missing data (can take up to 1 min)...")
 
         # Either the TIMESTAMP is set to 0, the first idx, or the SB number is negative
@@ -1703,7 +1700,23 @@ class Spectra:
 
         return bad_block_mask
 
-    def _to_dask_tf(self, data: np.ndarray, mask: np.ndarray) -> da.Array:
+    def _reconstruct_time(self, data: np.ndarray, bad_block_mask: np.ndarray|None = None) -> np.ndarray:
+        log.info("Computing time axis...")
+        if bad_block_mask is not None:
+            start_unix = data["TIMESTAMP"] + data["BLOCKSEQNUMBER"] / SUBBAND_WIDTH.to_value(u.Hz)
+            # Reconstruct missing times
+            start_unix[bad_block_mask] = np.interp(
+                np.where(bad_block_mask)[0],
+                np.arange(start_unix.size)[~bad_block_mask],
+                start_unix[~bad_block_mask]
+            )
+            return start_unix
+        else:
+            n_timeblocks, _ = data["lane"].shape
+            start = data[0]["TIMESTAMP"] + data[0]["BLOCKSEQNUMBER"] / SUBBAND_WIDTH.to_value(u.Hz)
+            return start + da.arange(n_timeblocks * self._n_time_per_block, dtype="float64") * self.dt
+
+    def _to_dask_tf(self, data: np.ndarray, mask: np.ndarray|None) -> da.Array:
         """ """
         log.info("Re-organize data into Jones matrices...")
 
@@ -1715,7 +1728,11 @@ class Spectra:
         data = da.from_array(data, chunks=(chunck_size,)) # it was (1,)
 
         # Filter out the bad blocks
-        if np.all(~ mask):
+        if mask is None:
+            # chek_missing_data was set to False
+            pass
+        elif np.all(~ mask):
+            # if some values need to be flagged
             log.info("\tSet bad values to NaN.")
             data["data"]["fft0"][mask] = np.nan
             data["data"]["fft1"][mask] = np.nan
