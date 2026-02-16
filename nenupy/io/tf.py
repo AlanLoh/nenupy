@@ -310,6 +310,50 @@ class TFTask:
         """:class:`~nenupy.io.tf.TFTask` calling :func:`~nenupy.io.tf_utils.apply_dreambeam_corrections`.
         This allows for beam correction (including leakage and parallactic angle correction).
 
+        Example
+        -------
+        .. code-block:: python
+            :emphasize-lines: 13,26,27,28
+
+            >>> from nenupy.io.tf import Spectra, TFTask, TFPipeline
+            >>> from astropy.coordinates import SkyCoord
+            >>> import astropy.units as u
+
+            >>> sp = Spectra("/my/solar_observation.spectra")
+            >>> selection_tmin = sp.time_min
+            >>> selection_tmax = sp.time_max
+            >>> selection_fmin = 50 * u.MHz
+            >>> selection_fmax = 50.2 * u.MHz
+            >>> rebin_df = 1 * u.MHz
+            >>> rebin_dt = 60 * u.s
+            >>> mean_time = selected_time_min + (selected_time_max - selected_time_min) / 2
+            >>> sun = SolarSystemTarget.from_name("Sun", mean_time).coordinates
+
+            >>> sp.pipeline.insert(TFTask.correct_polarization(), 1)
+            >>> data_i_corr = sp.get(
+                    tmin=selection_tmin,
+                    tmax=selection_tmax,
+                    fmin=selection_fmin,
+                    fmax=selection_fmax,
+                    beam=0,
+                    stokes="I",
+                    remove_channels=[0, 1, -1],
+                    rebin_dt=rebin_dt,
+                    rebin_df=rebin_df,
+                    calib_dt= 20 * u.s,
+                    skycoord=sun,
+                    dreambeam_parallactic=True
+                )
+
+        .. figure:: ../_images/io_images/tf_correct_polar.png
+            :width: 650
+            :align: center
+
+        In this above example, the solar observation lasts for almost seven hours.
+        During the tracking of the Sun, a variety of NenuFAR antenna gains are then explored.
+        Since the dipoles are less sensitive near the horizon, the blue curve shows a bell-like pattern with minima at the time boundaries (when the Sun is at its lowest elevations) and a maximum during the culmination.
+        The corrected data, in orange, are flatter, indicative of the beam correction.
+
         Warning
         -------
         This task must be computed early in the pipeline process as it involves full Jones operations.

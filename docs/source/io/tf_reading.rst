@@ -45,6 +45,18 @@ the possibility to read and analyze these observation files:
     >>> from nenupy.io import Spectra
     >>> sp = Spectra(filename="my_file_0.spectra")
 
+.. note::
+
+    By default, a check on missing data is applied.
+    This ensures that, later on, correct time information is displayed and data is properly flagged in the rare occasions where time blocks may be missing.
+    However, this procedure requires a data scan which, albeit shallow, takes time and scales with data size.
+    To avoid this time consuming check, the user may set the option ``check_missing_data=False``.
+    We recommend to keep the check to ``True`` for any case other than quick data inspection.
+
+    .. code-block:: python
+
+        >>> sp = Spectra(filename="my_file_0.spectra", check_missing_data=False)
+
 Once a *DynSpec* file is 'lazy'-read/loaded (i.e., without
 being directly stored in memory), and before applying any processing,
 it might be handy to check the data properties.
@@ -98,8 +110,16 @@ which can be displayed using :meth:`~nenupy.io.tf.TFPipeline.info`:
     do anything to the data. For instance, no channels to be flagged are listed,
     or no time/frequency rebin values have been specified.
 
+The default pipeline configuration (that can be reset to this state by calling :meth:`~nenupy.io.tf_utils.TFPipelineParameters.set_default`) consists in the following :class:`~nenupy.io.tf.TFTask`:
+
+* Bandpass correction (:meth:`~nenupy.io.tf.TFTask.correct_bandpass`)
+* Remove channels at the subband edges (:meth:`~nenupy.io.tf.TFTask.remove_channels`)
+* Rebin the data in time (:meth:`~nenupy.io.tf.TFTask.time_rebin`)
+* Rebin the data in frequency (:meth:`~nenupy.io.tf.TFTask.frequency_rebin`)
+* Convert the data to Stokes parameters (:meth:`~nenupy.io.tf.TFTask.get_stokes`)
+
 .. seealso::
-    :class:`~nenupy.io.tf.TFTask` lists all the pre-defined tasks available.
+    :class:`~nenupy.io.tf.TFTask` lists all the pre-defined tasks available and :ref:`special_tasks` for more explanations on more advanced tasks.
 
 The pipeline tasks are using the parameters listed in the 
 :attr:`~nenupy.io.tf.TFPipeline.parameters` attribute (returning a 
@@ -198,6 +218,44 @@ methods:
     after the rebinning in frequency. It would even result in an error since the
     data shape would not match what the channel removal task is expecting.
 
+.. _special_tasks:
+
+Special pipeline tasks
+^^^^^^^^^^^^^^^^^^^^^^
+
+The :class:`~nenupy.io.tf.TFTask` :meth:`~nenupy.io.tf.TFTask.correct_polarization` is a powerful task that requires to be applied on :math:`X` and :math:`Y` components matrices (i.e., before converting the data to Stokes parameters for instance).
+It aims at correcting the data for beam effects such as gain variation, projection and parallactic angle evolution accross source tracking.
+To enable these corrections, the external module `DreamBeam <https://github.com/2baOrNot2ba/dreamBeam>`_ is required (it is not installed by default by :mod:`nenupy` as it relies on specialized softwares that are more platform dependent).
+NenuFAR antenna beam pattern is implemented in `DreamBeam` and one can generate Jones matrices at various times and frequencies for a given observation (see also :func:`~nenupy.astro.beam_correction.compute_jones_matrices` for a direct access to these Jones matrices).
+
+The following example demonstrates a typical setting for this task, assuming `DreamBeam` is properly installed.
+The task :meth:`~nenupy.io.tf.TFTask.correct_polarization` is inserted in the pipeline just after the bandpass correction and before doing anything else.
+The task parameters specify that Jones matrices will be generated and applied to the data every ``calib_dt`` for the celestial coordinates ``skycoord`` (here, at the mean position of the Sun during the time selection) and that the ``dreambeam_parallactic`` angle should be de-rotated:
+
+.. code-block:: python
+    :emphasize-lines: 6,17,18,19
+
+    >>> from nenupy.io.tf import TFTask
+    >>> from nenupy.astro.target import SolarSystemTarget
+    >>> import astropy.units as u
+
+    >>> sp.pipeline.set_default()
+    >>> sp.pipeline.insert(TFTask.correct_polarization(), 1)
+
+    >>> mean_time = selected_time_min + (selected_time_max - selected_time_min) / 2
+    >>> sun = SolarSystemTarget.from_name("Sun", mean_time).coordinates
+
+    >>> data_i_corr = sp.get(
+            tmin=selected_time_min,
+            tmax=selected_time_max,
+            fmin=selected_frequency_min,
+            fmax=selected_frequency_max,
+            stokes="I",
+            calib_dt=10 * u.s,
+            skycoord=sun,
+            dreambeam_parallactic=True
+        )
+
 .. _custom_task_doc:
 
 Adding custom steps
@@ -260,6 +318,7 @@ after the method resolution:
     This property can easily be updated directly by the :meth:`~nenupy.io.tf.Spectra.get` method:
 
     .. code-block:: python
+        :emphasize-lines: 3
 
         >>> sp.get(
                 tmin="2023-05-27T08:40:00", tmax="2023-05-27T18:00:00",

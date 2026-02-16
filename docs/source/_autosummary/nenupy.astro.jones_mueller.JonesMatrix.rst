@@ -44,18 +44,15 @@
       ~JonesMatrix.getfield
       ~JonesMatrix.half_waveplate_retarder
       ~JonesMatrix.item
-      ~JonesMatrix.itemset
       ~JonesMatrix.left_circular
       ~JonesMatrix.linear
       ~JonesMatrix.linear_retarder
       ~JonesMatrix.max
       ~JonesMatrix.mean
       ~JonesMatrix.min
-      ~JonesMatrix.newbyteorder
       ~JonesMatrix.nonzero
       ~JonesMatrix.partition
       ~JonesMatrix.prod
-      ~JonesMatrix.ptp
       ~JonesMatrix.put
       ~JonesMatrix.quarter_waveplate_retarder
       ~JonesMatrix.ravel
@@ -73,6 +70,7 @@
       ~JonesMatrix.sum
       ~JonesMatrix.swapaxes
       ~JonesMatrix.take
+      ~JonesMatrix.to_device
       ~JonesMatrix.to_mueller
       ~JonesMatrix.tobytes
       ~JonesMatrix.tofile
@@ -95,13 +93,18 @@
       ~JonesMatrix.base
       ~JonesMatrix.ctypes
       ~JonesMatrix.data
+      ~JonesMatrix.device
       ~JonesMatrix.dtype
       ~JonesMatrix.flags
       ~JonesMatrix.flat
       ~JonesMatrix.imag
+      ~JonesMatrix.itemset
       ~JonesMatrix.itemsize
+      ~JonesMatrix.mT
       ~JonesMatrix.nbytes
       ~JonesMatrix.ndim
+      ~JonesMatrix.newbyteorder
+      ~JonesMatrix.ptp
       ~JonesMatrix.real
       ~JonesMatrix.shape
       ~JonesMatrix.size

@@ -77,42 +77,55 @@ def apply_dreambeam_corrections(
     skycoord: SkyCoord,
     parallactic: bool = True,
 ) -> np.ndarray:
-    """Correct for polarization systematics.
+    r"""
+    Correct for polarization systematics using DreamBeam.
+    The module `DreamBeam <https://github.com/2baOrNot2ba/dreamBeam>`_ is required for this function.
+    It generates the Jones matrices :math:`\mathbf{J}` affecting the light received by NenuFAR's :math:`X` and :math:`Y` dipoles, taking into account projection, parallactic angle and beam effects.
 
+    .. math::
+
+        \mathbf{d}_{\rm corr}(t, \nu) = 
+        \mathbf{J}(t, \nu)
+        \begin{pmatrix}
+            X(t, \nu)\overline{X}(t, \nu) & X(t, \nu)\overline{Y}(t, \nu)\\
+            Y(t, \nu)\overline{X}(t, \nu) & Y(t, \nu)\overline{Y}(t, \nu)
+        \end{pmatrix}
+        \overline{\mathbf{J}^\top}(t, \nu)
+    
     Parameters
     ----------
-    time_unix : np.ndarray
-        _description_
-    frequency_hz : np.ndarray
-        _description_
-    data : np.ndarray
-        _description_
-    dt_sec : float
-        _description_
-    time_step_sec : float
-        _description_
-    n_channels : int
-        _description_
-    skycoord : SkyCoord
-        _description_
-    parallactic : bool, optional
-        _description_, by default True
+    time_unix : :class:`~numpy.ndarray`
+        Time axis of size :math:`n_t` corresponding to the first dimension of ``data`` in unix format.
+    frequency_hz : :class:`~numpy.ndarray`
+        Frequency axis of size :math:`n_{\nu}` corresponding to the second dimension of ``data`` in Hz.
+    data : :class:`~numpy.ndarray`
+        Data to be corrected, shaped as :math:`(n_t, n_{\nu}, 2, 2)`, where the two by two matrices are :math:`((X\overline{X}\ X\overline{Y}), (Y\overline{X}\ Y\overline{Y}))`.
+    dt_sec : `float`
+        Time resolution of the ``data`` in seconds.
+    time_step_sec : `float`
+        Time resolution at which the Jones matrices are computed. Unless required, it is typiclaly sufficient to request a solution every few seconds.
+    n_channels : `int`
+        Number of channnels per subband. It is expected that :math:`n_{\nu} = n_c \times n_{\rm sb}`.
+    skycoord : :class:`~astropy.coordinates.SkyCoord`
+        Sky coordinates of the target tracked during the observation.
+    parallactic : `bool`, optional
+        If set to ``True``, the Jones matrices take into account parallactic angle rotation effects (see for example :func:`~nenupy.io.tf_utils.correct_parallactic`), by default `True`
 
     Returns
     -------
-    np.ndarray
-        _description_
+    :class:`~numpy.ndarray`
+        The corrected data :math:`\mathbf{d}_{\rm corr}(t, \nu)` shaped as as :math:`(n_t, n_{\nu}, 2, 2)`.
 
     Raises
     ------
     ValueError
-        _description_
-    ValueError
-        _description_
-    
-    Warning
-    -------
-    Do not use yet, still in development.
+        If ``time_unix`` and/or ``frequency_hz`` do not match first and second dimensions of ``data``.
+        Or if ``frequency_hz``'s size is not divisible by ``n_channels``.
+
+    See Also
+    --------
+    :func:`~nenupy.astro.beam_correction.compute_jones_matrices`, :meth:`~nenupy.io.tf.TFTask.correct_polarization`
+
     """
 
     log.info("Applying DreamBeam corrections...")
