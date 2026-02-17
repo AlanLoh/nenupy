@@ -1018,6 +1018,47 @@ class NightTimeCnst(Constraint):
 # ============================================================= #
 # ============================================================= #
 
+# ============================================================= #
+# --------------------- SunProximityCnst ---------------------- #
+# ============================================================= #
+# class SunProximityCnst(Constraint):
+
+
+#     def __init__(self, min_angular_sep=0., max_angular_sep=360, weight=1):
+#         super().__init__(weight=weight)
+#         self.min_angular_sep = min_angular_sep
+#         self.max_angular_sep = max_angular_sep
+
+
+#     # --------------------------------------------------------- #
+#     # ------------------------ Methods ------------------------ #
+#     def get_score(self, indices):
+#         """ """
+#         return np.mean(
+#             np.where(
+#                 self.score[indices]>0.,
+#                 1,
+#                 0
+#             )
+#         )
+
+
+#     # --------------------------------------------------------- #
+#     # ----------------------- Internal ------------------------ #
+#     def _evaluate(self, target, sun):
+#         """
+#         """
+#         separation = target._fk5.separation(sun._fk5).deg
+
+#         proximity_mask = (separation >= self.min_angular_sep) * (separation <= self.max_angular_sep)
+
+#         score = proximity_mask[:-1].astype(float)
+#         self.score = np.where(score==0, np.nan, score)
+
+#         return self.score
+# ============================================================= #
+# ============================================================= #
+
 
 # ============================================================= #
 # ----------------------- PeriodicCnst ------------------------ #
@@ -1134,12 +1175,14 @@ class SolarProximityCnst(Constraint):
             closer: bool = False,
             min_separation_deg: float = None,
             max_separation_deg: float = None,
+            scale: bool = True,
             weight: float = 1
         ):
         super().__init__(weight=weight)
         self.closer = closer
         self.min_separation_deg = min_separation_deg
         self.max_separation_deg = max_separation_deg
+        self.scale = scale
     
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -1162,7 +1205,7 @@ class SolarProximityCnst(Constraint):
 
         # Set to NaN intervals where the separation is outside requested values
         if not (self.min_separation_deg is None):
-            separation[separation < self.min_separation_deg] = np.nan
+            separation[separation <= self.min_separation_deg] = np.nan
         if not (self.max_separation_deg is None):
             separation[separation > self.max_separation_deg] = np.nan
 
@@ -1172,10 +1215,11 @@ class SolarProximityCnst(Constraint):
                 f"{self.min_separation_deg}, max_separation_deg={self.max_separation_deg})> "
                 "cannot be satisfied over the given time range."
             )
-            self.score = separation[1:] * np.nan
+            # self.score = separation[1:] * np.nan
+            self.score = separation * np.nan
 
         else:
-            sep_min = np.nanmin(separation)
+            # sep_min = np.nanmin(separation)
             sep_max = np.nanmax(separation)
             # farther_normalized_score = (separation - sep_min) / (sep_max - sep_min)
             # if self.closer:
@@ -1188,7 +1232,11 @@ class SolarProximityCnst(Constraint):
             else:
                 self.score = separation / sep_max
 
-        return self.score
+        if not self.scale:
+            self.score = np.where(self.score > 0, 1, self.score)
+            return self.score
+        else:
+            return self.score
 # ============================================================= #
 # ============================================================= #
 

@@ -98,7 +98,7 @@ class SourceInLobes:
             fig = plt.figure(figsize=kwargs.get("figsize", (10, 6)))
         ax = kwargs.get("ax", None)
         if ax is None:
-            fig.add_subplot()
+            ax = fig.add_subplot()
 
         roll_index = 0
         if time_unit == "utc":
