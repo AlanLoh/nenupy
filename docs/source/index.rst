@@ -75,6 +75,7 @@ Finally, observations can then be simulated using the simulated beam and a sky m
    :caption: Astronomy
    :maxdepth: 1
 
+   astro/src_vis
    astro/target
    astro/sky
    astro/skymodel
