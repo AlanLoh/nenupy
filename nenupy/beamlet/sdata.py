@@ -590,31 +590,30 @@ class SData(object):
             # Fill up the input ax with the plot
             pass
 
-        if len(dynspec.shape) == 1:
-            if dynspec.size == self.datetime.size:
-                ax.plot(
-                    self.datetime,
-                    dynspec
-                )
-                if 'altaza' in kwargs.keys():
-                    ptimes = kwargs['altaza'].pointingTimes
-                    for ptime in ptimes:
-                        if (ptime < self.datetime[0]) or (ptime > self.datetime[-1]):
-                            continue
-                        ax.axvline(ptime.datetime, linestyle='-.', color='black')
-                ax.ylim((kwargs.get('vmin', None), kwargs.get('vmax', None)))
-                ax.set_xlabel(
-                    f'Time (UTC from {self.time[0].isot})'
-                )
-                ax.set_ylabel(kwargs['cblabel'])
-            elif dynspec.size == self.freq.size:
-                ax.plot(
-                    self.freq.to(u.MHz).value,
-                    dynspec
-                )
-                ax.set_ylim((kwargs.get('vmin', None), kwargs.get('vmax', None)))
-                ax.set_xlabel('Frequency (MHz)')
-                ax.set_ylabel(kwargs['cblabel'])
+        if dynspec.size == self.datetime.size:
+            ax.plot(
+                self.datetime,
+                dynspec
+            )
+            if 'altaza' in kwargs.keys():
+                ptimes = kwargs['altaza'].pointingTimes
+                for ptime in ptimes:
+                    if (ptime < self.datetime[0]) or (ptime > self.datetime[-1]):
+                        continue
+                    ax.axvline(ptime.datetime, linestyle='-.', color='black')
+            ax.ylim((kwargs.get('vmin', None), kwargs.get('vmax', None)))
+            ax.set_xlabel(
+                f'Time (UTC from {self.time[0].isot})'
+            )
+            ax.set_ylabel(kwargs['cblabel'])
+        elif dynspec.size == self.freq.size:
+            ax.plot(
+                self.freq.to(u.MHz).value,
+                dynspec
+            )
+            ax.set_ylim((kwargs.get('vmin', None), kwargs.get('vmax', None)))
+            ax.set_xlabel('Frequency (MHz)')
+            ax.set_ylabel(kwargs['cblabel'])
         else:
             if 'vmin' not in kwargs.keys():
                 kwargs['vmin'] = np.nanpercentile(dynspec, 5)

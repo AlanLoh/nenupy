@@ -10,6 +10,7 @@
 
 import numpy as np
 import dask.array as da
+import dask
 from dask.diagnostics import ProgressBar
 import astropy.units as u
 from astropy.time import Time
@@ -1143,7 +1144,8 @@ class TFPipeline:
         """
         for task in self.tasks:
             task.update(self.parameters)
-            time_unix, frequency_hz, data = task(time_unix, frequency_hz, data)
+            with dask.config.set({"array.slicing.split_large_chunks": False}):
+                time_unix, frequency_hz, data = task(time_unix, frequency_hz, data)
         return time_unix, frequency_hz, data
 
 
