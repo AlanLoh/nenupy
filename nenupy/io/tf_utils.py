@@ -146,6 +146,14 @@ def apply_dreambeam_corrections(
     )
     n_time_groups = time_size // time_group_size
     leftover_time_samples = time_size % time_group_size
+    if n_time_groups == 0:
+        log.warning(
+            f"The selected time interval for Jones solutions ({time_step_sec}) is greater than the selected time window ({Time(time_unix[0], format='unix').isot} to {Time(time_unix[-1], format='unix').isot}). "
+            "A single solution will be applied."
+        )
+        n_time_groups = 1
+        time_group_size = time_size
+        leftover_time_samples = 0
 
     # Computing DreamBeam matrices
     db_time, db_frequency, db_jones = compute_jones_matrices(
@@ -168,9 +176,10 @@ def apply_dreambeam_corrections(
 
     # Reshape the data at the time and frequency resolutions
     # Take into account leftover times
-    data_leftover = data[-leftover_time_samples:, ...].reshape(
-        (leftover_time_samples, n_subbands, n_channels, 2, 2)
-    )
+    if leftover_time_samples != 0:
+        data_leftover = data[-leftover_time_samples:, ...].reshape(
+            (leftover_time_samples, n_subbands, n_channels, 2, 2)
+        )
     data = data[: time_size - leftover_time_samples, ...].reshape(
         (n_time_groups, time_group_size, n_subbands, n_channels, 2, 2)
     )
@@ -193,37 +202,47 @@ def apply_dreambeam_corrections(
     jones = db_jones[
         time_start_idx : time_stop_idx + 1, freq_start_idx : freq_stop_idx + 1, :, :
     ][:, None, :, None, :, :]
-    jones_leftover = db_jones[-1, freq_start_idx : freq_stop_idx + 1, :, :][
-        None, :, None, :, :
-    ]
+    if leftover_time_samples != 0:
+        jones_leftover = db_jones[-1, freq_start_idx : freq_stop_idx + 1, :, :][
+            None, :, None, :, :
+        ]
 
     # Invert the matrices that will be used to correct the observed signals
     # Jones matrices are at the subband resolution and an arbitrary time resolution
     jones = np.linalg.inv(jones)
-    try:
-        jones_leftover = np.linalg.inv(jones_leftover)
-    except:
-        log.warning("Set leftover dreambeam matrix to identity.")
-        jones_leftover[...] = np.broadcast_to(np.identity(2)[None, None, None, ...], jones_leftover.shape)
+    if leftover_time_samples != 0:
+        try:
+            jones_leftover = np.linalg.inv(jones_leftover)
+        except:
+            log.warning("Set leftover dreambeam matrix to identity.")
+            jones_leftover[...] = np.broadcast_to(np.identity(2)[None, None, None, ...], jones_leftover.shape)
 
     # Compute the Hermitian matrices
     jones_transpose = np.swapaxes(jones, -2, -1)
-    jones_leftover_transpose = np.swapaxes(jones_leftover, -2, -1)
     jones_hermitian = np.conjugate(jones_transpose)
-    jones_leftover_hermitian = np.conjugate(jones_leftover_transpose)
+    if leftover_time_samples != 0:
+        jones_leftover_transpose = np.swapaxes(jones_leftover, -2, -1)
+        jones_leftover_hermitian = np.conjugate(jones_leftover_transpose)
 
     # This would raise an indexerror if jones_values are at smaller t/f range than data
-    return np.concatenate(
-        (
-            np.matmul(jones, np.matmul(data, jones_hermitian)).reshape(
-                (time_size - leftover_time_samples, freq_size, 2, 2)
+    if leftover_time_samples != 0:
+        return np.concatenate(
+            (
+                np.matmul(jones, np.matmul(data, jones_hermitian)).reshape(
+                    (time_size - leftover_time_samples, freq_size, 2, 2)
+                ),
+                np.matmul(
+                    jones_leftover, np.matmul(data_leftover, jones_leftover_hermitian)
+                ).reshape((leftover_time_samples, freq_size, 2, 2)),
             ),
-            np.matmul(
-                jones_leftover, np.matmul(data_leftover, jones_leftover_hermitian)
-            ).reshape((leftover_time_samples, freq_size, 2, 2)),
-        ),
-        axis=0,
-    )
+            axis=0,
+        )
+    else:
+        return np.matmul(
+            jones, np.matmul(data, jones_hermitian)
+        ).reshape(
+            (time_size - leftover_time_samples, freq_size, 2, 2)
+        )
 
 
 # ============================================================= #
@@ -635,6 +654,14 @@ def correct_parallactic(
     )
     n_time_groups = time_size // time_group_size
     leftover_time_samples = time_size % time_group_size
+    if n_time_groups == 0:
+        log.warning(
+            f"The selected time interval for Jones solutions ({time_step_sec}) is greater than the selected time window ({Time(time_unix[0], format='unix').isot} to {Time(time_unix[-1], format='unix').isot}). "
+            "A single solution will be applied."
+        )
+        n_time_groups = 1
+        time_group_size = time_size
+        leftover_time_samples = 0
 
     # Build the time array for the Jones solutions
     start_time = Time(time_unix[0], format="unix", precision=7)
@@ -643,9 +670,10 @@ def correct_parallactic(
 
     # Reshape the data at the time and frequency resolutions
     # Take into account leftover times
-    data_leftover = data[-leftover_time_samples:, ...].reshape(
-        (leftover_time_samples, n_subbands, n_channels, 2, 2)
-    )
+    if leftover_time_samples != 0:
+        data_leftover = data[-leftover_time_samples:, ...].reshape(
+            (leftover_time_samples, n_subbands, n_channels, 2, 2)
+        )
     data = data[: time_size - leftover_time_samples, ...].reshape(
         (n_time_groups, time_group_size, n_subbands, n_channels, 2, 2)
     )
@@ -674,21 +702,29 @@ def correct_parallactic(
 
     # Compute the Hermitian matrices
     jones_transpose = np.swapaxes(jones, -2, -1)
-    jones_leftover_transpose = np.swapaxes(jones_leftover, -2, -1)
     jones_hermitian = np.conjugate(jones_transpose)
-    jones_leftover_hermitian = np.conjugate(jones_leftover_transpose)
+    if leftover_time_samples != 0:
+        jones_leftover_transpose = np.swapaxes(jones_leftover, -2, -1)
+        jones_leftover_hermitian = np.conjugate(jones_leftover_transpose)
 
-    return np.concatenate(
-        (
-            np.matmul(jones, np.matmul(data, jones_hermitian)).reshape(
-                (time_size - leftover_time_samples, freq_size, 2, 2)
+    if leftover_time_samples != 0:
+        return np.concatenate(
+            (
+                np.matmul(jones, np.matmul(data, jones_hermitian)).reshape(
+                    (time_size - leftover_time_samples, freq_size, 2, 2)
+                ),
+                np.matmul(
+                    jones_leftover, np.matmul(data_leftover, jones_leftover_hermitian)
+                ).reshape((leftover_time_samples, freq_size, 2, 2)),
             ),
-            np.matmul(
-                jones_leftover, np.matmul(data_leftover, jones_leftover_hermitian)
-            ).reshape((leftover_time_samples, freq_size, 2, 2)),
-        ),
-        axis=0
-    )
+            axis=0
+        )
+    else:
+        return np.matmul(
+            jones, np.matmul(data, jones_hermitian)
+        ).reshape(
+            (time_size - leftover_time_samples, freq_size, 2, 2)
+        )
 
 
 # ============================================================= #
