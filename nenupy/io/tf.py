@@ -1758,6 +1758,7 @@ class Spectra:
         block_size = self.n_subbands * self.n_channels * self._n_time_per_block
         block_volume = np.dtype(np.complex64).itemsize * block_size * u.byte
         chunck_size = int(60 // block_volume.to_value(u.Mibyte)) # we want the chunk size to be close to 60MB
+        if chunck_size == 0: chunck_size=1 # in case the block volume already exceeds 60 MB
         data = da.from_array(data, chunks=(chunck_size,)) # it was (1,)
 
         # Filter out the bad blocks
