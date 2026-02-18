@@ -590,6 +590,8 @@ class SData(object):
             # Fill up the input ax with the plot
             pass
 
+        time_xaxis = True
+
         if dynspec.size == self.datetime.size:
             ax.plot(
                 self.datetime,
@@ -614,6 +616,7 @@ class SData(object):
             ax.set_ylim((kwargs.get('vmin', None), kwargs.get('vmax', None)))
             ax.set_xlabel('Frequency (MHz)')
             ax.set_ylabel(kwargs['cblabel'])
+            time_xaxis = False
         else:
             if 'vmin' not in kwargs.keys():
                 kwargs['vmin'] = np.nanpercentile(dynspec, 5)
@@ -704,11 +707,12 @@ class SData(object):
 
         ax.set_title(kwargs['title'])
 
-        # Set x axis labels        
-        locator = ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-        ax.xaxis.set_major_formatter(
-            mdates.ConciseDateFormatter(locator, show_offset=False)
-        )
+        # Set x axis labels
+        if time_xaxis:
+            locator = ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+            ax.xaxis.set_major_formatter(
+                mdates.ConciseDateFormatter(locator, show_offset=False)
+            )
 
         # Save or show
         #if not (ax is None):
