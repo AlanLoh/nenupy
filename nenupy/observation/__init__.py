@@ -15,3 +15,4 @@ with open(join(dirname(__file__), 'parset_user_options.json')) as parset_options
 from .parset import Parset, ParsetUser
 # from .pointing_obs import *
 from .obs_config import *
+from .obs_tools import *
