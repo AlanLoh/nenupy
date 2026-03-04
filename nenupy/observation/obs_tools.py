@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from matplotlib import patheffects
 
-from nenupy.astro.astro_tools import SolarSystemSource, altaz_to_radec
+from nenupy.astro.astro_tools import SolarSystemSource, altaz_to_radec, solar_system_source, radec_to_altaz
 from nenupy.astro.target import FixedTarget, SolarSystemTarget
 from nenupy.astro.skymodel import Skymodel
 from nenupy.astro.sky import Sky
@@ -114,7 +114,7 @@ def in_analog_beam_max_frequency(
 # ============================================================= #
 # ------------------- plot_current_pointing ------------------- #
 # ============================================================= #
-def plot_current_pointing(figname: str, time: Time, analog_pointing_file: str = None, **kwargs) -> None:
+def plot_current_pointing(figname: str, time: Time, frequency: u.Quantity = 50 * u.MHz, analog_pointing_file: str = None, source_positions: bool = False, **kwargs) -> None:
     """
     Display the GSM and the analog beam of NenuFAR.
     The map is projected in horizontal coordinates, in log scale.
@@ -131,8 +131,12 @@ def plot_current_pointing(figname: str, time: Time, analog_pointing_file: str = 
     time : :class:`~astropy.time.Time`
         Time at which the sky and the pointing are represented.
         If the value is not within the ``analog_pointing_file``, a zenithal pointing is assumed.
+    frequency : :class:`~astropy.units.Quantity`, optional
+        Frequency at which the sky model and the beam simulation should be computed, by default 50 MHz 
     analog_pointing_file : `str`, optional
         NenuFAR analog pointing file (can be retrieved for each observation), by default `None`
+    source_positions : `bool`, optional
+        Display the positions of the main radio sources, by default `False`
     figsize : `tuple`, optional
         Size of the figure, by default `(7, 7)`
     n_azimuths : `int`, optional
@@ -147,6 +151,10 @@ def plot_current_pointing(figname: str, time: Time, analog_pointing_file: str = 
         Figure DPI if saved, by default `150`
     """
     
+    # Check time input
+    if not time.isscalar:
+        raise ValueError("time should be a scalar.")
+
     # Get the current pointing
     if analog_pointing_file is None:
         phase_center_altaz = SkyCoord(
@@ -163,8 +171,16 @@ def plot_current_pointing(figname: str, time: Time, analog_pointing_file: str = 
         )[time.reshape((1,))]
         phase_center_altaz = pointing.custom_ho_coordinates[0]
     
-    # Generate the GSM map at 50 MHz, the midrange frequency
-    frequency = 50 * u.MHz
+    # Check frequency input
+    if not isinstance(frequency, u.Quantity):
+        frequency *= u.MHz
+        log.warning("No unit provided for the frequency, considered to be MHz.")
+    elif frequency.unit.physical_type != "frequency":
+        raise ValueError(f"frequency {frequency} is expressed in other physcial units.")
+    if not frequency.isscalar:
+        raise ValueError("Frequency should be a scalar.")
+
+    # Generate the GSM map
     sm = Skymodel(frequency=frequency)
     azimuths, elevations, radec, gsm_map = sm.altaz_map_at(
         time=time,
@@ -250,12 +266,32 @@ def plot_current_pointing(figname: str, time: Time, analog_pointing_file: str = 
             clip_on=True
         )
 
+    # Overplot source positions
+    if source_positions:
+        sources = ["Sun", "Jupiter", "Cas A", "Cyg A", "Tau A", "Vir A", "3C 196", "3C 218", "3C 219", "3C 254", "3C 273", "3C 295", "3C 338", "3C 348", "3C 380", "3C 84"]
+        for source in sources:
+            try:
+                src = solar_system_source(name=source, time=time)
+            except:
+                src = SkyCoord.from_name(source)
+            src_altaz = radec_to_altaz(src, time=time)
+            if src_altaz.alt.deg <= 0:
+                continue
+            ax.scatter(
+                src_altaz.az.rad, src_altaz.alt.deg,
+                s=50, facecolors="none", edgecolors="gray"
+            )
+            ax.text(
+                src_altaz.az.rad, src_altaz.alt.deg,
+                f"  {source}", fontsize=7, color="white"
+            ).set_clip_on(True)
+
     # GSM colorbar
     cb = fig.colorbar(im, ax=ax, pad=0.08, shrink=0.7, anchor=(0, 0.7))
-    cb.set_label("Temperature (K)")
+    cb.set_label("Brightness temperature (K)")
 
     # Credits
-    ax.annotate("nenupy analog beam simulation\n50 MHz GSM (de Oliveira-Costa et al., 2008)",
+    ax.annotate("nenupy analog beam simulation\nGSM (de Oliveira-Costa et al., 2008)",
         xy=(0, 0),
         xytext=(0.91, 0.075),
         textcoords="figure fraction",
@@ -266,7 +302,7 @@ def plot_current_pointing(figname: str, time: Time, analog_pointing_file: str = 
     time.precision = 0
     ax.set_title(
         f"NenuFAR pointing (az={phase_center_altaz.az.deg:.1f}, "
-        f"el={phase_center_altaz.alt.deg:.1f}) at {time.iso}",
+        f"el={phase_center_altaz.alt.deg:.1f}), {time.iso}, {frequency:.1f}",
         fontsize=11
     )
 
