@@ -30,6 +30,9 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from matplotlib import patheffects
 
+import logging
+log = logging.getLogger(__name__)
+
 from nenupy.astro.astro_tools import SolarSystemSource, altaz_to_radec, solar_system_source, radec_to_altaz
 from nenupy.astro.target import FixedTarget, SolarSystemTarget
 from nenupy.astro.skymodel import Skymodel
