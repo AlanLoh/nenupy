@@ -8,7 +8,7 @@ They are used for the commissioning work, for the :ref:`obs_simulation_doc` (in 
 This page describes the :ref:`beam_simulation_principle_sec` to learn the main mandatory steps and the general philosophy of beam simulation.
 Then, in the following are detailed hierarchically the methods to simulate the :ref:`antenna_beam_sec`, the :ref:`miniarray_beam_sec`, and the :ref:`nenufar_beam_sec`.
 
-Several ``nenupy`` modules are rquired in order to perform bam simulation:
+Several ``nenupy`` modules are rquired in order to perform beam simulation:
 
 .. code-block:: python
 
@@ -25,6 +25,38 @@ And below are few other generic packages that are useful to load:
     >>> import astropy.units as u
     >>> import numpy as np
 
+
+Beam simulation quickstart
+--------------------------
+
+It is sometimes useful to quickly check the state of the beam during an observation.
+Beam simulations could help identifying whether a particular feature in the data could come from bright sources.
+Prior to observing, the check is also relevant as it could assess the correct observation configuration.
+The function :func:`~nenupy.observation.obs_tools.plot_current_pointing` takes in input the analog pointing file (ending by ".altazA") automatically generated at every observation by the NenuFAR systems (can be found in the `Virtual Control Room <https://gui-nenufar.obs-nancay.fr/>`_ or in nancep servers under `/databf/nenufar`).
+It simulates the analog beam (i.e., comprised of the 6 various Mini-Array rotations) at the selected time and frequency, taking into account realistic pointing orders:
+
+.. code-block:: python
+
+    >>> from nenupy.observation import plot_current_pointing
+    >>> import astropy.units as u
+    >>> from astropy.time import Time
+
+    >>> plot_current_pointing(
+            figname="my_beam_simulation.png",
+            time=Time("2026-03-12 12:00:00"),
+            frequency=50 * u.MHz,
+            analog_pointing_file="20260312_101200_20260312_135000_SUN_TRACKING.altazA",
+            source_positions=True,
+            contour_values=False
+        )
+
+.. figure:: ../_images/simu_images/my_beam_simulation.png
+    :width: 650
+    :align: center
+
+    NenuFAR analog beam simulation during a Solar observation, projected in an azimuth-elevation polar frame.
+    Contours are defined on a logarithmic scale to better enhance the grating ring, that is partially viewed in this example.
+    The radio sky is displayed in the background to identify bright source positions and Galactic plane orientation with respect to the beam.
 
 .. _beam_simulation_principle_sec:
 

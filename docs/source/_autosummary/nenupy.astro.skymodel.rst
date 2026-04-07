@@ -1,4 +1,4 @@
-nenupy.astro.skymodel
+﻿nenupy.astro.skymodel
 =====================
 
 .. automodule:: nenupy.astro.skymodel
@@ -20,6 +20,7 @@ nenupy.astro.skymodel
       :template: custom-class-template.rst
    
       HpxGSM
+      Skymodel
    
    
 

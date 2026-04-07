@@ -1,4 +1,4 @@
-nenupy.observation.obs\_tools
+﻿nenupy.observation.obs\_tools
 =============================
 
 .. automodule:: nenupy.observation.obs_tools
@@ -15,6 +15,7 @@ nenupy.observation.obs\_tools
       :toctree:
    
       in_analog_beam_max_frequency
+      plot_current_pointing
    
    
 

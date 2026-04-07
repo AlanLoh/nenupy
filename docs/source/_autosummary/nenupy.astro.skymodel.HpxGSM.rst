@@ -1,4 +1,4 @@
-﻿nenupy.astro.skymodel.HpxGSM
+nenupy.astro.skymodel.HpxGSM
 ============================
 
 .. currentmodule:: nenupy.astro.skymodel
