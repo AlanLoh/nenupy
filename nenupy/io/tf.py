@@ -231,10 +231,15 @@ class TFTask:
 
         """
 
-        def wrapper_task(data, channels):
-            return utils.correct_bandpass(data=data, n_channels=channels)
+        def apply_bandpass_correction(frequency_hz, data, channels, lna_filter):
+            return frequency_hz, utils.correct_bandpass(
+                data=data,
+                n_channels=channels,
+                lna_filter=lna_filter,
+                frequency=frequency_hz * u.Hz
+            )
 
-        return cls("Correct bandpass", wrapper_task, ["channels"], repeatable=False)
+        return cls("Correct bandpass", apply_bandpass_correction, ["channels", "lna_filter"], repeatable=False)
 
     @classmethod
     def flatten_subband(cls):
@@ -1202,7 +1207,7 @@ class Spectra:
 
         self._block_start_unix = self._reconstruct_time(data, bad_block_mask)
 
-        log.info("Computing frequzency axis...")
+        log.info("Computing frequency axis...")
         self._subband_start_hz = (
             data["data"]["channel"][0, :] * SUBBAND_WIDTH.to_value(u.Hz)
         )  # Assumed constant over time

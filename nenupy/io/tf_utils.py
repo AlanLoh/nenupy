@@ -244,6 +244,53 @@ def apply_dreambeam_corrections(
             (time_size - leftover_time_samples, freq_size, 2, 2)
         )
 
+# ============================================================= #
+# ------------- bandpass_correction_coefficients -------------- #
+def bandpass_correction_coefficients(frequency: u.Quantity, lna_filter: int) -> Tuple[np.ndarray, np.ndarray]:
+    """_summary_
+
+    Parameters
+    ----------
+    frequency : u.Quantity
+        _description_
+    lna_filter : int
+        _description_
+
+    Returns
+    -------
+    _type_
+        _description_
+
+    Raises
+    ------
+    ValueError
+        _description_
+    """
+
+    if lna_filter not in [0, 1, 2, 3]:
+        raise ValueError(
+            "LNA filter should either be 0, 1, 2, or 3 "
+            "(respectiveley corresponding to a 10, 15, 20, 25 MHz high-pass filter.)."
+        )
+
+    # The sigmoid function represents the shape of both the slope and y-intercept curves vs. frequency
+    def sigmoid(xvals, a, b, c, k):
+        return b / (1 + np.exp(k * (xvals - a))) + c
+
+    # The function coefficients were fitted on real data.
+    fitted_parameters_slope_filter_3 = (17.92080798, 0.6247039, 0.41066223, -0.93380174)
+    fitted_parameters_yintercept_filter_3 = (1.79374568e+01, 5.99856932e-01, 9.85121646e-03, 9.32503789e-01)
+
+    # The fitted coefficient corresponds to the filter-3 case.
+    # This is the best constrained filter (as it is a 25 MHz high-pass).
+    # The others presents significant RFI at low frequency preventing a clear fit.
+    # We assume here that all other filters slopes and y-intercepts behaviours are similar to the filter 3's, except with 5 MHz shift each.
+    shift_from_filter_3 = (3 - lna_filter) * 5
+
+    slope_coefficients = sigmoid(frequency.to_value(u.MHz) + shift_from_filter_3, *fitted_parameters_slope_filter_3)
+    yintercept_coefficients = sigmoid(frequency.to_value(u.MHz) + shift_from_filter_3, *fitted_parameters_yintercept_filter_3)
+
+    return slope_coefficients, yintercept_coefficients
 
 # ============================================================= #
 # --------------------- blocks_to_tf_data --------------------- #
@@ -582,11 +629,30 @@ def compute_stokes_parameters(
 
 # ============================================================= #
 # --------------------- correct_bandpass ---------------------- #
-def correct_bandpass(data: np.ndarray, n_channels: int) -> np.ndarray:
+def correct_bandpass(data: np.ndarray, n_channels: int, lna_filter: int = None, frequency: u.Quantity = None) -> np.ndarray:
     """Correct the Polyphase-filter band-pass response at each sub-band.
     This methods computes the bandpass theoretical response of sub-bands
     made of ``n_channels`` and multiply the ``data`` by this reponse. 
-    
+
+    Parameters
+    ----------
+    data : :class:`~numpy.ndarray`
+        The 4D data array (a Dask :class:`~dask.array.Array` is also accepted).
+        The first two dimensions are assumed to be corresponding to time and frequencies respectively.
+        The two others are the Jones matrices (2, 2).
+    n_channels : `int``
+        The number of channels per subband.
+        The second dimension of ``data`` should equal to the product of the number of channels with the number of subbands.
+    lna_filter : `int`, optional
+        NenuFAR LNA filter at which the data were acquired.
+        Its value must be 0, 1, 2 or 3 (corresponding to 10, 15, 20, or 25 MHz high-pass filter respectively).
+        The bandpass response is modified to account for the selected filter (with :func:`~nenupy.io.tf_utils.bandpass_correction_coefficients`).
+        By default, `None` (i.e. the bandpass response is taken as the output of :func:`~nenupy.io.tf_utils.get_bandpass`).
+    frequency : :class:`~astropy.units.Quantity`, optional
+        The frequency axis (should be of the same size than ``data`` 2nd dimension).
+        If ``lna_filter`` is set to `None`, this argument has no effect.
+        By default, `None`.
+        
     Returns
     -------
     :class:`~numpy.ndarray`
@@ -618,7 +684,15 @@ def correct_bandpass(data: np.ndarray, n_channels: int) -> np.ndarray:
     )
 
     # Multiply the channels by the bandpass to correct them
-    data *= bandpass[None, None, :, None, None]
+    if lna_filter is None:
+        data *= bandpass[None, None, :, None, None]
+    else:
+        slope_coeff, yinter_coeff = bandpass_correction_coefficients(
+            frequency=frequency.reshape(int(n_freqs / n_channels), n_channels)[:, 0],
+            lna_filter=lna_filter
+        )
+        corrected_bandpass = 1 / (slope_coeff[:, None] * (1 / bandpass[None, :]) + yinter_coeff[:, None])
+        data *= corrected_bandpass[None, :, :, None, None]
 
     log.debug(f"\tEach subband corrected by the bandpass of size {bandpass.size}.")
 
@@ -2895,6 +2969,12 @@ class TFPipelineParameters:
                 name="smooth_frequency_profile",
                 default=False,
                 help_msg="Smooth the adjacent subbands (option of task `flatten_subband`).",
+            ),
+            _ValueParameter(
+                name="lna_filter",
+                default=None,
+                param_type=int,
+                help_msg="NenuFAR LNA filter, this would modify the shape of the bandpass response.",
             ),
         )
 
