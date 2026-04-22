@@ -276,19 +276,40 @@ def bandpass_correction_coefficients(frequency: u.Quantity, lna_filter: int) -> 
     # The sigmoid function represents the shape of both the slope and y-intercept curves vs. frequency
     def sigmoid(xvals, a, b, c, k):
         return b / (1 + np.exp(k * (xvals - a))) + c
+    # For the lowest filters, fitting is difficult and an achromatic correction seems OK
+    def constant(xvals, a):
+        return np.ones(xvals.size) * a
+    
+    correction_function = sigmoid if lna_filter >= 2 else constant
 
     # The function coefficients were fitted on real data.
-    fitted_parameters_slope_filter_3 = (17.92080798, 0.6247039, 0.41066223, -0.93380174)
-    fitted_parameters_yintercept_filter_3 = (1.79374568e+01, 5.99856932e-01, 9.85121646e-03, 9.32503789e-01)
+    # fitted_parameters_slope_filter_3 = (17.92080798, 0.6247039, 0.41066223, -0.93380174)
+    # fitted_parameters_yintercept_filter_3 = (1.79374568e+01, 5.99856932e-01, 9.85121646e-03, 9.32503789e-01)    
+    coefficients = {
+        "slope": {
+            0: (1.03694243,),
+            1: (1.03619511,),
+            2: (13.06464927, 0.58451847, 0.45194121, -1.02340207),
+            3: (17.97673382, 0.62623302, 0.40933707, -0.94120828)
+        },
+        "yintercept": {
+            0: (0.00823062,),
+            1: (0.00892227,),
+            2: (1.30009860e+01, 5.51364433e-01, 8.84205182e-03, 1.07041225e+00),
+            3: (1.79889412e+01, 6.01650479e-01, 9.67760840e-03, 9.37530284e-01)
+        }
+    }
 
     # The fitted coefficient corresponds to the filter-3 case.
     # This is the best constrained filter (as it is a 25 MHz high-pass).
     # The others presents significant RFI at low frequency preventing a clear fit.
     # We assume here that all other filters slopes and y-intercepts behaviours are similar to the filter 3's, except with 5 MHz shift each.
-    shift_from_filter_3 = (3 - lna_filter) * 5
+    # shift_from_filter_3 = (3 - lna_filter) * 5
+    # slope_coefficients = sigmoid(frequency.to_value(u.MHz) + shift_from_filter_3, *fitted_parameters_slope_filter_3)
+    # yintercept_coefficients = sigmoid(frequency.to_value(u.MHz) + shift_from_filter_3, *fitted_parameters_yintercept_filter_3)
 
-    slope_coefficients = sigmoid(frequency.to_value(u.MHz) + shift_from_filter_3, *fitted_parameters_slope_filter_3)
-    yintercept_coefficients = sigmoid(frequency.to_value(u.MHz) + shift_from_filter_3, *fitted_parameters_yintercept_filter_3)
+    slope_coefficients = correction_function(frequency.to_value(u.MHz), *coefficients["slope"][lna_filter])
+    yintercept_coefficients = correction_function(frequency.to_value(u.MHz), *coefficients["yintercept"][lna_filter])
 
     return slope_coefficients, yintercept_coefficients
 
