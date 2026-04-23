@@ -247,24 +247,30 @@ def apply_dreambeam_corrections(
 # ============================================================= #
 # ------------- bandpass_correction_coefficients -------------- #
 def bandpass_correction_coefficients(frequency: u.Quantity, lna_filter: int) -> Tuple[np.ndarray, np.ndarray]:
-    """_summary_
+    r"""Compute the coefficients to modify the shape of the bandpass response.
+    The bandpass response (see :func:`~nenupy.io.tf_utils.get_bandpass`) has been computed for NenuFAR.
+    It has been noted that the real subband shapes differ from the theoretical model.
+    This deformation is chromatic and depends on the selected high-pass filter.
+    After a study realized on April 2026, the subbands are assumed to be deformed as :math:`{\rm slope} \times {\rm bandpass} + {\rm y-intercept}`.
+    Coefficients :math:`{\rm slope} (\nu, {\rm filter})` and :math:`{\rm y-intercept} (\nu, {\rm filter})` were derived from real data.
 
     Parameters
     ----------
-    frequency : u.Quantity
-        _description_
-    lna_filter : int
-        _description_
+    frequency : :class:`~astropy.units.Quantity`
+        Frequency at which the coefficients are computed. The lower the frequency, the higher the deformation. 
+    lna_filter : `int`
+        NenuFAR high-pass filter used during the observation.
+        The higher the high-pass filter, the stronger the shape deformation.
 
     Returns
     -------
-    _type_
-        _description_
+    [`:class:~numpy.ndarray`, `:class:~numpy.ndarray`]
+        :math:`{\rm slope}` and :math:`{\rm y-intercept}` for the selected ``frequency`` and ``lna_filter``.
 
     Raises
     ------
     ValueError
-        _description_
+        If the selected filter is different than 0, 1, 2 or 3 (corresponding to a 10, 15, 20, 25 MHz high-pass filter).
     """
 
     if lna_filter not in [0, 1, 2, 3]:
@@ -712,8 +718,8 @@ def correct_bandpass(data: np.ndarray, n_channels: int, lna_filter: int = None, 
             frequency=frequency.reshape(int(n_freqs / n_channels), n_channels)[:, 0],
             lna_filter=lna_filter
         )
-        corrected_bandpass = 1 / (slope_coeff[:, None] * (1 / bandpass[None, :]) + yinter_coeff[:, None])
-        data *= corrected_bandpass[None, :, :, None, None]
+        corrected_bandpass = slope_coeff[:, None] / bandpass[None, :] + yinter_coeff[:, None]
+        data /= corrected_bandpass[None, :, :, None, None]
 
     log.debug(f"\tEach subband corrected by the bandpass of size {bandpass.size}.")
 
