@@ -251,8 +251,8 @@ def bandpass_correction_coefficients(frequency: u.Quantity, lna_filter: int) -> 
     The bandpass response (see :func:`~nenupy.io.tf_utils.get_bandpass`) has been computed for NenuFAR.
     It has been noted that the real subband shapes differ from the theoretical model.
     This deformation is chromatic and depends on the selected high-pass filter.
-    After a study realized on April 2026, the subbands are assumed to be deformed as :math:`{\rm slope} \times {\rm bandpass} + {\rm y-intercept}`.
-    Coefficients :math:`{\rm slope} (\nu, {\rm filter})` and :math:`{\rm y-intercept} (\nu, {\rm filter})` were derived from real data.
+    After a study realized on April 2026, the subbands are assumed to be deformed as :math:`{\rm slope} \times {\rm bandpass} + {\rm yintercept}`.
+    Coefficients :math:`{\rm slope} (\nu, {\rm filter})` and :math:`{\rm yintercept} (\nu, {\rm filter})` were derived from real data.
 
     Parameters
     ----------
@@ -264,8 +264,8 @@ def bandpass_correction_coefficients(frequency: u.Quantity, lna_filter: int) -> 
 
     Returns
     -------
-    [`:class:~numpy.ndarray`, `:class:~numpy.ndarray`]
-        :math:`{\rm slope}` and :math:`{\rm y-intercept}` for the selected ``frequency`` and ``lna_filter``.
+    [:class:`~numpy.ndarray`, :class:`~numpy.ndarray`]
+        :math:`{\rm slope}` and :math:`{\rm yintercept}` for the selected ``frequency`` and ``lna_filter``.
 
     Raises
     ------
