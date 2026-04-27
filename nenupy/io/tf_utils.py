@@ -251,7 +251,7 @@ def bandpass_correction_coefficients(frequency: u.Quantity, lna_filter: int) -> 
     The bandpass response (see :func:`~nenupy.io.tf_utils.get_bandpass`) has been computed for NenuFAR.
     It has been noted that the real subband shapes differ from the theoretical model.
     This deformation is chromatic and depends on the selected high-pass filter.
-    After a study realized on April 2026, the subbands are assumed to be deformed as :math:`{\rm slope} \times {\rm bandpass} + {\rm yintercept}`.
+    As a study realized on April 2026, the subbands are assumed to be deformed as :math:`{\rm slope} \times {\rm bandpass} + {\rm yintercept}`.
     Coefficients :math:`{\rm slope} (\nu, {\rm filter})` and :math:`{\rm yintercept} (\nu, {\rm filter})` were derived from real data.
 
     Parameters
@@ -282,37 +282,48 @@ def bandpass_correction_coefficients(frequency: u.Quantity, lna_filter: int) -> 
     # The sigmoid function represents the shape of both the slope and y-intercept curves vs. frequency
     def sigmoid(xvals, a, b, c, k):
         return b / (1 + np.exp(k * (xvals - a))) + c
-    # For the lowest filters, fitting is difficult and an achromatic correction seems OK
+
     def constant(xvals, a):
         return np.ones(xvals.size) * a
+
+    def non_constant_sigmoid(xvals, a, b, c, k, d):
+        return b / (1 + np.exp(k * (xvals - a))) + c + d * xvals
+
+    def to_fit_sig_sig(xvals, threshold, a, b, c, k, a2, b2, c2, k2, d2):
+        result = np.ones(xvals.size)
+        low_f = xvals < threshold
+        high_f = xvals >= threshold
+        result[low_f] = sigmoid(xvals[low_f], a, b, c, k)
+        result[high_f] = non_constant_sigmoid(xvals[high_f], a2, b2, c2, k2, d2)
+        return result
+
+    def to_fit_const_sig(xvals, threshold, a, a2, b2, c2, k2, d2):
+        result = np.ones(xvals.size)
+        low_f = xvals < threshold
+        high_f = xvals >= threshold
+        result[low_f] = constant(xvals[low_f], a)
+        result[high_f] = non_constant_sigmoid(xvals[high_f], a2, b2, c2, k2, d2)
+        return result
     
-    correction_function = sigmoid if lna_filter >= 2 else constant
+    correction_function = to_fit_sig_sig if lna_filter >= 2 else to_fit_const_sig
 
     # The function coefficients were fitted on real data.
     # fitted_parameters_slope_filter_3 = (17.92080798, 0.6247039, 0.41066223, -0.93380174)
     # fitted_parameters_yintercept_filter_3 = (1.79374568e+01, 5.99856932e-01, 9.85121646e-03, 9.32503789e-01)    
     coefficients = {
         "slope": {
-            0: (1.03694243,),
-            1: (1.03619511,),
-            2: (13.06464927, 0.58451847, 0.45194121, -1.02340207),
-            3: (17.97673382, 0.62623302, 0.40933707, -0.94120828)
+            0: (5.00000000e+01, 1.03693912e+00, 8.89487679e+01, 1.02863838e+00, 9.09061184e-02, 3.81796685e-01, -1.62453382e-03),
+            1: (5.00000000e+01, 1.03621147e+00, 8.64336414e+01, 5.27969788e-01, 5.95808501e-01, 4.22370139e-01, -1.70520031e-03),
+            2: (5.00000000e+01, 1.30641911e+01, 5.84742703e-01, 4.51767374e-01, -1.02227093e+00, 8.88508007e+01, 1.06722835e+00, 5.50610398e-02, 3.92651498e-01, -1.66074012e-03),
+            3: (5.00000000e+01, 1.79766585e+01, 6.26219238e-01, 4.09338837e-01, -9.41265763e-01, 8.67626131e+01, 5.83615866e-01, 5.40245636e-01, 4.15807316e-01, -1.73087766e-03)
         },
         "yintercept": {
-            0: (0.00823062,),
-            1: (0.00892227,),
-            2: (1.30009860e+01, 5.51364433e-01, 8.84205182e-03, 1.07041225e+00),
-            3: (1.79889412e+01, 6.01650479e-01, 9.67760840e-03, 9.37530284e-01)
+            0: (5.00000000e+01, 8.23885830e-03, 8.84722442e+01, -8.75842286e-01, 8.03931674e-01,  3.88727164e-01, 1.57796172e-03),
+            1: (5.00000000e+01, 8.91418553e-03, 8.62446152e+01, -4.87074122e-01, 4.11469802e-01, 4.27254949e-01, 1.64909055e-03),
+            2: (5.00000000e+01, 1.30006330e+01, 5.51584657e-01, 8.78717949e-03, 1.06913377e+00, 8.82938870e+01, -8.81479279e-01, 8.07125303e-01, 4.00112386e-01, 1.60945820e-03),
+            3: (5.00000000e+01, 1.79888717e+01, 6.01638449e-01, 9.68806278e-03, 9.37583260e-01, 8.64853961e+01, -5.25922533e-01, 4.49999393e-01, 4.22993203e-01, 1.67795904e-03)
         }
     }
-
-    # The fitted coefficient corresponds to the filter-3 case.
-    # This is the best constrained filter (as it is a 25 MHz high-pass).
-    # The others presents significant RFI at low frequency preventing a clear fit.
-    # We assume here that all other filters slopes and y-intercepts behaviours are similar to the filter 3's, except with 5 MHz shift each.
-    # shift_from_filter_3 = (3 - lna_filter) * 5
-    # slope_coefficients = sigmoid(frequency.to_value(u.MHz) + shift_from_filter_3, *fitted_parameters_slope_filter_3)
-    # yintercept_coefficients = sigmoid(frequency.to_value(u.MHz) + shift_from_filter_3, *fitted_parameters_yintercept_filter_3)
 
     slope_coefficients = correction_function(frequency.to_value(u.MHz), *coefficients["slope"][lna_filter])
     yintercept_coefficients = correction_function(frequency.to_value(u.MHz), *coefficients["yintercept"][lna_filter])
