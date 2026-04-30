@@ -42,6 +42,7 @@ from astropy.time import Time, TimeDelta
 import calendar
 import astropy.units as u
 from astropy.coordinates import Angle
+from astropy.table import Table
 import datetime
 import pytz
 
@@ -291,10 +292,14 @@ class XLSFile:
 
                     # Check that the time duration corresponds to the number of merged cells
                     if count != int(np.ceil(hours)):
-                        errors += 1
-                        log.error(
-                            f"(Month {month_key}, Day {day}) - {count} cells instead of {int(np.ceil(hours))} for value '{value}'"
-                        )
+                        if ((stop_val % Angle(1 * u.h)) > Angle(1 * u.arcmin)) and (count == int(np.ceil(hours)) + 1):
+                            # We're good, the stop date doesn't fall on a round hour, so 1 additional cell is used
+                            pass
+                        else:
+                            errors += 1
+                            log.error(
+                                f"(Month {month_key}, Day {day}) - {count} cells instead of {int(np.ceil(hours))} for value '{value}'"
+                            )
                     
                     # Add the time to the total
                     month_day += day_hours
@@ -302,12 +307,12 @@ class XLSFile:
                     month_hours += hours
 
     
-            log.info(f"Month {month_key}: {month_hours} hours (day={month_day}hrs, night={month_night}hrs)")
+            log.info(f"Month {month_key}: {month_hours:.2f} hours (day = {month_day:.2f} hrs, night = {month_night:.2f} hrs)")
             hour_total += month_hours
             day_total += month_day
             night_total += month_night
 
-        log.info(f"total={hour_total} hours (day={day_total}, night={night_total})")
+        log.info(f"Total = {hour_total:.2f} hours (day = {day_total:.2f}, night = {night_total:.2f})")
         log.info(f"{errors=} / entries={n_values}")
         log.info(f"Key project(s) found: {kp_list}")
 
@@ -619,6 +624,46 @@ class NenuCalendar:
 
             calendars[kp] = Calendar(ics_content)
         
+        events = []
+        kp_colors = mpl.colormaps["Spectral"](np.linspace(0, 1, len(calendars.keys())))
+        for kp, kp_color in zip(calendars.keys(), kp_colors):
+            if len(calendars.keys()) == 1:
+                kp_color = "tab:blue"
+            for event in calendars[kp].events:
+                events.append(NenuEvent(event, kp_name=kp, color=kp_color))
+
+        return cls(events)
+
+    @classmethod
+    def from_csv(cls, *csv_files: str):
+
+        calendars = {}
+
+        for csv_file in csv_files:
+
+            # Search the KP name
+            csv_basename = os.path.basename(csv_file)
+            match = re.search(pattern=r"(ES|SP|RP|LT)\S{2}", string=csv_basename)
+            if match is None:
+                raise ValueError(f"CSV file name {csv_basename} does not contain a KP name.")
+            kp = match.group()
+
+            if kp not in calendars:
+                calendars[kp] = Calendar()
+
+            # Read the CSV file
+            csv_content = Table.read(csv_file)
+            # Assumed first 3 columns are start, stop, comment
+            start_col, stop_col, comment_col = csv_content.columns[:3]
+            for i in range(len(csv_content)):
+                event = Event()
+                event.name = csv_content[i][comment_col]
+                event.begin = Time(csv_content[i][start_col]).datetime
+                event.end = Time(csv_content[i][stop_col]).datetime
+                event.transparent = False
+                event.description = ""
+                calendars[kp].events.add(event)
+
         events = []
         kp_colors = mpl.colormaps["Spectral"](np.linspace(0, 1, len(calendars.keys())))
         for kp, kp_color in zip(calendars.keys(), kp_colors):

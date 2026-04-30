@@ -143,6 +143,7 @@ __all__ = [
     'AzimuthCnst',
     'LocalSiderealTimeCnst',
     'LocalTimeCnst',
+    "UTCHourCnst",
     'TimeRangeCnst',
     'NightTimeCnst',
     'PeriodicCnst',
@@ -886,6 +887,85 @@ class LocalTimeCnst(ScheduleConstraint):
         else:
             mask = (localHours >= self.hMin.hour) &\
                 (localHours <= self.hMax.hour)
+        score = mask[:-1].astype(float)
+        self.score = np.where(score==0, np.nan, score)
+        return self.score
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------ UTCHourCnst ------------------------ #
+# ============================================================= #
+class UTCHourCnst(ScheduleConstraint):
+    """Contraint to force an observation block to be scheduled between two fixed UTC hours.
+    """
+
+    def __init__(self, h_min: Angle, h_max: Angle, weight: float = 1):
+        super().__init__(weight=weight)
+        self.h_min = h_min
+        self.h_max = h_max
+
+
+    # --------------------------------------------------------- #
+    # --------------------- Getter/Setter --------------------- #
+    @property
+    def h_min(self):
+        """
+        """
+        return self._h_min
+    @h_min.setter
+    def h_min(self, h):
+        if not isinstance(h, Angle):
+            raise TypeError(
+                f'{h} should be of type {type(Angle)}.'
+            )
+        self._h_min = h
+
+
+    @property
+    def h_max(self):
+        """
+        """
+        return self._h_max
+    @h_max.setter
+    def h_max(self, h):
+        if not isinstance(h, Angle):
+            raise TypeError(
+                f'{h} should be of type {type(Angle)}.'
+            )
+        self._h_max = h
+
+
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+    def get_score(self, indices):
+        """
+        """
+        self._is_numpy_instance(indices)
+        return np.mean(self.score[indices], axis=-1)
+
+
+    # --------------------------------------------------------- #
+    # ----------------------- Internal ------------------------ #
+    def _evaluate(self, time, nslots):
+        """
+        """
+        self._is_time_instance(time)
+        
+        # Convert the 'hour' part in decimal 'angle' values
+        hours = np.array([tt.split()[1] for tt in time.iso])
+        local_hours = Angle(hours, unit='hour').hour
+
+        # Selection
+        if self.h_min > self.h_max:
+            # If 'midnight' is in the range
+            mask = (local_hours <= self.h_min.hour) &\
+                (local_hours >= self.h_max.hour)
+            mask = ~mask
+        else:
+            mask = (local_hours >= self.h_min.hour) &\
+                (local_hours <= self.h_max.hour)
         score = mask[:-1].astype(float)
         self.score = np.where(score==0, np.nan, score)
         return self.score
