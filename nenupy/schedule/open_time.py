@@ -817,31 +817,30 @@ class NenuCalendar:
         with open(filename, "w") as wfile:
             for event, next_event in zip(current_events, next_events):
                 
-                if next_event is None:
-                    # End of the loop
-                    continue
-
-                # Check that there is no overlap!
-                if event in next_event:
-                    raise Exception(f"There is an overlap between {event} and {next_event}!")
-
                 start = Time(event.event.begin.datetime, format="datetime")
                 start.precision = 0
                 stop = Time(event.event.end.datetime, format="datetime")
+    
+                if not (next_event is None):
+                    # Not end of the loop
 
-                # Gather events belonging to the same KP that are consectutive in time
-                # This will modify the stop time
-                while (event.kp_name == next_event.kp_name) and (event.event.end == next_event.event.begin):
                     # Check that there is no overlap!
                     if event in next_event:
                         raise Exception(f"There is an overlap between {event} and {next_event}!")
-                    if next_event is None:
-                        # End of the loop
-                        break
-                    log.info(f"Merging {event} and {next_event}")
-                    stop = Time(next_event.event.end.datetime, format="datetime")
-                    event = next(current_events)
-                    next_event = next(next_events)
+
+                    # Gather events belonging to the same KP that are consectutive in time
+                    # This will modify the stop time
+                    while (event.kp_name == next_event.kp_name) and (event.event.end == next_event.event.begin):
+                        # Check that there is no overlap!
+                        if event in next_event:
+                            raise Exception(f"There is an overlap between {event} and {next_event}!")
+                        if next_event is None:
+                            # End of the loop
+                            break
+                        log.info(f"Merging {event} and {next_event}")
+                        stop = Time(next_event.event.end.datetime, format="datetime")
+                        event = next(current_events)
+                        next_event = next(next_events)
 
                 stop.precision = 0
 
