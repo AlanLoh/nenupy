@@ -441,7 +441,7 @@ class ObsBlock(Block):
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
-    def periodic_observation(self, start_time: Time, stop_time: Time, periodicity: TimeDelta, tolerance: TimeDelta) -> Block:
+    def periodic_observation(self, start_time: Time, stop_time: Time, periodicity: TimeDelta, tolerance: TimeDelta, repetition_max: int = None) -> Block:
         r"""Create duplicates of the observing block periodically spread in time between ``start_time`` and ``stop_time``.
         This methods adds to the :class:`~nenupy.schedule.obsblocks.ObsBlock`'s constraints a new :class:`~nenupy.schedule.constraints.TimeRangeCnst`.
         Each copied block is then constrained to occur at :math:`t_0 + n \times \Delta t \pm \delta t` (where :math:`t_0` is ``start_time``, :math:`\Delta t` is ``periodicity`` and :math:`\delta t` is the ``tolerance``).
@@ -458,7 +458,10 @@ class ObsBlock(Block):
             The tolerance in time duration with respect to a strict repetition.
             The higher the tolerance, the easier the block will be scheduled.
             Keep also in mind that if the tolerance is too small and the starting time poorly chosen, the target may never be observed (for instance the allowed time range may not match when the target is above the horizon).
-
+        repetition_max : int, optional
+            Maximum number of repetitions. Default is `None`, i.e. the the repetitions
+            are going on until reaching ``stop_time``.
+            
         Returns
         -------
         :class:`~nenupy.scheudle.obsblock.Block`
@@ -494,6 +497,9 @@ class ObsBlock(Block):
         # Copy the current block as many times as one could fit in between the time range
         # Need to manually deepcopy it to avoid pointer errors
         number_repetitions = int(np.ceil((stop_time - start_time) / periodicity))
+        if not (repetition_max is None):
+            if number_repetitions > repetition_max:
+                number_repetitions = repetition_max
         blocks = [deepcopy(self) for _ in range(number_repetitions)]
 
         # For each of these newly copied block, add a TimeRange constraint to force them being scheduled periodically
