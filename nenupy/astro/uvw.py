@@ -24,6 +24,7 @@ __all__ = [
 import numpy as np
 from typing import Tuple
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
@@ -438,7 +439,7 @@ class UV_Coverage:
         return psf
 
 
-    def plot(self, frequency: u.Quantity = None, **kwargs) -> None:
+    def plot(self, frequency: u.Quantity = None, fig: mpl.figure.Figure = None, ax: mpl.axes.Axes = None, **kwargs) -> None:
         """
             kwargs
                 figsize
@@ -448,6 +449,7 @@ class UV_Coverage:
                 colorbar_label
                 title
                 figname
+                cb_loc = "lower left"
         """
 
         # Either plot raw (u, v) in meters, or, if the frequency is specified,
@@ -475,8 +477,10 @@ class UV_Coverage:
         ax_max = uv_max + 0.01 * uv_width
 
         # Plot the hexagon bins
-        fig = plt.figure(figsize=kwargs.get("figsize", (10, 10)))
-        ax = fig.add_subplot(1, 1, 1)
+        if fig is None:
+            fig = plt.figure(figsize=kwargs.get("figsize", (10, 10)))
+        if ax is None:
+            ax = fig.add_subplot(1, 1, 1)
         hexb = ax.hexbin(
             uu.value,
             vv.value,
@@ -488,6 +492,7 @@ class UV_Coverage:
             cmap=kwargs.get("cmap", "copper"),
             edgecolors="face",
             mincnt=1,
+            linewidths=0.2,
             norm=LogNorm()#vmin=Z.min(), vmax=Z.max()),
         )
 
@@ -497,9 +502,9 @@ class UV_Coverage:
         # Colorbar
         cax = inset_axes(
             ax,
-            width='3%',
-            height='100%',
-            loc='lower left',
+            width="3%",
+            height="100%",
+            loc=kwargs.get("cb_loc", "lower left"),
             bbox_to_anchor=(1.05, 0., 1, 1),
             bbox_transform=ax.transAxes,
             borderpad=0,
@@ -517,7 +522,7 @@ class UV_Coverage:
         # Save or show the figure
         figname = kwargs.get("figname", "")
         if figname != "":
-            plt.savefig(
+            fig.savefig(
                 figname,
                 dpi=300,
                 bbox_inches="tight",
