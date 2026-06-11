@@ -17,13 +17,15 @@ __email__ = "alan.loh@obspm.fr"
 __status__ = "Production"
 __all__ = [
     "in_analog_beam_max_frequency",
-    "plot_current_pointing"
+    "plot_current_pointing",
+    "time_to_season_mask",
+    "time_to_night_mask"
 ]
 
 
 from astropy.time import Time
 import astropy.units as u
-from astropy.coordinates import SkyCoord, AltAz
+from astropy.coordinates import SkyCoord, AltAz, Angle
 import numpy as np
 from typing import Union
 import matplotlib.pyplot as plt
@@ -324,5 +326,104 @@ def plot_current_pointing(figname: str, time: Time, frequency: u.Quantity = 50 *
             transparent=True
         )
     plt.close("all")
+# ============================================================= #
+# ============================================================= #
+
+# ============================================================= #
+# -------------------- time_to_season_mask -------------------- #
+# ============================================================= #
+def time_to_season_mask(time: Time, season: str = "summer") -> np.ndarray:
+    """Compute a mask that translates the condition ``local_time`` in ``season``.
+    The season are as defined for NenuFAR cycles.
+
+    Parameters
+    ----------
+    time : :class:`~astropy.time.Time`
+        Time.
+    season : `str`, optional
+        Selected season (either "summer" or "winter"), by default "summer"
+
+    Returns
+    -------
+    :class:`~numpy.ndarray`
+        Boolean mask.
+
+    Raises
+    ------
+    KeyError
+        If ``season`` is neither "summer" nor "winter"
+    """
+
+    SEASON = {
+        "winter": {"start": "09-30"},
+        "summer": {"start": "03-31"}
+    }
+
+    if season not in SEASON:
+        raise KeyError(f"season must be in {SEASON.keys()}")
+
+    if time.isscalar:
+        time = time.reshape((1,))
+
+    # Prepare outputs
+    summer_mask = np.zeros(time.size, dtype=bool)
+
+    start_year = int(np.floor(time[0].decimalyear))
+    stop_year = int(np.ceil(time[-1].decimalyear))
+
+    current_year = start_year
+    while current_year <= stop_year:
+
+        winter_start = Time(f"{current_year}-{SEASON['winter']['start']}")
+        summer_start = Time(f"{current_year}-{SEASON['summer']['start']}")
+
+        summer_mask += (time >= summer_start) * (time < winter_start)
+
+        current_year += 1
+
+    if season == "summer":
+        return summer_mask
+    else:
+        return ~summer_mask
+# ============================================================= #
+# ============================================================= #
+
+# ============================================================= #
+# -------------------- time_to_night_mask --------------------- #
+# ============================================================= #
+def time_to_night_mask(time: Time) -> np.ndarray:
+    """Return a mask of night time as defined for NenuFAR observation cycles.
+
+    Parameters
+    ----------
+    time : :class:`~astropy.time.Time`
+        Time.
+
+    Returns
+    -------
+    :class:`~numpy.ndarray`
+        Boolean mask of night time.
+    """
+    NIGHT_TIME = {
+        "winter": (Angle([0, 4], unit="hourangle"), Angle([20, 24], unit="hourangle")), # local hours
+        "summer": (Angle([0, 3], unit="hourangle"), Angle([19, 24], unit="hourangle"))
+    }
+
+    mask = np.zeros(time.size, dtype=bool)
+
+    # Convert the 'hour' part in decimal 'angle' values
+    local_hours = Angle(np.array([tt.split()[1] for tt in time.iso]), unit="hour").hour
+
+    summer_mask = time_to_season_mask(time, season="summer")
+    winter_mask = ~summer_mask
+
+    local_summer_hours = local_hours[summer_mask]
+    night_in_summer = (local_summer_hours >= NIGHT_TIME["summer"][0][0].hour) * (local_summer_hours <= NIGHT_TIME["summer"][0][1].hour) + (local_summer_hours >= NIGHT_TIME["summer"][1][0].hour) * (local_summer_hours <= NIGHT_TIME["summer"][1][1].hour)
+    mask[summer_mask] += night_in_summer
+    local_winter_hours = local_hours[winter_mask] 
+    night_in_winter = (local_winter_hours >= NIGHT_TIME["winter"][0][0].hour) * (local_winter_hours <= NIGHT_TIME["winter"][0][1].hour) + (local_winter_hours >= NIGHT_TIME["winter"][0][0].hour) * (local_winter_hours <= NIGHT_TIME["winter"][0][1].hour)
+    mask[winter_mask] += night_in_winter
+
+    return mask
 # ============================================================= #
 # ============================================================= #

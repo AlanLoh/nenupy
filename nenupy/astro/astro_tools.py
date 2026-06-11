@@ -18,6 +18,7 @@ __status__ = 'Production'
 __all__ = [
     "solar_system_source",
     "local_sidereal_time",
+    "to_local_time",
     "hour_angle",
     "radec_to_altaz",
     "altaz_to_radec",
@@ -41,7 +42,7 @@ from enum import Enum, auto
 
 import numpy as np
 import astropy.units as u
-from astropy.time import Time
+from astropy.time import Time, TimeDelta
 from astropy.coordinates import (
     SkyCoord,
     EarthLocation,
@@ -54,6 +55,7 @@ from astropy.coordinates import (
     FK5,
     ICRS
 )
+import pytz
 from pyproj import Transformer
 
 from nenupy import nenufar_position
@@ -207,6 +209,42 @@ def local_sidereal_time(
             longitude=observer.lon,
             model=None
         )
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ----------------------- to_local_time ----------------------- #
+# ============================================================= #
+def to_local_time(time: Time, time_zone: str = "Europe/Paris") -> Time:
+    """Convert UTC time to local time.
+
+    Parameters
+    ----------
+    time : :class:`~astropy.time.Time`
+        UTC time.
+    time_zone : `str`, optional
+        Time zone of the target local time, by default "Europe/Paris"
+
+    Returns
+    -------
+    :class:`~astropy.time.Time`
+        Local time
+    """
+    scalar_input = False
+    if time.isscalar:
+        scalar_input = True
+        time = time.reshape((1,))
+    tz = pytz.timezone(time_zone)
+    timezone_time = map(tz.localize, time.datetime)
+    utc_offset = np.array(
+        [tt.utcoffset().total_seconds() for tt in timezone_time]
+    )
+    local_times = time + TimeDelta(utc_offset, format="sec")
+    if scalar_input:
+        return local_times[0]
+    else:
+        return local_times
 # ============================================================= #
 # ============================================================= #
 

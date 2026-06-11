@@ -26,6 +26,7 @@ from astropy.table import Table
 import numpy as np
 from copy import deepcopy, copy
 import itertools
+from typing import Tuple
 
 from nenupy.schedule.obsblocks import (
     Block,
@@ -34,6 +35,8 @@ from nenupy.schedule.obsblocks import (
 )
 from nenupy.schedule.targets import SSTarget
 from nenupy.schedule.geneticalgo import GeneticAlgorithm
+from nenupy.astro import to_local_time
+from nenupy.observation import time_to_night_mask
 
 import logging
 log = logging.getLogger(__name__)
@@ -441,7 +444,7 @@ class _TimeSlots(object):
         self,
         time_min,
         time_max,
-        dt=TimeDelta(3600, format='sec')
+        dt=TimeDelta(3600, format="sec")
     ):
         if not (_isTime(time_min, time_max) and _isTDelta(dt)):
             raise TypeError(
@@ -465,10 +468,13 @@ class _TimeSlots(object):
         # Initialize array of free time slots
         self.freeSlots = np.ones(self.size, dtype=bool)
         # Initialize array of free processing time slots
-        self.free_processing_slots = np.ones(self.size, dtype=bool)
+        self._cumulative_processing_slots = np.zeros(self.size, dtype=int)
         # Initialize array of slot indices
         self.idxSlots = np.arange(self.size, dtype=int)
         self._freeIndices = self.idxSlots
+    
+        # Compute masks of day and night as defined for NenuFAR observation cycles
+        self.day_mask, self.night_mask = self._compute_day_night_masks()
 
         log.debug(
             f'{self.__class__} instance created with '
@@ -515,6 +521,11 @@ class _TimeSlots(object):
     def dt(self, d):
         self._dt = d
 
+    @property
+    def free_processing_slots(self) -> np.ndarray:
+        # _cumulative_processing_slots is an array of integers
+        # if 0, it means that there is no observation blocks requiring processing time
+        return ~self._cumulative_processing_slots.astype(bool)
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -603,6 +614,23 @@ class _TimeSlots(object):
         slot_stops = slot_starts + dt
 
         return slot_starts, slot_stops
+
+    def _compute_day_night_masks(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns the masks corresponding to day and night times as defined for a NenuFAR cycle. 
+
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray]
+            day_mask, night_mask
+        """
+        
+        # Convert Schedule start and stop times to local hours
+        # local_mid_times = to_local_time(self.starts + (self.stops - self.starts) / 2)
+        mid_times = self.starts + (self.stops - self.starts) / 2
+
+        night_mask = time_to_night_mask(mid_times)
+
+        return ~night_mask, night_mask
 # ============================================================= #
 # ============================================================= #
 
@@ -943,7 +971,7 @@ class Schedule(_TimeSlots):
         self.set_free_slots(start_times=starts, stop_times=stops)
 
 
-    def book(self, optimize=False, minimal_score: float = 0, **kwargs):
+    def book(self, optimize=False, minimal_score: float = 0, day_hours: float = None, night_hours: float = None, **kwargs):
         r""" Distributes the :attr:`~nenupy.schedule.schedule.Schedule.observation_blocks` over the schedule time slots.
             The observing constraints are evaluated over the whole schedule.
 
@@ -1123,6 +1151,9 @@ class Schedule(_TimeSlots):
                     raise IndexError("sort_by_indices size does not match observation_blocks.")
                 block_indices = block_indices[sort_idx]
 
+            day_hours_used = 0
+            night_hours_used = 0
+
             # Block are booked iteratively 
             # for i, blk in enumerate(self.observation_blocks):
             for i in block_indices:
@@ -1143,9 +1174,22 @@ class Schedule(_TimeSlots):
                 mask_idx = np.unique(mask_idx)
                 mask_idx = mask_idx[mask_idx >= 0]
                 freeSlotsShifted[mask_idx] = False
-                
+
                 # Find the best spot
-                score = self._cnstScores[i, :] * self.freeSlots * freeSlotsShifted
+                blk_score = self._cnstScores[i, :].copy()
+                # Weigh the constraint score by the night / day repartition in order to try to spread the osbervations as required
+                if day_hours is not None:
+                    if day_hours == 0:
+                        blk_score[self.day_mask] *= 0
+                    else:
+                        blk_score[self.day_mask] *= 1 - np.min((1, day_hours_used / day_hours))
+                if night_hours is not None:
+                    if night_hours == 0:
+                        blk_score[self.night_mask] *= 0
+                    else:
+                        blk_score[self.night_mask] *= 1 - np.min((1, night_hours_used / night_hours))
+                score = blk_score * self.freeSlots * freeSlotsShifted
+
                 if all(score==0):
                     n_unscheduled_blocks += 1
                     log.warning(
@@ -1166,20 +1210,31 @@ class Schedule(_TimeSlots):
                 self.freeSlots[bestStartIdx:bestStopIdx + 1] = False
                 if blk.n_delay_slots != 0:
                     # Update the processing reserved slots
-                    start_proc = bestStartIdx - blk.n_delay_slots
-                    start_proc = 0 if start_proc < 0 else start_proc
-                    stop_proc = bestStopIdx + blk.n_delay_slots + 1
-                    stop_proc = self.size if stop_proc > self.size else stop_proc
-                    self.free_processing_slots[start_proc:stop_proc] = False
+                    self._freeze_processing_slots(bestStartIdx - blk.n_delay_slots, bestStopIdx + blk.n_delay_slots + 1)
+                    # start_proc = bestStartIdx - blk.n_delay_slots
+                    # start_proc = 0 if start_proc < 0 else start_proc
+                    # stop_proc = bestStopIdx + blk.n_delay_slots + 1
+                    # stop_proc = self.size if stop_proc > self.size else stop_proc
+                    # self._cumulative_processing_slots[start_proc:stop_proc] += 1
 
                 blk.time_min = self.starts[bestStartIdx]
                 blk.time_max = self.stops[bestStopIdx]
+
+                # Update the night / day allocated hour observation budget
+                if day_hours is not None:
+                    day_hours_used += (sum(self.day_mask[blk.startIdx: blk.startIdx + blk.nSlots]) * self.dt).sec / 3600
+                if night_hours is not None:
+                    night_hours_used += (sum(self.night_mask[blk.startIdx: blk.startIdx + blk.nSlots]) * self.dt).sec / 3600
 
             log.info(
                 f'{sum(self._toSchedule) - n_unscheduled_blocks}/'
                 f'{sum(self._toSchedule)} observation blocks scheduled '
                 f'({sum(~self._toSchedule)} impossible to fit).'
             )
+            if day_hours is not None:
+                log.info(f"Day (used/planned): {day_hours_used:.2f}h / {day_hours:.2f}h")
+            if night_hours is not None:
+                log.info(f"Night (used/planned): {night_hours_used:.2f}h / {night_hours:.2f}h")
 
 
     def extend_scheduled_observations(self, relative_score_threshold: float = 1., max_duration: TimeDelta = None) -> None:
@@ -1746,7 +1801,7 @@ class Schedule(_TimeSlots):
             # Free the schedule slots
             self.freeSlots[block.startIdx:block.startIdx + block.nSlots] = True
             if block.n_delay_slots != 0:
-                self.free_processing_slots[block.startIdx - block.n_delay_slots - 1: block.startIdx + block.nSlots + block.n_delay_slots] = True
+                self._cumulative_processing_slots[block.startIdx - block.n_delay_slots - 1: block.startIdx + block.nSlots + block.n_delay_slots] -= 1
             # Reset the observation block as un-booked
             block.startIdx = None
 
@@ -1903,6 +1958,231 @@ class Schedule(_TimeSlots):
         #         high=self.idxSlots.size
         #     )
         # return self._bounds(genome)
+
+    def _free_processing_slots(self, slot_start_idx: int, slot_stop_idx: int) -> None:
+        """Set free processing slots by indices ranging from ``slot_start_idx`` to ``slot_stop_idx`` (excluded).
+        It is done by decreasing :attr:`~nenupy.schedule._TimeSlots._cumulative_processing_slots` by 1.
+        The Schedule must not contain any slot in the requested range where the value is already 0.
+        This prevents risky manipulations.
+
+        Parameters
+        ----------
+        slot_start_idx : `int`
+            Starting index.
+        slot_stop_idx : `int`
+            Ending index (will be excluded, could be equal to the size of the Schedule if the last slot is to be selected).
+
+        Raises
+        ------
+        IndexError
+            If any index are beyond the schedule valid indices or if ``slot_stop_idx`` <= ``slot_start_idx``.
+        ValueError
+            If there is any slot totally without processing already within ``slot_start_idx`` and ``slot_stop_idx``.
+        """
+        if (slot_start_idx < 0) or (slot_start_idx >= slot_stop_idx) or (slot_stop_idx > self.size):
+            raise IndexError(f"Freeing processing slots from index {slot_start_idx} to {slot_stop_idx} is impossible (Schedule ranges from 0 to {self.size})")
+
+        if np.any(self._cumulative_processing_slots[slot_start_idx: slot_stop_idx] < 1):
+            raise ValueError(f"Schedule already contains free processing slots between {slot_start_idx} and {slot_stop_idx}.")
+
+        self._cumulative_processing_slots[slot_start_idx: slot_stop_idx] -= 1
+    
+    def _freeze_processing_slots(self, slot_start_idx: int, slot_stop_idx: int) -> None:
+        """Freeze processing slots by indices ranging from ``slot_start_idx`` to ``slot_stop_idx`` (excluded).
+        It is done by increasing :attr:`~nenupy.schedule._TimeSlots._cumulative_processing_slots` by 1.
+
+        Parameters
+        ----------
+        slot_start_idx : `int`
+            Starting index.
+        slot_stop_idx : `int`
+            Ending index (will be excluded, could be equal to the size of the Schedule if the last slot is to be selected).
+
+        Raises
+        ------
+        IndexError
+            If any index are beyond the schedule valid indices or if ``slot_stop_idx`` <= ``slot_start_idx``.
+        """
+        if slot_start_idx >= slot_stop_idx:
+            raise IndexError(f"Freezing processing slots from index {slot_start_idx} to {slot_stop_idx} is impossible (Schedule ranges from 0 to {self.size})")
+
+        # Constrain to schedule indices
+        slot_start_idx = 0 if slot_start_idx < 0 else slot_start_idx
+        slot_stop_idx = self.size if slot_stop_idx > self.size else slot_stop_idx
+
+        self._cumulative_processing_slots[slot_start_idx: slot_stop_idx] += 1
+
+    def _free_slots(self, slot_start_idx: int, slot_stop_idx: int) -> None:
+        """Set free slots by indices ranging from ``slot_start_idx`` to ``slot_stop_idx`` (excluded).
+        The Schedule must not contain any free slot in the requested range.
+        This prevents risky manipulations.
+
+        Parameters
+        ----------
+        slot_start_idx : `int`
+            Starting index.
+        slot_stop_idx : `int`
+            Ending index (will be excluded, could be equal to the size of the Schedule if the last slot is to be selected).
+
+        Raises
+        ------
+        IndexError
+            If any index are beyond the schedule valid indices or if ``slot_stop_idx`` <= ``slot_start_idx``.
+        ValueError
+            If there is any free slots already within ``slot_start_idx`` and ``slot_stop_idx``.
+        """
+        if (slot_start_idx < 0) or (slot_start_idx >= slot_stop_idx) or (slot_stop_idx > self.size):
+            raise IndexError(f"Freeing slots from index {slot_start_idx} to {slot_stop_idx} is impossible (Schedule ranges from 0 to {self.size})")
+
+        if np.any(self.freeSlots[slot_start_idx: slot_stop_idx]):
+            raise ValueError(f"Schedule already contains free slots between {slot_start_idx} and {slot_stop_idx}.")
+
+        self.freeSlots[slot_start_idx: slot_stop_idx] = True
+
+    def _freeze_slots(self, slot_start_idx: int, slot_stop_idx: int):
+        """Set booked slots by indices ranging from ``slot_start_idx`` to ``slot_stop_idx`` (excluded).
+        The Schedule must not contain any non-free slot in the requested range.
+        This prevents risky manipulations.
+
+        Parameters
+        ----------
+        slot_start_idx : `int`
+            Starting index.
+        slot_stop_idx : `int`
+            Ending index (will be excluded, could be equal to the size of the Schedule if the last slot is to be selected).
+
+        Raises
+        ------
+        IndexError
+            If any index are beyond the schedule valid indices or if ``slot_stop_idx`` <= ``slot_start_idx``.
+        ValueError
+            If there is any non-free slots already within ``slot_start_idx`` and ``slot_stop_idx``.
+        """
+        if (slot_start_idx < 0) or (slot_start_idx >= slot_stop_idx) or (slot_stop_idx > self.size):
+            raise IndexError(f"Booking slots from index {slot_start_idx} to {slot_stop_idx} is impossible (Schedule ranges from 0 to {self.size})")
+
+        if np.any(~self.freeSlots[slot_start_idx: slot_stop_idx]):
+            raise ValueError(f"Schedule already contains booked slots between {slot_start_idx} and {slot_stop_idx}.")
+
+        self.freeSlots[slot_start_idx: slot_stop_idx] = False
+
+    def _shift_obsblock(self, observation_block: ScheduleBlocks, shift_by_nslots: int = 1, minimal_score: float = 0.) -> None:
+        """Shift a scheduled observation block by a given number of time slots.
+        It can be shift to an anterior or later date.
+        If the schedule is not free at the desired shifted position, nothing happens.
+        The same is true if the ``minimal_score`` is reached.
+
+        Parameters
+        ----------
+        observation_block : :class:`~nenupy.schedule.ScheduleBlocks`
+            Observation block already scheduled.
+        shift_by_nslots : `int`, optional
+            Number of slots (at the schedule's :attr:`~nenupy.schedule.Schedule.dt` granularity) to shift the observation block. Positive values shift the block towards later dates, negative values to earlier dates, by default 1
+        minimal_score : float, optional
+            Minimal score allowed after the shift. The observation block score is comprised between 0 and 1 (1 being perfect score), by default 0.
+        """
+
+        # If the observation block is not booked, do nothing
+        if not observation_block.isBooked:
+            log.debug(f"Observation block {observation_block} is not booked. No shift can be applied.")
+            return
+
+        # Gather information on the current observation block
+        # and the constraint score over the Schedule slots
+        block_schedule_idx = observation_block.blockIdx
+        block_start_idx = observation_block.startIdx
+        block_nslots = observation_block.nSlots
+        constraint_slot_scores = self._cnstScores[block_schedule_idx, :]
+
+        # Check that the new block position falls within free slots in the schedule
+        new_start_idx = block_start_idx + shift_by_nslots
+        if new_start_idx <= 0:
+            new_start_idx = 0
+        elif new_start_idx + block_nslots >= self.size:
+            new_start_idx = self.size - block_nslots
+        new_stop_idx = new_start_idx + block_nslots - 1
+        # Either start or stop must be free (depending on the sign of the shift)
+        if not (self.freeSlots[new_start_idx] or self.freeSlots[new_stop_idx]):
+            return
+
+        # Evaluate the block score before and after the shift
+        # If the score after the shift is less than the minimal score provided, don't perform the shift
+        initial_block_score = constraint_slot_scores[block_start_idx]
+        new_block_score = constraint_slot_scores[new_start_idx]
+        if new_block_score < minimal_score:
+            log.debug(f"Observation block {observation_block}: shift to {self.starts[new_start_idx].isot} implies a score of {new_block_score} (less than the minimal score setting {minimal_score})")
+            return
+
+        # Update the block properties to reflect the shift
+        observation_block.startIdx = new_start_idx
+        observation_block.time_min = self.starts[new_start_idx]
+        observation_block.time_max = self.stops[new_stop_idx]
+
+        # Reset free slot and assign new slots
+        self._free_slots(block_start_idx, block_start_idx + block_nslots)
+        self._freeze_slots(new_start_idx, new_stop_idx + 1)
+
+        # Do the same with processing slots
+        if observation_block.n_delay_slots != 0:
+            n_delay_slots = observation_block.n_delay_slots
+            self._free_processing_slots(block_start_idx - n_delay_slots, block_start_idx + block_nslots + n_delay_slots)
+            self._freeze_processing_slots(new_start_idx - n_delay_slots, new_stop_idx + n_delay_slots + 1)
+
+    def _shift_obsblock_later(self, observation_block: ScheduleBlocks, dt: TimeDelta = None, minimal_score: float = 0.) -> None:
+        """Shift obervation block to a later date.
+
+        Parameters
+        ----------
+        observation_block : :class:`~nenupy.schedule.ScheduleBlocks`
+            Observation block already scheduled.
+        dt : :class:`~astropy.time.TimeDelta`, optional
+            Time interval to shift the observation block, by default `None` (a shift by 1 schedule time step is performed)
+        minimal_score : float, optional
+            Minimal score allowed after the shift. The observation block score is comprised between 0 and 1 (1 being perfect score), by default 0.
+
+        See also
+        --------
+        :meth:`~nenupy.schedule.Schedule._shift_obsblock`
+        """
+        # Compute the amount of shift with respect to the Schedule's time granularity
+        # By default a shift of one slot to the future is applied.
+        if dt is None:
+            slots_to_shift = 1
+        else:
+            slots_to_shift = int(np.floor(abs(dt) / self.dt))
+
+        self._shift_obsblock(
+            observation_block=observation_block,
+            shift_by_nslots=slots_to_shift,
+            minimal_score=minimal_score
+        )
+
+    def _shift_obsblock_earlier(self, observation_block: ScheduleBlocks, dt: TimeDelta = None, minimal_score: float = 0.) -> None:
+        """Shift obervation block to an earlier date.
+
+        Parameters
+        ----------
+        observation_block : :class:`~nenupy.schedule.ScheduleBlocks`
+            Observation block already scheduled.
+        dt : :class:`~astropy.time.TimeDelta`, optional
+            Time interval to shift the observation block, by default `None` (a shift by -1 schedule time step is performed)
+        minimal_score : float, optional
+            Minimal score allowed after the shift. The observation block score is comprised between 0 and 1 (1 being perfect score), by default 0.
+
+        See also
+        --------
+        :meth:`~nenupy.schedule.Schedule._shift_obsblock`
+        """
+        if dt is None:
+            slots_to_shift = - 1
+        else:
+            slots_to_shift = int(np.floor(abs(dt) / self.dt))
+
+        self._shift_obsblock(
+            observation_block=observation_block,
+            shift_by_nslots=slots_to_shift,
+            minimal_score=minimal_score
+        )
 # ============================================================= #
 # ============================================================= #
 
