@@ -24,6 +24,7 @@ __all__ = [
 import logging
 log = logging.getLogger(__name__)
 import numpy as np
+from typing import Union
 
 try:
     from pygsm import GlobalSkyModel
@@ -100,7 +101,7 @@ class HpxGSM(HpxSky):
             observer=other.observer
         )
 
-    def add_point_source(self, source: Target, value: float|np.ndarray, angular_size: u.Quantity = None) -> None:
+    def add_point_source(self, source: Target, value: Union[float, np.ndarray], angular_size: u.Quantity = None) -> None:
         """ Add point source on top of the GSM model.
 
         Parameters
