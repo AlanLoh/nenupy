@@ -1885,6 +1885,43 @@ class ParsetUser:
             for pc in anabeam.phase_centers
         )
 
+    @classmethod
+    def load_from_parset(cls, parset: Union[str, Parset]):
+
+        def copy_fields(prop: _ParsetProperty, fields: list) -> dict:
+            params = {key: prop[key] for key in prop.keys() if key in fields}
+            return params
+
+        # Initialize a Parset object if not provided
+        if isinstance(parset, str):
+            parset = Parset(parset)
+        
+        # Start a new ParsetUser object
+        new_parset = cls()
+
+        # Set up the Observation configuration part
+        new_parset.set_observation_config(**copy_fields(parset.observation, new_parset.observation_fields))
+
+        # Re-create every analog / numerical beams and phase centers
+        for analog_beam in parset.anabeams.values():
+            new_parset.add_analog_beam(**copy_fields(analog_beam, new_parset.analog_beam_fields))
+
+        for digital_beam in parset.digibeams.values():
+            new_parset.add_numerical_beam(
+                anabeam_index=digital_beam.get("noBeam", 0),
+                **copy_fields(digital_beam, new_parset.numerical_beam_fields)
+            )
+
+        for phase_center in parset.phase_centers.values():
+            new_parset.add_phase_center(
+                anabeam_index=phase_center.get("noBeam", 0),
+                **copy_fields(phase_center, new_parset.phase_center_fields)
+            )
+
+        new_parset.set_output_config(**copy_fields(parset.output, new_parset.output_fields))
+
+        return new_parset
+
 
     @classmethod
     def replay_from_parset(cls, parset: Union[str, Parset], from_time: Time = Time.now(), duration: TimeDelta = None, same_lst: bool = False):
