@@ -43,6 +43,7 @@ import dask.array as da
 
 from nenupy import nenufar_position, HiddenPrints
 from nenupy.astro.sky import HpxSky, Sky
+from nenupy.astro.target import Target
 from nenupy.astro import altaz_to_radec
 
 
@@ -67,12 +68,27 @@ class HpxGSM(HpxSky):
 
         self.value = self._generate_gsm_map()
 
-
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     @classmethod
     def shaped_like(cls, other):
-        """ """
+        """_summary_
+
+        Parameters
+        ----------
+        other : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+
+        Raises
+        ------
+        TypeError
+            _description_
+        """
         if not isinstance(other, HpxSky):
             raise TypeError(
                 f"{HpxSky.__class__} instance expected."
@@ -84,11 +100,123 @@ class HpxGSM(HpxSky):
             observer=other.observer
         )
 
+    def add_point_source(self, source: Target, value: float|np.ndarray, angular_size: u.Quantity = None) -> None:
+        """ Add point source on top of the GSM model.
+
+        Parameters
+        ----------
+        source : :class:`~nenupy.astro.target.Target`
+            Source target, can either be a :class:`~nenupy.astro.target.FixedTarget` or a :class:`~nenupy.astro.target.SolarSystemTarget`.
+        value : `float` | :class:`~numpy.ndarray`
+            Value to add to the GSM at the position of the source.
+        angular_size : :class:`~astropy.units.Quantity`, optional
+            Angular size of the point source (a gaussian model is applied with a FWHM equivalent to ``angular_size``), by default `None`
+        
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.astro.skymodel import HpxGSM
+            >>> from nenupy.astro.target import FixedTarget
+            >>> from astropy.time import Time
+
+            >>> times = Time(["2026-05-01 00:00:00", "2026-05-01 12:00:00"])
+            >>> gsm = HpxGSM(time=times)
+            >>> gsm.add_point_source(
+                    source=FixedTarget.from_name("PSR B1919+21"),
+                    value=1e5,
+                    angular_size=None
+                )
+
+        """
+
+        # Check value input
+        new_value_shape = self.value.shape[:-1]
+        if np.isscalar(value):
+            value = np.ones(new_value_shape) * value
+        else:
+            assert value.shape == new_value_shape, f"If value is an array, its dimension must match {new_value_shape}, i.e. (time, frequency, polarization)."
+
+        # Make sure that times are matching
+        if not np.all(np.isclose(source.time.jd, self.time.jd)):
+            source.update_time(self.time)
+
+        # Get the pixels corresponding to source coordinates
+        source_pixel = hp.ang2pix(
+            nside=self.nside,
+            theta=source.coordinates.ra.deg,
+            phi=source.coordinates.dec.deg,
+            lonlat=True
+        )
+        if np.isscalar(source_pixel):
+            # Reshape to match the time axis
+            source_pixel = np.ones(self.time.size, dtype=int) * source_pixel
+
+        if angular_size is None:
+            for ti in range(self.time.size):
+                self.value[ti, ..., source_pixel[ti]] += value[ti, ...]
+        else:
+            # Apply a gaussian smoothing
+            for ti in range(self.time.size):
+                for fi in range(self.frequency.size):
+                    for pi in range(self.polarization.size):
+                        point_source_sky = np.zeros(self.value.shape[-1])
+                        point_source_sky[source_pixel[ti]] += value[ti, fi, pi]
+                        point_source_sky = np.abs(hp.sphtfunc.smoothing(point_source_sky, fwhm=angular_size.to_value(u.rad)))
+                        self.value[ti, fi, pi] += point_source_sky
+    
+    def add_point_source_snr(self, source: Target, snr: float, angular_size: u.Quantity = None) -> None:
+        """ Add point source on top of the GSM model.
+
+        Parameters
+        ----------
+        source : :class:`~nenupy.astro.target.Target`
+            Source target, can either be a :class:`~nenupy.astro.target.FixedTarget` or a :class:`~nenupy.astro.target.SolarSystemTarget`.
+        snr : `float`
+            Signal to Noise Ratio of the ``value`` (see :meth:`~nenupy.astro.skymodel.HpxGSM.add_point_source`) added on top of the GSM map.
+            The value is computed as the sum between the GSM median and the product of ``snr`` and the standard deviation of the GSM map.
+        angular_size : :class:`~astropy.units.Quantity`, optional
+            Angular size of the point source (a gaussian model is applied with a FWHM equivalent to ``angular_size``), by default `None`
+
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.astro.skymodel import HpxGSM
+            >>> from nenupy.astro.target import SolarSystemTarget
+            >>> import astropy.units as u
+            >>> from astropy.time import Time
+
+            >>> times = Time(["2026-05-01 00:00:00", "2026-05-01 12:00:00"])
+            >>> gsm = HpxGSM(time=times)
+            >>> gsm.add_point_source_snr(
+                    source=SolarSystemTarget.from_name("Sun", times),
+                    snr=20,
+                    angular_size=30 * u.arcmin
+                )
+
+        """
+
+        mean = np.mean(self.value, axis=-1)
+        std = np.std(self.value, axis=-1)
+        values = mean + snr * std
+
+        self.add_point_source(
+            source=source,
+            value=values,
+            angular_size=angular_size
+        )
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     def _generate_gsm_map(self) -> da.Array:
-        """ """
+        """_summary_
+
+        Returns
+        -------
+        da.Array
+            _description_
+        """
 
         # Generate the GSM map at the given frequency
         gsm = GlobalSkyModel(freq_unit="MHz")
@@ -101,11 +229,6 @@ class HpxGSM(HpxSky):
                 map_in=gsm_map,
                 nside_out=self.nside
             )
-        
-        
-        # gsm_map = gal_to_eq.rotate_map_alms(
-        #     gsm_map
-        # )
 
         # Add frequency if size=1
         if self.frequency.size == 1:
@@ -115,14 +238,14 @@ class HpxGSM(HpxSky):
         gal_to_eq = hp.rotator.Rotator(
             deg=True,
             rot=[0, 0],
-            coord=['G', 'C']
+            coord=["G", "C"]
         )
         for i in range(self.frequency.size):
             with HiddenPrints():
                 gsm_map[i, :] = gal_to_eq.rotate_map_pixel(
                     gsm_map[i, :]
                 )
-    
+
         # Transform into dask array
         gsm_map = da.from_array(gsm_map)
 
