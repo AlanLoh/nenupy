@@ -80,6 +80,15 @@ class SkySliceBase(AstroObject):
         self.value = value
 
 
+    def __sub__(self, other):
+        if all((self.coordinates == other.coordinates) * (self.time == other.time) * (self.frequency == other.frequency) * (self.polarization == other.polarization)):
+            result = copy.deepcopy(self)
+            result.value -= other.value
+            return result
+        else:
+            raise ValueError("Unable to perform subtract operation: the two sky slices do not whare common properties.") 
+
+
     @property
     def visible_sky(self):
         """ """
@@ -231,11 +240,21 @@ class SkySliceBase(AstroObject):
             resolution=getattr(self, "resolution", resolution),
             radius=radius
         )
-        fig = plt.figure(figsize=figsize)
-        ax = fig.add_subplot(
-            projection=wcs,
-            frame_class=EllipticalFrame
-        )
+        fig = kwargs.get("fig", plt.figure(figsize=figsize))
+        ax = kwargs.get("ax", None)
+        if ax is None:
+            ax = fig.add_subplot(
+                projection=wcs,
+                frame_class=EllipticalFrame
+            )
+        else:
+            axes = kwargs.get("axes", None)
+            if axes is None:
+                raise ValueError("Please, provide the full axis object, e.g. `plot(ax=axes[0][1], axes=axes)`.")
+            rows, cols, start, stop = ax.get_subplotspec().get_geometry()
+            axes.flat[start].remove()
+            ax = fig.add_subplot(rows, cols, start + 1, projection=wcs, frame_class=EllipticalFrame)
+            axes.flat[start] = ax
 
         # Get the data projected on fullsky
         data = self._fullsky_projection(
