@@ -87,7 +87,7 @@ class SST(StatisticsData):
 
             :type: :class:`~numpy.ndarray`
         """
-        return self._meta_data["ins"]["noMROn"][0, :]
+        return self._meta_data["ins"]["noMR"][0, :]
 
 
     # --------------------------------------------------------- #
