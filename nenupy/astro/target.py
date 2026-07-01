@@ -1000,6 +1000,10 @@ class Target(AstroObject, ABC):
             return Time([], format="jd")
 
 
+    @abstractmethod
+    def update_time(self, time: Time) -> None:
+        raise NotImplementedError
+
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
@@ -1207,6 +1211,17 @@ class FixedTarget(Target):
         )
 
 
+    def update_time(self, time: Time) -> None:
+        """ Update the time at which target coordinates are computed. 
+
+        Parameters
+        ----------
+        time : :class:`~astropy.time.Time`
+            The new time values.
+        """
+        self.time = time
+
+
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
     def _get_source_coordinates(self, time: Time):
@@ -1305,6 +1320,22 @@ class SolarSystemTarget(Target):
             coordinates=source,
             observer=observer,
             time=time
+        )
+
+
+    def update_time(self, time: Time) -> None:
+        """ Update the time at which target coordinates are computed. 
+
+        Parameters
+        ----------
+        time : :class:`~astropy.time.Time`
+            The new time values.
+        """
+        self.time = time
+        self.coordinates = solar_system_source(
+            name=self.name,
+            time=time,
+            observer=self.observer
         )
 
 
