@@ -87,7 +87,11 @@ class SST(StatisticsData):
 
             :type: :class:`~numpy.ndarray`
         """
-        return self._meta_data["ins"]["noMR"][0, :]
+        try:
+            return self._meta_data["ins"]["noMR"][0, :]
+        except IndexError:
+            # This is a distant SST file
+            return self._meta_data["ins"]["noMR"]
 
 
     # --------------------------------------------------------- #
