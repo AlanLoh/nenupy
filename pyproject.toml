@@ -42,7 +42,8 @@ script-files = [
     "bin/nenupy_vcr_coordinates",
     "bin/nenupy_parallactic_correction",
     "bin/nenupy_src_vis",
-    "bin/nenupy_bst_vis"
+    "bin/nenupy_bst_vis",
+    "bin/nenupy_download_data"
 ]
 
 [tool.setuptools.packages.find]

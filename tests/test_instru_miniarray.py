@@ -159,7 +159,7 @@ class TestMiniArray:
         assert np.ma.is_masked(beam_values[0])
         # assert beam_values[1] == pytest.approx(23.2, abs=1e-1) # before normalization
         # assert beam_values[2] == pytest.approx(300.6, abs=1e-1)
-        assert beam_values[1] == pytest.approx(8.53e-4, abs=1e-6)
+        assert beam_values[1] == pytest.approx(0.001081, abs=1e-6)
         assert beam_values[2] == pytest.approx(1.10e-2, abs=1e-4)
 
     def test_beam_healpix(self):

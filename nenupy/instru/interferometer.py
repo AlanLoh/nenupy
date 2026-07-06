@@ -686,6 +686,9 @@ class Interferometer(ABC):#, metaclass=CombinedMeta):
                 :meth:`~nenupy.instru.interferometer.Interferometer.array_factor`
 
         """
+        # Copy the sky instances in order not to udpate the original one and create memory leaks
+        sky = copy.deepcopy(sky)
+        pointing = copy.deepcopy(pointing)
 
         # Compute the array factor
         array_factor = self.array_factor(
@@ -697,7 +700,7 @@ class Interferometer(ABC):#, metaclass=CombinedMeta):
 
         # Compute the total antenna gain, i.e. the sum of all
         # antenna gains for beamforming.
-        antenna_gain = np.sum(
+        antenna_gain = da.sum(
             np.array([gain(
                 sky=sky,
                 pointing=pointing
@@ -712,10 +715,10 @@ class Interferometer(ABC):#, metaclass=CombinedMeta):
 
         # Perform the Dask computation of array factor times antenna
         # gains. Update the sky instance values.
-        if return_complex:
-            sky.value = array_factor * np.sqrt(antenna_gain)
-        else:
-            sky.value = array_factor * antenna_gain
+        # if return_complex:
+        #     sky.value = array_factor * np.sqrt(antenna_gain)
+        # else:
+        sky.value = array_factor * antenna_gain
 
         return sky
 

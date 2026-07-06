@@ -1,0 +1,33 @@
+#! /usr/bin/python3
+# -*- coding: utf-8 -*-
+
+__author__ = "Alan Loh"
+__copyright__ = "Copyright 2026, nenupy"
+__credits__ = ["Alan Loh"]
+__maintainer__ = "Alan"
+__email__ = "alan.loh@obspm.fr"
+__status__ = "Production"
+
+
+import os
+import logging
+
+from nenupy.instru import antenna
+
+log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
+
+# ============================================================= #
+# --------------------------- main ---------------------------- #
+if __name__ == "__main__":
+
+    model_path = os.path.join(
+        os.path.dirname(antenna.__file__),
+        "antenna_models"
+    )
+
+    antenna.download_ant_ref_models(
+        save_path=model_path
+    )
+# ============================================================= #
+# ============================================================= #

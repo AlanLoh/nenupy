@@ -31,16 +31,20 @@ __all__ = [
     "NenuFAR"
 ]
 
-from functools import lru_cache
+from functools import lru_cache, partial
 import logging
 log = logging.getLogger(__name__)
 
 import numpy as np
 
 import astropy.units as u
+from astropy.io import fits
 from astropy.time import Time, TimeDelta
 from astropy.coordinates import EarthLocation, SkyCoord, AltAz
 from pyproj import Transformer
+import dask.array as da
+from typing import Tuple
+import glob
 
 from nenupy import nenufar_position
 from nenupy.instru import (
@@ -51,16 +55,17 @@ from nenupy.instru import (
 )
 from nenupy.instru.interferometer import Interferometer
 from nenupy.astro.astro_tools import radec_to_altaz
-from nenupy.astro.sky import Sky
+from nenupy.astro.sky import Sky, HpxSky
 from nenupy.astro.pointing import Pointing
+from nenupy.instru.antenna import ant_pol_to_ref
 
 
 # ============================================================= #
 # ---------------- Polarization / Antenna Gain ---------------- #
 # ============================================================= #
 import healpy as hp
-#from scipy.interpolate import interp2d
-from scipy.interpolate import BarycentricInterpolator#RegularGridInterpolator
+logging.getLogger("healpy").setLevel(logging.WARNING)
+from scipy.interpolate import BarycentricInterpolator
 import os
 from enum import Enum
 
@@ -69,50 +74,30 @@ class _AntennaGain:
     """ NenuFAR antenna gain class. """
 
 
-    def __init__(self, polarization: str = 'NW'):
+    def __init__(self, polarization: str = "NW", antenna_name: str = None, mini_array_index: int = None, filename: str = None):
         self.polarization = polarization
 
-        if self.polarization == 'NE':#'NW':
-            fields = np.arange(8)
-        elif self.polarization == 'NW':#'NE':
-            fields = 8 + np.arange(8)
-        else:
-            raise Exception(f"Polarization '{self.polarization}' unknown.")
+        ref_ant_model = "NenuFAR_Ant_Hpx.fits" 
+        if (antenna_name is not None) and (mini_array_index is not None):
+            ref_ant = ant_pol_to_ref(
+                mini_array=mini_array_index,
+                antenna=antenna_name,
+                polarization=polarization
+            )[0]
+            ref_ant_model = f"antenna_models/nenufar_ma{ref_ant['ma']}_{ref_ant['antenna'].lower()}.fits"
 
-        # Read the gain
-        gain = hp.read_map(
-            filename=os.path.join(os.path.dirname(__file__), './NenuFAR_Ant_Hpx.fits'),
-            hdu=1,
-            field=fields,
-            memmap=True,
-            dtype=float
-        )
-        gain /= gain.max()
+        if filename is None:
+            filename = os.path.join(
+                os.path.dirname(__file__),
+                ref_ant_model
+            )
 
-        # Interpolate the antenna gain on the frequency axis
-        freqs = np.arange(10, 90, 10)
-        self.healpix_coords = np.arange(hp.pixelfunc.nside2npix(64))
-        # self.interpolated_gain = interp2d(
-        #     x=self.healpix_coords,
-        #     y=freqs,
-        #     z=gain,
-        #     kind='linear'
-        # )
-        # self.interpolated_gain = RegularGridInterpolator(
-        #     points=(freqs, self.healpix_coords),
-        #     values=gain,
-        #     method="linear"
-        # )
-        self.interpolated_gain = BarycentricInterpolator(
-            xi=freqs,
-            yi=gain,
-            axis=0
-        )
+        self.healpix_coords, self.interpolated_gain = self.load_file(filename, polarization)
 
-        log.info(f'NenuFAR antenna model (polarization={polarization}) loaded.')
+        log.debug(f'NenuFAR antenna model (polarization={polarization}) loaded.')
 
 
-    @lru_cache(maxsize=1)
+    # @lru_cache(maxsize=1)
     def __getitem__(self, sky: Sky) -> np.ndarray:
         """ Return an antenna gain array shaped like (sky.time, sky.frequency, sky.coord)
         """
@@ -143,25 +128,61 @@ class _AntennaGain:
         ]) # would like (freq, time, coord) but broadcasting happens...
         gain = gain.reshape(final_shape)
 
-        # if gain.ndim == 1:
-        #     # If only one or less dimension is larger than 1 element, get_interp_val returns a 1D array
-        #     # It's then esay to just reshape like the original array (minus the pol) since a single dimension is affected at best
-        #     original_shape = sky.value.shape
-        #     gain = gain.reshape((original_shape[0], original_shape[1], original_shape[3]))
-        # elif gain.ndim == 2:
-        #     # The time dimension is not yet included
-        #     gain = gain.reshape((1,) + gain.shape)
-        # # Return something shaped as (time, freq, coord)
-        # if sky.time.size == 1:
-        #     return gain
         return np.moveaxis(gain, 0, 1) # (time, freq, coord)
+
+
+    @staticmethod
+    def load_file(filename: str, polarization: str) -> Tuple[np.ndarray, BarycentricInterpolator]:
+        # Read the structure of the FITS file and where to look for in its extensions
+        pol_in_file = []
+        freq_in_file = []
+        try:
+            with fits.open(filename) as hdus:
+                for i in range(hdus[1].header["TFIELDS"]):
+                    polar, frequency = hdus[1].header[f"TTYPE{i + 1}"].split("_")
+                    pol_in_file.append(polar)
+                    freq_in_file.append(float(frequency))
+        except FileNotFoundError:
+            antenna_path = os.path.join(
+                os.path.dirname(__file__),
+                "antenna_models"
+            )
+            if len(glob.glob(os.path.join(antenna_path, "*.fits"))) == 0:
+                log.error("Antenna models need to be downloaded. Please run nenupy_download_data")
+            else:
+                log.error(f"Antenna model {filename} has not yet been computed.")
+            raise
+
+        fields = np.where(np.array(pol_in_file) == polarization)[0]
+        if fields.size == 0:
+            raise Exception(f"Polarization '{polarization}' unknown / not stored in {filename}.")
+
+        # Read the gain
+        gain = hp.read_map(
+            filename=filename,
+            hdu=1,
+            field=fields,
+            memmap=True,
+            dtype=float
+        )
+        gain /= gain.max()
+
+        # Interpolate the antenna gain on the frequency axis
+        healpix_coords = np.arange(hp.pixelfunc.nside2npix(64))
+        interpolated_gain = BarycentricInterpolator(
+            xi=np.array(freq_in_file)[fields], # assumed to be in MHz
+            yi=gain,
+            axis=0
+        )
+
+        return healpix_coords, interpolated_gain
 
 
 class Polarization(Enum):
     """ Enumerator of the different available polarizations of NenuFAR. """
 
-    NW = _AntennaGain('NW')
-    NE = _AntennaGain('NE')
+    NW = "NW" #_AntennaGain('NW')
+    NE = "NE" #_AntennaGain('NE')
 
 
 class NenuFAR_Configuration:
@@ -318,7 +339,8 @@ class MiniArray(Interferometer):
     def __init__(self,
             index: int = 0,
             antenna_delays: np.ndarray = None,
-            antenna_weights: np.ndarray = None
+            antenna_weights: np.ndarray = None,
+            use_generic_antenna_model: bool = True
         ):
         self.index = index
 
@@ -350,7 +372,7 @@ class MiniArray(Interferometer):
         )
         antenna_positions = np.dot(antPos, rotMatrix).astype(np.float32)
         antenna_gains = np.array([
-            self._antenna_gain for _ in range(antenna_names.size)
+            partial(self._antenna_gain, antenna_name=None if use_generic_antenna_model else name) for name in antenna_names
         ])
 
         super().__init__(position=position,
@@ -413,8 +435,8 @@ class MiniArray(Interferometer):
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
     def beam(self,
-            sky: Sky,
-            pointing: Pointing,
+            sky: Sky = HpxSky(polarization=Polarization.NW),
+            pointing: Pointing = Pointing.zenith_tracking(time=Time.now() - TimeDelta(60, format="sec"), duration=TimeDelta(120, format="sec")),
             configuration: NenuFAR_Configuration = NenuFAR_Configuration(),
             return_complex: bool = False,
             normalize: bool = True
@@ -901,13 +923,10 @@ class MiniArray(Interferometer):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    #def _antenna_gain(self, sky: Sky, pointing: Pointing):
-    #    return 1.
-    @lru_cache(maxsize=1)
-    def _antenna_gain(self, sky: Sky, pointing: Pointing):
+    # @lru_cache(maxsize=1)
+    def _antenna_gain(self, sky: Sky, pointing: Pointing, antenna_name: str = None):
         """
         """
-        import dask.array as da
         gain = da.ones(
             (
                 sky.time.size,
@@ -925,7 +944,11 @@ class MiniArray(Interferometer):
                     f"Polarization has been set to '{Polarization.NW}' by default."
                 )
                 pol = Polarization.NW
-            gain[:, :, i, :] = pol.value[sky]
+            gain[:, :, i, :] = _AntennaGain(
+                polarization=pol.name,
+                antenna_name=antenna_name, # self._antenna_name_to_unique_index(antenna_name),
+                mini_array_index=self.index
+            )[sky]
         return gain
 
 
@@ -970,6 +993,35 @@ class MiniArray(Interferometer):
             Longitude(phi, unit="rad"),
             Latitude(theta, unit="rad"),
         ).T
+
+    @staticmethod
+    def _antenna_name_to_unique_index(antenna_name: str = None) -> int:
+        """Return the reference antenna index for a given antenna.
+        There are 4 different unique antennas within a MA, considering symetries.
+
+        Parameters
+        ----------
+        antenna_name : `str`, optional
+            Antenna name (e.g. "Ant09"), by default `None`
+
+        Returns
+        -------
+        `int`
+            Unique antenna index (or `None` if ``antenna_name`` is `None`)
+        """
+        if antenna_name is None:
+            return None
+        antenna_idx = int(antenna_name.replace("Ant", ""))
+        antenna_groups = [
+            [1, 3, 12, 19, 17, 8],
+            [2, 7, 16, 18, 13, 4],
+            [5, 6, 11, 15, 14, 9],
+            [10]
+        ]
+        group_idx = [i for i, group in enumerate(antenna_groups) if antenna_idx in group]
+        if len(group_idx) == 0:
+            raise ValueError(f"Antenna {antenna_name} does not correspond to a MA antenna.")
+        return min(antenna_groups[group_idx[0]])
 # ============================================================= #
 # ============================================================= #
 

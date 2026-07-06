@@ -252,10 +252,10 @@ class Target(AstroObject, ABC):
             fig = plt.figure(figsize=kwargs.get("figsize", (5, 5)))
 
         # Instance of subplot in polar coordinates
-        ax = fig.add_subplot(projection="polar")
+        ax = fig.add_subplot(polar=True)
         ax.set_rlim(bottom=90, top=0) # limit to observable elevation range
-        ax.set_theta_zero_location("S") # set geographical North at the bottom
-        ax.set_theta_direction(-1) # azimuth increasing clockwise
+        ax.set_theta_zero_location("N") # set geographical North at the bottom
+        # ax.set_theta_direction(-1) # azimuth increasing clockwise
 
         # Get the horizontal coordinates
         altaz = self.horizontal_coordinates
