@@ -24,11 +24,14 @@ __all__ = [
     "read_cal_table",
     "generate_nenufar_subarrays",
     "lofar_instrument_temperature",
-    "pointing_correction"
+    "pointing_correction",
+    "nenufar_mini_array_json_from_spreadsheet"
 ]
 
 
 import numpy as np
+import os
+import json
 import astropy.units as u
 from typing import List, Tuple
 from os.path import join, dirname
@@ -673,3 +676,88 @@ def pointing_correction(altaz_coordinates: SkyCoord, correction_year: str = "202
     )
 
     return new_coordinates
+
+
+# ============================================================= #
+# ---------- nenufar_mini_array_json_from_spreadsheet --------- #
+def nenufar_mini_array_json_from_spreadsheet(spreadsheet: str, save: bool = False) -> dict:
+    """Update the Mini-Array properties based on the spreadsheet kept up-to-date in Nançay.
+    This updates the JSON file used by `nenupy` to perform any NenuFAR based operation.
+    The update will be erased if you upgrade `nenupy` version.
+
+    Parameters
+    ----------
+    spreadsheet : `str`
+        The spreadhseet kept up to date in Nançay, containgin all Mini-Array properties.
+    save : `bool`, optional
+        Save or not the modifications in the file accessed by nenupy, by default `False`.
+        
+    Returns
+    -------
+    `dict`
+        A dictionnary of Mini-Array properties, only of ``save`` is not selected.
+    
+    Warning
+    -------
+    This function requires appropriate knowledge of the NenuFAR systems, as well as `nenupy`.
+    Do not select the ``save`` option if you are unsure about what you are doing.
+    """
+
+    import pandas as pd
+
+    # Function to convert longitude / latitude written in sexagesimal format to degrees
+    def coord_txt_to_deg(text: str, longitude: bool = True):
+        if not isinstance(text, str):
+            coord = None
+        else:
+            text = text.replace(",", ".")
+            if text.endswith("''"):
+                text = text[:-2] + '"'
+            try:
+                coord = Longitude(text) if longitude else Latitude(text)
+                coord = coord.deg
+            except:
+                coord = None
+        return coord
+
+    # Read the spreadsheet, pandas should be able to read either .xlsx or .ods files
+    # Maybe pandas will require the user to install odfpy
+    data = pd.read_excel(
+        spreadsheet,
+        sheet_name="Coordonnées",
+        skiprows=1
+    )
+
+    # Select only valid MAs
+    # Unbuild / incomplete columns have MA indices starting with a 'T' (e.g. 'T104')
+    valid_mas = ~ data["MR"].str.startswith("T", na=False)
+
+    nenufar_mas_dict = {
+        f"MA{int(row['MR']):03d}": {
+            "id": int(row["MR"]),
+            "rotation": int(row["Rotation (degrees)"]),
+            # "petal": int(row[2].value),
+            "lon": coord_txt_to_deg(row["Longitude (E)"]),
+            "lat": coord_txt_to_deg(row["Latitude (N)"]),
+            "height": float(row["Height (m)"]),
+            "position": [float(row["X-coordinate (m)"]), float(row["Y-coordinate (m)"]), float(row["Altitude (m)"])], # Lambert93
+            "delay": float(row["Cable propagation delay (ns)"]),
+            "attenuation": float(row["Cable compensation attenuator (dB)"]),
+        } for _, row in data[valid_mas].iterrows()
+    }
+
+    # Save or not to JSON file
+    # A confirmation is expected
+    if save:
+        json_file = os.path.join(os.path.dirname(__file__), "nenufar_array.json")
+        confirmation = input(f"If you wish to replace '{json_file}', type 'yes' (any other key abort the process):")
+        if confirmation != "yes":
+            log.info("Aborting the saving process.")
+        else:
+            with open(json_file, "w") as wfile:
+                json.dump(nenufar_mas_dict, wfile)
+            log.info(f"{json_file} written. shift+opt+f on a MacOS to make the JSON pretty.")
+    else:
+        return nenufar_mas_dict
+# ============================================================= #
+# ============================================================= #
