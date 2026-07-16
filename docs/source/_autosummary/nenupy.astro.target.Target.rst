@@ -33,6 +33,7 @@
       ~Target.rise_time
       ~Target.separation
       ~Target.set_time
+      ~Target.update_time
    
    
 

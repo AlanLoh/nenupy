@@ -34,6 +34,7 @@
       ~FixedTarget.rise_time
       ~FixedTarget.separation
       ~FixedTarget.set_time
+      ~FixedTarget.update_time
    
    
 

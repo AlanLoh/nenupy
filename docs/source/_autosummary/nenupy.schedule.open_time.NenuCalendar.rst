@@ -18,6 +18,7 @@
    .. autosummary::
    
       ~NenuCalendar.__init__
+      ~NenuCalendar.from_csv
       ~NenuCalendar.from_ics
       ~NenuCalendar.from_xls
       ~NenuCalendar.info

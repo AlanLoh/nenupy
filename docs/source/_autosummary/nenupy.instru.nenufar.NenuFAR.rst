@@ -41,6 +41,7 @@
       ~NenuFAR.antenna_gains
       ~NenuFAR.antenna_names
       ~NenuFAR.antenna_positions
+      ~NenuFAR.antenna_positions_lambertorn
       ~NenuFAR.antenna_weights
       ~NenuFAR.baselines
       ~NenuFAR.include_remote_mas

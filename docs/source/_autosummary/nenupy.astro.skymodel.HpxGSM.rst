@@ -1,4 +1,4 @@
-nenupy.astro.skymodel.HpxGSM
+﻿nenupy.astro.skymodel.HpxGSM
 ============================
 
 .. currentmodule:: nenupy.astro.skymodel
@@ -18,6 +18,8 @@ nenupy.astro.skymodel.HpxGSM
    .. autosummary::
    
       ~HpxGSM.__init__
+      ~HpxGSM.add_point_source
+      ~HpxGSM.add_point_source_snr
       ~HpxGSM.compute_lmn
       ~HpxGSM.hour_angle
       ~HpxGSM.local_sidereal_time

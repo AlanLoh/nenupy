@@ -41,6 +41,7 @@
    .. autosummary::
    
       ~Schedule.dt
+      ~Schedule.free_processing_slots
       ~Schedule.observation_blocks
       ~Schedule.reserved_blocks
       ~Schedule.score

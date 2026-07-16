@@ -16,6 +16,8 @@
    
       in_analog_beam_max_frequency
       plot_current_pointing
+      time_to_night_mask
+      time_to_season_mask
    
    
 

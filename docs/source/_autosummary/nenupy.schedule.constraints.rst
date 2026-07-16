@@ -32,6 +32,7 @@
       SolarProximityCnst
       TargetConstraint
       TimeRangeCnst
+      UTCHourCnst
    
    
 

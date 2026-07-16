@@ -28,6 +28,7 @@
    :template: custom-module-template.rst
    :recursive:
 
+   nenupy.instru.antenna
    nenupy.instru.instrument_tools
    nenupy.instru.interferometer
    nenupy.instru.nda

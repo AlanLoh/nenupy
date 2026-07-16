@@ -15,6 +15,7 @@
       :toctree:
    
       apply_dreambeam_corrections
+      bandpass_correction_coefficients
       blocks_to_tf_data
       compute_spectra_frequencies
       compute_spectra_time

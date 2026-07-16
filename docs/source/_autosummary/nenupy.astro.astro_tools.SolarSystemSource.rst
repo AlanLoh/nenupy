@@ -1,4 +1,4 @@
-﻿nenupy.astro.astro\_tools.SolarSystemSource
+nenupy.astro.astro\_tools.SolarSystemSource
 ===========================================
 
 .. currentmodule:: nenupy.astro.astro_tools

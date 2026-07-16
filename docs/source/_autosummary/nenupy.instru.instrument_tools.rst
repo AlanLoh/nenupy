@@ -1,4 +1,4 @@
-﻿nenupy.instru.instrument\_tools
+nenupy.instru.instrument\_tools
 ===============================
 
 .. automodule:: nenupy.instru.instrument_tools
@@ -22,6 +22,7 @@
       mini_array_pointing_coordinates
       mini_array_pointing_order
       miniarrays_rotated_like
+      nenufar_mini_array_json_from_spreadsheet
       pointing_correction
       read_cal_table
       sb2freq

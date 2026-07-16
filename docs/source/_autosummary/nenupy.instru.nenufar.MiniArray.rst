@@ -48,6 +48,8 @@
       ~MiniArray.baselines
       ~MiniArray.index
       ~MiniArray.position
+      ~MiniArray.position_lambert93
+      ~MiniArray.position_lambertorn
       ~MiniArray.rotation
       ~MiniArray.size
    

@@ -1,4 +1,4 @@
-nenupy.astro.astro\_tools
+﻿nenupy.astro.astro\_tools
 =========================
 
 .. automodule:: nenupy.astro.astro_tools
@@ -21,6 +21,7 @@ nenupy.astro.astro\_tools
       faraday_angle
       geo_to_etrs
       geo_to_l93
+      geo_to_orn
       hour_angle
       l93_to_etrs
       l93_to_geo
@@ -29,6 +30,7 @@ nenupy.astro.astro\_tools
       radec_to_altaz
       sky_temperature
       solar_system_source
+      to_local_time
       wavelength
    
    

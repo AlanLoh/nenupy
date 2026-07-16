@@ -54,7 +54,7 @@ from nenupy.instru import (
     instrument_temperature
 )
 from nenupy.instru.interferometer import Interferometer
-from nenupy.astro.astro_tools import radec_to_altaz
+from nenupy.astro.astro_tools import radec_to_altaz, geo_to_orn, l93_to_geo
 from nenupy.astro.sky import Sky, HpxSky
 from nenupy.astro.pointing import Pointing
 from nenupy.instru.antenna import ant_pol_to_ref
@@ -299,41 +299,6 @@ class MiniArray(Interferometer):
             More details on this class usage can be found in 
             :ref:`array_configuration_doc` and :ref:`instrument_properties_doc`.
 
-        .. rubric:: Attributes Summary
-
-        .. autosummary::
-
-            ~MiniArray.index
-            ~MiniArray.rotation
-            ~nenupy.instru.interferometer.Interferometer.position
-            ~nenupy.instru.interferometer.Interferometer.antenna_names
-            ~nenupy.instru.interferometer.Interferometer.antenna_positions
-            ~nenupy.instru.interferometer.Interferometer.antenna_gains
-            ~nenupy.instru.interferometer.Interferometer.baselines
-            ~nenupy.instru.interferometer.Interferometer.size
-            ~nenupy.instru.interferometer.Interferometer.antenna_weights
-            ~nenupy.instru.interferometer.Interferometer.antenna_delays
-
-        .. rubric:: Methods Summary
-
-        .. autosummary::
-
-            ~MiniArray.beam
-            ~MiniArray.effective_area
-            ~MiniArray.instrument_temperature
-            ~MiniArray.attenuation_from_zenith
-            ~MiniArray.analog_pointing
-            ~MiniArray.beamsquint_correction
-            ~nenupy.instru.interferometer.Interferometer.plot
-            ~nenupy.instru.interferometer.Interferometer.array_factor
-            ~nenupy.instru.interferometer.Interferometer.system_temperature
-            ~nenupy.instru.interferometer.Interferometer.sefd
-            ~nenupy.instru.interferometer.Interferometer.sensitivity
-            ~nenupy.instru.interferometer.Interferometer.angular_resolution
-            ~nenupy.instru.interferometer.Interferometer.confusion_noise
-
-        .. rubric:: Attributes and Methods Documentation
-
     """
 
     def __init__(self,
@@ -431,6 +396,53 @@ class MiniArray(Interferometer):
     def rotation(self, r: u.Quantity):
         self._rotation = r
 
+
+    @property
+    def position_lambert93(self) -> np.ndarray:
+        """Mini-Array position of the central antenna in Lambert93 (EPSG 2154) coordinates.
+        These positions are the ones measured at Nançay.
+
+        Returns
+        -------
+        :class:`~numpy.ndarray`
+            x, y, z coordinates in Lambert93
+
+        Example
+        -------
+        Lambert93 coordinates can be converted back to geographical positions (as expressed in the :attr:`~nenupy.instru.interferometer.position` attribute).
+
+        .. code-block:: python
+
+            >>> from nenupy.instru import MiniArray
+            >>> ma = MiniArray(index=6)
+            >>> ma.position_lambert93
+            array([6.39039218e+05, 6.69764638e+06, 1.81718000e+02])
+
+            >>> from nenupy.astro import l93_to_geo
+            >>> l93_to_geo(ma.position_lambert93).lon, ma.position.lon
+            (<Longitude 2.19209911 deg>, <Longitude 2.19209911 deg>)
+
+        """
+        ma_name = f"MA{self.index:03d}"
+        return np.array(nenufar_miniarrays[ma_name]["position"])
+
+
+    @property
+    def position_lambertorn(self) -> np.ndarray:
+        """ Mini-Array position expressed in the Lambert ORN system.
+        This system is used in the NenuFAR systems to compute the MA phasing towards a given celestial position.
+
+        Returns
+        -------
+        :class:`~numpy.ndarray`
+            Coordinates in LambertORN.
+
+        See also
+        --------
+        :func:`~nenupy.astro.astro_tools.geo_to_orn`
+
+        """
+        return geo_to_orn(self.position)
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -1084,38 +1096,6 @@ class NenuFAR(Interferometer):
             More details on this class usage can be found in 
             :ref:`array_configuration_doc` and :ref:`instrument_properties_doc`.
 
-        .. rubric:: Attributes Summary
-
-        .. autosummary::
-
-            ~NenuFAR.miniarray_antennas
-            ~NenuFAR.include_remote_mas
-            ~NenuFAR.miniarray_rotations
-            ~nenupy.instru.interferometer.Interferometer.position
-            ~nenupy.instru.interferometer.Interferometer.antenna_names
-            ~nenupy.instru.interferometer.Interferometer.antenna_positions
-            ~nenupy.instru.interferometer.Interferometer.antenna_gains
-            ~nenupy.instru.interferometer.Interferometer.baselines
-            ~nenupy.instru.interferometer.Interferometer.size
-
-
-        .. rubric:: Methods Summary
-
-        .. autosummary::
-
-            ~NenuFAR.beam
-            ~NenuFAR.effective_area
-            ~NenuFAR.instrument_temperature
-            ~nenupy.instru.interferometer.Interferometer.plot
-            ~nenupy.instru.interferometer.Interferometer.array_factor
-            ~nenupy.instru.interferometer.Interferometer.system_temperature
-            ~nenupy.instru.interferometer.Interferometer.sefd
-            ~nenupy.instru.interferometer.Interferometer.sensitivity
-            ~nenupy.instru.interferometer.Interferometer.angular_resolution
-            ~nenupy.instru.interferometer.Interferometer.confusion_noise
-
-        .. rubric:: Attributes and Methods Documentation
-
     """
 
     def __init__(self, miniarray_antennas: np.ndarray = np.r_[:19], include_remote_mas: bool = False):
@@ -1192,6 +1172,66 @@ class NenuFAR(Interferometer):
             )
         self._include_remote_mas = include
 
+
+    @property
+    def antenna_positions_lambertorn(self) -> np.ndarray:
+        """ Mini-Array positions expressed in the Lambert ORN system.
+        In this system, the "North" is adjusted to Nançay's longitude.
+        This is not the case for the Lambert93 system that is optimized for France as a whole.
+        Consequently, the projected ground positions of the MAs appears as if rotated and is responsible for the pointing error encountered until June 2025 (see for e.g. :func:`~nenupy.astro.beam_correction.pointing_correction_factor`)
+
+        Returns
+        -------
+        :class:`~numpy.ndarray`
+            Mini-Array positions expressed in Lambert ORN.
+        
+        See also
+        --------
+        :func:`~nenupy.astro.astro_tools.geo_to_orn`
+            
+        Example
+        -------
+        The difference between the Lambert93 and the LambertORN systems can be emphasized as follows (and amplified by a ``factor=10``):
+
+        .. code-block:: python
+
+            >>> from nenupy.instru import NenuFAR
+            >>> import numpy as np
+            >>> import matplotlib.pyplot as plt
+
+            >>> nenu = NenuFAR()
+
+            >>> l93_x0, l93_y0 = nenu.antenna_positions[0, :2]
+            >>> lorn_x0, lorn_y0 = nenu.antenna_positions_lambertorn[0, :2]
+
+            >>> lorn_x = nenu.antenna_positions_lambertorn[:, 0] - lorn_x0
+            >>> lorn_y = nenu.antenna_positions_lambertorn[:, 1] - lorn_y0
+            >>> l93_x = nenu.antenna_positions[:, 0] - l93_x0
+            >>> l93_y = nenu.antenna_positions[:, 1] - l93_y0
+
+            >>> fig = plt.figure(figsize=(6, 6))
+            >>> ax = fig.add_subplot()
+            >>> factor = 10
+            >>> ax.scatter(l93_x, l93_y, 11, color=".8")
+            >>> ax.quiver(
+            >>>     l93_x, l93_y,
+            >>>     (np.array(lorn_x) - np.array(l93_x)) * factor,
+            >>>     (np.array(lorn_y) - np.array(l93_y)) * factor,
+            >>>     angles="xy", scale_units="xy", scale=1.,
+            >>>     width=0.003,
+            >>>     headaxislength=3,
+            >>>     headlength=3,
+            >>>     zorder=10,
+            >>> )
+            >>> ax.set_aspect("equal", adjustable="datalim")
+
+        .. figure:: ../_images/instru_images/l93_vs_lorn.png
+            :width: 650
+            :align: center
+
+        """
+        antenna_positions_geo = l93_to_geo(self.antenna_positions)
+        return geo_to_orn(antenna_positions_geo)
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #

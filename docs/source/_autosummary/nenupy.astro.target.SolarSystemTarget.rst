@@ -34,6 +34,7 @@
       ~SolarSystemTarget.rise_time
       ~SolarSystemTarget.separation
       ~SolarSystemTarget.set_time
+      ~SolarSystemTarget.update_time
    
    
 

@@ -1,4 +1,4 @@
-﻿nenupy.astro.astro\_tools.AstroObject
+nenupy.astro.astro\_tools.AstroObject
 =====================================
 
 .. currentmodule:: nenupy.astro.astro_tools

@@ -21,6 +21,7 @@
       ~ParsetUser.add_analog_beam
       ~ParsetUser.add_numerical_beam
       ~ParsetUser.add_phase_center
+      ~ParsetUser.load_from_parset
       ~ParsetUser.modify_analog_beam
       ~ParsetUser.modify_numerical_beam
       ~ParsetUser.modify_phase_center

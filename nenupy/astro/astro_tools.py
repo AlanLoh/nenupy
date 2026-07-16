@@ -9,12 +9,12 @@
 """
 
 
-__author__ = 'Alan Loh'
-__copyright__ = 'Copyright 2021, nenupy'
-__credits__ = ['Alan Loh']
-__maintainer__ = 'Alan'
-__email__ = 'alan.loh@obspm.fr'
-__status__ = 'Production'
+__author__ = "Alan Loh"
+__copyright__ = "Copyright 2026, nenupy"
+__credits__ = ["Alan Loh"]
+__maintainer__ = "Alan"
+__email__ = "alan.loh@obspm.fr"
+__status__ = "Production"
 __all__ = [
     "solar_system_source",
     "local_sidereal_time",
@@ -30,6 +30,7 @@ __all__ = [
     "geo_to_l93",
     "l93_to_geo",
     "geo_to_etrs",
+    "geo_to_orn",
     "etrs_to_enu",
     "AstroObject",
     "faraday_angle"
@@ -56,7 +57,7 @@ from astropy.coordinates import (
     ICRS
 )
 import pytz
-from pyproj import Transformer
+from pyproj import Transformer, Proj
 
 from nenupy import nenufar_position
 
@@ -884,33 +885,99 @@ def geo_to_l93(location: EarthLocation = nenufar_position) -> np.ndarray:
 # ============================================================= #
 def l93_to_geo(positions: np.ndarray) -> EarthLocation:
     """ Convert RGF93 to geographic coordinates.
-        This function takes in positions in RGF93 coordinates (EPSG:2154)
-        and converts it to geographic coordinates (EPSG:4326).
+    This function takes in positions in RGF93 coordinates (EPSG:2154)
+    and converts it to geographic coordinates (EPSG:4326).
 
-        :param positions:
-            The positions to be converted.
-        :type positions: 
-            :class:`~numpy.ndarray`
+    Parameters
+    ----------
+    positions : :class:`~numpy.ndarray`
+        The positions to be converted.
+        They can either be `(x, y, z)` or a 2-dimensional array of shape `(n_positions, 3)`, the last dimention being `(x, y, z)` components.
 
-        :returns:
-            Geographic coordinates.
-        :rtype:
-            :class:`~astropy.coordinates.EarthLocation`
+    Returns
+    -------
+    :class:`~astropy.coordinates.EarthLocation`
+        Geographic coordinates.
     """
-    t = Transformer.from_crs(
-        crs_from='EPSG:2154', # RGF93
-        crs_to='EPSG:4326' # GPS
+
+    single_position = False 
+    if (positions.ndim == 1) and (positions.size == 3):
+        positions = positions.reshape((1, 3))
+        single_position = True
+
+    trans = Transformer.from_crs(
+        crs_from="EPSG:2154", # RGF93
+        crs_to="EPSG:4326" # GPS
     )
-    lat, lon, height = t.transform(
+    lat, lon, height = trans.transform(
         xx=positions[:, 0],
         yy=positions[:, 1],
         zz=positions[:, 2],
     )
+
+    if single_position:
+        lat = lat[0]
+        lon = lon[0]
+        height = height[0]
+
     return EarthLocation(
-        lon=lon*u.deg,
-        lat=lat*u.deg,
-        height=height*u.m
+        lon=lon * u.deg,
+        lat=lat * u.deg,
+        height=height * u.m
     )
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------ geo_to_orn ------------------------- #
+# ============================================================= #
+def geo_to_orn(location: EarthLocation) -> np.ndarray:
+    """ Convert geographical coordinates into LambertORN.
+    This coordinates systems imitates Lambert93 except the "North" is located closer to the ORN's longitude.
+
+    Parameters
+    ----------
+    location : :class:`~astropy.coordinates.EarthLocation`
+        Geographical coordinates.
+
+    Returns
+    -------
+    :class:`~numpy.ndarray`
+        Coordinates expressed in the LambertORN system.
+
+    Example
+    -------
+    .. code-block:: python
+
+        >>> from nenupy.instru import MiniArray
+        >>> from nenupy.astro import geo_to_orn
+        >>> ma = MiniArray(index=6)
+        >>> geo_to_orn(ma.position)
+        array([7.00158393e+05, 6.69733452e+06, 1.81718000e+02])
+
+    """
+    transform = Proj(  # from Cedric
+        proj="lcc",
+        lat_1=44.0,    # parallele standard 1 (comme Lambert 93)
+        lat_2=49.0,    # parallele standard 2 (comme Lambert 93)
+        lat_0=46.5,    # latitude d'origine (comme Lambert 93)
+        lon_0=2.19,    # nouveau meridien central
+        x_0=700000,    # faux est (comme Lambert 93)
+        y_0=6600000,   # faux nord (comme Lambert 93)
+        ellps="GRS80", # ellipsoide (comme Lambert 93)
+        units="m"
+    )
+    positions = np.zeros((location.size, 3))
+    positions[:, 0], positions[:, 1] = transform(
+        location.lon.deg,
+        location.lat.deg,
+    )
+    positions[:, 2] = location.height.to_value("m")
+    if location.ndim == 0:
+        return positions[0, :]
+    else:
+        return positions
 # ============================================================= #
 # ============================================================= #
 

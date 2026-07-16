@@ -55,7 +55,7 @@ It simulates the analog beam (i.e., comprised of the 6 various Mini-Array rotati
     :align: center
 
     NenuFAR analog beam simulation during a Solar observation, projected in an azimuth-elevation polar frame.
-    Contours are defined on a logarithmic scale to better enhance the grating ring, that is partially viewed in this example.
+    Contours are defined on a logarithmic scale to better enhance the grating lobe ring, that is partially viewed in this example.
     The radio sky is displayed in the background to identify bright source positions and Galactic plane orientation with respect to the beam.
 
 .. _beam_simulation_principle_sec:
