@@ -27,12 +27,13 @@ import copy
 from enum import Enum, auto
 from functools import lru_cache
 from os import cpu_count
-from typing import Dict, Callable
+from typing import Dict, Callable, Tuple
 import logging
 log = logging.getLogger(__name__)
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 import astropy.units as u
 from astropy.constants import k_B
@@ -175,35 +176,6 @@ class ObservingMode(Enum):
 # ============================================================= #
 class Interferometer(ABC):#, metaclass=CombinedMeta):
     """ Abstract base class for all phased-array/interferometer classes.
-
-        .. rubric:: Attributes Summary
-
-        .. autosummary::
-
-            ~nenupy.instru.interferometer.Interferometer.antenna_gains
-            ~nenupy.instru.interferometer.Interferometer.antenna_names
-            ~nenupy.instru.interferometer.Interferometer.antenna_positions
-            ~nenupy.instru.interferometer.Interferometer.baselines
-            ~nenupy.instru.interferometer.Interferometer.position
-            ~nenupy.instru.interferometer.Interferometer.size
-            ~nenupy.instru.interferometer.Interferometer.antenna_weights
-            ~nenupy.instru.interferometer.Interferometer.antenna_delays
-
-        .. rubric:: Methods Summary
-
-        .. autosummary::
-
-            ~nenupy.instru.interferometer.Interferometer.angular_resolution
-            ~nenupy.instru.interferometer.Interferometer.array_factor
-            ~nenupy.instru.interferometer.Interferometer.beam
-            ~nenupy.instru.interferometer.Interferometer.confusion_noise
-            ~nenupy.instru.interferometer.Interferometer.plot
-            ~nenupy.instru.interferometer.Interferometer.sefd
-            ~nenupy.instru.interferometer.Interferometer.sensitivity
-            ~nenupy.instru.interferometer.Interferometer.system_temperature
-
-        .. rubric:: Attributes and Methods Documentation
-
     """
 
     def __init__(self,
@@ -356,6 +328,12 @@ class Interferometer(ABC):#, metaclass=CombinedMeta):
     @antenna_positions.setter
     def antenna_positions(self, p: np.ndarray):
         self._antenna_positions = p
+
+
+    @property
+    @abstractmethod
+    def antenna_position_geo(self) -> EarthLocation:
+        raise NotImplementedError("antenna_position_geo asttribute needs to be implemented for this child class.")
 
 
     @property
@@ -558,6 +536,120 @@ class Interferometer(ABC):#, metaclass=CombinedMeta):
         #         for ia, ant in enumerate(positions):
         #             wfile.write(f'\n{ma_index},{ia+1},{ant[0]:.4f},{ant[1]:.4f},{ant[2]:.4f}')
 
+
+    def plot_map(self, zoom: float = 1, map_scale: int = 15, show_names: bool = False, **kwargs) -> Tuple[mpl.figure.Figure, mpl.axes.Axes]:
+        """ Plot the interferometer against the local map.
+
+        Parameters
+        ----------
+        zoom : `float`, optional
+            The level of zoom, larger values implies a reduced plotted area, by default 1
+        map_scale : `int`, optional
+            Scale of the local map, the greater the value, the finer the details, the maximum value is 16, by default 15
+        show_names : `bool`, optional
+            Show or not the names of the antennas, by default `False`
+        center : :class:`~astropy.coordinates.EarthLocation`, optional
+            The center of the plot, by default the :attr:`~nenupy.instru.interferometer.Interferometer.position`
+        figsize : `(int, int)`, optional
+            The size of the figure in inches (matplotlib argument), by default `(10, 10)`
+        markersize : `int`, optional
+            The size of the marker (matplotlib argument), by default 15
+        marker : `str`
+            The shape of the markers (matplotlib argument), by default "x"
+        color : `str`
+            The color of the markers (matplotlib argument), by default "tab:blue"
+    
+        Returns
+        -------
+        Tuple[:class:`~matplotlib.figure.Figure`, :class:`~matplotlib.axes.Axes`]
+            The figure and ax objects
+
+        Example
+        -------
+        .. code-block:: python
+
+            >>> from nenupy.instru import NenuFAR
+            >>> nenu = NenuFAR(include_remote_mas=True)
+            >>> fig, ax = nenu.plot_map(
+                    zoom=3,
+                    map_scale=15,
+                    color="tab:red",
+                    show_names=True,
+                    markersize=60,
+                    marker="o",
+                    center=nenu.antenna_position_geo[nenu.antenna_names == "MA012"]
+                )
+            
+        .. figure:: ../_images/instru_images/nenufar_array_map.png
+            :width: 650
+            :align: center
+        
+        """
+
+        import cartopy.io.img_tiles as cimgt
+        import cartopy.crs as ccrs
+
+        def image_spoof(obj, tile):
+            """ Function that reformats web request from OSM to cartopy
+                See https://makersportal.com/blog/2020/4/24/geographic-visualizations-in-python-with-cartopy
+                And https://www.theurbanist.com.au/2021/03/plotting-openstreetmap-images-with-cartopy/
+            """
+            from urllib.request import urlopen, Request
+            import io
+            from PIL import Image
+
+            url = obj._image_url(tile)
+            req = Request(url)
+            req.add_header("User-agent", "Anaconda 3")
+            fh = urlopen(req)
+            im_data = io.BytesIO(fh.read())
+            fh.close()
+            img = Image.open(im_data)
+            img = img.convert(obj.desired_tile_form)
+            return img, obj.tileextent(tile), "lower"
+
+        cimgt.OSM.get_image = image_spoof
+        img = cimgt.OSM()
+
+        fig = plt.figure(figsize=kwargs.get("figsize", (10, 10)))
+        ax = fig.add_subplot(projection=img.crs)
+        data_crs = ccrs.PlateCarree()
+
+        center = kwargs.get("center", self.position)
+        map_extension = [
+            center.lon.deg - 0.01 / zoom,
+            center.lon.deg + 0.01 / zoom,
+            center.lat.deg - 0.007 / zoom,
+            center.lat.deg + 0.007 / zoom
+        ]
+        ax.set_extent(map_extension)
+        ax.add_image(img, map_scale if map_scale < 16 else 16)
+
+        antenna_positions = self.antenna_position_geo
+
+        ax.scatter(
+            antenna_positions.lon.deg,
+            antenna_positions.lat.deg,
+            kwargs.get("markersize", 15),
+            transform=data_crs,
+            marker=kwargs.get("marker", "x"),
+            color=kwargs.get("color", "tab:blue")
+        )
+
+        if show_names:
+            for i, antenna_name in enumerate(self.antenna_names):
+                ax.annotate(
+                    antenna_name,
+                    (
+                        antenna_positions[i].lon.deg,
+                        antenna_positions[i].lat.deg
+                    ),
+                    ha="center",
+                    transform=data_crs,
+                    annotation_clip=True
+                )
+
+        return fig, ax
 
 
     def array_factor(self, sky: Sky, pointing: Pointing, return_complex: bool = False, normalize: bool = True) -> da.Array:
@@ -1124,8 +1216,8 @@ class Interferometer(ABC):#, metaclass=CombinedMeta):
         angle = np.pi/2
         rot_90 = np.array(
             [
-                [np.cos(angle), -np.sin(angle), 0],
-                [np.sin(angle), np.cos(angle), 0],
+                [np.cos(angle), np.sin(angle), 0],
+                [np.sin(angle), -np.cos(angle), 0],
                 [0,           0,           1]
             ]
         )

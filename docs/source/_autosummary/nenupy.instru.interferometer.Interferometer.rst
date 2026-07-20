@@ -25,6 +25,7 @@
       ~Interferometer.effective_area
       ~Interferometer.instrument_temperature
       ~Interferometer.plot
+      ~Interferometer.plot_map
       ~Interferometer.sefd
       ~Interferometer.sensitivity
       ~Interferometer.system_temperature
@@ -40,6 +41,7 @@
       ~Interferometer.antenna_delays
       ~Interferometer.antenna_gains
       ~Interferometer.antenna_names
+      ~Interferometer.antenna_position_geo
       ~Interferometer.antenna_positions
       ~Interferometer.antenna_weights
       ~Interferometer.baselines

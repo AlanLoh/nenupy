@@ -25,6 +25,7 @@
       ~NDA.effective_area
       ~NDA.instrument_temperature
       ~NDA.plot
+      ~NDA.plot_map
       ~NDA.sefd
       ~NDA.sensitivity
       ~NDA.system_temperature
@@ -40,6 +41,7 @@
       ~NDA.antenna_delays
       ~NDA.antenna_gains
       ~NDA.antenna_names
+      ~NDA.antenna_position_geo
       ~NDA.antenna_positions
       ~NDA.antenna_weights
       ~NDA.baselines

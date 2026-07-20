@@ -28,6 +28,7 @@
       ~MiniArray.effective_area
       ~MiniArray.instrument_temperature
       ~MiniArray.plot
+      ~MiniArray.plot_map
       ~MiniArray.sefd
       ~MiniArray.sensitivity
       ~MiniArray.system_temperature
@@ -43,6 +44,7 @@
       ~MiniArray.antenna_delays
       ~MiniArray.antenna_gains
       ~MiniArray.antenna_names
+      ~MiniArray.antenna_position_geo
       ~MiniArray.antenna_positions
       ~MiniArray.antenna_weights
       ~MiniArray.baselines

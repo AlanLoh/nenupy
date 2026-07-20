@@ -54,7 +54,7 @@ from nenupy.instru import (
     instrument_temperature
 )
 from nenupy.instru.interferometer import Interferometer
-from nenupy.astro.astro_tools import radec_to_altaz, geo_to_orn, l93_to_geo
+from nenupy.astro.astro_tools import radec_to_altaz, geo_to_orn, l93_to_geo, geo_to_l93
 from nenupy.astro.sky import Sky, HpxSky
 from nenupy.astro.pointing import Pointing
 from nenupy.instru.antenna import ant_pol_to_ref
@@ -326,8 +326,8 @@ class MiniArray(Interferometer):
         antPos = np.array([ant['position'] for ant in miniarray_antennas.values()])
         self.rotation = nenufar_miniarrays[ma_name]['rotation'] * u.deg
         #rotation = np.radians(self.rotation.value + 180)
-        rotation = np.radians(360-self.rotation.value)
-        #rotation = np.radians(self.rotation.value)
+        # rotation = np.radians(360 - self.rotation.to_value(u.deg))
+        rotation = self.rotation.to_value(u.rad)
         rotMatrix = np.array(
             [
                 [np.cos(rotation), -np.sin(rotation), 0],
@@ -395,6 +395,11 @@ class MiniArray(Interferometer):
     @rotation.setter
     def rotation(self, r: u.Quantity):
         self._rotation = r
+
+
+    @property
+    def antenna_position_geo(self) -> EarthLocation:
+        return l93_to_geo(self.antenna_positions + geo_to_l93(self.position))
 
 
     @property
@@ -1174,6 +1179,11 @@ class NenuFAR(Interferometer):
 
 
     @property
+    def antenna_position_geo(self) -> EarthLocation:
+        return l93_to_geo(self.antenna_positions)
+
+
+    @property
     def antenna_positions_lambertorn(self) -> np.ndarray:
         """ Mini-Array positions expressed in the Lambert ORN system.
         In this system, the "North" is adjusted to Nançay's longitude.
@@ -1230,8 +1240,8 @@ class NenuFAR(Interferometer):
             :align: center
 
         """
-        antenna_positions_geo = l93_to_geo(self.antenna_positions)
-        return geo_to_orn(antenna_positions_geo)
+        return geo_to_orn(self.antenna_position_geo)
+
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #

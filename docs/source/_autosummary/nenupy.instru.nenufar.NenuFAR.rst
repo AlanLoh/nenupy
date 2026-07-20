@@ -25,6 +25,7 @@
       ~NenuFAR.effective_area
       ~NenuFAR.instrument_temperature
       ~NenuFAR.plot
+      ~NenuFAR.plot_map
       ~NenuFAR.sefd
       ~NenuFAR.sensitivity
       ~NenuFAR.system_temperature
@@ -40,6 +41,7 @@
       ~NenuFAR.antenna_delays
       ~NenuFAR.antenna_gains
       ~NenuFAR.antenna_names
+      ~NenuFAR.antenna_position_geo
       ~NenuFAR.antenna_positions
       ~NenuFAR.antenna_positions_lambertorn
       ~NenuFAR.antenna_weights
