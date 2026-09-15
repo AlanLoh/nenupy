@@ -285,16 +285,11 @@ def ant_pol_to_ref(mini_array: int = 0, antenna: str = "Ant01", polarization: st
 
     | Day | Mini-Array | Antenna | Attenuation (dB) | Start | Stop |
     |:--:|:--:|:--:|:--:|:--:|:--:|
-    | 1 | MA 88 | Ant 01 | 12.5 | 2026-06-24 06:30:00 | 2026-06-25 05:40:00 |
-    | 1 | MA 91 | Ant 08 | 13   | 2026-06-24 06:30:00 | 2026-06-25 05:40:00 |
-    | 1 | MA 93 | Ant 01 | 9.5  | 2026-06-24 06:30:00 | 2026-06-25 05:40:00 |
-    | 1 | MA 94 | Ant 02 | 15.5 | 2026-06-24 06:30:00 | 2026-06-25 05:40:00 |
-    | 1 | MA 95 | Ant 01 | 11.5 | 2026-06-24 06:30:00 | 2026-06-25 05:40:00 |
-    | 2 | MA 88 | Ant 05 | 12.5 | 2026-06-25 06:10:00 | ... |
-    | 2 | MA 91 | Ant 02 | 13   | 2026-06-25 06:10:00 | ... |
-    | 2 | MA 93 | Ant 02 | 9.5  | 2026-06-25 06:10:00 | ... |
-    | 2 | MA 94 | Ant 06 | 15.5 | 2026-06-25 06:10:00 | ... |
-    | 2 | MA 95 | Ant 02 | 11.5 | 2026-06-25 06:10:00 | ... |
+    | 1 | MA 88 | Ant 06 | 12.5 | 2026-09-15 12:15:00 | 2026-09-16 ??:??:00 |
+    | 1 | MA 90 | Ant 10 | 6.5  | 2026-09-15 12:15:00 | 2026-09-16 ??:??:00 |
+    | 1 | MA 91 | Ant 10 | 13   | 2026-09-15 12:15:00 | 2026-09-16 ??:??:00 |
+    | 1 | MA 93 | Ant 01 | 9.5  | 2026-09-15 12:15:00 | 2026-09-16 ??:??:00 |
+    | 1 | MA 95 | Ant 02 | 11.5 | 2026-09-15 12:15:00 | 2026-09-16 ??:??:00 |
 
 
     This function returns the list of measured reference dipoles that are equivalent to the inputs provided.
@@ -321,12 +316,20 @@ def ant_pol_to_ref(mini_array: int = 0, antenna: str = "Ant01", polarization: st
         _description_
     """
     
+    # ref_antennas = {
+    #     88: ["Ant01", "Ant02", "Ant03", "Ant05"], # 220°
+    #     91: ["Ant02", "Ant08", "Ant09"], # 90°
+    #     93: ["Ant01", "Ant02", "Ant05", "Ant10"], # 10°
+    #     94: ["Ant02", "Ant06"], # 20°
+    #     95: ["Ant01", "Ant02", "Ant05", "Ant10"] # 120°
+    # }
     ref_antennas = {
-        88: ["Ant01", "Ant02", "Ant03", "Ant05"], # 220°
-        91: ["Ant02", "Ant08", "Ant09"], # 90°
-        93: ["Ant01", "Ant02", "Ant05", "Ant10"], # 10°
-        94: ["Ant02", "Ant06"], # 20°
-        95: ["Ant01", "Ant02", "Ant05", "Ant10"] # 120°
+        88: ["Ant06", "Ant09", "Ant04", "Ant01"], # 220°
+        90: ["Ant05", "Ant10"],
+        91: ["Ant02", "Ant08", "Ant11", "Ant10"], # 90°
+        93: ["Ant01", "Ant02", "Ant03", "Ant04"], # 10°
+        #94: ["Ant02", "Ant06"], # 20°
+        95: ["Ant02", "Ant06", "Ant08"] # 120°
     }
 
     polarization_vectors = {
@@ -341,7 +344,7 @@ def ant_pol_to_ref(mini_array: int = 0, antenna: str = "Ant01", polarization: st
         antenna_names = np.array([ant for ant in miniarray_antennas.keys()])
         antPos = np.array([ant["position"] for ant in miniarray_antennas.values()])
         rotation = nenufar_miniarrays[f"MA{ma_id:03d}"]["rotation"] * u.deg
-        rotation = np.radians(360 - rotation.value)
+        rotation = rotation.to_value(u.rad) # np.radians(360 - rotation.value)
         rotMatrix = np.array(
             [
                 [np.cos(rotation), -np.sin(rotation), 0],
