@@ -292,12 +292,18 @@ class ST_Slice:
         )
 
         if self.time.max() < other.time.min():
-            new_data = np.vstack((self.value, other.value))
+            if (self.value.ndim > 1) and (other.ndim > 1):
+                new_data = np.vstack((self.value, other.value))
+            else:
+                new_data = np.hstack((self.value, other.value))
             new_time = Time(np.hstack((self.time.jd, other.time.jd)), format='jd')
             new_ana_times = Time(np.hstack((self.analog_pointing_times.jd, other.analog_pointing_times.jd)), format='jd')
             new_digi_times = Time(np.hstack((self.digital_pointing_times.jd, other.digital_pointing_times.jd)), format='jd')
         else:
-            new_data = np.vstack((other.value, self.value))
+            if (self.value.ndim > 1) and (other.ndim > 1):
+                new_data = np.vstack((other.value, self.value))
+            else:
+                new_data = np.hstack((other.value, self.value))
             new_time = Time(np.hstack((other.time.jd, self.time.jd)), format='jd')
             new_ana_times = Time(np.hstack((other.analog_pointing_times.jd, self.analog_pointing_times.jd)), format='jd')
             new_digi_times = Time(np.hstack((other.digital_pointing_times.jd, self.digital_pointing_times.jd)), format='jd')
