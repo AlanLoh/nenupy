@@ -409,13 +409,6 @@ def radec_to_altaz(
             FK5(equinox=time)
         )
 
-        # ha = hour_angle(
-        #     radec=radec,
-        #     time=time,
-        #     observer=observer,
-        #     fast_compute=fast_compute
-        # )
-
         two_pi = Angle(360.0, unit='deg')
 
         ha = hour_angle(
@@ -435,8 +428,9 @@ def radec_to_altaz(
         elevation = Latitude(np.arcsin(sin_elevation), unit="rad")
 
         # Compute azimuth
-        cos_azimuth = (sin_dec - np.sin(elevation.rad)*sin_lat)/\
-            (np.cos(elevation.rad)*cos_lat)
+        cos_azimuth = (sin_dec - np.sin(elevation.rad) * sin_lat)/\
+            (np.cos(elevation.rad) * cos_lat)
+        cos_azimuth = np.clip(cos_azimuth, -1, 1) # avoid numerical errors that may lead to invalid cosine values
         azimuth = Longitude(np.arccos(cos_azimuth), unit="rad")
 
         if azimuth.isscalar:
