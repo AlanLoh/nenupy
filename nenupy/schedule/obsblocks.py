@@ -254,14 +254,16 @@ class Block(object):
         if other == 0:
             return self
         else:
-            print(other)
             return self.__add__(other)
 
 
     def __getitem__(self, n):
         """
         """
-        return self._blocks[n]
+        if isinstance(n, slice):
+            return sum(self._blocks[n])
+        else:
+            return self._blocks[n]
 
 
     # --------------------------------------------------------- #
