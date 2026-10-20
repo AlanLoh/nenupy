@@ -960,12 +960,12 @@ class UTCHourCnst(ScheduleConstraint):
         # Selection
         if self.h_min > self.h_max:
             # If 'midnight' is in the range
-            mask = (local_hours <= self.h_min.hour) &\
+            mask = (local_hours < self.h_min.hour) &\
                 (local_hours >= self.h_max.hour)
             mask = ~mask
         else:
             mask = (local_hours >= self.h_min.hour) &\
-                (local_hours <= self.h_max.hour)
+                (local_hours < self.h_max.hour)
         score = mask[:-1].astype(float)
         self.score = np.where(score==0, np.nan, score)
         return self.score
