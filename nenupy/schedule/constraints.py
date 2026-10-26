@@ -509,7 +509,6 @@ class ElevationCnst(TargetConstraint):
 
         elevation = target.elevation.deg
         elevMean = (elevation[1:] + elevation[:-1])/2
-        # elevMean[elevMean <= self.elevationMin.deg] = 0.
         elevMean[elevMean <= self.elevationMin.deg] = np.nan
 
         # if elevMax == 0.:

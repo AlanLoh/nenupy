@@ -1196,16 +1196,23 @@ class Schedule(_TimeSlots):
                         f"<ObsBlock> #{i} '{blk.name}' cannot be scheduled."
                     )
                     continue
-                elif not np.any(score >= minimal_score):
-                    log.warning(
-                        f"<ObsBlock> #{i} '{blk.name}' score is < {minimal_score} -> not booked."
-                    )
-                    continue
+                # elif not np.any(score >= minimal_score):
+                #     log.warning(
+                #         f"<ObsBlock> #{i} '{blk.name}' score is < {minimal_score} -> not booked."
+                #     )
+                #     continue
                 bestStartIdx = np.argmax(
                     score
                 )
                 # Assign a start and stop time to the block and update the free slots
                 blk.startIdx = bestStartIdx
+                if blk.score < minimal_score:
+                    log.warning(
+                        f"<ObsBlock> #{i} '{blk.name}' score ({blk.score}) is < {minimal_score} -> not booked."
+                    )
+                    blk.startIdx = None
+                    continue
+
                 bestStopIdx = bestStartIdx + blk.nSlots - 1
                 self.freeSlots[bestStartIdx:bestStopIdx + 1] = False
                 if blk.n_delay_slots != 0:
@@ -1221,10 +1228,8 @@ class Schedule(_TimeSlots):
                 blk.time_max = self.stops[bestStopIdx]
 
                 # Update the night / day allocated hour observation budget
-                if day_hours is not None:
-                    day_hours_used += (sum(self.day_mask[blk.startIdx: blk.startIdx + blk.nSlots]) * self.dt).sec / 3600
-                if night_hours is not None:
-                    night_hours_used += (sum(self.night_mask[blk.startIdx: blk.startIdx + blk.nSlots]) * self.dt).sec / 3600
+                day_hours_used += (sum(self.day_mask[blk.startIdx: blk.startIdx + blk.nSlots]) * self.dt).sec / 3600
+                night_hours_used += (sum(self.night_mask[blk.startIdx: blk.startIdx + blk.nSlots]) * self.dt).sec / 3600
 
             log.info(
                 f'{sum(self._toSchedule) - n_unscheduled_blocks}/'
@@ -1233,9 +1238,12 @@ class Schedule(_TimeSlots):
             )
             if day_hours is not None:
                 log.info(f"Day (used/planned): {day_hours_used:.2f}h / {day_hours:.2f}h")
+            else:
+                log.info(f"Day hours: {day_hours_used:.2f}")
             if night_hours is not None:
                 log.info(f"Night (used/planned): {night_hours_used:.2f}h / {night_hours:.2f}h")
-
+            else:
+                log.info(f"Night hours: {night_hours_used:.2f}")
 
     def extend_scheduled_observations(self, relative_score_threshold: float = 1., max_duration: TimeDelta = None) -> None:
         """ """
@@ -1286,7 +1294,7 @@ class Schedule(_TimeSlots):
 
             # Compute the constraint score for each possibility (i.e. from self.nSlots to n_slots)
             extended_windows_size = np.arange(block.nSlots + 1, n_slots + 1)# + 1 # Add 1 to evaluate the constraints
-            extended_windows_slots = [np.arange(window_size) - int(window_size/2) + block.startIdx + int(block.nSlots/2) for window_size in extended_windows_size]
+            extended_windows_slots = [np.arange(window_size) - int(window_size/2) + block.startIdx + int(block.nSlots/2) + 1 for window_size in extended_windows_size]
             # Deal with edges (don't check indices outside of the Schedule range)
             #extended_windows_slots = [window_indices[(window_indices >= 0) * (window_indices < self.size - 1)] for window_indices in extended_windows_slots] # self.size - 1 to compensate for the constraints evaluation
             extended_windows_slots = [window_indices[(window_indices >= 0) * (window_indices < self.size)] for window_indices in extended_windows_slots]
