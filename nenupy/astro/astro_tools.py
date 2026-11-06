@@ -33,7 +33,8 @@ __all__ = [
     "geo_to_orn",
     "etrs_to_enu",
     "AstroObject",
-    "faraday_angle"
+    "faraday_angle",
+    "to_bjd_tdb"
 ]
 
 
@@ -1322,5 +1323,42 @@ def faraday_angle(frequency: u.Quantity, rotation_measure: u.Quantity, inverse: 
     if inverse:
         angle *= -1
     return angle.decompose()# % (2*np.pi)
+# ============================================================= #
+# ============================================================= #
+
+
+# ============================================================= #
+# ------------------------ to_bjd_tdb ------------------------- #
+# ============================================================= #
+
+def to_bjd_tdb(time: Time, coordinates : SkyCoord, location : EarthLocation = nenufar_position) -> Time :
+    """Computes the barycentric Julian date in barycentric dynamical time.
+
+        :param time:
+            The time object to apply the correction to.
+        :type time:
+            :class:`~astropy.time.core.Time``
+        :param coordinates:
+            The coordinates of the object observed, fixed ICRS coordinates.
+        :type coordinates:
+            :class:~astropy.coordinates.SkyCoord`
+        :param location:
+            The location of the observer.
+        :type location:
+            :class:`~astropy.coordinates.EarthLocation`
+
+        :returns:
+            The corrected time.
+        :rtype:
+            :class:`~astropy.time.core.Time`
+    """
+
+
+    ltt = time.light_travel_time(coordinates, kind='barycentric', location=location)
+
+    bjd_tdb = (time + ltt).tdb.jd
+
+    return Time(bjd_tdb, format='jd', scale='tdb')
+
 # ============================================================= #
 # ============================================================= #

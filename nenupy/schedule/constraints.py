@@ -155,13 +155,16 @@ from abc import ABC
 import numpy as np
 from astropy.time import Time, TimeDelta
 from astropy.coordinates import Angle, Longitude
+import astropy.units as u
 import pytz
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from copy import copy
 from typing import List, Tuple, Union
+from scipy.optimize import newton
 
 from nenupy.schedule.targets import _Target, SSTarget
+from nenupy.astro.astro_tools import to_bjd_tdb
 
 import logging
 log = logging.getLogger(__name__)
@@ -804,6 +807,100 @@ class LocalSiderealTimeCnst(TargetConstraint):
         return self.score
 # ============================================================= #
 # ============================================================= #
+
+
+# ================================================================== #
+# ----------------------- PhaseCoverageCnst ------------------------ #
+# ================================================================== #
+
+class PhaseCoverageCnst(TargetConstraint):
+    def __init__(self, 
+                phase_range : Tuple,
+                eccentricity : float,
+                orbital_period : u.Quantity,
+                reference_time : Time,
+                reference_time_in_bjd_tdb : bool = False,
+                weight : float = 1.
+        ):
+
+        super().__init__(weight)
+        self.reference_time = reference_time
+        self.phase_range = phase_range
+        self.eccentricity = eccentricity
+        self.orbital_period = orbital_period.to(u.d)
+        self.reference_time_in_bjd_tdb = reference_time_in_bjd_tdb
+
+    # --------------------------------------------------------- #
+    # ------------------------ Methods ------------------------ #
+    def get_score(self, indices):
+        r""" Computes the :class:`~nenupy.schedule.constraint.PhaseCoverageCnst`'s
+            score for the given ``indices``.
+
+            Returns 1 if the requested phase range is within the indices.
+            
+            The score is computed as:
+
+            .. math::
+                {\rm score} = \begin{cases}
+                    1, \mathbf{/Phi}((\mathbf{t}{\rm indices})) \in (\Phi_{\rm min},\Phi_{\rm max})\\
+                    0, \mathbf{/Phi}((\mathbf{t}{\rm indices})) \notin (\Phi_{\rm min},\Phi_{\rm max})
+                \end{cases}
+            
+            where :math:`(\Phi_{\rm min},\Phi_{\rm max})` is the phase range selected
+            and :math:`\mathbf{t}` is the time range on which the
+            target phases are computed.
+
+            :param indices:
+                Indices of :class:`~nenupy.schedule.constraint.Constraint.score`
+                on which the score will be evaluated.
+            :type indices:
+                :class:`~numpy.ndarray`
+
+            :returns:
+                Constraint score.
+            :rtype: `float`
+        """
+        self._is_numpy_instance(indices)
+        #return np.sum(self.score[indices], axis=-1)
+        return int((self.score[indices]>0.).any())
+
+
+    # --------------------------------------------------------- #
+    # ----------------------- Internal ------------------------ #
+    def _evaluate(self, target, nslots = None):
+        self._is_target_instance(target)
+        
+        reference_time = self.reference_time if self.reference_time_in_bjd_tdb else to_bjd_tdb(self.reference_time, target._target)
+        times_bjd_tbd = target._time_bjd_tdb
+        mean_anomaly = 2 * np.pi * (times_bjd_tbd-reference_time) / self.orbital_period
+        
+        if self.eccentricity != 0 :
+            omega_orb = np.array([self.true_anomaly(m,self.eccentricity) for m in mean_anomaly.value])
+            orbital_phase = omega_orb/360
+        else :
+            orbital_phase = mean_anomaly % (2*np.pi) / (2*np.pi)
+        
+        orbital_phase = np.mod(orbital_phase, 1)
+
+        phase_min = self.phase_range[0] ; phase_max = self.phase_range[1]
+        mask = (orbital_phase >= phase_min) & (orbital_phase <= phase_max)
+        self.score = np.where(mask, 1., 0.)
+        return self.score[:-1]
+
+    @staticmethod
+    def kepler_equation(E,eccentricity,mean_anomaly):
+        return E - (eccentricity * np.sin(E)) - mean_anomaly
+
+    @staticmethod
+    def true_anomaly(mean_anomaly, eccentricity):
+        E = newton(PhaseCoverageCnst.kepler_equation, mean_anomaly, args=(eccentricity,mean_anomaly))
+        true_anomaly = 2 * np.atan(np.sqrt((1+eccentricity)/(1-eccentricity)) * np.tan(E/2))
+        return true_anomaly * 180 / np.pi
+
+# ============================================================= #
+# ============================================================= #
+
+
 
 # ============================================================= #
 # ----------------------- LocalTimeCnst ----------------------- #

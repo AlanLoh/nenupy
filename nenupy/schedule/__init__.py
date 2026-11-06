@@ -12,6 +12,7 @@ from .constraints import (
     AzimuthCnst,
     LocalSiderealTimeCnst,
     LocalTimeCnst,
+    PhaseCoverageCnst,
     UTCHourCnst,
     TimeRangeCnst,
     NightTimeCnst,
