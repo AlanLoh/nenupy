@@ -1294,10 +1294,14 @@ class Schedule(_TimeSlots):
 
             # Compute the constraint score for each possibility (i.e. from self.nSlots to n_slots)
             extended_windows_size = np.arange(block.nSlots + 1, n_slots + 1)# + 1 # Add 1 to evaluate the constraints
-            extended_windows_slots = [np.arange(window_size) - int(window_size/2) + block.startIdx + int(block.nSlots/2) + 1 for window_size in extended_windows_size]
+            extended_windows_slots = [np.arange(window_size) - int(window_size/2) + block.startIdx + int(block.nSlots/2) for window_size in extended_windows_size]
             # Deal with edges (don't check indices outside of the Schedule range)
-            #extended_windows_slots = [window_indices[(window_indices >= 0) * (window_indices < self.size - 1)] for window_indices in extended_windows_slots] # self.size - 1 to compensate for the constraints evaluation
+            # extended_windows_slots = [window_indices[(window_indices >= 0) * (window_indices < self.size - 1)] for window_indices in extended_windows_slots] # self.size - 1 to compensate for the constraints evaluation
             extended_windows_slots = [window_indices[(window_indices >= 0) * (window_indices < self.size)] for window_indices in extended_windows_slots]
+            if len(extended_windows_slots) == 0:
+                extend_mask[-1] = False
+                slot_extension_indices.append([])
+                continue
             # Compute the constraint score
             constraint_score = block.constraints.evaluate_various_nslots(
                 target=block.target,
@@ -1583,6 +1587,13 @@ class Schedule(_TimeSlots):
                     linestyle="-",
                     linewidth=0.5
                 )
+            # Add last stop
+            ax.axvline(
+                self.stops[time_mask][-1].datetime,
+                color="gray",
+                linestyle="-",
+                linewidth=0.5
+            )
 
         # Display unavailable slots
         if self.reserved_blocks is not None:
@@ -1702,6 +1713,13 @@ class Schedule(_TimeSlots):
                         linestyle='-',
                         linewidth=0.5
                     )
+                # Add last stop
+                ax.axvline(
+                    self.stops[tMask][-1].datetime,
+                    color="gray",
+                    linestyle="-",
+                    linewidth=0.5
+                )
 
             # Display unavailable slots
             if self.reserved_blocks is not None:
@@ -1773,14 +1791,14 @@ class Schedule(_TimeSlots):
 
             # Get the constraint and maximum possible score
             sliding_indices = np.arange(blk.nSlots)[None, :] +\
-                np.arange(self.size - blk.nSlots)[:, None]
-            self._cnstScores[i, :-blk.nSlots] = np.mean(
+                np.arange(self.size - blk.nSlots + 1)[:, None]
+            self._cnstScores[i, :-blk.nSlots + 1] = np.mean(
                 blk.constraints.score[sliding_indices],
                 axis=1
             )
             # Set constraint score to zero if forbidden index
             forbidden_mask = np.any(~self.freeSlots[sliding_indices], axis=1)
-            self._cnstScores[i, :-blk.nSlots][forbidden_mask] *= 0
+            self._cnstScores[i, :-blk.nSlots + 1][forbidden_mask] *= 0
             self._maxScores[i] = np.max(self._cnstScores[i, :])
 
             # Check that the constraints are non zero
