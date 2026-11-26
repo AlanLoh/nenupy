@@ -161,10 +161,9 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from copy import copy
 from typing import List, Tuple, Union
-from scipy.optimize import newton
 
 from nenupy.schedule.targets import _Target, SSTarget
-from nenupy.astro.astro_tools import to_bjd_tdb
+from nenupy.astro.astro_tools import to_bjd_tdb, orbital_phase
 
 import logging
 log = logging.getLogger(__name__)
@@ -813,22 +812,22 @@ class LocalSiderealTimeCnst(TargetConstraint):
 # ----------------------- PhaseCoverageCnst ------------------------ #
 # ================================================================== #
 
-class PhaseCoverageCnst(TargetConstraint):
+class PhaseCoverageCnst(ScheduleConstraint):
     def __init__(self, 
-                phase_range : Tuple,
-                eccentricity : float,
-                orbital_period : u.Quantity,
-                reference_time : Time,
-                reference_time_in_bjd_tdb : bool = False,
-                weight : float = 1.
+                target: _Target,
+                phase_range: Tuple,
+                eccentricity: float,
+                orbital_period: u.Quantity,
+                reference_time: Time,
+                weight: float = 1.
         ):
 
         super().__init__(weight)
+        self.target = target
         self.reference_time = reference_time
         self.phase_range = phase_range
         self.eccentricity = eccentricity
-        self.orbital_period = orbital_period.to(u.d)
-        self.reference_time_in_bjd_tdb = reference_time_in_bjd_tdb
+        self.orbital_period = orbital_period
 
     # --------------------------------------------------------- #
     # ------------------------ Methods ------------------------ #
@@ -867,39 +866,27 @@ class PhaseCoverageCnst(TargetConstraint):
 
     # --------------------------------------------------------- #
     # ----------------------- Internal ------------------------ #
-    def _evaluate(self, target, nslots = None):
-        self._is_target_instance(target)
-        
-        reference_time = self.reference_time if self.reference_time_in_bjd_tdb else to_bjd_tdb(self.reference_time, target._target)
-        times_bjd_tbd = target._time_bjd_tdb
-        mean_anomaly = 2 * np.pi * (times_bjd_tbd-reference_time) / self.orbital_period
-        
-        if self.eccentricity != 0 :
-            omega_orb = np.array([self.true_anomaly(m,self.eccentricity) for m in mean_anomaly.value])
-            orbital_phase = omega_orb/360
-        else :
-            orbital_phase = mean_anomaly % (2*np.pi) / (2*np.pi)
-        
-        orbital_phase = np.mod(orbital_phase, 1)
+    def _evaluate(self, time, nslots = None):
+        self._is_time_instance(time)
 
-        phase_min = self.phase_range[0] ; phase_max = self.phase_range[1]
-        mask = (orbital_phase >= phase_min) & (orbital_phase <= phase_max)
+        phase = orbital_phase(
+            time=time,
+            reference_time=self.reference_time,
+            coordinates=self.target._target,
+            orbital_period=self.orbital_period,
+            eccentricity=self.eccentricity
+        )
+
+        phase_start, phase_stop = self.phase_range
+        if phase_start < phase_stop:
+            mask = (phase >= phase_start) * (phase <= phase_stop)
+        else:
+            mask = (phase <= phase_start) * (phase >= phase_stop)
         self.score = np.where(mask, 1., 0.)
+
         return self.score[:-1]
-
-    @staticmethod
-    def kepler_equation(E,eccentricity,mean_anomaly):
-        return E - (eccentricity * np.sin(E)) - mean_anomaly
-
-    @staticmethod
-    def true_anomaly(mean_anomaly, eccentricity):
-        E = newton(PhaseCoverageCnst.kepler_equation, mean_anomaly, args=(eccentricity,mean_anomaly))
-        true_anomaly = 2 * np.atan(np.sqrt((1+eccentricity)/(1-eccentricity)) * np.tan(E/2))
-        return true_anomaly * 180 / np.pi
-
 # ============================================================= #
 # ============================================================= #
-
 
 
 # ============================================================= #

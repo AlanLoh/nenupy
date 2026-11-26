@@ -37,8 +37,6 @@ from astropy.coordinates import (
 import numpy as np
 import copy
 
-from nenupy.astro.astro_tools import to_bjd_tdb
-
 import logging
 log = logging.getLogger(__name__)
 
@@ -77,7 +75,6 @@ class _Target(object):
     def __init__(self, target):
         self._target = target
         self._lst = None
-        self._time_bjd_tdb = None
         self._fk5 = None
         self._hourAngle = None
         self._elevation = None
@@ -124,7 +121,6 @@ class _Target(object):
         target_sliced = copy.copy(self)
         target_sliced.reset()
         target_sliced._lst = self._lst[slice_obj]
-        target_sliced._time_bjd_tdb = self._time_bjd_tdb[slice_obj]
         target_sliced._fk5 = self._fk5[slice_obj]
         target_sliced._hourAngle = self._hourAngle[slice_obj]
         target_sliced._elevation = self._elevation[slice_obj]
@@ -136,7 +132,6 @@ class _Target(object):
     def reset(self) -> None:
         """ Clear the Target instance from previous computations. """
         self._lst = None
-        self._time_bjd_tdb = None
         self._fk5 = None
         self._hourAngle = None
         self._elevation = None
@@ -154,7 +149,6 @@ class _Target(object):
             time = Time([time.isot, time.isot])
 
         self._localSiderealTime(time)
-        self._compute_time_bjd_tdb(time)
         self._positionAtEquinox(time)
         self._computeHourAngle()
         self._computeHorizontalCoords()
@@ -188,18 +182,6 @@ class _Target(object):
         )
         self._fk5 = fk5
 
-    def _compute_time_bjd_tdb(self,time):
-        """
-        """
-        if type(self._target) == str :
-            #Makes no sens for SolarSystemTargets
-            self._time_bjd_tdb = time
-        else :
-            time_bjd_tdb = to_bjd_tdb(
-                    time = time,
-                    coordinates=self._target
-                    )
-            self._time_bjd_tdb = time_bjd_tdb
 
     def _computeHourAngle(self):
         """
