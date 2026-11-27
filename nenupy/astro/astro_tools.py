@@ -59,6 +59,7 @@ from astropy.coordinates import (
 )
 import pytz
 from pyproj import Transformer, Proj
+from scipy.optimize import newton
 
 from nenupy import nenufar_position
 
@@ -1332,7 +1333,7 @@ def faraday_angle(frequency: u.Quantity, rotation_measure: u.Quantity, inverse: 
 # ============================================================= #
 
 def to_bjd_tdb(time: Time, coordinates : SkyCoord, location : EarthLocation = nenufar_position) -> Time :
-    """Computes the barycentric Julian date in barycentric dynamical time.
+    r"""Computes the barycentric Julian date in barycentric dynamical time.
 
         :param time:
             The time object to apply the correction to.
@@ -1360,5 +1361,78 @@ def to_bjd_tdb(time: Time, coordinates : SkyCoord, location : EarthLocation = ne
 
     return Time(bjd_tdb, format='jd', scale='tdb')
 
+# ============================================================= #
+# ============================================================= #
+
+# ============================================================= #
+# ----------------------- Orbital phase ----------------------- #
+# ============================================================= #
+
+def orbital_phase(times : Time, coordinates : SkyCoord, reference_time : Time, orbital_period : u.Quantity, eccentricity : float = 0.):
+    r"""Computes the orbital phase of a given target over a given time range. The eccentricity of the orbit can modifiy the phase coverage, this is taken into account by the eccentric anomaly.
+        The eccentric anomaly is the angle between the foyer of the orbit and the position of the target on the ellipse and the true anomaly (:math:`\nu`) is the angle between the periastron and the true position of the target on its orbit.
+        If this anomaly is not considered, the phase coverage will not be uniform, and we want to cover all host-target configurations so the mean anomaly is not enough in the case of an eccentric orbit.
+
+        The true anomaly is given as :
+
+        .. math::
+            \nu = 2 \atan\left( \sqrt{\frac{1+e}{1-e}} \times \tan(E/2) \right)
+
+        where :math:`e` is the eccentricity of the orbit and :math:`E` is the true anomaly, i.e. the angle between the periaspide, 
+        the center of the ellipse and the projection of the target position on the auxilliary circle. The true anomaly is linked to the eccentricity and the mean anomaly :math:`M` by the relation :
+        .. math::
+            M = E - e\sin(E), \ \text{with} \ M = 2\pi \frac{times-jd0}{T_{orb}}
+        
+        where :math:`T_{orb}` is the orbital period of the target, and :math:`jd0` is the reference time (transit midpoint if the orbit is eccentric or epoch of periastron if not).
+
+        Finally, the phase is defined as :
+        .. math:
+            \Phi = \frac{M\% E \pi}{2\pi} \ if \ e=0 \\
+            \Phi = \frac{\nu}{360} \ if \ e \diff 0
+    
+        :param times:
+            The time range where to evaluate the phase, will be converted in bjd_tdb.
+        :type times:
+            :class:`~astropy.time.core.Time`
+        :param coordinates:
+            The coordinates of the observed target.
+        :type coordinates:
+            :class:`~astropy.coordinates.SkyCoord``
+        :param reference_time:
+            The reference for the phase. If the target has an eccentric orbit it should be the orbital period. If not, it should the transit midpoint. Will be converted to bjd_tdb.
+        :type reference_time:
+            :class:`~astropy.time.core.Time``
+        :param orbital_period:
+            The orbital period of the target, preferably in days.
+        :type orbital_period:
+            :class:`~astropy.units.Quantity`
+        :param eccentricity:
+            The value of the eccentricity of the orbit. Default is 0.
+        :type eccentricity:
+            float
+            
+    """
+
+    def kepler_equation(E,eccentricity,mean_anomaly):
+        return E - (eccentricity * np.sin(E)) - mean_anomaly
+    
+    def true_anomaly(mean_anomaly, eccentricity):
+        E = newton(kepler_equation, mean_anomaly, args=(eccentricity,mean_anomaly))
+        true_anomaly = 2 * np.atan(np.sqrt((1+eccentricity)/(1-eccentricity)) * np.tan(E/2))
+        return true_anomaly * 180 / np.pi
+
+    reference_time = reference_time if reference_time.scale == 'tbd' else to_bjd_tdb(reference_time, coordinates)
+    times_bjd_tbd = times if times.scale == 'tdb' else to_bjd_tdb(times,coordinates)
+    mean_anomaly = 2 * np.pi * (times_bjd_tbd-reference_time) / orbital_period.to(u.d)
+    
+    if eccentricity != 0 :
+        omega_orb = np.array([true_anomaly(m,eccentricity) for m in mean_anomaly.value])
+        orbital_phase = omega_orb/360
+    else :
+        orbital_phase = mean_anomaly % (2*np.pi) / (2*np.pi)
+    
+    orbital_phase = np.mod(orbital_phase, 1)
+
+    return orbital_phase
 # ============================================================= #
 # ============================================================= #

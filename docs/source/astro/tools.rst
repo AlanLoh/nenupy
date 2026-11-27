@@ -16,4 +16,7 @@ Astronomy Tools
     ~nenupy.astro.astro_tools.l93_to_etrs
     ~nenupy.astro.astro_tools.geo_to_etrs
     ~nenupy.astro.astro_tools.etrs_to_enu
+    ~nenupy.astro.astro_tools.to_bjd_tdb
+    ~nenupy.astro.astro_tools.orbital_phase
+
 

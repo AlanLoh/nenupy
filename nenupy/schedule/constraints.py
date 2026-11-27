@@ -841,11 +841,11 @@ class PhaseCoverageCnst(ScheduleConstraint):
 
             .. math::
                 {\rm score} = \begin{cases}
-                    1, \mathbf{/Phi}((\mathbf{t}{\rm indices})) \in (\Phi_{\rm min},\Phi_{\rm max})\\
-                    0, \mathbf{/Phi}((\mathbf{t}{\rm indices})) \notin (\Phi_{\rm min},\Phi_{\rm max})
+                    1, \mathbf{/Phi}((\mathbf{t}{\rm indices})) \in (\Phi_{\rm start},\Phi_{\rm end})\\
+                    0, \mathbf{/Phi}((\mathbf{t}{\rm indices})) \notin (\Phi_{\rm start},\Phi_{\rm end})
                 \end{cases}
             
-            where :math:`(\Phi_{\rm min},\Phi_{\rm max})` is the phase range selected
+            where :math:`(\Phi_{\rm start},\Phi_{\rm end})` is the phase range selected
             and :math:`\mathbf{t}` is the time range on which the
             target phases are computed.
 
@@ -870,7 +870,7 @@ class PhaseCoverageCnst(ScheduleConstraint):
         self._is_time_instance(time)
 
         phase = orbital_phase(
-            time=time,
+            times=time,
             reference_time=self.reference_time,
             coordinates=self.target._target,
             orbital_period=self.orbital_period,
@@ -883,7 +883,6 @@ class PhaseCoverageCnst(ScheduleConstraint):
         else:
             mask = (phase <= phase_start) * (phase >= phase_stop)
         self.score = np.where(mask, 1., 0.)
-
         return self.score[:-1]
 # ============================================================= #
 # ============================================================= #
