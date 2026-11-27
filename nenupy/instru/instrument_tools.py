@@ -311,6 +311,68 @@ def read_cal_table(calibration_file: str = None, n_mini_arrays: int = 96) -> np.
 # ============================================================= #
 # ============================================================= #
 
+# ============================================================= #
+# ---------------------- write_cal_table ----------------------- #
+# ============================================================= #
+def write_cal_table(calibration_file: str = None, calibration: np.ndarray = None, CalTableHeader: dict = None) -> None:
+    """ Writes NenuFAR antenna delays calibration file.
+
+        :param calibration_file: 
+            Name of the calibration file to write.
+        :type calibration_file: `str`
+        :param calibration:
+            The calibration data to write.
+            Complex128 array of shape (512, 96, 2) containing the calibration data.
+        :type calibration: `numpy.ndarray`
+        :param CalTableHeader:
+            The header information for the calibration table.
+        :type CalTableHeader: `dict`
+
+        :raises FileExistsError:
+            If ``calibration_file`` already exists.
+    """
+
+    if os.path.isfile(calibration_file):
+        raise FileExistsError(
+            f"Calibration file '{calibration_file}' already exists."
+        )
+
+    # constants used for calibration table files
+    NB_MAX_MR = 96
+    NB_CURRENT_SUBBAND = 512
+    NB_POLAR = 2
+
+    if calibration.shape != (NB_CURRENT_SUBBAND, NB_MAX_MR, NB_POLAR):
+        log.warning(f"The residual delay calibration table shape is incorrect. {calibration.shape} instead of {(NB_CURRENT_SUBBAND, NB_MAX_MR, NB_POLAR)}. Maybe there's a hidden mistake.")
+
+    if calibration.dtype != np.complex128:
+        log.warning(f"The residual delay calibration table dtype is incorrect. {calibration.dtype} instead of {np.complex128}. Maybe there's a hidden mistake.")
+
+    My_calib = np.ones((NB_CURRENT_SUBBAND, NB_MAX_MR, NB_POLAR), dtype="complex128")
+    My_calib[:,:NB_MAX_MR,:] = calibration
+
+    CalTableHeader_bytes = f"""CalTableHeader.Observation.Station = {CalTableHeader.get('Observation.Station', 'Unknown')}
+    CalTableHeader.Observation.Mode = {                              CalTableHeader.get('Observation.Mode', 'Unknown')}
+    CalTableHeader.Observation.Source = {                            CalTableHeader.get('Observation.Source', 'Unknown')}
+    CalTableHeader.Observation.Date = {                              CalTableHeader.get('Observation.Date', 'Unknown')}
+    CalTableHeader.Calibration.Version = {                           CalTableHeader.get('Calibration.Version', 'Unknown')}
+    CalTableHeader.Calibration.Name = {                              CalTableHeader.get('Calibration.Name', 'Unknown')}
+    CalTableHeader.Calibration.Date = {                              CalTableHeader.get('Calibration.Date', 'Unknown')}
+    CalTableHeader.Calibration.PPSDelay = [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
+    CalTableHeader.Comment = {                                       CalTableHeader.get('Comment', 'None')}
+    """
+
+    log.info(f"Writing calibration table {calibration_file} with header:\n{CalTableHeader_bytes}")
+
+    with open(calibration_file, 'wb') as fid:
+        fid.write(b"HeaderStart\n")
+        fid.write(CalTableHeader_bytes.encode('utf-8'))
+        fid.write(b"HeaderStop\n")
+        fid.write(My_calib.tobytes())
+# ============================================================= #
+# ============================================================= #
+
+
 
 # ============================================================= #
 # ---------------- generate_nenufar_subarrays ----------------- #
